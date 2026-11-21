@@ -53,6 +53,8 @@ tightly coupled: `RouteExpander` reads SID/STAR/airway data straight out of a `N
 | `src/Yaat.Sim/Data/Vnas/NavDataPathResolver.cs` | NavData.dat resolve: vNAS cache, download, bundled fallback; `PinToBundled` (tests) reads the committed file and manifest alone |
 | `src/Yaat.Sim/Data/Vnas/CifpPathResolver.cs` | Current AIRAC CIFP: cache, FAA download, bundled gz fallback, and the cycle actually resolved; `PinToBundled` (tests) reads the committed bundle and manifest alone, decompressed to a content-keyed temp file; supplementary = recency-capped chain of cached prior cycles, newest→oldest (retired/renamed procedures) |
 | `src/Yaat.Sim/Data/Vnas/AiracCycle.cs` | AIRAC cycle calculator (epoch Jan 23 2025, 28-day); CyclesBetween() for the supplementary recency cap |
+| `src/Yaat.Sim/Data/Vnas/VnasTrainingClient.cs` | Read-only data-api training client (`/api/training`, no token, 15 s per request): `GetScenarioSummariesAsync(artccId)`, `GetScenarioJsonAsync(id)`; a `VnasFetchResult<T>` tells a failed call from an empty answer |
+| `src/Yaat.Sim/Data/Vnas/VnasArtccList.cs` | The vNAS ARTCC ids: a committed list, replaced on demand by `RefreshAsync` from data-api's `/api/artccs` (a very large body, streamed, keeping each id and facility name), cached in `scenarios/artccs.json` under `YaatPaths`; a failed refresh keeps the old cache |
 | `src/Yaat.Sim/Data/Vnas/VnasConfig.cs` | Config API DTO |
 | `src/Yaat.Sim/Data/Vnas/CacheManifest.cs` | Cache manifest tracking serials |
 | `src/Yaat.Sim/Data/Vnas/AircraftSpecEntry.cs` | VNAS aircraft specs model |
@@ -319,7 +321,7 @@ list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaid
 
 ## Route expansion (`RouteExpander`)
 
-`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and
+`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` splits the route on spaces and
 walks tokens left to right. For each token it tries, in order:
 
 1. **SID** — `navDb.ResolveSidId(rawName)` matches → emit the SID body, then resolve the transition (see RV-SID section below).
@@ -378,7 +380,7 @@ as synthetic "transitions": NIMI5 carries `[OAK, CCR]`, `[OAK, PYE]`, `[OAK, SAU
 downstream fix. These are **not** published CIFP transitions; they're routing hints, and each one starts by transiting back
 through OAK.
 
-**The failure.** When a route token after the SID doesn't name any transition, `ExpandSid` (`RouteExpander.cs:111`) decides what
+**The failure.** When a route token after the SID doesn't name any transition, `RouteExpander.ExpandSid` decides what
 to do based on the flag:
 
 - `true` (autocomplete): emit **every** transition's fixes, so the UI can suggest any reachable exit fix.

@@ -5,7 +5,8 @@ using Yaat.Client.Logging;
 namespace Yaat.Client.Services;
 
 /// <summary>
-/// Fetches training scenarios, weather profiles, and airport summaries from the vNAS data API.
+/// Fetches weather profiles from the vNAS data API. Training scenarios are read through
+/// <see cref="Yaat.Sim.Data.Vnas.VnasTrainingClient"/>.
 /// </summary>
 public static class TrainingDataService
 {
@@ -20,35 +21,6 @@ public static class TrainingDataService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
     };
-
-    public static async Task<List<ScenarioSummaryDto>> GetScenarioSummariesAsync(string artccId)
-    {
-        try
-        {
-            string url = $"{BaseUrl}/scenario-summaries/by-artcc/{artccId}";
-            string json = await Http.GetStringAsync(url);
-            return JsonSerializer.Deserialize<List<ScenarioSummaryDto>>(json, JsonOptions) ?? [];
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "Failed to fetch scenario summaries for {ArtccId}", artccId);
-            return [];
-        }
-    }
-
-    public static async Task<string?> GetScenarioJsonAsync(string scenarioId)
-    {
-        try
-        {
-            string url = $"{BaseUrl}/scenarios/{scenarioId}";
-            return await Http.GetStringAsync(url);
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning(ex, "Failed to fetch scenario {ScenarioId}", scenarioId);
-            return null;
-        }
-    }
 
     public static async Task<List<WeatherProfileDto>> GetWeatherProfilesAsync(string artccId)
     {

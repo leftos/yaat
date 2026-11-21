@@ -4,6 +4,7 @@
 
 ### Added
 
+- Load Scenario's ARTCC tab can download an ARTCC's scenarios for offline use, and lists the downloaded ones when the server's list is unavailable.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 

@@ -35,7 +35,6 @@ Tick/
   RunwayReference.cs        Runway centerline for xteFt / hdgErr columns
   HoldShortResolver.cs      Resolve --tick-hold-shorts names → GroundNode + distance math
 LayoutAnalyzer.cs           Core query engine over AirportGroundLayout (from Yaat.Sim)
-LayoutValidator.cs          Airport-layout sanity checks (run via --validate)
 QueryResults.cs             Record DTOs for all query results
 IFormatter.cs               Output interface: text vs JSON
 TextFormatter.cs            Human-readable stdout for query results

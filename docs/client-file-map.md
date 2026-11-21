@@ -111,7 +111,7 @@ Services/
   NaturalCommandNormalizer.cs   # Shared transcript-to-canonical normalizer for solo-mode typed natural-language ATC input
   BugReportIssueBuilder.cs      # Builds the prefilled GitHub new-issue URL for Scenario → File Bug Report (BugReportForm + BugReportEnvironment → BuildUrl); body mirrors the bug_report.md template, long text is truncated to a URL length ceiling without splitting an escape sequence.
   FileReveal.cs                 # Shows a file in the OS file manager (Explorer select, Finder reveal, containing folder on Linux); never throws, a refusing platform is logged.
-  TrainingDataService.cs         # Fetches scenarios/weather from vNAS data API (data-api.vnas.vatsim.net)
+  TrainingDataService.cs         # Fetches weather profiles from the vNAS data API (data-api.vnas.vatsim.net); scenarios are read through Yaat.Sim VnasTrainingClient
   (UpdateService.cs lives in Yaat.Client.Core; MainViewModel constructs it with channel: null)
   ScenarioDifficultyHelper.cs   # Scenario difficulty classification
   VideoMapService.cs            # Video map download/cache/parse (conditional HTTP freshness check)

@@ -62,7 +62,7 @@ One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same int
 
 | YAATEdit capability | Verdict | Builds on in YAAT | Part |
 |---|---|---|---|
-| ARTCC picker, download an ARTCC's scenarios | differently: the ARTCC list comes from data-api, not a hard-coded list; downloads run bounded-parallel; a scenario that fails is listed, never skipped silently | `TrainingDataService` endpoints moved into `Yaat.Sim` (`VnasTrainingClient`), `HttpFileCache`, `YaatPaths` | M1.2, M1.3 |
+| ARTCC picker, download an ARTCC's scenarios | differently: the ARTCC ids are committed in `VnasArtccList` with a manual refresh of data-api's `/api/artccs`, not a hard-coded list in each place; downloads run bounded-parallel (`ScenarioDownloader`); a scenario that fails is listed, never skipped silently | `TrainingDataService` endpoints moved into `Yaat.Sim` (`VnasTrainingClient`), `HttpFileCache`, `YaatPaths` | M1.2, M1.3 |
 | Background resync on open | native | `VnasTrainingClient`, `LocalScenarioStore` | M1.3 |
 | Server and local-only lists, modified dot | native | `LocalScenarioStore` index | M1.3 |
 | Auto-delete a local copy whose id reappears on the server | differently: nothing is deleted on refresh; a working copy whose server version changed is marked "server changed" and the author keeps or replaces it | `LocalScenarioStore` base-version tracking | M1.3 |
@@ -129,7 +129,7 @@ Editor logic lives under `src/Yaat.Sim/Authoring/`, so the boundary between auth
 
 - **Scenario document.** Each class in `ScenarioModels` gains a `[JsonExtensionData]` dictionary, so a vNAS field YAAT does not model survives a read and a write. `ScenarioDocument` is the public reader and writer around the loader's `ScenarioLoader.JsonOptions` and the exporter's writer settings; the editor edits the typed model. `ScenarioLoader` ignores the extension data. Equality for round trips is JSON-semantic, not byte order.
 - **Scenario time.** `ScenarioTime` is the single H:M:S parser and formatter (right-to-left digit fill, so "130" is one minute thirty).
-- **vNAS client.** `VnasTrainingClient` reads the ARTCC list, scenario summaries, scenarios, ARTCC configs and AircraftSpecs from data-api; `TrainingDataService`'s scenario calls move into it, and `LoadScenarioWindow` reads through it. It only reads: no YAAT code sends anything to vNAS, and no call takes a token.
+- **vNAS client.** `VnasTrainingClient` reads scenario summaries and scenarios from data-api (ARTCC configs and AircraftSpecs follow in later items); `TrainingDataService`'s scenario calls moved into it and it keeps only weather. `VnasArtccList` holds the ARTCC ids committed, with a manual refresh of data-api's large `/api/artccs` cached in `scenarios/artccs.json`. `LoadScenarioWindow` does not read data-api when connected: the scenario list comes from the hub with its rating gate, and offline (not connected, or the hub list failed) it lists the server mirror in `LocalScenarioStore`, where a Download for offline use button fills it through `ScenarioDownloader`. It only reads: no YAAT code sends anything to vNAS, and no call takes a token.
 - **Local scenario store.** `LocalScenarioStore` keeps, per ARTCC under `YaatPaths.Combine("scenarios", artccId)`, the server mirror, the working copies and an index (origin server id, the mirror version a copy started from, modified flag, last export). A working copy has unexported changes when it was edited after its last export or was never exported. Working copies are user data, never evicted by a cache policy. It never writes under `cache/`.
 - **Export.** `WorkingCopyExporter` (distinct from `ScenarioExporter`, which builds a scenario from a room) writes a working copy as vNAS JSON through `ScenarioDocument`, every field kept, to a file the author picks. It returns the YAAT-only parts it found so the view can warn, refuses a copy with validation errors, and records the export in the store index.
 - **Server changes.** `ScenarioDiff` compares a working copy's base version with the newer server version a re-download brought, field by field, so the editor can show what changed on the server.
@@ -139,9 +139,11 @@ Editor logic lives under `src/Yaat.Sim/Authoring/`, so the boundary between auth
 - **Gates.** `GateRanking` ranks a layout's stands for an aircraft: size from the type's wake category and the area's `maxAdg`, airline from the sidecar gate tags, occupancy from the other aircraft's spawn and taxi times.
 - **Spawn timing and metrics.** `SpawnSchedule` (time bands with jitter, workload curve walk, fill-time placement by inverse CDF, origin deconfliction with an overflow report) and `ScenarioMetrics` (counts and rates, with the cumulative difficulty tiers) are pure functions over a scenario.
 - **Bulk tools.** `ScenarioSearch` (field-aware search and replace over working copies, plain or regex), `ProcedureFixup` (rewrites a nav path or route from the validator's procedure-version findings), `RpoSheet` (the row model of the Excel sheet; the file writer is the client's), `NNumberIndex` (built from the FAA registry download on first use, queried by type and distance from an airport).
-- **Airport map.** `AirportMapDocument` holds the raw GeoJSON features (taxiway, runway, parking, spot, helipad) with their exact coordinates and properties, reads and writes split per-layer files and a combined file, and writes atomically. `UndoStack`, `SnapEngine` and the edit operations (add, move, insert and delete vertex, split taxiway, edit property) are pure.
+- **Airport map.** `AirportMapDocument` holds the raw GeoJSON features (taxiway, runway, parking, spot, helipad) with their exact coordinates and properties, reads and writes a combined file only (split per-layer files are YAAT-2674), and writes atomically. `UndoStack`, `SnapEngine` and `MapEdits` (move, insert and delete vertex, add and delete feature, set property, split taxiway, new feature) are pure.
 
-  `LayoutValidator` moves from `tools/Yaat.LayoutInspector` into `src/Yaat.Sim/Data/Airport/`, and LayoutInspector calls it there. `AirportMapValidation` runs `GeoJsonParser.ParseWithDiagnostics` and `LayoutValidator` over the document and returns the parsed `AirportGroundLayout` with its issues.
+  `SnapEngine` snaps within `SnapOptions.ThresholdFt` feet (10 by default; a target exactly at the threshold snaps, 0 turns snapping off) with a toggle per target kind, never targets the vertex being dragged, and breaks a tie in the order parking, spot, helipad, runway vertex, taxiway vertex.
+
+  `LayoutValidator` lives in `src/Yaat.Sim/Data/Airport/` (moved from `tools/Yaat.LayoutInspector`), and LayoutInspector calls it there. `AirportMapValidation` runs `GeoJsonParser.ParseWithDiagnostics` and `LayoutValidator` over the document with caller-supplied `LayoutInputs` and returns the parsed `AirportGroundLayout` with its issues, each carrying a code (`unknown-feature-type`, `malformed-feature`, `parse-failure` or a `LayoutValidator` code) and a resolved feature index.
 - **Sidecar writing.** `AirportSidecarWriter` writes the gate tags (and the movement-area keys) of one airport's sidecar, keeping every other key and the file's key order. Gate tags extend the existing `parkingAreas` entries, which already carry stands and `maxAdg`, with an `airlines` list.
 
 ### Yaat.Client.Core
@@ -228,7 +230,7 @@ Two Task Index rows land in `docs/architecture.md`, the first with M1.1 and the 
 
 | Part | Outcome | Main files |
 |---|---|---|
-| M4.1 Airport map document | An airport map opened and saved by YAAT, split or combined, is unchanged. | `src/Yaat.Sim/Authoring/AirportMap/AirportMapDocument.cs`, `MapFeature.cs`, `GeoJsonMapReader.cs`, `GeoJsonMapWriter.cs`, `UndoStack.cs` |
+| M4.1 Airport map document | An airport map opened and saved by YAAT as a combined file is unchanged. | `src/Yaat.Sim/Authoring/AirportMap/AirportMapDocument.cs`, `MapFeature.cs`, `GeoJsonMapReader.cs`, `GeoJsonMapWriter.cs`, `UndoStack.cs` |
 | M4.2 Validation and snapping in Yaat.Sim | LayoutInspector and the editor share one validator; snapping and edit operations are ready for the canvas. | `src/Yaat.Sim/Data/Airport/LayoutValidator.cs` (moved), `tools/Yaat.LayoutInspector/`, `src/Yaat.Sim/Authoring/AirportMap/SnapEngine.cs`, `AirportMapValidation.cs`, `MapEdits.cs` |
 | M4.3 Airport Editor window and canvas | Tools > Airport Editor opens an airport from the vNAS cache, a file or a folder and shows it with selection and a property panel. | `src/Yaat.Client/Views/Authoring/AirportEditorWindow.axaml`, `AirportEditorCanvas.cs`, `AirportEditorRenderer.cs`, `src/Yaat.Client/Views/Map/MapCanvasBase.cs` |
 | M4.4 Drawing and editing with undo | The author draws taxiways and runways, places parking, spots and helipads, drags, inserts, deletes and splits, and undoes any of it. | `src/Yaat.Client/Views/Authoring/AirportEditorCanvas.cs`, `src/Yaat.Client/ViewModels/Authoring/AirportEditorViewModel.cs` |
@@ -280,7 +282,7 @@ Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.m
 
 **M4.**
 
-- Split and combined OAK files round-trip JSON-equal, coordinates exact.
+- A combined OAK file round-trips JSON-equal, coordinates exact.
 - Undo and redo through a mixed sequence returns the document to each earlier state.
 - `SnapEngine` snaps within its threshold and not beyond.
 - `LayoutValidator` gives LayoutInspector's existing results after the move (`Yaat.LayoutInspector.Tests` stays green).
@@ -293,22 +295,22 @@ Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.m
 
 Each is asked through an interview before the part it gates is briefed.
 
-- **Q1. Export shape for ATC Trainer.** Is ATC Trainer's scenario format the vNAS JSON as-is, or does it need unknown fields stripped (YAATEdit's "clean" export)? Options: (a) one export, vNAS JSON with every field kept; (b) also a clean export. Recommendation: (a), adding (b) only if ATC Trainer rejects a kept field. Gates M2.1.
+- **Q1. Export shape for ATC Trainer: settled.** Two exports: the vNAS JSON with every field kept, and also a clean export that strips the fields YAAT does not model, as YAATEdit had.
 - **Q2. Token source and publishing: settled.** YAAT does not publish to vNAS: authors export JSON and upload it on the vNAS site. No token is held, no desktop-PUT probe is run, and the publish parts are dropped.
 - **Q3. Token storage off Windows: moot.** No vNAS token is held (Q2).
 - **Q4. Push ARTCC config: moot.** YAAT never publishes to vNAS (Q2), so YAATEdit's ARTCC config push is dropped.
 - **Q5. SWIM route history: settled.** yaat-server keeps every SFDPS flight plan it observes in a rolling window, the window length set from the server's storage budget.
-- **Q6. Preferred-route data.** Options: (a) the FAA's published preferred routes, downloaded and cached per cycle; (b) none, relying on csko, SWIM and navdata. Recommendation: (a), if its availability holds up when M3.2 is briefed (unmeasured). Gates M3.2.
+- **Q6. Preferred-route data: settled.** The FAA's published preferred routes, downloaded and cached per AIRAC cycle, if the file is still published when M3.2 is briefed; when it is unavailable the source says so and the other sources still answer.
 - **Q7. YAAT-only fields in an exported scenario: settled.** Export warns when the working copy uses YAAT-only parts (YAAT's own generators) and keeps them as is; if vNAS turns out to drop unknown fields on upload, the warning says so.
-- **Q8. What "near" means for the N-number finder.** Options: (a) owner ZIP code centroid (an extra GeoNames download), labelled "registered near"; (b) owner state only, no extra download. Recommendation: (a). Gates M3.12.
-- **Q9. Excel writer dependency.** Options: (a) ClosedXML in `Yaat.Client`; (b) DocumentFormat.OpenXml directly, more code; (c) CSV instead of a workbook. Recommendation: (a), its current stable version looked up at the time. Gates M3.15.
+- **Q8. What "near" means for the N-number finder: settled.** Distance from the owner's ZIP code centroid (an extra GeoNames download), labelled "registered near".
+- **Q9. Excel writer dependency: settled.** The DocumentFormat.OpenXml SDK directly in `Yaat.Client`, its current stable version looked up when M3.15 is briefed; no spreadsheet package reaches `Yaat.Sim`.
 - **Q10. Map imagery under the editors.** YAATEdit draws satellite or OSM tiles under its maps. Options: (a) none, video maps and the vNAS map only; (b) OSM tiles under their usage policy, in the airport editor only; (c) satellite imagery, whose terms need checking. Recommendation: (a) for the route composer; for the airport editor, (b), since drawing taxiways needs a picture of the airport. Gates M3.5 and M4.3.
 - **Q11. Gate tags at runtime.** Should YAAT's own arrival-parking choice in the simulation also honour the new airline tags? This changes existing behaviour. Options: (a) yes, as its own item with aviation review; (b) editor-only. Recommendation: (a), booked after M4.6.
 - **Q12. Where an edited airport map goes: settled.** The editor exports GeoJSON for upload in vNAS data-admin, and writes sidecars (gate tags) into a yaat repo checkout named in Settings, for a pull request.
 - **Q13. Testing an edited map in a room.** Options: (a) no in-room test; the editor's graph overlay and taxi probe stand in; (b) a hub call that pins an uploaded map for the room's next load (a server change through `ResourcePin`). Recommendation: (a) for vNext+1. Gates M4.5.
-- **Q14. Spawn deconfliction rule.** Options for what conflicts: (a) same origin (departure airport for ground starts, fix for airborne), as YAATEdit; (b) same departure runway or same arrival stream. And for overrun: report and offer to extend the scenario, or compress the intervals. Recommendation: (a) with the overrun reported and both remedies offered, reviewed by `aviation-sim-expert`. Gates M3.9.
-- **Q15. Migrating YAATEdit users' data.** Options: (a) a one-time import of a YAATEdit user's working copies (local-only scenarios exist nowhere else) and route profiles; (b) none: authors re-download. Recommendation: (a) for working copies and route profiles, not ground layouts (their format is dropped). Gates M1.3 or a part after it.
-- **Q16. Undo in the scenario editor.** Options: (a) no undo stack; revert to last saved and revert to the server version; (b) a full undo stack. Recommendation: (a). Gates M1.4.
+- **Q14. Spawn deconfliction rule: settled.** A conflict is the same origin (the departure airport for ground starts, the fix for airborne starts), as YAATEdit; an overrun is reported and both remedies are offered (extend the scenario, or compress the intervals); reviewed by `aviation-sim-expert`.
+- **Q15. Migrating YAATEdit users' data: settled.** No import: authors re-download from vNAS, and a local-only YAATEdit scenario reaches YAAT by exporting it to JSON and importing that file.
+- **Q16. Undo in the scenario editor: settled.** A full undo stack (undo and redo over every edit) in the scenario editor, the General tab and the aircraft grid and editor included.
 
 ## 9. Risks
 
