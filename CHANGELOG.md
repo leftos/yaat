@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 
 ## v0.19.0-beta [2026/11/20]

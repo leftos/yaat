@@ -532,6 +532,111 @@ public class GroundRulesTests
         Assert.False(Flagged(engine, ground, AiTestFixture.Callsign));
     }
 
+    /// <summary>
+    /// YAAT-1536: the tow off RON9 is stopped for the jet parked on RON10, which asks for a push. The tow waits on the jet,
+    /// so the jet is not held for it: it is pushed to a clear target instead of told to stand by for the same ramp area.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_PusherStoppedForTheAskingJet_DoesNotHoldItAndPushes()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("RON10"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState pusher = TowOffRon9(engine, aircraft, yieldingTo: AiTestFixture.Callsign);
+
+        AiCommandRequest issued = FirstAnswer(engine, ground, [aircraft, pusher]);
+
+        Assert.StartsWith("PUSH ", issued.Canonical, StringComparison.Ordinal);
+        Assert.DoesNotContain("same ramp area", issued.Intent.Rationale, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The tow off RON9 stopped for the asking jet, and every target of the jet blocked: the jet stands by for the blocked
+    /// targets, not for the same ramp area.
+    /// </summary>
+    [Fact]
+    public void PushOffStand_PusherStoppedForTheAskingJetAndNoTargetClear_StandsByForTheTargets()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("RON10"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState pusher = TowOffRon9(engine, aircraft, yieldingTo: AiTestFixture.Callsign);
+
+        AiCommandRequest issued = FirstAnswer(engine, ground, [aircraft, pusher, ParkedOnTopOf(aircraft)]);
+
+        Assert.Equal("STBY", issued.Canonical);
+        Assert.Contains("no push target clear", issued.Intent.Rationale, StringComparison.Ordinal);
+        Assert.DoesNotContain("same ramp area", issued.Intent.Rationale, StringComparison.Ordinal);
+    }
+
+    /// <summary>A tow off RON9 still moving holds the RON10 jet's push: standby for the same ramp area.</summary>
+    [Fact]
+    public void PushOffStand_PusherMovingInTheSameRamp_StandsByForTheRampArea()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("RON10"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState pusher = TowOffRon9(engine, aircraft, yieldingTo: null);
+
+        AiCommandRequest issued = FirstAnswer(engine, ground, [aircraft, pusher]);
+
+        Assert.Equal("STBY", issued.Canonical);
+        Assert.Contains("same ramp area", issued.Intent.Rationale, StringComparison.Ordinal);
+    }
+
+    /// <summary>A tow off RON9 stopped for a third aircraft still holds the RON10 jet's push: standby for the same ramp area.</summary>
+    [Fact]
+    public void PushOffStand_PusherStoppedForAThirdAircraft_StandsByForTheRampArea()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        AiPositionConfig ground = TestAiPositions.OakGround(_zoa);
+        SimulationEngine engine = AiTestFixture.Load(JetAt("RON10"), _zoa, 7, [ground]);
+        AircraftState aircraft = PushbackRequested(engine, AiTestFixture.Callsign, 15);
+        AircraftState pusher = TowOffRon9(engine, aircraft, yieldingTo: "N9BLK");
+
+        AiCommandRequest issued = FirstAnswer(engine, ground, [aircraft, pusher]);
+
+        Assert.Equal("STBY", issued.Canonical);
+        Assert.Contains("same ramp area", issued.Intent.Rationale, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A tow pushing off RON9 (<see cref="Pusher"/>), stopped for <paramref name="yieldingTo"/> when given, as the ground
+    /// conflict detector shows it (<see cref="AircraftGroundOps.AutoYieldTarget"/>).
+    /// </summary>
+    private static AircraftState TowOffRon9(SimulationEngine engine, AircraftState aircraft, string? yieldingTo)
+    {
+        AirportGroundLayout layout = engine.ResolveGroundLayout(aircraft)!;
+        AircraftState pusher = Pusher(layout, "OAK", StandPosition(layout, "RON9"), pushedBackFrom: "RON9");
+        if (yieldingTo is not null)
+        {
+            pusher.IndicatedAirspeed = 0;
+            pusher.Ground.SpeedLimit = 0;
+            pusher.Ground.AutoYieldTarget = yieldingTo;
+        }
+
+        return pusher;
+    }
+
     private const string SecondCallsign = "N153SP";
 
     /// <summary>
