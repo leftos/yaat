@@ -86,11 +86,13 @@ public class GroundMeasureOwnershipTests
     }
 
     [AvaloniaFact]
-    public void GroundEsc_WithAGroundAnchor_CancelsIt()
+    public async Task GroundEsc_WithAGroundAnchor_CancelsIt()
     {
         (GroundView view, MainViewModel main, Window window) = ShowGround();
         try
         {
+            // The startup nav-data load writes StatusText when it finishes; let it land before the Esc this test reads.
+            await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
             main.Measure.Pick(Anchor, main.MeasureSurface(RblView.Ground, null));
 
             KeyEventArgs esc = PressEscape(view);
