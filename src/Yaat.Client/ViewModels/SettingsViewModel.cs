@@ -261,6 +261,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _euroScopeMode;
 
+    /// <summary>The "ERAM field menus" choice, a <see cref="ScopeFieldMenuStyle"/> by index.</summary>
+    [ObservableProperty]
+    private int _selectedScopeFieldMenuStyleIndex;
+
     [ObservableProperty]
     private bool _flashNoLandingClearance;
 
@@ -747,6 +751,9 @@ public partial class SettingsViewModel : ObservableObject
     // Indexed by the SoloAdvisoryPrefill value, so SelectedSoloAdvisoryPrefillIndex maps directly to the enum.
     public static IReadOnlyList<string> SoloAdvisoryPrefillOptions => SoloAdvisoryPrefillLabels.Options;
 
+    // Indexed by the ScopeFieldMenuStyle value, so SelectedScopeFieldMenuStyleIndex maps directly to the enum.
+    public static IReadOnlyList<string> ScopeFieldMenuStyleOptions => ScopeFieldMenuStyleLabels.Options;
+
     public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -833,6 +840,7 @@ public partial class SettingsViewModel : ObservableObject
         _departureAutoDeleteDistanceNm = _preferences.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
+        _selectedScopeFieldMenuStyleIndex = (int)_preferences.ScopeFieldMenuStyle;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showConflictAlerts = _preferences.ShowConflictAlerts;
         _showTypeMismatchHints = _preferences.ShowTypeMismatchHints;
@@ -1099,6 +1107,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
+        _preferences.SetScopeFieldMenuStyle((ScopeFieldMenuStyle)SelectedScopeFieldMenuStyleIndex);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
         _preferences.SetShowTypeMismatchHints(ShowTypeMismatchHints);
@@ -2058,6 +2067,7 @@ public partial class SettingsViewModel : ObservableObject
     private void ResetRadar(UserPreferences defaults)
     {
         EuroScopeMode = defaults.EuroScopeMode;
+        SelectedScopeFieldMenuStyleIndex = (int)defaults.ScopeFieldMenuStyle;
         FlashNoLandingClearance = defaults.FlashNoLandingClearance;
         ShowConflictAlerts = defaults.ShowConflictAlerts;
         ShowTypeMismatchHints = defaults.ShowTypeMismatchHints;

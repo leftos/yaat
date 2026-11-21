@@ -644,6 +644,22 @@ public sealed partial class UserPreferences
     public string? CrcAliasDirectory => _data.CrcAliasDirectory;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
     public bool EuroScopeMode => _data.EuroScopeMode;
+
+    /// <summary>The surface an ERAM block's altitude, heading or speed click opens. Default <see cref="ScopeFieldMenuStyle.Tabbed"/>.</summary>
+    public ScopeFieldMenuStyle ScopeFieldMenuStyle =>
+        (Enum.TryParse<ScopeFieldMenuStyle>(_data.ScopeFieldMenuStyle, out ScopeFieldMenuStyle style) && Enum.IsDefined(style))
+            ? style
+            : ScopeFieldMenuStyle.Tabbed;
+
+    /// <summary>
+    /// The column the last command sent or staged from an ERAM field menu came from, which a tabbed menu opens on. Default
+    /// <see cref="ScopeFieldMenuMode.Eram"/>.
+    /// </summary>
+    public ScopeFieldMenuMode ScopeFieldMenuLastMode =>
+        (Enum.TryParse<ScopeFieldMenuMode>(_data.ScopeFieldMenuLastMode, out ScopeFieldMenuMode mode) && Enum.IsDefined(mode))
+            ? mode
+            : ScopeFieldMenuMode.Eram;
+
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowConflictAlerts => _data.ShowConflictAlerts;
 
@@ -1342,6 +1358,23 @@ public sealed partial class UserPreferences
     public void SetEuroScopeMode(bool enabled)
     {
         _data.EuroScopeMode = enabled;
+        Save();
+    }
+
+    public void SetScopeFieldMenuStyle(ScopeFieldMenuStyle style)
+    {
+        _data.ScopeFieldMenuStyle = style.ToString();
+        Save();
+    }
+
+    public void SetScopeFieldMenuLastMode(ScopeFieldMenuMode mode)
+    {
+        if (_data.ScopeFieldMenuLastMode == mode.ToString())
+        {
+            return;
+        }
+
+        _data.ScopeFieldMenuLastMode = mode.ToString();
         Save();
     }
 
@@ -2568,6 +2601,8 @@ public sealed partial class UserPreferences
             CrcAliasDirectory = GetFieldOr<string?>(obj, "crcAliasDirectory", null),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
+            ScopeFieldMenuStyle = GetFieldOr(obj, "scopeFieldMenuStyle", nameof(Services.ScopeFieldMenuStyle.Tabbed)),
+            ScopeFieldMenuLastMode = GetFieldOr(obj, "scopeFieldMenuLastMode", nameof(ScopeFieldMenuMode.Eram)),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
@@ -2993,6 +3028,11 @@ public sealed partial class UserPreferences
         public string? CrcAliasDirectory { get; set; }
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
+
+        // ScopeFieldMenuStyle and ScopeFieldMenuMode names, stored as strings so enum reordering can't misassign them.
+        public string ScopeFieldMenuStyle { get; set; } = nameof(Services.ScopeFieldMenuStyle.Tabbed);
+        public string ScopeFieldMenuLastMode { get; set; } = nameof(ScopeFieldMenuMode.Eram);
+
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; } = true;
         public bool ShowTypeMismatchHints { get; set; } = true;
@@ -3466,6 +3506,32 @@ public enum FavoriteMapScope
     Artcc,
     Airport,
     Scenario,
+}
+
+/// <summary>
+/// Which surface a click on an ERAM block's altitude, heading or speed opens: CRC's simple menu, the detailed popup with an
+/// ERAM | PILOT tab strip, or the detailed popup with both columns side by side. Stored by name; the Settings choice follows
+/// this order (<see cref="ScopeFieldMenuStyleLabels"/>).
+/// </summary>
+public enum ScopeFieldMenuStyle
+{
+    Simple,
+    Tabbed,
+    SideBySide,
+}
+
+/// <summary>The words the "ERAM field menus" choice shows for each <see cref="ScopeFieldMenuStyle"/>.</summary>
+public static class ScopeFieldMenuStyleLabels
+{
+    /// <summary>One label per <see cref="ScopeFieldMenuStyle"/> value, indexed by the value.</summary>
+    public static IReadOnlyList<string> Options { get; } = ["Simple (CRC)", "Tabbed", "Side by side"];
+}
+
+/// <summary>Which column of an ERAM field menu a command came from: the ERAM scope-data entry or the pilot command.</summary>
+public enum ScopeFieldMenuMode
+{
+    Eram,
+    Pilot,
 }
 
 public sealed class SavedRadarSettings
