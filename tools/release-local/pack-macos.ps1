@@ -9,9 +9,10 @@
   The LM-Kit transcribe of smoke-intel needs an Intel Mac and is skipped.
 
   The signing material arrives as forwarded variables named as release-macos.yml's secrets. They are
-  decoded into a temporary keychain, which is added to the user's keychain search list beside the
-  existing ones; the list is put back, the keychain deleted and the decoded files removed whatever
-  happens.
+  decoded into a temporary keychain, which is added to the user's current keychain search list (after
+  pruning entries whose keychain file is gone); whatever happens, only that keychain is removed from
+  the list as it then stands, the keychain is deleted and the decoded files removed. The leg runs
+  inside gate's mac-signing lock, shared with the other repos that sign on this Mac.
 
 .PARAMETER Version
   The <Version> of the worktree's Directory.Build.props.
@@ -25,6 +26,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release-local-common.ps1')
+. (Join-Path $PSScriptRoot 'macos-keychain.ps1')
 
 $secretNames = 'MACOS_DEVID_APP_CERT_P12_BASE64', 'MACOS_DEVID_INSTALLER_CERT_P12_BASE64', 'MACOS_DEVID_CERT_PASSWORD',
   'MACOS_NOTARY_API_KEY_P8_BASE64', 'MACOS_NOTARY_API_KEY_ID', 'MACOS_NOTARY_API_ISSUER_ID',
@@ -77,18 +79,9 @@ function Build-InfoPlist([string]$Dir) {
   return $path
 }
 
-# Always an array, even of one keychain: a lone string splatted into `security list-keychains -s`
-# would pass each character as a keychain path and wreck the user's search list.
-function Get-UserKeychainList {
-  $list = @(security list-keychains -d user | ForEach-Object { $_.Trim().Trim('"') } | Where-Object { $_ })
-  $missing = @($list | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
-  if (($list.Count -eq 0) -or ($missing.Count -gt 0)) { throw "unexpected user keychain search list ($($list -join ', ')); fix it before signing" }
-  return , $list
-}
-
 # release-macos.yml's signing import, into a keychain added beside the user's (the workflow replaces
 # the search list, which is harmless only on a throwaway runner).
-function Import-SigningIdentity([string]$Keychain, [string[]]$KeychainList) {
+function Import-SigningIdentity([string]$Keychain) {
   $keychainPassword = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
   $appCert = Join-Path $secrets 'devid_app.p12'
   $installerCert = Join-Path $secrets 'devid_installer.p12'
@@ -109,8 +102,7 @@ function Import-SigningIdentity([string]$Keychain, [string[]]$KeychainList) {
   }
   security set-key-partition-list -S 'apple-tool:,apple:' -k $keychainPassword $Keychain | Out-Null
   Assert-LastExit 'security set-key-partition-list'
-  security list-keychains -d user -s $Keychain @KeychainList
-  Assert-LastExit 'security list-keychains'
+  Add-UserKeychain $Keychain
   xcrun notarytool store-credentials velopack-profile --key $notaryKey `
     --key-id $env:MACOS_NOTARY_API_KEY_ID --issuer $env:MACOS_NOTARY_API_ISSUER_ID --keychain $Keychain
   Assert-LastExit 'xcrun notarytool store-credentials'
@@ -126,9 +118,8 @@ $plist = Build-InfoPlist $secrets
 $entitlements = (Resolve-Path build/macos/Yaat.Client.entitlements).Path
 
 $keychain = Join-Path $secrets 'app-signing.keychain-db'
-$originalList = Get-UserKeychainList
 try {
-  Import-SigningIdentity $keychain $originalList
+  Import-SigningIdentity $keychain
   foreach ($rid in 'osx-arm64', 'osx-x64') {
     # `stapler staple` can fail just after an accepted notarization, before Apple's ticket has
     # propagated; vpk does not retry, so the whole pack is repeated.
@@ -145,11 +136,12 @@ try {
   }
 }
 finally {
-  security list-keychains -d user -s @originalList
+  # The delete first (it also drops the keychain from the search list); a failing list call must
+  # neither skip it nor the secrets' removal, nor replace the error that ended the try.
   if (Test-Path $keychain) { security delete-keychain $keychain }
+  try { Remove-UserKeychain $keychain }
+  catch { Write-Warning "could not remove $keychain from the user keychain search list: $_" }
   Remove-Item -Recurse -Force $secrets -ErrorAction SilentlyContinue
-  $restoredList = Get-UserKeychainList
-  if (Compare-Object $originalList $restoredList) { Write-Warning "the user keychain search list differs from before the run: $($restoredList -join ', ')" }
 }
 
 Get-ChildItem $out -File | ForEach-Object { '{0,-60} {1,14:N0} bytes' -f $_.Name, $_.Length }

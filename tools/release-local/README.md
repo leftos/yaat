@@ -16,6 +16,8 @@ The tag must be pushed. The script refuses a run when a GitHub release of that n
 | `release.ps1` | Runs on this PC. It checks the tag out into `X:\dev\yaat.wt\release-local-<tag>`, copies this folder into it when the tag predates it, runs both legs at once through the gate, gathers and renames the assets into `.tmp/release-local/<tag>/release`, writes the body, and creates the draft (`-ReleaseName` gives it another name for a test). |
 | `pack-win-linux.ps1` | The Windows and Linux legs, routed to the Windows builder: `release.yml`'s `build` publish for `win-x64` and `linux-x64`, then `vpk pack` and `vpk [linux] pack` (vpk cross-packs the AppImage on Windows). |
 | `pack-macos.ps1` | The macOS leg, pinned to `builder@mac-mini`: publish `osx-arm64` and `osx-x64`, the x86_64 slice check, then `vpk pack` signed with the Developer ID identities and notarized. |
+| `macos-keychain.ps1` | The Mac user keychain search list helpers `pack-macos.ps1` uses: read the list, add a keychain (pruning entries whose file is gone), remove only that keychain. |
+| `test-macos-keychain.ps1` | A probe of those helpers, run on the Mac inside the `mac-signing` lock; it sets the starting list back whatever happens. |
 | `release-local-common.ps1` | The vpk pin (`VPK_VERSION` of the workflows), the publish command, and the exit-status check. |
 | `release-notes.sh` | The release notes and body, shared with `release.yml` (`notes` and `body`). |
 
@@ -31,11 +33,22 @@ These are the local set, separate from the GitHub `MACOS_*` secrets. They are ne
 ## Footguns
 
 - **The Intel smoke test is half done.** The mac-mini is Apple Silicon, so only `smoke-intel`'s static check runs: every shipped `osx-x64` `.dylib` carries an x86_64 slice, and `Yaat.Client` is an x86_64 executable. The LM-Kit transcribe on an Intel CPU is skipped.
-- **The Mac's keychain search list.** `release-macos.yml` replaces the user search list with its temporary keychain, which is harmless only on a throwaway runner. `pack-macos.ps1` adds the keychain beside the existing ones, then puts the list back and deletes the keychain and the decoded `.p12`/`.p8` files in a `finally`.
+- **The Mac's keychain search list.** `release-macos.yml` replaces the user search list with its temporary keychain, which is harmless only on a throwaway runner. `pack-macos.ps1` adds the keychain to the current list (pruning entries whose file is gone), then in a `finally` deletes the keychain, removes only its entry from the list as it then stands, and deletes the decoded `.p12`/`.p8` files.
+
+  A failure of the list call there is a warning, so it never skips the delete or hides the error that ended the run.
+
+  A hard-killed remote pwsh runs no `finally`, so a leftover signing keychain stays on disk and in the list until the next yaat run deletes it or prunes it.
+
+  The macOS leg runs under gate's `mac-signing` lock (`--lock mac-signing`), shared with rustling-tulip, so the two repos never sign on the mac-mini at once; the list helpers live in `macos-keychain.ps1`.
+
+  To check them on the Mac, run the probe inside the same lock: `pwsh -NoProfile -File tools/gate.ps1 run --log .tmp/kc-probe.log --timeout 1800 --slot heavy --builder builder@mac-mini --lock mac-signing -- pwsh -NoProfile -File tools/release-local/test-macos-keychain.ps1`. Its log ends with `keychain probe: PASS` only when every check held and the starting list was set back.
+
+  The probe does not cover `Remove-UserKeychain` when the login keychain is missing (it would need the builder's login keychain deleted).
 - **Native calls are checked one by one.** PowerShell rebinds a wrapped command's switches (`-c` to a declared `-Command`) and drops `--version` from `$args`, so every native command is called directly and followed by `Assert-LastExit`.
 - **Gate routing** lives in this PC's `%LOCALAPPDATA%\gate\remote.json`:
   - `pwsh -NoProfile -File tools/release-local/pack-win-linux.ps1 *` under yaat's `repos`
   - `.../pack-macos.ps1 *` under the macOS builder's
+  - `pwsh -NoProfile -File tools/release-local/test-macos-keychain.ps1` under the macOS builder's too, for the probe
   - `.tmp/release-local/out/**` in both `outputs`, so the packages come back
 
   A machine without those rules runs the Windows leg locally, and the macOS leg can't run.

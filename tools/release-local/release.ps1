@@ -122,7 +122,7 @@ try {
   Import-ReleaseSecret
   $legs = @(
     Invoke-Leg 'win-linux' @('--env', 'LMKIT_LICENSE_KEY') 'pack-win-linux.ps1' $version $shortSha $worktree
-    Invoke-Leg 'macos' (@('--builder', $macBuilder, '--env', 'LMKIT_LICENSE_KEY') + @(
+    Invoke-Leg 'macos' (@('--builder', $macBuilder, '--lock', 'mac-signing', '--env', 'LMKIT_LICENSE_KEY') + @(
       'MACOS_DEVID_APP_CERT_P12_BASE64', 'MACOS_DEVID_INSTALLER_CERT_P12_BASE64',
       'MACOS_DEVID_CERT_PASSWORD', 'MACOS_NOTARY_API_KEY_P8_BASE64', 'MACOS_NOTARY_API_KEY_ID', 'MACOS_NOTARY_API_ISSUER_ID',
       'MACOS_SIGN_APP_IDENTITY', 'MACOS_SIGN_INSTALL_IDENTITY' | ForEach-Object { '--env', $_ })) 'pack-macos.ps1' $version $shortSha $worktree
