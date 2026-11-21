@@ -1687,6 +1687,39 @@
 - [ ] YAAT-2601 Read per-room ARTCC config from the room's pinned config in CRC broadcasts, ATPA, hubs and position lookups
 - [ ] YAAT-2602 Test the auto scratchpad projection and that broadcasts read the pinned ARTCC config, not the live cache
 
+## No project
+
+- [/] YAAT-2630 Scope STARS entries match CRC's grammar (*T, RANGE, HND, MF, bare digits, errors)
+- [ ] YAAT-2631 Scope STARS display-only entries CRC accepts
+  - [ ] YAAT-2632 Scope STARS: MF D: flight-plan digest, slewed coordinates, consolidation display
+  - [ ] YAAT-2636 Scope STARS: MF E: toggle FDBs for overflights
+  - [ ] YAAT-2635 Scope STARS: MF N: CRDA ghost entries
+  - [ ] YAAT-2634 Scope STARS: MF B: beacon code display toggles
+  - [ ] YAAT-2633 Scope STARS: MF F: altitude filters
+  - [ ] YAAT-2637 Scope STARS: MF S: ATIS and general information text
+  - [ ] YAAT-2641 Scope STARS: MF Z: ZA, ZDE, ZDI
+  - [ ] YAAT-2640 Scope STARS: MF P: preview-area position and tower/coordination lists
+  - [ ] YAAT-2639 Scope STARS: MF T: list toggles and sizes
+  - [ ] YAAT-2638 Scope STARS: MF Q and bare-digit quicklook toggles
+  - [ ] YAAT-2642 Scope STARS: PREF SET entry loads a pref set by name or index
+  - [ ] YAAT-2646 Scope STARS: MAPS entry toggles a video map
+  - [ ] YAAT-2645 Scope STARS: LDR entry sets leader length
+  - [ ] YAAT-2644 Scope STARS: WX entry toggles weather layers
+  - [ ] YAAT-2643 Scope STARS: RNG RING entry sets range-ring spacing
+  - [ ] YAAT-2647 Scope STARS: TDM ground-target leader entries
+  - [ ] YAAT-2650 Scope STARS: ATPA and TPA toggles: *D+, *AE/I, *BE/I, *DE/I
+  - [ ] YAAT-2649 Scope STARS: Function keys F2, F6, F9, F13 and the Ctrl-F chords
+  - [ ] YAAT-2648 Scope STARS: Star two-slew range/bearing and airport readout
+- [ ] YAAT-2651 Split CommandDispatcher.DispatchWithPhase under the 100-line and complexity-8 limits
+- [ ] YAAT-2652 Hold the deferred departure turn below the IFR 400 ft gate when DCT or OC arrives in InitialClimbPhase
+- [ ] YAAT-2653 OC on upwind or crosswind should depart the pattern per AIM 4-3-3
+- [ ] YAAT-2654 Scope STARS *T fix lookup picks the match closest to the display centre, fix before airport
+- [ ] YAAT-2655 Give each Scope its own 15-slot range-bearing pool and pending anchor, as CRC does per display
+- [ ] YAAT-2656 COAST9 departure never finishes its coded legs in the Sim test harness
+- [ ] YAAT-2657 PAUSE typed with no server connection throws instead of reporting to the command line
+- [ ] YAAT-2658 Scope STARS *J/*P removal and MIN leftovers answer with CRC categories
+- [ ] YAAT-2659 Scope home centre follows CRC's order: area visibility centre, then tower-list airport
+
 ## Design files
 
 - [README.md](README.md) — YAAT-1013
