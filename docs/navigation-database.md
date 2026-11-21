@@ -319,7 +319,7 @@ list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaid
 
 ## Route expansion (`RouteExpander`)
 
-`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and
+`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` splits the route on spaces and
 walks tokens left to right. For each token it tries, in order:
 
 1. **SID** — `navDb.ResolveSidId(rawName)` matches → emit the SID body, then resolve the transition (see RV-SID section below).
@@ -378,7 +378,7 @@ as synthetic "transitions": NIMI5 carries `[OAK, CCR]`, `[OAK, PYE]`, `[OAK, SAU
 downstream fix. These are **not** published CIFP transitions; they're routing hints, and each one starts by transiting back
 through OAK.
 
-**The failure.** When a route token after the SID doesn't name any transition, `ExpandSid` (`RouteExpander.cs:111`) decides what
+**The failure.** When a route token after the SID doesn't name any transition, `RouteExpander.ExpandSid` decides what
 to do based on the flag:
 
 - `true` (autocomplete): emit **every** transition's fixes, so the UI can suggest any reachable exit fix.

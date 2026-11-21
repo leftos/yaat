@@ -114,7 +114,6 @@ Tick/
   HoldShortResolver.cs         # Resolve --tick-hold-shorts taxiway letters → GroundNode list + along-track distance math
 
 LayoutAnalyzer.cs              # Core query engine over AirportGroundLayout
-LayoutValidator.cs             # Post-fillet sanity checks: stale node refs, degenerate arcs, tangent misalignment (run via --validate)
 QueryResults.cs                # Result record DTOs for all queries
 IFormatter.cs                  # Output formatter interface (text vs JSON)
 TextFormatter.cs               # Human-readable stdout formatter for query results

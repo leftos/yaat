@@ -293,22 +293,22 @@ Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.m
 
 Each is asked through an interview before the part it gates is briefed.
 
-- **Q1. Export shape for ATC Trainer.** Is ATC Trainer's scenario format the vNAS JSON as-is, or does it need unknown fields stripped (YAATEdit's "clean" export)? Options: (a) one export, vNAS JSON with every field kept; (b) also a clean export. Recommendation: (a), adding (b) only if ATC Trainer rejects a kept field. Gates M2.1.
+- **Q1. Export shape for ATC Trainer: settled.** Two exports: the vNAS JSON with every field kept, and also a clean export that strips the fields YAAT does not model, as YAATEdit had.
 - **Q2. Token source and publishing: settled.** YAAT does not publish to vNAS: authors export JSON and upload it on the vNAS site. No token is held, no desktop-PUT probe is run, and the publish parts are dropped.
 - **Q3. Token storage off Windows: moot.** No vNAS token is held (Q2).
 - **Q4. Push ARTCC config: moot.** YAAT never publishes to vNAS (Q2), so YAATEdit's ARTCC config push is dropped.
 - **Q5. SWIM route history: settled.** yaat-server keeps every SFDPS flight plan it observes in a rolling window, the window length set from the server's storage budget.
-- **Q6. Preferred-route data.** Options: (a) the FAA's published preferred routes, downloaded and cached per cycle; (b) none, relying on csko, SWIM and navdata. Recommendation: (a), if its availability holds up when M3.2 is briefed (unmeasured). Gates M3.2.
+- **Q6. Preferred-route data: settled.** The FAA's published preferred routes, downloaded and cached per AIRAC cycle, if the file is still published when M3.2 is briefed; when it is unavailable the source says so and the other sources still answer.
 - **Q7. YAAT-only fields in an exported scenario: settled.** Export warns when the working copy uses YAAT-only parts (YAAT's own generators) and keeps them as is; if vNAS turns out to drop unknown fields on upload, the warning says so.
-- **Q8. What "near" means for the N-number finder.** Options: (a) owner ZIP code centroid (an extra GeoNames download), labelled "registered near"; (b) owner state only, no extra download. Recommendation: (a). Gates M3.12.
-- **Q9. Excel writer dependency.** Options: (a) ClosedXML in `Yaat.Client`; (b) DocumentFormat.OpenXml directly, more code; (c) CSV instead of a workbook. Recommendation: (a), its current stable version looked up at the time. Gates M3.15.
+- **Q8. What "near" means for the N-number finder: settled.** Distance from the owner's ZIP code centroid (an extra GeoNames download), labelled "registered near".
+- **Q9. Excel writer dependency: settled.** The DocumentFormat.OpenXml SDK directly in `Yaat.Client`, its current stable version looked up when M3.15 is briefed; no spreadsheet package reaches `Yaat.Sim`.
 - **Q10. Map imagery under the editors.** YAATEdit draws satellite or OSM tiles under its maps. Options: (a) none, video maps and the vNAS map only; (b) OSM tiles under their usage policy, in the airport editor only; (c) satellite imagery, whose terms need checking. Recommendation: (a) for the route composer; for the airport editor, (b), since drawing taxiways needs a picture of the airport. Gates M3.5 and M4.3.
 - **Q11. Gate tags at runtime.** Should YAAT's own arrival-parking choice in the simulation also honour the new airline tags? This changes existing behaviour. Options: (a) yes, as its own item with aviation review; (b) editor-only. Recommendation: (a), booked after M4.6.
 - **Q12. Where an edited airport map goes: settled.** The editor exports GeoJSON for upload in vNAS data-admin, and writes sidecars (gate tags) into a yaat repo checkout named in Settings, for a pull request.
 - **Q13. Testing an edited map in a room.** Options: (a) no in-room test; the editor's graph overlay and taxi probe stand in; (b) a hub call that pins an uploaded map for the room's next load (a server change through `ResourcePin`). Recommendation: (a) for vNext+1. Gates M4.5.
-- **Q14. Spawn deconfliction rule.** Options for what conflicts: (a) same origin (departure airport for ground starts, fix for airborne), as YAATEdit; (b) same departure runway or same arrival stream. And for overrun: report and offer to extend the scenario, or compress the intervals. Recommendation: (a) with the overrun reported and both remedies offered, reviewed by `aviation-sim-expert`. Gates M3.9.
-- **Q15. Migrating YAATEdit users' data.** Options: (a) a one-time import of a YAATEdit user's working copies (local-only scenarios exist nowhere else) and route profiles; (b) none: authors re-download. Recommendation: (a) for working copies and route profiles, not ground layouts (their format is dropped). Gates M1.3 or a part after it.
-- **Q16. Undo in the scenario editor.** Options: (a) no undo stack; revert to last saved and revert to the server version; (b) a full undo stack. Recommendation: (a). Gates M1.4.
+- **Q14. Spawn deconfliction rule: settled.** A conflict is the same origin (the departure airport for ground starts, the fix for airborne starts), as YAATEdit; an overrun is reported and both remedies are offered (extend the scenario, or compress the intervals); reviewed by `aviation-sim-expert`.
+- **Q15. Migrating YAATEdit users' data: settled.** No import: authors re-download from vNAS, and a local-only YAATEdit scenario reaches YAAT by exporting it to JSON and importing that file.
+- **Q16. Undo in the scenario editor: settled.** A full undo stack (undo and redo over every edit) in the scenario editor, the General tab and the aircraft grid and editor included.
 
 ## 9. Risks
 

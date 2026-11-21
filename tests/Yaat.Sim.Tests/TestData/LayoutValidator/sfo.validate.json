@@ -1,0 +1,12 @@
+[
+  {
+    "code": "orphan-node",
+    "message": "Node #26 (Spot) at (37.622612,-122.389073) has no edges. Origin: GeoJson:spot",
+    "origin": null
+  },
+  {
+    "code": "orphan-node",
+    "message": "Node #27 (Spot) at (37.623187,-122.388689) has no edges. Origin: GeoJson:spot",
+    "origin": null
+  }
+]

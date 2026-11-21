@@ -73,6 +73,8 @@ Each `ScenarioAircraft` carries `AircraftId` (the callsign), `AircraftType` (the
 > (note in `ScenarioModels.cs:197`). It's the JSON config; `AircraftGenerator` is the synthesizer; `GeneratorState` is the
 > per-generator runtime cursor.
 
+Every model class in `ScenarioModels.cs` carries a `[JsonExtensionData]` `ExtensionData` dictionary, so any deserializer, the loader included, keeps the fields YAAT does not model. `ScenarioLoader`'s logic ignores them, but a loaded generator config's extras also ride in snapshot `ConfigJson` and the hub's generator configs. `Authoring/ScenarioDocument.cs` is the reader/writer that round-trips a scenario JSON-equal, writing a member the source left out only once code gives it a non-default value (see § File map, `Authoring/`).
+
 Real example JSONs live in `docs/atctrainer-scenario-examples/`. Parse coverage is asserted by `VnasScenarioParseTests`
 (see [scenario-validation.md](scenario-validation.md)).
 
@@ -920,4 +922,15 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
                                # IsRatingSufficient(rating, required) for the scenario gate and
                                # IsInstructorOrAbove(rating) for the server connection gate. Shared by the
                                # client picker filter and the server-side gating decision.
+
+# Authoring/ (UI-free scenario editing logic; tests in tests/Yaat.Sim.Tests/Authoring/)
+Authoring/ScenarioDocument.cs  # Scenario JSON in and out for the editor: Read(string), FromScenario(Scenario), Write() as indented JSON that is JSON-equal to what was read; fields YAAT does not model survive through ExtensionData and per-object presence tracking
+Authoring/ScenarioTime.cs      # Scenario time text: Parse(string?) → seconds (digits fill from the right, so "130" is 90 s), Format(int) → "m:ss" or "h:mm:ss"
+Authoring/Routes/IRouteSource.cs      # One provider of candidate routes: Name and FindAsync(RouteQuery, ct) → RouteSourceResult (Routes, FailureMessage); an implementation may do synchronous work
+Authoring/Routes/RouteQuery.cs        # What to ask a source: Departure, Destination, and optional Fix, AirlinePrefix, AircraftType, Wake
+Authoring/Routes/FoundRoute.cs        # Result types: FoundRoute (RouteText, Count, Sources), RouteSourceFailure, RouteFindResult (Routes, Failures)
+Authoring/Routes/RouteFinder.cs       # FindAsync over the sources: merges duplicates, drops a route RouteExpander cannot resolve on navdata, orders by count then first seen, isolates a failing source
+Authoring/Routes/CskoRouteSource.cs   # The "csko" source: the csko flight-plans search API, cached 24 h under YaatPaths cache/csko via HttpFileCache
 ```
+
+**Route sources.** `Authoring/Routes/` finds real routes between two airports for the scenario editor. `RouteFinder` runs every `IRouteSource` on the thread pool and merges their routes: the text is uppercased, `DCT` and the bookend airports dropped, and identical routes join into one `FoundRoute` carrying every source's name. A route any of whose expanded fixes (`RouteExpander.Expand`) does not resolve on navdata is dropped. Routes order by count, then first seen. A source that throws or times out on its own is reported in `RouteFindResult.Failures` and leaves the others' routes; only the caller's cancellation propagates. `CskoRouteSource` asks `https://flight-plans.csko.hu/v1/flight_plan/search` (departure, arrival, `limit=500`, plus route, callsign and aircraft type when set; a non-K departure is left out of the query and filtered client-side), and groups the flights by `route_text`, or by a dotted `last_route_text` without its `./.`. The reply is cached for 24 hours in `YaatPaths` `cache/csko`; on a failure or a 404 the stale copy is served with a failure message, and an unreadable reply is reported and dropped from the cache. It is used with the csko operator's permission, and csko may be unavailable, so it is never the only source the editor offers. Tests: `tests/Yaat.Sim.Tests/Authoring/Routes/`, on a recorded reply in `TestData/Csko/`.
