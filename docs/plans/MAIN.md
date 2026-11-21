@@ -4,8 +4,7 @@
 
 ## YAATEdit in YAAT
 
-### M1 Scenario editor (1/8 done)
-- [/] YAAT-2488 YAATEdit M1.2: vNAS training client and local store (sub-issue of YAAT-1989) · release vNext
+### M1 Scenario editor (2/8 done)
 - [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext
@@ -18,7 +17,7 @@
 - [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (1/16 done)
+### M3 Routes, timing and metrics (2/16 done)
 - [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext
@@ -33,10 +32,8 @@
 - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
-- [/] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) (sub-issue of YAAT-1989) · release vNext
 
-### M4 Airport editor (2/10 done)
-- [/] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim (sub-issue of YAAT-1989) · release vNext
+### M4 Airport editor (3/10 done)
 - [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext
@@ -47,7 +44,6 @@
 
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
-  - [/] YAAT-2488 YAATEdit M1.2: vNAS training client and local store · release vNext
   - [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser · release vNext
   - [ ] YAAT-2490 YAATEdit M1.4: General tab · release vNext
   - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext
@@ -71,7 +67,6 @@
   - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
   - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext
   - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext
-  - [/] YAAT-2514 YAATEdit M4.2: Validation and snapping in Yaat.Sim · release vNext
   - [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas · release vNext
   - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext
   - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext
@@ -79,11 +74,15 @@
   - [ ] YAAT-2519 YAATEdit M4.7: per-corner fillet overrides in Yaat.Sim (sidecar, report, simulation) · release vNext
   - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext
   - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392)
-  - [/] YAAT-2673 YAATEdit M3.1b: Navdata route source (SID and STAR pairs) · release vNext
   - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON
   - [ ] YAAT-2692 Break the Data.Vnas and Authoring namespace cycle in Yaat.Sim (shared atomic write and id rule) · release vNext
   - [ ] YAAT-2693 Make the GuideCapture load-scenario dialog deterministic and regenerate its screenshot · release vNext
   - [ ] YAAT-2694 Enforce the minimum line vertices in MapFeature itself, not only in NewFeature · release vNext
+  - [ ] YAAT-2695 Keep a finished scenario download's status when a slow hub call then fails · release vNext
+  - [ ] YAAT-2696 Dedupe the notice lines after an offline scenario download · release vNext
+  - [ ] YAAT-2697 Share LocalScenarioStore's mirror read-and-check step and test the unindexed-file paths · release vNext
+  - [ ] YAAT-2703 Drop navdata routes with a direct leg over 260 NM for a non-RNAV equipment suffix · release vNext
+  - [ ] YAAT-2704 List only the runways whose transition ends at a navdata route row's SID exit · release vNext
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -161,8 +160,8 @@
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2683 Scope: draw ERAM targets and datablocks in an ERAM look, distinct from STARS · release vNext
-  - [/] YAAT-2688 Scope: draw ERAM-template tracks in the ERAM look (glyph per state, track symbols, glyph history, CRC leader, ERAM yellow) · release vNext
-  - [ ] YAAT-2689 Scope: a compact or realistic datablock text setting per profile, with Terminus Bold at CRC's STARS and ERAM sizes · release vNext
+  - [/] YAAT-2689 Scope: a compact or realistic datablock text setting per profile, with Terminus Bold at CRC's STARS and ERAM sizes · release vNext
+  - [ ] YAAT-2702 Keep ERAM history glyphs right across a template switch and on a track's first sample · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -1199,9 +1198,12 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (4/19 done)
+### 1 Defects (5/23 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
   - [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
+    - [ ] YAAT-2699 Cap an uncleared VFR pattern, approach or departure climb below a Class B shelf · release vNext
+    - [ ] YAAT-2700 Hold an uncleared VFR pattern or approach in front of its phase at the Class B boundary and resume it · release vNext
+    - [ ] YAAT-2701 Judge Class B entry along the pattern or approach path and release the hold when the path clears · release vNext
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext
 - [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext
@@ -1708,11 +1710,16 @@
 - [ ] YAAT-2601 Read per-room ARTCC config from the room's pinned config in CRC broadcasts, ATPA, hubs and position lookups
 - [ ] YAAT-2602 Test the auto scratchpad projection and that broadcasts read the pinned ARTCC config, not the live cache
 
+## No project
+
+- [ ] YAAT-2705 Ship NOTICE and the bundled fonts' licence texts in every release package
+
 ## Design files
 
 - [README.md](README.md) — YAAT-1013
 - [asdex-safety-logic-parity.md](asdex-safety-logic-parity.md) — ASDE-X alert parity (feat/asdex-safety-logic)
 - [canvases/tts-benchmark/RECIPE.md](canvases/tts-benchmark/RECIPE.md) — YAAT-1617
+- [class-b-in-phase-hold.md](class-b-in-phase-hold.md) — YAAT-2699, YAAT-2700, YAAT-2701
 - [context-menu-builder-refactor.md](context-menu-builder-refactor.md) — YAAT-2169, Context-menu quick commands (#471)
 - [context-menu-quick-commands.md](context-menu-quick-commands.md) — YAAT-329, YAAT-2169, Context-menu quick commands (#471)
 - [controller-ai/02-positions-and-handoffs.md](controller-ai/02-positions-and-handoffs.md) — YAAT-804, YAAT-1539
@@ -1734,4 +1741,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2488, YAAT-2489, YAAT-2490, YAAT-2491, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2499, YAAT-2500, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2506, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2514, YAAT-2515, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2519, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2489, YAAT-2490, YAAT-2491, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2499, YAAT-2500, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2506, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2515, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2519, YAAT-2520, YAATEdit in YAAT
