@@ -68,6 +68,38 @@ public class ScopePanZoomLockTests
         }
     }
 
+    /// <summary>Zooming in below 1 NM from a range of 1 syncs the range in eighths, and the RANGE readout shows it.</summary>
+    [AvaloniaFact]
+    public void ZoomingBelowOneNm_FromARangeOfOne_SyncsTheRangeAndTheReadout()
+    {
+        (MainViewModel main, ScopeView view, Window window) = ShowScope();
+        try
+        {
+            var scope = (ScopeViewModel)view.DataContext!;
+            main.RunScopeCommand(".scope range 1");
+            Dispatcher.UIThread.RunJobs();
+
+            // One wheel step zooms in by its own factor; the zoom is set first so that the step lands on 4 times the
+            // range-1 zoom, a view of 0.25 NM.
+            var centre = new Point(400, 300);
+            double rangeOneZoom = view.Canvas.Viewport.Zoom;
+            window.MouseWheel(centre, new Vector(0, 1));
+            Dispatcher.UIThread.RunJobs();
+            double stepFactor = view.Canvas.Viewport.Zoom / rangeOneZoom;
+            view.Canvas.Viewport.Zoom = rangeOneZoom * 4 / stepFactor;
+            window.MouseWheel(centre, new Vector(0, 1));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(0.25, scope.RangeNm);
+            Assert.Equal("0.25", scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Range)!));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     [AvaloniaFact]
     public void Locked_TheRangeSpinnerAndScopeRange_StillChangeTheRange()
     {

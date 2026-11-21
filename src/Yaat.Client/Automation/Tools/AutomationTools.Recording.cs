@@ -54,7 +54,7 @@ public sealed partial class AutomationTools
         [Description("The recording's full path: a .yaat-recording.zip/.br/.json or a .yaat-bug-report-bundle.zip.")] string path,
         [Description("The Radar centre's latitude in degrees, from -90 to 90.")] double centerLat,
         [Description("The Radar centre's longitude in degrees, from -180 to 180.")] double centerLon,
-        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm,
+        [Description("The Radar range to show, in nm, from 0.125 to 256.")] double rangeNm,
         [Description("The STARS ids of the video maps to show, comma-separated (e.g. \"5,12\"); every other map is turned off. May be empty.")]
             string videoMaps,
         [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double ptlMinutes,

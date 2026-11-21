@@ -163,10 +163,7 @@ public class ScopeEntryClassifierTests
 
     [Fact]
     public void MfR_OnStars_ReadsAsAStarsEntryThatSends() =>
-        Assert.Equal(
-            new ScopeEntryReading(ScopeEntryKind.Stars, "STARS MF scope ptl", ".scope ptl UAL238", true),
-            Read("MF R UAL238", ScopeProfileKind.Stars)
-        );
+        Assert.Equal(new ScopeEntryReading(ScopeEntryKind.Stars, "STARS MF scope ptl", ".scope ptl", true), Read("MF R", ScopeProfileKind.Stars));
 
     [Theory]
     [InlineData(ScopeProfileKind.Eram)]

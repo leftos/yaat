@@ -45,12 +45,17 @@ public class SsaLinesTests
         Assert.True(lines.IsStatusAlert);
     }
 
-    [Fact]
-    public void Range_IsRounded()
+    /// <summary>The range shows as stored, with no trailing zeros, as CRC's STARS range takes decimals.</summary>
+    [Theory]
+    [InlineData(0.5, "OK/OK/NA FUSED 0.5NM")]
+    [InlineData(12.5, "OK/OK/NA FUSED 12.5NM")]
+    [InlineData(40, "OK/OK/NA FUSED 40NM")]
+    [InlineData(0.125, "OK/OK/NA FUSED 0.125NM")]
+    public void Range_ShowsAsStored_WithNoTrailingZeros(double rangeNm, string line2)
     {
-        var lines = SsaLines.Build(At184732, 30.02, "KSFO", true, 39.6);
+        var lines = SsaLines.Build(At184732, 30.02, "KSFO", true, rangeNm);
 
-        Assert.Equal("OK/OK/NA FUSED 40NM", lines.Line2);
+        Assert.Equal(line2, lines.Line2);
     }
 
     [Fact]

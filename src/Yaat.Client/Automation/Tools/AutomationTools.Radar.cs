@@ -10,10 +10,10 @@ namespace Yaat.Client.Automation.Tools;
 
 public sealed partial class AutomationTools
 {
-    /// <summary>The Scope range limits, the ones its range spinner keeps to (<see cref="ScopeViewModel.StepRange"/>).</summary>
-    private const double MinRangeNm = 1;
+    /// <summary>The Scope range limits (<see cref="ScopeViewModel.MinRangeNm"/>, <see cref="ScopeViewModel.MaxRangeNm"/>).</summary>
+    private const double MinRangeNm = ScopeViewModel.MinRangeNm;
 
-    private const double MaxRangeNm = 256;
+    private const double MaxRangeNm = ScopeViewModel.MaxRangeNm;
 
     /// <summary>The vector lengths <c>set_ptl</c> and <c>prepare_take</c> take, as the Scope's VECTOR spinner offers them.</summary>
     private const string VectorMinutesText = "0, 1, 2, 4 or 8";
@@ -23,7 +23,7 @@ public sealed partial class AutomationTools
     [AutomationTool("center_radar", "Centres the primary Radar on an aircraft at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadar(
         [Description("The aircraft's callsign, matched case-insensitively.")] string callsign,
-        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 0.125 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -47,7 +47,7 @@ public sealed partial class AutomationTools
     public Task<AppToolOutcome> CenterRadarAt(
         [Description("The centre's latitude in degrees, from -90 to 90.")] double lat,
         [Description("The centre's longitude in degrees, from -180 to 180.")] double lon,
-        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 0.125 to 256.")] double rangeNm
     )
     {
         ValidateLatitude("lat", lat);
@@ -66,7 +66,7 @@ public sealed partial class AutomationTools
     [AutomationTool("center_radar_on_fix", "Centres the primary Radar on a fix or airport at a range.", nameof(ScopeNotReady))]
     public Task<AppToolOutcome> CenterRadarOnFix(
         [Description("The fix or airport identifier, e.g. OAK or KSFO; an FRD such as OAK090010 also works.")] string fix,
-        [Description("The Radar range to show, in nm, from 1 to 256.")] double rangeNm
+        [Description("The Radar range to show, in nm, from 0.125 to 256.")] double rangeNm
     )
     {
         ValidateRange(rangeNm);
@@ -163,7 +163,7 @@ public sealed partial class AutomationTools
 
     private static void ValidateRange(double rangeNm)
     {
-        if (rangeNm is < MinRangeNm or > MaxRangeNm)
+        if (rangeNm is not (>= MinRangeNm and <= MaxRangeNm))
         {
             throw new AppToolArgumentException(
                 "rangeNm",

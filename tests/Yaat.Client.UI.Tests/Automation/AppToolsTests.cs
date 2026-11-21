@@ -521,6 +521,28 @@ public sealed class AppToolsTests : AutomationHostFixture
         Assert.Equal(otherRangeBefore, other.RangeNm);
     }
 
+    /// <summary>The tools take the Scope's own range limits: a range under 1 NM, down to 0.125, is valid.</summary>
+    [AvaloniaFact]
+    public async Task CenterRadarAt_ARangeUnderOneNm_IsAccepted()
+    {
+        MainViewModel viewModel = ScopeReady();
+
+        Result(
+            await CallTool(
+                ToolsOf(viewModel),
+                "center_radar_at",
+                new
+                {
+                    lat = 37.5,
+                    lon = -122.25,
+                    rangeNm = 0.5,
+                }
+            )
+        );
+
+        Assert.Equal(0.5, viewModel.PrimaryScope.RangeNm, 6);
+    }
+
     [AvaloniaFact]
     public async Task CenterRadar_RangeOutOfBounds_InvalidParam()
     {
@@ -531,7 +553,7 @@ public sealed class AppToolsTests : AutomationHostFixture
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
             (ProtocolMethods.CallAppTool, new { tool = "center_radar", arguments = new { callsign = "UAL123", rangeNm = 256.5 } }),
-            (ProtocolMethods.CallAppTool, new { tool = "center_radar", arguments = new { callsign = "UAL123", rangeNm = 0.5 } })
+            (ProtocolMethods.CallAppTool, new { tool = "center_radar", arguments = new { callsign = "UAL123", rangeNm = 0.1 } })
         );
 
         Assert.All(responses, response => Assert.Equal("rangeNm", ErrorParam(Error(response, AutomationErrorCodes.InvalidParam))));

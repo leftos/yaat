@@ -267,7 +267,7 @@
         { "verb": "LDR", "aliases": [], "description": "Leader line direction (1-9)" },
         { "verb": "JRING", "aliases": [], "description": "J-Ring radius nm 1-30 [bare=clear]" },
         { "verb": "CONE", "aliases": [], "description": "Cone length nm 1-30 [bare=clear]" },
-        { "verb": ".scope range", "aliases": [], "args": "<1-256>", "description": "Radar range in nm (client-local)" },
+        { "verb": ".scope range", "aliases": [], "args": "<0.125-256>", "description": "Radar range in nm (client-local)" },
         { "verb": ".scope profile", "aliases": [], "args": "<stars|eram|mixed>", "description": "Radar profile for the room, remembered for the student position type (client-local)" },
         { "verb": ".scope template", "aliases": [], "args": "<stars|eram|mixed|euroscope>", "description": "Radar datablock template (client-local)" },
         { "verb": ".scope others", "aliases": [], "args": "<full|partial>", "description": "Radar level of tracks you do not own, pinned over the zoom band (client-local)" },

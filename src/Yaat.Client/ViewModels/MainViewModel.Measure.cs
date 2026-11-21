@@ -252,9 +252,16 @@ public partial class MainViewModel
     // or the code it squawks; two tracks matching is DUP TRK. A missing code (0) never matches.
     private (RblEndpoint? Endpoint, string? Error) BeaconTrack(string code)
     {
-        AircraftModel[] matches = [.. Aircraft.Where(ac => HasBeaconCode(ac.AssignedBeaconCode, code) || HasBeaconCode(ac.BeaconCode, code))];
+        AircraftModel[] matches = TracksWithBeacon(code);
         return (matches.Length > 1) ? (null, StarsErrorText.DuplicateTrack) : TrackEndpoint(matches.FirstOrDefault());
     }
+
+    /// <summary>
+    /// The tracks a four-digit beacon <paramref name="code"/> names, as CRC's TrackManager.LookupAssociatedTrack finds them: the
+    /// code a track's flight plan assigns or the code it squawks. A missing code (0) never matches.
+    /// </summary>
+    internal AircraftModel[] TracksWithBeacon(string code) =>
+        [.. Aircraft.Where(ac => HasBeaconCode(ac.AssignedBeaconCode, code) || HasBeaconCode(ac.BeaconCode, code))];
 
     private static bool HasBeaconCode(uint beaconCode, string code) =>
         (beaconCode > 0) && (beaconCode.ToString("0000", CultureInfo.InvariantCulture) == code);

@@ -15,8 +15,10 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Sim;
 using Yaat.Sim.Commands;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -870,11 +872,12 @@ public class ScopeEntryTests
         return (main, scope);
     }
 
+    /// <summary>CRC's bare HND never cancels an outbound handoff: on the slewed track it is the accept, as on any other.</summary>
     [AvaloniaTheory]
-    [InlineData("HND", "CANCEL")]
-    [InlineData("HND UAL2", "UAL238 CANCEL")]
-    [InlineData("HND UAL238", "UAL238 CANCEL")]
-    public async Task BareHnd_OnAHandoffFromTheActingPosition_Cancels(string entry, string sent)
+    [InlineData("HND", "ACCEPT")]
+    [InlineData("HND UAL2", "UAL238 ACCEPT")]
+    [InlineData("HND UAL238", "UAL238 ACCEPT")]
+    public async Task BareHnd_OnAHandoffFromTheActingPosition_SendsTheAccept_NeverACancel(string entry, string sent)
     {
         (_, ScopeViewModel scope) = await HandoffScopeAsync("OAK_APP", "SFO_APP");
         using (scope)
@@ -899,10 +902,8 @@ public class ScopeEntryTests
         }
     }
 
-    [AvaloniaTheory]
-    [InlineData("*J5")]
-    [InlineData("*P")]
-    public async Task ATpaEntry_WithNoAircraftSelected_AnswersTheNoAircraftText(string entry)
+    [AvaloniaFact]
+    public async Task BareTpaRemoval_WithNoAircraftSelected_AnswersTheNoAircraftText()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         using (scope)
@@ -910,10 +911,335 @@ public class ScopeEntryTests
             scope.ProfileKind = ScopeProfileKind.Stars;
             main.SelectedAircraft = null;
 
+            await RunEntryAsync(scope, "*P");
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, "*P", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>
+    /// The entries CRC answers by a category on the Scope, sending nothing: a TPA size with no slewed track, a size outside
+    /// CRC's grammar, MF R with no slew or with a typed callsign, a RANGE out of its limits or not a number, bare <c>**</c>
+    /// with no slew, MF L5 (default) for the owned tracks.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("*J5", StarsErrorText.Format)]
+    [InlineData("*P2.5", StarsErrorText.Format)]
+    [InlineData("*J31", StarsErrorText.Format)]
+    [InlineData("MF R", StarsErrorText.Format)]
+    [InlineData("**", StarsErrorText.Format)]
+    [InlineData("MF L5", StarsErrorText.Format)]
+    [InlineData("RANGE 0.1", StarsErrorText.RangeLimit)]
+    [InlineData("RANGE 257", StarsErrorText.RangeLimit)]
+    [InlineData("RANGE X", StarsErrorText.Format)]
+    [InlineData("4", StarsErrorText.NotSupported)]
+    [InlineData("MF L3", StarsErrorText.NotSupported)]
+    [InlineData("1D+", StarsErrorText.NotSupported)]
+    public async Task AStarsEntryCrcRefuses_WithNoAircraftSelected_AnswersItsCategory_AndSendsNothing(string entry, string answer)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            AddAircraft(main, "UAL238", 5000);
+            main.SelectedAircraft = null;
+
             await RunEntryAsync(scope, entry);
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, entry, []), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, answer, entry, []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>A bare digit and MF L with a digit set the slewed (selected) track's leader direction, naming it.</summary>
+    [AvaloniaTheory]
+    [InlineData("4", "UAL238 LDR 4")]
+    [InlineData("MF L3", "UAL238 LDR 3")]
+    [InlineData("MF L 3", "UAL238 LDR 3")]
+    public async Task ABareDigitOrMfLDigit_WithATrackSelected_SetsItsLeaderDirection(string entry, string sent)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+            scope.YaatEntrySender = (_, _, _) => Task.CompletedTask;
+
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>RANGE takes a decimal range from 0.125 to 256 NM, as CRC's does.</summary>
+    [AvaloniaTheory]
+    [InlineData("RANGE 12.5", 12.5)]
+    [InlineData("RANGE 0.125", 0.125)]
+    public async Task Range_TakesADecimalRange(string entry, double rangeNm)
+    {
+        (_, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(rangeNm, scope.RangeNm);
+        }
+    }
+
+    // A STARS Scope acting as OAK_APP (2B), nothing selected, its home centre at 37.95N 122.3W and its range ring moved off it
+    // to 37.7N, with UAL1 (37.8N, nearer the ring) and DAL2 (37.9N, nearer home) handed off to it, and SWA3, nearer home still,
+    // handed off from it.
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> IncomingHandoffsScopeAsync(bool withIncoming)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "2B", Oakland, 3));
+        scope.ProfileKind = ScopeProfileKind.Stars;
+        main.ScopeMaps.ApplyVideoMapsDtoForTesting(
+            new FacilityVideoMapsDto("ZOA", "NCT", [new StarsAreaDto("A", "Area A", 37.95, -122.3, 60, [])], [], []),
+            null,
+            null
+        );
+        scope.RangeRingCenter = new LatLon(37.7, -122.3);
+        if (withIncoming)
+        {
+            AddHandoff(main, "DAL2", new LatLon(37.9, -122.3), "SFO_APP", "OAK_APP");
+            AddHandoff(main, "UAL1", new LatLon(37.8, -122.3), "SFO_APP", "OAK_APP");
+        }
+
+        AddHandoff(main, "SWA3", new LatLon(37.94, -122.3), "OAK_APP", "SFO_APP");
+        main.SelectedAircraft = null;
+        return (main, scope);
+    }
+
+    private static void AddHandoff(MainViewModel main, string callsign, LatLon position, string owner, string peer)
+    {
+        AircraftModel ac = AddAircraft(main, callsign, 5000);
+        ac.Position = position;
+        ac.Owner = owner;
+        ac.OwnerFacilityId = "NCT";
+        ac.HandoffPeer = peer;
+        ac.HandoffPeerFacilityId = "NCT";
+    }
+
+    [AvaloniaFact]
+    public async Task BareHnd_WithNothingSelected_AcceptsTheIncomingHandoffNearestTheHomeCentre_NotTheRangeRing()
+    {
+        (_, ScopeViewModel scope) = await IncomingHandoffsScopeAsync(withIncoming: true);
+        using (scope)
+        {
+            await RunEntryAsync(scope, "HND");
+
+            Assert.Equal("DAL2 ACCEPT", scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BareHnd_WithNothingSelected_AndNoIncomingHandoff_AnswersNoFlight()
+    {
+        (_, ScopeViewModel scope) = await IncomingHandoffsScopeAsync(withIncoming: false);
+        using (scope)
+        {
+            await RunEntryAsync(scope, "HND");
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.NoFlight, "HND", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>Bare <c>**</c> on the slewed track: the point-out pending to us converts, else the track is force-quicklooked to us.</summary>
+    [AvaloniaTheory]
+    [InlineData("2B", "UAL238 POHO")]
+    [InlineData("3C", "UAL238 FQL 2B")]
+    [InlineData(null, "UAL238 FQL 2B")]
+    public async Task BareStarStar_ConvertsAPointOutToUs_ElseForceQuicklooksToOurOwnPosition(string? pointoutTo, string sent)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await HandoffScopeAsync("SFO_APP", "");
+        using (scope)
+        {
+            if (pointoutTo is not null)
+            {
+                main.SelectedAircraft!.PointoutStatus = "Pending";
+                main.SelectedAircraft.PointoutRecipientCode = pointoutTo;
+            }
+
+            scope.YaatEntrySender = (_, _, _) => Task.CompletedTask;
+
+            await RunEntryAsync(scope, "**");
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BareStarStar_WithNoActingPosition_AnswersIllPos()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        using (scope)
+        {
+            scope.ProfileKind = ScopeProfileKind.Stars;
+            main.SelectedAircraft = AddAircraft(main, "UAL238", 5000);
+
+            await RunEntryAsync(scope, "**");
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.IllegalPosition, "**", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    // A STARS Scope acting as OAK_APP (2B) with UAL238 and DAL2, DAL2 selected, every send stubbed.
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope)> ClickScopeAsync()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], "2B", Oakland, 3));
+        scope.ProfileKind = ScopeProfileKind.Stars;
+        AddAircraft(main, "UAL238", 5000);
+        main.SelectedAircraft = AddAircraft(main, "DAL2", 6000);
+        scope.YaatEntrySender = (_, _, _) => Task.CompletedTask;
+        return (main, scope);
+    }
+
+    /// <summary>
+    /// A click on a track is CRC's slew: an entry whose CRC form ends in one runs on the clicked track, not the selected one,
+    /// by a left click then Enter or by a middle click, whose callsign the fill put last.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("4", false, "UAL238 LDR 4")]
+    [InlineData("4", true, "UAL238 LDR 4")]
+    [InlineData("MF L3", false, "UAL238 LDR 3")]
+    [InlineData("MF R", false, ".scope ptl UAL238")]
+    [InlineData("*J5", false, ".scope rings jring 5 UAL238")]
+    [InlineData("*P5", true, ".scope rings cone 5 UAL238")]
+    [InlineData("**", false, "UAL238 FQL 2B")]
+    [InlineData("HND", true, "UAL238 ACCEPT")]
+    public async Task AStarsEntryEndingInASlew_RunsOnTheClickedTrack(string typed, bool middleClick, string sent)
+    {
+        (_, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            Assert.True(scope.TypeEntryText(typed));
+            if (middleClick)
+            {
+                scope.FillTrackAndRun("UAL238");
+            }
+            else
+            {
+                scope.FillTrack("UAL238");
+                Assert.True(scope.ExecuteEntry());
+            }
+
+            await scope.LastEntryRun;
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>A click counts only while the entry is the text that click made: a space typed after it makes the entry read as typed.</summary>
+    [AvaloniaFact]
+    public async Task TextTypedAfterAClick_MakesTheEntryReadAsTyped()
+    {
+        (_, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            Assert.True(scope.TypeEntryText("4"));
+            scope.FillTrack("UAL238");
+            Assert.True(scope.TypeEntryText(" "));
+
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.NotSupported, "4 UAL238", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>
+    /// In CRC a click is never text: once an edit changes the clicked entry, the click is gone, even when the edit types the
+    /// same text back. The entry then reads as typed.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task EditingBackToTheClickedText_DoesNotReviveTheClick()
+    {
+        (_, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            Assert.True(scope.TypeEntryText("4"));
+            scope.FillTrack("UAL238");
+            Assert.True(scope.BackspaceEntry());
+            Assert.True(scope.TypeEntryText("8"));
+            Assert.Equal("4 UAL238", scope.EntryText);
+
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.NotSupported, "4 UAL238", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>Text set on the entry by any other path after a click drops the click, even when it ends in the clicked callsign.</summary>
+    [AvaloniaFact]
+    public async Task TextSetElsewhereAfterAClick_DropsTheClick()
+    {
+        (_, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            Assert.True(scope.TypeEntryText("4"));
+            scope.FillTrack("UAL238");
+            scope.EntryText = "*J5 UAL238";
+
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.Format, "*J5 UAL238", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary>A callsign typed after an entry that ends in a slew is no slew: the entry reads as typed.</summary>
+    [AvaloniaTheory]
+    [InlineData("4 UAL238", StarsErrorText.NotSupported)]
+    [InlineData("MF R UAL238", StarsErrorText.Format)]
+    [InlineData("*J5 UAL238", StarsErrorText.Format)]
+    public async Task ATypedTrailingCallsign_IsNoSlew(string entry, string answer)
+    {
+        (_, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, answer, entry, []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+        }
+    }
+
+    /// <summary><c>MF L&lt;d&gt; &lt;id&gt;</c> finds the id's track: a callsign whole, or a beacon code; none NO TRK, two DUP TRK.</summary>
+    [AvaloniaTheory]
+    [InlineData("MF L3 ual238", "UAL238 LDR 3", null)]
+    [InlineData("MF L3 4521", "UAL238 LDR 3", null)]
+    [InlineData("MF L3 UAL", null, StarsErrorText.NoTrack)]
+    [InlineData("MF L3 1200", null, StarsErrorText.DuplicateTrack)]
+    [InlineData("MF L3 0000", null, StarsErrorText.NoTrack)]
+    [InlineData("MF L3 12", null, StarsErrorText.NotSupported)]
+    public async Task MfLeaderForAnId_FindsItsTrack(string entry, string? sent, string? answer)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ClickScopeAsync();
+        using (scope)
+        {
+            AircraftModel ual = main.Aircraft.Single(a => a.Callsign == "UAL238");
+            ual.AssignedBeaconCode = 4521;
+            ual.BeaconCode = 1200;
+            main.Aircraft.Single(a => a.Callsign == "DAL2").BeaconCode = 1200;
+
+            await RunEntryAsync(scope, entry);
+
+            Assert.Equal(sent, scope.LastSentEntryText);
+            if (answer is not null)
+            {
+                Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, answer, entry, []), scope.EntryResponse);
+            }
         }
     }
 

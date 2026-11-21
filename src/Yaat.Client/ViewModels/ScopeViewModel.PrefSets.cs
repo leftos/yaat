@@ -300,13 +300,14 @@ public sealed partial class ScopeViewModel
 
     private void ApplyRange(double rangeNm)
     {
-        if (rangeNm is >= 1 and <= 256)
+        // The positive range check also refuses NaN, a backstop: JSON cannot carry NaN, so no saved pref set holds one.
+        if (rangeNm is >= MinRangeNm and <= MaxRangeNm)
         {
             RangeNm = rangeNm;
             return;
         }
 
-        Log.LogWarning("A pref set's range {Range} is outside 1-256; keeping {Current}", rangeNm, RangeNm);
+        Log.LogWarning("A pref set's range {Range} is outside 0.125-256; keeping {Current}", rangeNm, RangeNm);
     }
 
     private void ApplyCentre(double lat, double lon)

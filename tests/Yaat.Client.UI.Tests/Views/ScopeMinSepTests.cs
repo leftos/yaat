@@ -9,6 +9,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -16,9 +17,10 @@ using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The Scope's STARS min-sep readout: <c>MIN</c> then two tracks (typed, or clicked, the second click running it) shows one
-/// pair's projected closest approach, recomputed as either aircraft moves; <c>MIN</c> and Enter clears it, as do either track
-/// leaving, invalid data, a restart and a new <c>MIN</c>; CRC's error texts answer the wrong gestures; ERAM has no MIN.
+/// The Scope's STARS min-sep readout: <c>MIN</c> then two clicked tracks (the second click running it; a typed callsign is
+/// FORMAT, as CRC's MIN takes no text) shows one pair's projected closest approach, recomputed as either aircraft moves;
+/// <c>MIN</c> and Enter clears it, as do either track leaving, invalid data, a restart and a new <c>MIN</c>; CRC's error
+/// categories answer the wrong gestures; ERAM has no MIN.
 /// </summary>
 public class ScopeMinSepTests
 {
@@ -48,15 +50,114 @@ public class ScopeMinSepTests
         await scope.LastEntryRun;
     }
 
+    // MIN, then a click on track a and one on track b, which runs it.
+    private static async Task PairByClicksAsync(ScopeViewModel scope, string a, string b)
+    {
+        Assert.True(scope.TypeEntryText("MIN"));
+        scope.FillTrack(a);
+        scope.FillTrackFromClick(b);
+        await scope.LastEntryRun;
+    }
+
+    /// <summary>CRC's MIN takes no text: a typed callsign, alone or with a clicked one, is FORMAT and leaves the pair as it was.</summary>
+    [AvaloniaTheory]
+    [InlineData("MIN UAL1 DAL2", null)]
+    [InlineData("MIN UAL1", null)]
+    [InlineData("MIN UAL1", "DAL2")]
+    public async Task TypedMinCallsigns_AnswerFormat(string typed, string? clicked)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            AddConvergingPair(main, "UAL1", "DAL2");
+            Assert.True(scope.TypeEntryText(typed));
+            if (clicked is null)
+            {
+                Assert.True(scope.ExecuteEntry());
+            }
+            else
+            {
+                scope.FillTrackFromClick(clicked);
+            }
+
+            await scope.LastEntryRun;
+
+            Assert.Null(scope.MinSep);
+            Assert.Equal(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
+            Assert.Equal(StarsErrorText.Format, scope.EntryResponse?.Message);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>Backspace takes back a clicked track: the tracks clicked after it make the pair.</summary>
     [AvaloniaFact]
-    public async Task TypedMinWithTwoTracks_ShowsAConvergingPair()
+    public async Task ABackspacedClick_IsForgotten_AndTheNextTwoClicksMakeThePair()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            AddConvergingPair(main, "UAL1", "DAL2");
+            AddConvergingPair(main, "SWA3", "AAL4");
+            Assert.True(scope.TypeEntryText("MIN"));
+            scope.FillTrack("UAL1");
+            for (int i = 0; i < 4; i++)
+            {
+                Assert.True(scope.BackspaceEntry());
+            }
+
+            scope.FillTrackFromClick("SWA3");
+            scope.FillTrackFromClick("AAL4");
+            await scope.LastEntryRun;
+
+            Assert.Equal(("SWA3", "AAL4"), (scope.MinSep?.CallsignA, scope.MinSep?.CallsignB));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>A click backspaced away leaves bare MIN, which clears the pair.</summary>
+    [AvaloniaFact]
+    public async Task MinWithItsClickBackspacedAway_ClearsThePair()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeAsync(ScopeProfileKind.Stars);
+        try
+        {
+            AddConvergingPair(main, "UAL1", "DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
+            Assert.NotNull(scope.MinSep);
+            Assert.True(scope.TypeEntryText("MIN"));
+            scope.FillTrack("UAL1");
+            while (scope.EntryText.Length > "MIN".Length)
+            {
+                Assert.True(scope.BackspaceEntry());
+            }
+
+            Assert.True(scope.ExecuteEntry());
+            await scope.LastEntryRun;
+
+            Assert.Null(scope.MinSep);
+            Assert.NotEqual(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MinWithTwoClickedTracks_ShowsAConvergingPair()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeAsync(ScopeProfileKind.Stars);
         try
         {
             AddConvergingPair(main, "UAL1", "DAL2");
 
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
 
             ScopeMinSep pair = Assert.IsType<ScopeMinSep>(scope.MinSep);
             Assert.Equal(("UAL1", "DAL2"), (pair.CallsignA, pair.CallsignB));
@@ -120,7 +221,7 @@ public class ScopeMinSepTests
             Assert.Null(scope.MinSep);
             Assert.Equal(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
             Assert.Equal(ScopeViewModel.MinSepSameTrackMessage, scope.EntryResponse?.Message);
-            Assert.Equal("Both parameters refer to the same track.", ScopeViewModel.MinSepSameTrackMessage);
+            Assert.Equal(StarsErrorText.DuplicateTrack, ScopeViewModel.MinSepSameTrackMessage);
         }
         finally
         {
@@ -135,7 +236,7 @@ public class ScopeMinSepTests
         try
         {
             AddConvergingPair(main, "UAL1", "DAL2");
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
             Assert.NotNull(scope.MinSep);
 
             await RunEntryAsync(scope, "MIN");
@@ -164,7 +265,7 @@ public class ScopeMinSepTests
 
             Assert.Null(scope.MinSep);
             Assert.Equal(ScopeResponseKind.Error, scope.EntryResponse?.Kind);
-            Assert.Equal("Must click two tracks.", scope.EntryResponse?.Message);
+            Assert.Equal(StarsErrorText.Format, scope.EntryResponse?.Message);
         }
         finally
         {
@@ -188,7 +289,7 @@ public class ScopeMinSepTests
             await scope.LastEntryRun;
 
             Assert.Null(scope.MinSep);
-            Assert.Equal("First track not displayed when second track selected.", scope.EntryResponse?.Message);
+            Assert.Equal(StarsErrorText.IllegalTrack, scope.EntryResponse?.Message);
         }
         finally
         {
@@ -203,7 +304,7 @@ public class ScopeMinSepTests
         try
         {
             (_, AircraftModel b) = AddConvergingPair(main, "UAL1", "DAL2");
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
             Assert.IsType<MinSepConverging>(scope.MinSep?.Result);
 
             b.TrueTrack = 90;
@@ -226,7 +327,7 @@ public class ScopeMinSepTests
         try
         {
             AddConvergingPair(main, "UAL1", "DAL2");
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
 
             main.OnAircraftDeleted("DAL2");
             Dispatcher.UIThread.RunJobs();
@@ -247,9 +348,9 @@ public class ScopeMinSepTests
         {
             AddConvergingPair(main, "UAL1", "DAL2");
             AddConvergingPair(main, "SWA3", "AAL4");
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
 
-            await RunEntryAsync(scope, "MIN SWA3 AAL4");
+            await PairByClicksAsync(scope, "SWA3", "AAL4");
 
             Assert.Equal(("SWA3", "AAL4"), (scope.MinSep?.CallsignA, scope.MinSep?.CallsignB));
         }
@@ -266,12 +367,12 @@ public class ScopeMinSepTests
         try
         {
             AddConvergingPair(main, "UAL1", "DAL2");
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
 
             scope.ClearTrackState();
             Assert.Null(scope.MinSep);
 
-            await RunEntryAsync(scope, "MIN UAL1 DAL2");
+            await PairByClicksAsync(scope, "UAL1", "DAL2");
             main.ApplyScenarioRestart([], null);
             Assert.Null(scope.MinSep);
         }
@@ -333,7 +434,7 @@ public class ScopeMinSepTests
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeAsync(ScopeProfileKind.Stars);
         (_, AircraftModel b) = AddConvergingPair(main, "UAL1", "DAL2");
-        await RunEntryAsync(scope, "MIN UAL1 DAL2");
+        await PairByClicksAsync(scope, "UAL1", "DAL2");
         Assert.NotNull(scope.MinSep);
 
         scope.Dispose();

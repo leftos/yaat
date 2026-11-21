@@ -618,7 +618,10 @@ public static class ScopeToolbarButtons
         };
 
     /// <summary>The command that sets the scope's range to <paramref name="rangeNm"/> NM.</summary>
-    public static string RangeCommand(int rangeNm) => $".scope range {rangeNm}";
+    public static string RangeCommand(double rangeNm) => $".scope range {rangeNm.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The range as the RANGE readout and the SSA show it: no trailing zeros (<c>0.5</c>, <c>12.5</c>, <c>40</c>).</summary>
+    public static string RangeLabel(double rangeNm) => rangeNm.ToString("0.###", CultureInfo.InvariantCulture);
 
     /// <summary>The command that sets the BRITE group named <paramref name="group"/> to <paramref name="value"/>.</summary>
     public static string BriteCommand(string group, int value) =>

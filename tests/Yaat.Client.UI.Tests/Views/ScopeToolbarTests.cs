@@ -360,11 +360,11 @@ public class ScopeToolbarTests
             Dispatcher.UIThread.RunJobs();
             Assert.Equal(40, scope.RangeNm);
 
-            // The label follows the range whichever path wrote it.
+            // The label follows the range whichever path wrote it, a decimal one as stored.
             scope.RangeNm = 60.4;
             Dispatcher.UIThread.RunJobs();
-            Assert.Equal("RANGE 60", DrawnText(range));
-            Assert.Equal("RANGE 60", Label(range));
+            Assert.Equal("RANGE 60.4", DrawnText(range));
+            Assert.Equal("RANGE 60.4", Label(range));
         }
         finally
         {

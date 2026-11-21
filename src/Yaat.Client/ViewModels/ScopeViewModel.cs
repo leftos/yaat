@@ -24,6 +24,12 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>The range the scope opens at, and returns to at every facility load.</summary>
     public const double DefaultRangeNm = 40;
 
+    /// <summary>The scope's least range, in NM: CRC STARS's.</summary>
+    public const double MinRangeNm = 0.125;
+
+    /// <summary>The scope's greatest range, in NM: CRC STARS's.</summary>
+    public const double MaxRangeNm = 256;
+
     private bool _isSyncingSelection;
 
     /// <summary>Whether <see cref="Dispose"/> has run; a second call changes nothing and saves nothing.</summary>

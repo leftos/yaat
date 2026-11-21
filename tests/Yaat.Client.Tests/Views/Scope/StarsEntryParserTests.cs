@@ -20,7 +20,6 @@ public class StarsEntryParserTests
     [InlineData("+", "SP2", "+", "scratchpad 2")]
     [InlineData("+1000", "SP2 1000", "+1000", "scratchpad 2")]
     [InlineData("4", "LDR 4", "4", "leader direction")]
-    [InlineData("4 UAL238", "UAL238 LDR 4", "4", "leader direction")]
     [InlineData("100", "PRA 100", "100", "pilot reported altitude")]
     [InlineData("1D*", "PO 1D", "1D*", "point out")]
     [InlineData("D*", "PO D", "D*", "point out")]
@@ -47,20 +46,26 @@ public class StarsEntryParserTests
     [InlineData("MF Y +", "SP2", "MF", "scratchpad 2")]
     [InlineData("MF Y", "SP1", "MF", "scratchpad 1")]
     [InlineData("MF Y 100", "PRA 100", "MF", "pilot reported altitude")]
-    [InlineData("*J100", ".scope rings jring 100", "*J100", "j-ring")]
-    [InlineData("*J5.25", ".scope rings jring 5.25", "*J5.25", "j-ring")]
-    [InlineData("*J.5", ".scope rings jring .5", "*J.5", "j-ring")]
     [InlineData("**2B  3C", "FQL 2B 3C", "**2B", "force quicklook")]
     [InlineData("+ABCD", "SP2 ABCD", "+ABCD", "scratchpad 2")]
     [InlineData("MF L 7", "LDR 7", "MF", "leader direction")]
-    [InlineData("MF L 7 UAL238", "UAL238 LDR 7", "MF", "leader direction")]
-    [InlineData("MF L7 UAL238", "UAL238 LDR 7", "MF", "leader direction")]
-    [InlineData("MF R UAL238", ".scope ptl UAL238", "MF", "scope ptl")]
-    [InlineData("mf r ual238", ".scope ptl UAL238", "MF", "scope ptl")]
+    [InlineData("MF L 7 UAL238", "LDR 7", "MF", "leader direction")]
+    [InlineData("MF L7 UAL238", "LDR 7", "MF", "leader direction")]
     [InlineData("CA K", "CAINH", "CA", "inhibit conflict alert")]
     [InlineData("CA K UAL238", "UAL238 CAINH", "CA", "inhibit conflict alert")]
     [InlineData("RANGE 40", ".scope range 40", "RANGE", "scope range")]
     [InlineData("init ual238", "UAL238 TRACK", "INIT", "track")]
+    [InlineData("RANGE 12.5", ".scope range 12.5", "RANGE", "scope range")]
+    [InlineData("RANGE 0.125", ".scope range 0.125", "RANGE", "scope range")]
+    [InlineData("RANGE 256", ".scope range 256", "RANGE", "scope range")]
+    [InlineData("MF L3", "LDR 3", "MF", "leader direction")]
+    [InlineData("MF L 3 UAL238", "LDR 3", "MF", "leader direction")]
+    [InlineData("MF YAB1", "SP1 AB1", "MF", "scratchpad 1")]
+    [InlineData("MF YUAL238 100", "UAL238 PRA 100", "MF", "pilot reported altitude")]
+    [InlineData("MF R", ".scope ptl", "MF", "scope ptl")]
+    [InlineData("*J1.5", ".scope rings jring 1.5", "*J1.5", "j-ring")]
+    [InlineData("*J30", ".scope rings jring 30", "*J30", "j-ring")]
+    [InlineData("*P29", ".scope rings cone 29", "*P29", "cone")]
     public void ASupportedEntry_TranslatesToItsYaatCommand(string entry, string translation, string firstWord, string gloss)
     {
         StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
@@ -74,12 +79,12 @@ public class StarsEntryParserTests
     [Theory]
     [InlineData("HND", "ACCEPT", null)]
     [InlineData("HND UAL238", "UAL238 ACCEPT", "UAL238")]
-    public void BareHnd_NeedsTheTracksHandoffState(string entry, string translation, string? callsign)
+    public void BareHnd_AcceptsAHandoff_NeverCancelsOne(string entry, string translation, string? callsign)
     {
         StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
 
         Assert.Equal(translation, read.Translation);
-        Assert.Equal(StarsEntryNeed.HandoffAcceptOrCancel, read.Need);
+        Assert.Equal(StarsEntryNeed.HandoffAccept, read.Need);
         Assert.Equal(callsign, read.Callsign);
     }
 
@@ -88,8 +93,8 @@ public class StarsEntryParserTests
     [InlineData("*P2.5", false, ScopeRingTool.Cone)]
     [InlineData("*J", true, ScopeRingTool.JRing)]
     [InlineData("*P", true, ScopeRingTool.Cone)]
-    [InlineData("*J50", false, ScopeRingTool.JRing)]
-    [InlineData("*J100", false, ScopeRingTool.JRing)]
+    [InlineData("*J30", false, ScopeRingTool.JRing)]
+    [InlineData("*P9.9", false, ScopeRingTool.Cone)]
     public void TpaEntries_NeedTheSelectedTrack(string entry, bool removal, ScopeRingTool ring)
     {
         StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
@@ -122,29 +127,30 @@ public class StarsEntryParserTests
     [InlineData("000", "000")]
     [InlineData("MF Y 000", "MF")]
     [InlineData("MF M 1234", "MF")]
-    [InlineData("MF L 4 U", "MF")]
     [InlineData("MF E", "MF")]
     [InlineData("MF P", "MF")]
     [InlineData("MF I*", "MF")]
-    [InlineData("MF R UAL238 X", "MF")]
-    [InlineData("MF R 123", "MF")]
-    [InlineData("MF RX", "MF")]
     [InlineData("MF N", "MF")]
-    [InlineData("MF", "MF")]
     [InlineData("CA X", "CA")]
     [InlineData("/3 UAL238", "/3")]
     [InlineData("/0", "/0")]
     [InlineData("MAPS 12", "MAPS")]
     [InlineData("MAPS", "MAPS")]
-    [InlineData("MIN 123", "MIN")]
-    [InlineData("MIN UAL1 DAL2 SWA3", "MIN")]
-    [InlineData("RANGE", "RANGE")]
     [InlineData("+ABCDE", "+ABCDE")]
     [InlineData("++000", "++000")]
     [InlineData("HND 1ABC", "HND")]
     [InlineData("**1A 1B 1C 1D 1E 1F 1G 1H 1J 1K 1L", "**1A")]
     [InlineData("MF Y AB1 UAL238", "MF")]
     [InlineData("MF Y 1ABCD", "MF")]
+    [InlineData("4 UAL238", "4")]
+    [InlineData("MF L3*", "MF")]
+    [InlineData("MF L2B 3", "MF")]
+    [InlineData("MF LB 3", "MF")]
+    [InlineData("MF L3U", "MF")]
+    [InlineData("MF L33", "MF")]
+    [InlineData("MF B", "MF")]
+    [InlineData("MF Q1R", "MF")]
+    [InlineData("MF TV", "MF")]
     public void AStarsEntryWithNoYaatCommand_IsNotSupported(string entry, string firstWord)
     {
         StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
@@ -153,6 +159,112 @@ public class StarsEntryParserTests
         Assert.Null(read.Translation);
         Assert.Equal(firstWord, read.FirstWord);
     }
+
+    /// <summary>
+    /// CRC's quicklook shape (<c>^(\d)?([A-Z0-9])(\+)?$</c>) with no slew: quicklook has no YAAT command, so the entry is not
+    /// supported. A bare digit 1-9 with a slew is the leader direction instead (<see cref="ABareDigitOrMfLDigit_IsTheSlewedTracksLeaderDirection"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("A")]
+    [InlineData("0")]
+    [InlineData("45")]
+    [InlineData("1D")]
+    [InlineData("1D+")]
+    [InlineData("D+")]
+    public void TheQuicklookShape_IsNotSupported(string entry)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.False(read.Supported);
+        Assert.Null(read.Error);
+        Assert.Null(read.WithoutSlew);
+    }
+
+    /// <summary>The entries CRC answers FORMAT whatever is slewed: the answer is the category, and nothing is sent.</summary>
+    [Theory]
+    [InlineData("RANGE")]
+    [InlineData("RANGE X")]
+    [InlineData("RANGE 12 5")]
+    [InlineData("*J31")]
+    [InlineData("*J1.0")]
+    [InlineData("*J.5")]
+    [InlineData("*J100")]
+    [InlineData("*P0")]
+    [InlineData("MF")]
+    [InlineData("MF RX")]
+    [InlineData("MF R UAL238")]
+    [InlineData("MF L")]
+    [InlineData("MF L33 AAL1")]
+    [InlineData("MF L5U")]
+    [InlineData("MF L2B 5")]
+    [InlineData("MIN 123")]
+    [InlineData("MIN UAL1 DAL2 SWA3")]
+    public void AnEntryCrcAnswersFormat_IsRefusedWithFormat(string entry)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.False(read.Supported);
+        Assert.Equal(StarsErrorText.Format, read.Error);
+    }
+
+    /// <summary><c>MF L&lt;d&gt; &lt;id&gt;</c>: the Scope finds the id's track (a callsign, a beacon code), whatever the id's shape.</summary>
+    [Theory]
+    [InlineData("MF L 4 U", "U")]
+    [InlineData("MF L3 1234", "1234")]
+    [InlineData("MF L3 ual238", "UAL238")]
+    [InlineData("MF L3 12", "12")]
+    public void MfLeaderForAnId_LeavesTheTrackToTheScope(string entry, string id)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.Equal(StarsEntryNeed.LeaderForTrack, read.Need);
+        Assert.Equal(id, read.TrackId);
+        Assert.Null(read.Error);
+    }
+
+    /// <summary>RANGE takes a number from 0.125 to 256 NM; a number outside that is RANGE LIMIT.</summary>
+    [Theory]
+    [InlineData("RANGE 0.1")]
+    [InlineData("RANGE 0")]
+    [InlineData("RANGE 257")]
+    [InlineData("RANGE 256.5")]
+    [InlineData("RANGE NaN")]
+    [InlineData("RANGE Infinity")]
+    public void ARangeOutsideItsLimits_IsRangeLimit(string entry) => Assert.Equal(StarsErrorText.RangeLimit, StarsEntryParser.TryRead(entry)?.Error);
+
+    /// <summary>
+    /// A bare digit and <c>MF L&lt;d&gt;</c> set the slewed track's leader direction. With nothing slewed, CRC's meaning (quicklook,
+    /// the owned tracks' default direction) has no YAAT command, and <c>MF L5</c> (default) is FORMAT for the owned tracks.
+    /// </summary>
+    [Theory]
+    [InlineData("4", "LDR 4", StarsErrorText.NotSupported)]
+    [InlineData("5", "LDR 5", StarsErrorText.NotSupported)]
+    [InlineData("MF L3", "LDR 3", StarsErrorText.NotSupported)]
+    [InlineData("MF L 3", "LDR 3", StarsErrorText.NotSupported)]
+    [InlineData("MF L5", "LDR 5", StarsErrorText.Format)]
+    public void ABareDigitOrMfLDigit_IsTheSlewedTracksLeaderDirection(string entry, string translation, string withoutSlew)
+    {
+        StarsEntryRead read = Assert.IsType<StarsEntryRead>(StarsEntryParser.TryRead(entry));
+
+        Assert.Equal(translation, read.Translation);
+        Assert.Equal(withoutSlew, read.WithoutSlew);
+        Assert.Equal(StarsEntryNeed.None, read.Need);
+    }
+
+    /// <summary>The entries that need a slewed track answer FORMAT with none, as CRC's do.</summary>
+    [Theory]
+    [InlineData("MF R")]
+    [InlineData("*J5")]
+    [InlineData("*P2.5")]
+    [InlineData("**")]
+    [InlineData("MF L33")]
+    public void AnEntryNeedingASlew_IsFormatWithoutOne(string entry) =>
+        Assert.Equal(StarsErrorText.Format, StarsEntryParser.TryRead(entry)?.WithoutSlew);
+
+    /// <summary>Bare <c>**</c> converts the slewed track's point-out to us, else force-quicklooks it to our own position.</summary>
+    [Fact]
+    public void BareStarStar_NeedsTheSlewedTracksPointOutState() =>
+        Assert.Equal(StarsEntryNeed.ConvertPointoutOrQuicklook, StarsEntryParser.TryRead("**")?.Need);
 
     [Theory]
     [InlineData("MIN", null, null)]
@@ -265,7 +377,6 @@ public class StarsEntryParserTests
 
     [Theory]
     [InlineData("TC")]
-    [InlineData("A")]
     [InlineData("CA")]
     [InlineData("FH 270")]
     [InlineData("UAL238 FH 270")]
@@ -277,10 +388,7 @@ public class StarsEntryParserTests
     [InlineData("** FH 270")]
     [InlineData("** 2B")]
     [InlineData("UNPAUSE")]
-    [InlineData("0")]
-    [InlineData("45")]
     [InlineData("4 5")]
-    [InlineData("1D")]
     [InlineData("1000")]
     [InlineData("ABCD*")]
     [InlineData("")]

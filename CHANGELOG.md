@@ -25,7 +25,7 @@
 - A measure started in one Radar or Ground window is finished, shown and cancelled only in that window.
 - A datablock field click (ERAM: middle-click) opens a menu pairing scope-data entries such as QZ and QS with the matching pilot commands.
 - Clicking an ERAM block's HSF or VCI cell sends QS or QN //, toggling the fourth line's HSF data for CRC too.
-- Commands typed on the Radar, STARS and ERAM entries included, show in CRC's preview and feedback areas; left-click fills a track, middle-click runs it.
+- Commands typed on the Radar show in CRC's preview and feedback areas, STARS entries read by CRC's grammar; left-click fills a track, middle-click runs it.
 - The PILOT LENS draws tracks' intent paths, queued-command counts and check-in tags, and the RPO QUEUE view lists pending calls and queued commands.
 - The Radar draws ERAM CRR range data blocks with a CRR view, STARS per-track predicted track lines (MF R) and, under TDM (Ctrl+Shift+T), ground targets.
 - The aircraft menu with its Display submenu, the map point menu, Draw route and the EuroScope elastic heading vector work on the Radar.

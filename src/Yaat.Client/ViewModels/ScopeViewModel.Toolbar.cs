@@ -99,13 +99,14 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Changes the range by <paramref name="delta"/> whole NM from its rounded value, through <c>.scope range</c>; a step
-    /// that would leave 1 to 256 NM changes nothing.
+    /// Changes the range by <paramref name="delta"/> whole NM from its value, a decimal one kept (12.5 steps to 13.5),
+    /// through <c>.scope range</c>; a step that would leave <see cref="MinRangeNm"/> to <see cref="MaxRangeNm"/> NM changes
+    /// nothing.
     /// </summary>
     public void StepRange(int delta)
     {
-        int next = (int)Math.Round(RangeNm) + delta;
-        if (next is >= 1 and <= 256)
+        double next = RangeNm + delta;
+        if (next is >= MinRangeNm and <= MaxRangeNm)
         {
             RunCommand(ScopeToolbarButtons.RangeCommand(next));
         }
@@ -235,7 +236,7 @@ public sealed partial class ScopeViewModel
         {
             ScopeButtonId.Pref => ActivePrefSet,
             ScopeButtonId.Profile => ScopeProfilePicker.NameOf(ProfileKind).ToUpperInvariant(),
-            ScopeButtonId.Range => Math.Round(RangeNm).ToString(CultureInfo.InvariantCulture),
+            ScopeButtonId.Range => ScopeToolbarButtons.RangeLabel(RangeNm),
             ScopeButtonId.DbChar => DbSettings.CharSize.ToString(CultureInfo.InvariantCulture),
             ScopeButtonId.ToolSize => ScopeRingGeometry.FormatSize(RingSizeNm),
             _ => BandValue(button.Id) ?? MapToolValue(button.Id) ?? BriteValue(button.Id),

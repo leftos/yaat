@@ -6,6 +6,7 @@ using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Entries;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
@@ -15,7 +16,7 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The Scope's per-track PTLs: the <c>.scope ptl</c> verbs toggle, clear and refuse, echo in the status line, and the drawn
-/// vector is the cue; a STARS <c>MF R</c> entry runs them for a typed callsign or the selected track; a track's PTL is
+/// vector is the cue; a STARS <c>MF R</c> entry runs them for the selected track (CRC's slew); a track's PTL is
 /// dropped when its aircraft leaves.
 /// </summary>
 public class ScopePtlTests
@@ -219,8 +220,9 @@ public class ScopePtlTests
         }
     }
 
+    /// <summary>CRC's MF R takes no text: a typed callsign is FORMAT, and no PTL changes.</summary>
     [AvaloniaFact]
-    public async Task StarsMfR_WithATypedCallsign_TogglesItsPtl()
+    public async Task StarsMfR_WithATypedCallsign_AnswersFormat()
     {
         (MainViewModel main, ScopeViewModel scope) = await StarsScopeAsync();
         try
@@ -229,8 +231,9 @@ public class ScopePtlTests
 
             await RunEntryAsync(scope, "MF R N123AB");
 
-            Assert.Equal(".scope ptl N123AB", scope.LastSentEntryText);
-            Assert.Equal(["N123AB"], scope.LocalPtlCallsigns);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.Format, "MF R N123AB", []), scope.EntryResponse);
+            Assert.Null(scope.LastSentEntryText);
+            Assert.Empty(scope.LocalPtlCallsigns);
         }
         finally
         {
@@ -259,7 +262,7 @@ public class ScopePtlTests
     }
 
     [AvaloniaFact]
-    public async Task StarsMfR_WithNoSelection_AnswersNoAircraftMatched()
+    public async Task StarsMfR_WithNoSelection_AnswersFormat()
     {
         (MainViewModel main, ScopeViewModel scope) = await StarsScopeAsync();
         try
@@ -268,7 +271,7 @@ public class ScopePtlTests
 
             await RunEntryAsync(scope, "MF R");
 
-            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, MainViewModel.NoAircraftMatchedMessage, "MF R", []), scope.EntryResponse);
+            Assert.Equal(new ScopeEntryResponse(ScopeResponseKind.Error, StarsErrorText.Format, "MF R", []), scope.EntryResponse);
             Assert.Null(scope.LastSentEntryText);
             Assert.Empty(scope.LocalPtlCallsigns);
         }

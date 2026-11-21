@@ -48,6 +48,26 @@ public class ScopePrefCommandTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task ADecimalRange_RoundTripsThroughAPrefSet()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope range 0.5");
+            main.RunScopeCommand(".scope pref saveas DEC");
+            main.RunScopeCommand(".scope range 100");
+
+            main.RunScopeCommand(".scope pref load dec");
+
+            Assert.Equal(0.5, scope.RangeNm);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task SaveAsThenLoad_RoundTripsEveryValue()
     {
         (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();

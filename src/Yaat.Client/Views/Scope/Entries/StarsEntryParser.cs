@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
+using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Commands;
 
 namespace Yaat.Client.Views.Scope.Entries;
@@ -11,17 +13,33 @@ internal enum StarsEntryNeed
     /// <summary>Nothing: the translation is sent as it is.</summary>
     None,
 
-    /// <summary>Bare <c>HND</c>: <c>ACCEPT</c> for a handoff inbound to the acting position, <c>CANCEL</c> for one outbound.</summary>
-    HandoffAcceptOrCancel,
+    /// <summary>
+    /// <c>HND</c> with no handoff id: <c>ACCEPT</c> for the typed callsign's track or the slewed one (a clicked track, else the
+    /// selected aircraft); with neither, for the handoff inbound to the acting position nearest the Scope's home centre, else
+    /// <see cref="StarsErrorText.NoFlight"/>.
+    /// </summary>
+    HandoffAccept,
 
-    /// <summary><c>*J</c>/<c>*P</c> with a size: the selected aircraft's callsign goes after the translation.</summary>
+    /// <summary><c>*J</c>/<c>*P</c> with a size: the slewed track's callsign (a click, else the selection) goes after the translation.</summary>
     RingPlacement,
 
-    /// <summary>Bare <c>*J</c>/<c>*P</c>: the selected aircraft's ring of that kind, at its current size, is removed.</summary>
+    /// <summary>Bare <c>*J</c>/<c>*P</c>: the slewed track's ring of that kind, at its current size, is removed.</summary>
     RingRemoval,
 
-    /// <summary>Bare <c>MF R</c>: the selected aircraft's callsign goes after the translation.</summary>
+    /// <summary>Bare <c>MF R</c>: the slewed track's callsign (a click, else the selection) goes after the translation.</summary>
     SelectedTrack,
+
+    /// <summary>
+    /// Bare <c>**</c> on the slewed track: <c>POHO</c> for a point-out pending to the acting position, else <c>FQL</c> to the
+    /// acting position's own TCP.
+    /// </summary>
+    ConvertPointoutOrQuicklook,
+
+    /// <summary>
+    /// <c>MF L&lt;d&gt; &lt;id&gt;</c>: the translation is the direction alone (<c>LDR d</c>); the Scope finds the track the id
+    /// names (<see cref="StarsEntryRead.TrackId"/>), a callsign or a four-digit beacon code, and names it first.
+    /// </summary>
+    LeaderForTrack,
 
     /// <summary>
     /// <c>MIN</c>: the Scope's own min-sep readout, run on the Scope and never sent: bare it clears the pair, with two tracks it
@@ -86,6 +104,9 @@ internal static class StarsErrorText
     public const string RangeLimit = "RANGE LIMIT";
     public const string RblId = "RBL ID";
     public const string NotImplemented = "NOT IMPLEMENTED";
+
+    /// <summary>YAAT's own refusal, not a CRC category: a STARS entry CRC reads that has no YAAT command.</summary>
+    public const string NotSupported = "NOT SUPPORTED";
 }
 
 /// <summary>A STARS entry's reading: its first word, the YAAT command it translates to (null when not supported) and its gloss.</summary>
@@ -100,21 +121,40 @@ internal sealed record StarsEntryRead(string FirstWord, string? Translation, str
     /// <summary>The callsign typed after the entry, or null when the entry acts on the selected aircraft.</summary>
     public string? Callsign { get; init; }
 
+    /// <summary>
+    /// The id typed after <c>MF L&lt;d&gt;</c> (<see cref="StarsEntryNeed.LeaderForTrack"/>): an ACID, a beacon code or a line
+    /// number, as typed; null for any other entry.
+    /// </summary>
+    public string? TrackId { get; init; }
+
     /// <summary>The second callsign typed after a <c>MIN</c> entry, or null.</summary>
     public string? SecondCallsign { get; init; }
 
     /// <summary>The ring kind of a <c>*J</c>/<c>*P</c> entry; <see cref="ScopeRingTool.None"/> otherwise.</summary>
     public ScopeRingTool Ring { get; init; }
 
+    /// <summary>The CRC category the entry is answered with whatever is selected, nothing sent; null when it has none.</summary>
+    public string? Error { get; init; }
+
+    /// <summary>
+    /// The answer, nothing sent, when the entry acts on CRC's slew and no aircraft is selected (the Scope's slew): a CRC category,
+    /// or <see cref="StarsErrorText.NotSupported"/> where CRC's meaning with nothing slewed has no YAAT command; null when the
+    /// entry needs no slew.
+    /// </summary>
+    public string? WithoutSlew { get; init; }
+
     /// <summary>Whether the entry maps to a YAAT command.</summary>
     public bool Supported => Translation is not null;
 }
 
 /// <summary>
-/// Reads an entry typed on a STARS-profile Scope as a STARS entry: the glued shapes it knows (<c>+AB1</c>, <c>++100</c>,
-/// <c>4</c>, <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...), YAAT's own key words standing for the function keys (<c>INIT</c>,
-/// <c>TERM</c>, <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>), which CRC has as keys, not text, and the per-track PTL of a
-/// <c>MF R</c> entry. The <c>*T</c> range bearing line entry reads by CRC's grammar (<see cref="ReadRangeBearing"/>): <c>*T</c>
+/// Reads an entry typed on a STARS-profile Scope as a STARS entry by CRC's grammar: the glued shapes it knows (<c>+AB1</c>,
+/// <c>++100</c>, <c>4</c>, <c>1D*</c>, <c>**2B</c>, <c>*J5</c>, ...), and YAAT's own key words standing for the function keys
+/// (<c>INIT</c>, <c>TERM</c>, <c>HND</c>, <c>MF</c>, <c>CA</c>, <c>RANGE</c>, <c>MIN</c>), which CRC has as keys, not text.
+/// After <c>MF</c> the first character is the function letter, glued or spaced (<c>MF L3</c>, <c>MF L 3</c>, <c>MF YAB1</c>).
+/// An entry CRC refuses carries its category (<see cref="StarsEntryRead.Error"/>), and one that acts on CRC's slew carries its
+/// answer for no selected aircraft (<see cref="StarsEntryRead.WithoutSlew"/>). The <c>*T</c> range bearing line entry reads by
+/// CRC's grammar (<see cref="ReadRangeBearing"/>): <c>*T</c>
 /// alone, <c>*T</c> glued to a line number (<c>*T1</c>), to a four-digit beacon code (<c>*T1234</c>) or to a fix or ACID
 /// (<c>*TOAK</c>), and the entry completing a pending line (<see cref="ReadRangeBearingCompletion"/>). An entry with a YAAT
 /// command translates to it; a STARS entry with none reads as not supported; anything else is no STARS entry (null). Pure:
@@ -136,8 +176,32 @@ internal static partial class StarsEntryParser
     [GeneratedRegex(@"^\+([A-Z0-9*./]{1,4})?$")]
     private static partial Regex Scratchpad2();
 
-    [GeneratedRegex(@"^\*([JP])([\d.]+)?$")]
+    [GeneratedRegex(@"^\*([JP])(.*)$")]
     private static partial Regex Tpa();
+
+    // CRC's TPA size: 1-9 with an optional tenth of 1-9, or 10-30 whole.
+    [GeneratedRegex(@"^(?:[1-9](?:\.[1-9])?|[12][0-9]|30)$")]
+    private static partial Regex TpaSize();
+
+    // CRC's quicklook shape, which a bare entry with nothing slewed reads as.
+    [GeneratedRegex(@"^[0-9]?[A-Z0-9]\+?$")]
+    private static partial Regex Quicklook();
+
+    // MF L<d>*: the associated (unowned) tracks' default direction.
+    [GeneratedRegex(@"^[1-9]\*$")]
+    private static partial Regex LeaderAssociated();
+
+    // MF L<d><d>: CRC sends it to its server with a slew, and has no reading for it without one.
+    [GeneratedRegex(@"^([1-9])\1$")]
+    private static partial Regex LeaderGlobal();
+
+    // MF L<d> <id>: that track's direction.
+    [GeneratedRegex(@"^([1-9]) (\S+)$")]
+    private static partial Regex LeaderForTrack();
+
+    // MF L<tcp> <d> or MF L<d>U: a TCP's tracks' or the unassociated tracks' direction; group 1 or 2 is the direction.
+    [GeneratedRegex(@"^(?:[0-9]?[A-Z0-9] ([1-9])|([1-9])U)$")]
+    private static partial Regex LeaderGroup();
 
     [GeneratedRegex("^[0-9]{1,2}$")]
     private static partial Regex RblLineNumber();
@@ -168,9 +232,6 @@ internal static partial class StarsEntryParser
 
     [GeneratedRegex(@"^[A-Z0-9]{1,3}$")]
     private static partial Regex TcpShape();
-
-    [GeneratedRegex(@"^L([1-9])$")]
-    private static partial Regex GluedLeader();
 
     /// <summary>Reads <paramref name="trimmed"/> as a STARS entry.</summary>
     /// <returns>The reading, or null when the text is no STARS entry.</returns>
@@ -267,7 +328,11 @@ internal static partial class StarsEntryParser
         string first = words[0];
         if (upper == "**")
         {
-            return Supported(first, "POHO", CanonicalCommandType.ConvertPointout);
+            return Supported(first, "POHO", CanonicalCommandType.ConvertPointout) with
+            {
+                Need = StarsEntryNeed.ConvertPointoutOrQuicklook,
+                WithoutSlew = StarsErrorText.Format,
+            };
         }
 
         // Every *T-led entry is the range bearing line entry; CRC's grammar answers FORMAT for the shapes it does not read.
@@ -289,16 +354,25 @@ internal static partial class StarsEntryParser
     private static bool IsForceQuicklook(string joined) =>
         ForceQuicklook().IsMatch(joined) && (joined is not ("**J" or "**P")) && !joined[2..].Split(' ').Contains("ALL");
 
+    // *J/*P alone removes the slewed track's ring; with a size in CRC's grammar it places one there (FORMAT with no slew); any
+    // other size is FORMAT.
     private static StarsEntryRead ReadTpa(string first, Match tpa)
     {
         bool jRing = tpa.Groups[1].Value == "J";
         string kind = jRing ? "jring" : "cone";
         string size = tpa.Groups[2].Value;
+        bool removal = size.Length == 0;
+        if (!removal && !TpaSize().IsMatch(size))
+        {
+            return Refused(first, StarsErrorText.Format);
+        }
+
         string gloss = Gloss(jRing ? CanonicalCommandType.JRing : CanonicalCommandType.Cone);
         return new StarsEntryRead(first, $".scope rings {kind} {size}".TrimEnd(), gloss)
         {
-            Need = (size.Length == 0) ? StarsEntryNeed.RingRemoval : StarsEntryNeed.RingPlacement,
+            Need = removal ? StarsEntryNeed.RingRemoval : StarsEntryNeed.RingPlacement,
             Ring = jRing ? ScopeRingTool.JRing : ScopeRingTool.Cone,
+            WithoutSlew = removal ? null : StarsErrorText.Format,
         };
     }
 
@@ -318,8 +392,10 @@ internal static partial class StarsEntryParser
             _ => null,
         };
 
-    // MIN [callsign [callsign]]: the Scope's min-sep readout. The translation is the entry as typed, upper-cased: it is run on
-    // the Scope, never sent. The gloss is hand-written, as the range row's is: min sep is no YAAT command.
+    // MIN [callsign [callsign]]: the Scope's min-sep readout, the callsigns the clicked tracks filled in (the Scope answers
+    // FORMAT for a typed one, as CRC's MIN takes no text); anything else is FORMAT. The translation is the entry as typed,
+    // upper-cased: it is run on the Scope, never sent. The gloss is hand-written, as the range row's is: min sep is no YAAT
+    // command.
     private static StarsEntryRead ReadMinSep(string[] words) =>
         ((words.Length <= 3) && words.Skip(1).All(IsCallsign))
             ? new StarsEntryRead(words[0], string.Join(' ', words), "minimum separation")
@@ -328,7 +404,7 @@ internal static partial class StarsEntryParser
                 Callsign = words.ElementAtOrDefault(1),
                 SecondCallsign = words.ElementAtOrDefault(2),
             }
-            : Unsupported(words[0]);
+            : Refused(words[0], StarsErrorText.Format);
 
     // TERM ALL has no YAAT command (no drop-all verb).
     private static StarsEntryRead ReadTerm(string[] words) =>
@@ -350,7 +426,7 @@ internal static partial class StarsEntryParser
             _ => Unsupported(words[0]),
         };
 
-    // HND <id> [callsign] hands off; bare HND [callsign] accepts or cancels by the track's state.
+    // HND <id> [callsign] hands off; bare HND [callsign] accepts a handoff, never cancels one.
     private static StarsEntryRead ReadHandoff(string[] words)
     {
         string first = words[0];
@@ -362,9 +438,9 @@ internal static partial class StarsEntryParser
         string? callsign = words.ElementAtOrDefault(1);
         if ((words.Length == 1) || ((words.Length == 2) && IsCallsign(words[1])))
         {
-            return new StarsEntryRead(first, WithCallsign(callsign, "ACCEPT"), "accept or cancel handoff")
+            return Supported(first, WithCallsign(callsign, "ACCEPT"), CanonicalCommandType.AcceptHandoff) with
             {
-                Need = StarsEntryNeed.HandoffAcceptOrCancel,
+                Need = StarsEntryNeed.HandoffAccept,
                 Callsign = callsign,
             };
         }
@@ -376,46 +452,89 @@ internal static partial class StarsEntryParser
     private static bool IsHandoffWithId(string[] words) =>
         (words.Length is 2 or 3) && TcpShape().IsMatch(words[1]) && ((words.Length == 2) || IsCallsign(words[2]));
 
-    // MF Y: scratchpad 1 or pilot-reported altitude; MF L: leader direction; MF R: the track's PTL; every other letter is not
-    // supported.
+    // MULTI FUNC as CRC reads it: the first character after MF is the function letter, glued or spaced, and the rest, trimmed,
+    // its parameters. Y: scratchpad 1 or pilot-reported altitude; L: leader direction; R: the slewed track's PTL; MF alone is
+    // FORMAT; every other letter is not supported.
     private static StarsEntryRead ReadMultiFunc(string[] words)
     {
-        if (words.Length < 2)
+        string first = words[0];
+        string parameters = string.Join(' ', words.Skip(1));
+        if (parameters.Length == 0)
         {
-            return Unsupported(words[0]);
+            return Refused(first, StarsErrorText.Format);
         }
 
-        if (words[1] == "Y")
+        string rest = parameters[1..].Trim();
+        return parameters[0] switch
         {
-            return ReadScratchpad1(words[0], words[2..]);
-        }
-
-        if (words[1] == "L")
-        {
-            return ReadLeader(words[0], words.ElementAtOrDefault(2) ?? "", [.. words.Skip(3)]);
-        }
-
-        if (words[1] == "R")
-        {
-            return ReadPtl(words);
-        }
-
-        return (GluedLeader().Match(words[1]) is { Success: true } glued)
-            ? ReadLeader(words[0], glued.Groups[1].Value, words[2..])
-            : Unsupported(words[0]);
+            'Y' => ReadScratchpad1(first, rest.Split(' ', StringSplitOptions.RemoveEmptyEntries)),
+            'L' => ReadMultiFuncLeader(first, rest),
+            'R' => ReadPtl(first, rest),
+            _ => Unsupported(first),
+        };
     }
 
-    // MF R [callsign]: toggles the Scope-local PTL on the typed callsign's track, or on the selected track when none is typed.
-    // The gloss is hand-written, as the range row's is: the PTL is no YAAT command, so the registry has no label for it.
-    private static StarsEntryRead ReadPtl(string[] words) =>
-        words switch
+    // MF R toggles the Scope-local PTL on the slewed (selected) track; it takes no text, and with no slew it is FORMAT. The gloss
+    // is hand-written, as the range row's is: the PTL is no YAAT command, so the registry has no label for it.
+    private static StarsEntryRead ReadPtl(string first, string rest) =>
+        (rest.Length == 0)
+            ? new StarsEntryRead(first, ".scope ptl", "scope ptl") { Need = StarsEntryNeed.SelectedTrack, WithoutSlew = StarsErrorText.Format }
+            : Refused(first, StarsErrorText.Format);
+
+    // MF L in CRC's order (ProcessMultiFuncL): <d>* (associated tracks) has no YAAT state; <d> is the slewed track's direction,
+    // else the owned tracks' default (no YAAT state; 5, the default itself, FORMAT); <d><d> goes to CRC's server with a slew
+    // (FORMAT without); <d> <id> is that track's; <tcp> <d> and <d>U set a group YAAT has no state for (5 FORMAT); else FORMAT.
+    private static StarsEntryRead ReadMultiFuncLeader(string first, string rest)
+    {
+        if (LeaderAssociated().IsMatch(rest))
         {
-            [string first, _] => new StarsEntryRead(first, ".scope ptl", "scope ptl") { Need = StarsEntryNeed.SelectedTrack },
-            [string first, _, string callsign] when IsCallsign(callsign) => new StarsEntryRead(first, $".scope ptl {callsign}", "scope ptl")
-            {
-                Callsign = callsign,
-            },
-            _ => Unsupported(words[0]),
+            return Unsupported(first);
+        }
+
+        if (Direction().IsMatch(rest))
+        {
+            return LeaderOnSlew(first, rest, (rest == "5") ? StarsErrorText.Format : StarsErrorText.NotSupported);
+        }
+
+        return LeaderGlobal().IsMatch(rest) ? Unsupported(first) with { WithoutSlew = StarsErrorText.Format } : ReadMultiFuncLeaderNamed(first, rest);
+    }
+
+    // MF L<d> <id> and the groups MF L names (<tcp> <d>, <d>U); anything else is FORMAT.
+    private static StarsEntryRead ReadMultiFuncLeaderNamed(string first, string rest)
+    {
+        if (LeaderForTrack().Match(rest) is { Success: true } track)
+        {
+            return ReadLeaderForTrack(first, track);
+        }
+
+        if (LeaderGroup().Match(rest) is { Success: true } group)
+        {
+            return IsDefaultGroup(group) ? Refused(first, StarsErrorText.Format) : Unsupported(first);
+        }
+
+        return Refused(first, StarsErrorText.Format);
+    }
+
+    // The direction of an MF L group entry is 5, the default, which CRC refuses for a group.
+    private static bool IsDefaultGroup(Match group) => (group.Groups[1].Value + group.Groups[2].Value) == "5";
+
+    // MF L<d> <id>: the id's track, which the Scope finds (an ACID or a beacon code) as CRC's LookupAssociatedTrack does; the
+    // translation is the direction alone, the id carried as the read's callsign.
+    private static StarsEntryRead ReadLeaderForTrack(string first, Match track)
+    {
+        string id = track.Groups[2].Value;
+        return Supported(first, $"LDR {track.Groups[1].Value}", CanonicalCommandType.LeaderDirection) with
+        {
+            Need = StarsEntryNeed.LeaderForTrack,
+            TrackId = id,
+        };
+    }
+
+    // A leader direction for the slewed (selected) track; withoutSlew answers when none is selected.
+    private static StarsEntryRead LeaderOnSlew(string first, string direction, string withoutSlew) =>
+        Supported(first, $"LDR {direction}", CanonicalCommandType.LeaderDirection) with
+        {
+            WithoutSlew = withoutSlew,
         };
 
     // MF Y in CRC's order: [callsign] then the text, the altitude or a +text for scratchpad 2. One callsign-shaped token of five
@@ -452,14 +571,6 @@ internal static partial class StarsEntryParser
         return (token.Length <= 4) ? Supported(first, WithCallsign(callsign, $"SP1 {token}"), CanonicalCommandType.Scratchpad1) : Unsupported(first);
     }
 
-    private static StarsEntryRead ReadLeader(string first, string direction, string[] rest)
-    {
-        bool callsignOk = (rest.Length == 0) || ((rest.Length == 1) && IsCallsign(rest[0]));
-        return (Direction().IsMatch(direction) && callsignOk)
-            ? Supported(first, WithCallsign(rest.ElementAtOrDefault(0), $"LDR {direction}"), CanonicalCommandType.LeaderDirection)
-            : Unsupported(first);
-    }
-
     // CA K [callsign] toggles the conflict-alert inhibit; any other CA letter is not supported.
     private static StarsEntryRead ReadConflictAlert(string[] words)
     {
@@ -469,12 +580,25 @@ internal static partial class StarsEntryParser
             : Unsupported(words[0]);
     }
 
-    private static StarsEntryRead ReadRange(string[] words) =>
-        ((words.Length == 2) && words[1].All(char.IsAsciiDigit))
-            ? new StarsEntryRead(words[0], $".scope range {words[1]}", "scope range")
-            : Unsupported(words[0]);
+    // RANGE <n>: a number, as CRC's double.TryParse reads one, from 0.125 to 256 NM; not a number is FORMAT, out of that RANGE
+    // LIMIT. The gloss is hand-written: the range is no YAAT command.
+    private static StarsEntryRead ReadRange(string[] words)
+    {
+        string first = words[0];
+        string text = string.Join(' ', words.Skip(1));
+        if (!double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out double rangeNm))
+        {
+            return Refused(first, StarsErrorText.Format);
+        }
 
-    // S4 leader direction, S5 pilot-reported altitude, S6 point out: shapes with no key word.
+        return (rangeNm is >= ScopeViewModel.MinRangeNm and <= ScopeViewModel.MaxRangeNm)
+            ? new StarsEntryRead(first, ScopeToolbarButtons.RangeCommand(rangeNm), "scope range")
+            : Refused(first, StarsErrorText.RangeLimit);
+    }
+
+    // S4 leader direction, S5 pilot-reported altitude, S6 point out, and CRC's quicklook shape: shapes with no key word. A bare
+    // digit is the slewed track's leader direction, and with nothing slewed CRC's quicklook, which YAAT does not support; a
+    // digit and a callsign goes to CRC's server, so it is not supported either.
     private static StarsEntryRead? ReadBare(string upper, string[] words)
     {
         string first = words[0];
@@ -483,18 +607,33 @@ internal static partial class StarsEntryParser
             return Supported(first, $"PO {pointOut.Groups[1].Value}", CanonicalCommandType.PointOut);
         }
 
-        if (Direction().IsMatch(first) && ((words.Length == 1) || ((words.Length == 2) && IsCallsign(words[1]))))
+        if (Direction().IsMatch(first))
         {
-            return Supported(first, WithCallsign(words.ElementAtOrDefault(1), $"LDR {first}"), CanonicalCommandType.LeaderDirection);
+            return ReadBareDirection(first, words);
         }
 
-        if ((words.Length == 1) && Altitude().IsMatch(first))
+        if (words.Length != 1)
+        {
+            return null;
+        }
+
+        if (Altitude().IsMatch(first))
         {
             return (first == "000") ? Unsupported(first) : Supported(first, PilotReported(first), CanonicalCommandType.PilotReportedAltitude);
         }
 
-        return null;
+        return Quicklook().IsMatch(first) ? Unsupported(first) : null;
     }
+
+    // A bare digit 1-9: alone, the slewed track's leader direction (with nothing slewed, CRC's quicklook, not supported); with
+    // a callsign, an entry CRC sends to its server (not supported); with anything else, no STARS entry.
+    private static StarsEntryRead? ReadBareDirection(string first, string[] words) =>
+        words switch
+        {
+            [_] => LeaderOnSlew(first, first, StarsErrorText.NotSupported),
+            [_, string callsign] when IsCallsign(callsign) => Unsupported(first),
+            _ => null,
+        };
 
     private static bool IsCallsign(string word) => CallsignShape().IsMatch(word);
 
@@ -509,4 +648,6 @@ internal static partial class StarsEntryParser
     private static StarsEntryRead Supported(string first, string translation, CanonicalCommandType type) => new(first, translation, Gloss(type));
 
     private static StarsEntryRead Unsupported(string first) => new(first, null, "");
+
+    private static StarsEntryRead Refused(string first, string error) => new(first, null, "") { Error = error };
 }

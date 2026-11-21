@@ -1,4 +1,5 @@
 using System.Globalization;
+using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.Views.Scope.Dock;
 
@@ -26,14 +27,14 @@ public sealed record SsaLines(string Line1, string Status, bool IsStatusAlert, s
     /// <param name="altimeterInHg">The primary airport's altimeter, or null without weather (<c>--.--</c>).</param>
     /// <param name="airportId">The primary airport id, or null: line 1 is then the time alone.</param>
     /// <param name="isSignedIn">Whether the client is in a room with an active position.</param>
-    /// <param name="rangeNm">The scope's range, rounded as the toolbar's RANGE label rounds it.</param>
+    /// <param name="rangeNm">The scope's range, shown as the toolbar's RANGE readout shows it (<see cref="ScopeToolbarButtons.RangeLabel"/>).</param>
     public static SsaLines Build(DateTime utcNow, double? altimeterInHg, string? airportId, bool isSignedIn, double rangeNm)
     {
         string time = utcNow.ToString("HHmm'/'ss", CultureInfo.InvariantCulture);
         string line1 = string.IsNullOrEmpty(airportId)
             ? time
             : $"{time} {(altimeterInHg is { } alt ? alt.ToString("F2", CultureInfo.InvariantCulture) : "--.--")} {airportId}";
-        string range = Math.Round(rangeNm).ToString(CultureInfo.InvariantCulture);
+        string range = ScopeToolbarButtons.RangeLabel(rangeNm);
         return new SsaLines(line1, isSignedIn ? SignedInStatus : SignedOutStatus, !isSignedIn, $"FUSED {range}NM");
     }
 }

@@ -13,21 +13,21 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The Scope's STARS min-sep readout (<c>MIN</c>): one pair of tracks, its own state outside the measuring tool's pool, never
-/// saved. <c>MIN</c> with two tracks (typed, or the second of two clicks) shows the pair's projected closest approach
-/// (<see cref="MinimumSeparation"/>), recomputed each time either aircraft's position, ground speed or track changes; a new
-/// <c>MIN</c> replaces it, and <c>MIN</c> with Enter, either aircraft leaving, data the projection cannot run on, and the
-/// per-track clear (<see cref="ClearTrackState"/>) take it down.
+/// saved. <c>MIN</c> then two clicked tracks (the second click runs it) shows the pair's projected closest approach
+/// (<see cref="MinimumSeparation"/>), recomputed each time either aircraft's position, ground speed or track changes; a typed
+/// callsign is FORMAT, as CRC's MIN takes no text. A new <c>MIN</c> replaces the pair, and <c>MIN</c> with Enter, either
+/// aircraft leaving, data the projection cannot run on, and the per-track clear (<see cref="ClearTrackState"/>) take it down.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
-    /// <summary>CRC's answer to <c>MIN</c> with one track and Enter.</summary>
-    internal const string MinSepNeedsTwoTracksMessage = "Must click two tracks.";
+    /// <summary>CRC's answer to <c>MIN</c> with one track and Enter, or with a typed track.</summary>
+    internal const string MinSepNeedsTwoTracksMessage = StarsErrorText.Format;
 
     /// <summary>CRC's answer to a second track that is the first one.</summary>
-    internal const string MinSepSameTrackMessage = "Both parameters refer to the same track.";
+    internal const string MinSepSameTrackMessage = StarsErrorText.DuplicateTrack;
 
     /// <summary>CRC's answer to a second track picked when the first is no longer displayed.</summary>
-    internal const string MinSepFirstNotDisplayedMessage = "First track not displayed when second track selected.";
+    internal const string MinSepFirstNotDisplayedMessage = StarsErrorText.IllegalTrack;
 
     /// <summary>
     /// The answer to a pair whose data the projection cannot run on (no ground speed or track) when it is entered. YAAT's own:
@@ -84,18 +84,19 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        SetEntry($"{EntryText.Trim()} {callsign}");
+        FillFromClick(callsign, () => SetEntry($"{EntryText.Trim()} {callsign}"));
         _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
         RunEntry(OwnerTemplateIdOf(callsign));
     }
 
     /// <summary>
-    /// Runs a <c>MIN</c> entry on the Scope: bare, it clears the pair; with two tracks, it shows theirs; with one, it answers
-    /// that two are needed. The answer goes to the response.
+    /// Runs a <c>MIN</c> entry on the Scope: bare, it clears the pair; with two clicked tracks, it shows theirs; with one, or
+    /// with a callsign that no click put there (<paramref name="clicks"/>, the entry's click record), it answers FORMAT. The
+    /// answer goes to the response.
     /// </summary>
     /// <returns>False when <paramref name="entry"/> is no <c>MIN</c> entry.</returns>
-    private bool TryRunMinSep(string entry)
+    private bool TryRunMinSep(string entry, IReadOnlyList<string> clicks)
     {
         if (StarsEntryParser.TryRead(entry) is not { Need: StarsEntryNeed.MinimumSeparation } read)
         {
@@ -103,8 +104,10 @@ public sealed partial class ScopeViewModel
         }
 
         Main.AddHistory("", entry);
+        bool slewed = new[] { read.Callsign, read.SecondCallsign }.OfType<string>().SequenceEqual(clicks, StringComparer.OrdinalIgnoreCase);
         string? refusal = read switch
         {
+            _ when !slewed => StarsErrorText.Format,
             { Callsign: null } => ClearMinSepEntry(),
             { SecondCallsign: null } => MinSepNeedsTwoTracksMessage,
             _ => SetMinSep(read.Callsign, read.SecondCallsign),
@@ -123,8 +126,7 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// Shows the pair the two typed callsigns name, matched as the pilot path matches one, in place of any pair shown. The typed
-    /// <c>MIN &lt;cs1&gt; &lt;cs2&gt;</c> form is YAAT's own: CRC takes MIN's tracks only from two clicks.
+    /// Shows the pair the two clicked tracks' callsigns name, matched as the pilot path matches one, in place of any pair shown.
     /// </summary>
     /// <returns>Null when shown, else the refusal: a track not displayed, the same track twice, or data the projection cannot run on.</returns>
     private string? SetMinSep(string first, string second)

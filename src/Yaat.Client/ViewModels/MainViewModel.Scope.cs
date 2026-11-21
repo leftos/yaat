@@ -20,7 +20,7 @@ public partial class MainViewModel
     private static readonly string ScopeHistRange = $"<0-{ScopeViewModel.MaxHistory.ToString(CultureInfo.InvariantCulture)}>";
 
     private static readonly string ScopeUsage =
-        "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
@@ -58,7 +58,7 @@ public partial class MainViewModel
 
     private const string ScopeTearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
-    private const string ScopeRangeUsage = "Usage: .scope range <1-256>";
+    private const string ScopeRangeUsage = "Usage: .scope range <0.125-256>";
 
     private const string ScopeBriteUsage =
         "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings, lens 0-100; line4 -20-0; dwell 0-20";
@@ -418,8 +418,8 @@ public partial class MainViewModel
     {
         if (
             (parts.Length != 3)
-            || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int rangeNm)
-            || (rangeNm is < 1 or > 256)
+            || !double.TryParse(parts[2], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double rangeNm)
+            || (rangeNm is not (>= ScopeViewModel.MinRangeNm and <= ScopeViewModel.MaxRangeNm))
         )
         {
             return ScopeRangeUsage;

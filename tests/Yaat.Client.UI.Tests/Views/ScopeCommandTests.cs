@@ -17,7 +17,7 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ScopeCommandTests
 {
     private const string Usage =
-        "Usage: .scope range <1-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
@@ -187,12 +187,54 @@ public class ScopeCommandTests
         }
     }
 
+    /// <summary>A decimal range sets as typed, and the RANGE readout shows it with no trailing zeros.</summary>
+    [AvaloniaTheory]
+    [InlineData("12.5", 12.5, "12.5")]
+    [InlineData("0.5", 0.5, "0.5")]
+    [InlineData("40", 40, "40")]
+    public async Task Range_TakesADecimal_AndTheReadoutShowsItAsStored(string value, double rangeNm, string readout)
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand($".scope range {value}");
+
+            Assert.Equal(rangeNm, scope.RangeNm);
+            Assert.Equal(readout, scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Range)!));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    /// <summary>A RANGE step keeps a decimal range's fraction: 12.5 steps to 13.5.</summary>
+    [AvaloniaFact]
+    public async Task StepRange_KeepsADecimalRange()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope range 12.5");
+
+            scope.StepRange(1);
+
+            Assert.Equal(13.5, scope.RangeNm);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
     [AvaloniaTheory]
     [InlineData("0")]
+    [InlineData("0.1")]
     [InlineData("257")]
     [InlineData("abc")]
-    [InlineData("25.5")]
-    public async Task Range_OutOfBoundsOrNotAWholeNumber_GivesTheUsage_AndLeavesTheRange(string value)
+    [InlineData("nan")]
+    [InlineData("NaN")]
+    public async Task Range_OutOfBoundsOrNotANumber_GivesTheUsage_AndLeavesTheRange(string value)
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
@@ -201,7 +243,7 @@ public class ScopeCommandTests
 
             main.RunScopeCommand($".scope range {value}");
 
-            Assert.Equal("Usage: .scope range <1-256>", main.StatusText);
+            Assert.Equal("Usage: .scope range <0.125-256>", main.StatusText);
             Assert.Equal(before, scope.RangeNm);
         }
         finally

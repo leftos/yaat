@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
@@ -39,9 +40,10 @@ internal readonly record struct ScopeResponseLine(string Text, bool IsMessage);
 
 /// <summary>
 /// Typing on the Scope: the entry being typed, the Scope's own entry history and the response to the last entry. Enter runs
-/// the entry through <see cref="MainViewModel.SendTextAsync(string, ICommandTextSink, CommandScheme)"/> with a sink of the Scope's own, so the main command line's
-/// text and status are never touched. A STARS entry sends the YAAT command it translates to, resolved here from the
-/// selected aircraft's state where it needs it (bare <c>HND</c>, <c>*J</c>/<c>*P</c>); a STARS entry with no YAAT command
+/// the entry through <see cref="MainViewModel.SendTextAsync(string, ICommandTextSink, CommandScheme)"/> with a sink of the
+/// Scope's own, so the main command line's text and status are never touched. A STARS entry sends the YAAT command it
+/// translates to, resolved here from the slewed track's state where it needs it (a clicked track, else the selected aircraft:
+/// bare <c>HND</c>, <c>*J</c>/<c>*P</c>, <c>**</c>); a STARS entry with no YAAT command
 /// is refused with <c>NOT SUPPORTED</c> and nothing is sent. An ERAM entry goes to the server's ERAM dispatch
 /// (<see cref="EramEntrySender"/>), which answers as CRC's ERAM does. A <c>$</c> YAAT command sends what follows the <c>$</c>,
 /// as it reads (a clicked track's callsign is in it already; with none, it is for the selected aircraft); an entry that reads
@@ -62,7 +64,7 @@ public sealed partial class ScopeViewModel
     /// <summary>How many lines of the response the feedback shows.</summary>
     internal const int FeedbackLineCap = 5;
 
-    internal const string NotSupportedMessage = "NOT SUPPORTED";
+    internal const string NotSupportedMessage = StarsErrorText.NotSupported;
 
     /// <summary>The answer to an entry that reads as neither a STARS or ERAM entry nor a <c>$</c> YAAT command.</summary>
     internal const string FormatMessage = "FORMAT - $ FOR A YAAT COMMAND";
@@ -95,6 +97,42 @@ public sealed partial class ScopeViewModel
 
     // The pick of the half-typed entry the first Up left (_savedEntry), which Down past the newest line puts back with it.
     private string? _savedPickedCallsign;
+
+    // The callsigns the clicks on tracks filled into the entry, in order: CRC's slews. A MIN runs only on these, and a STARS
+    // entry ending in the last one runs on that track (ClickedSlew). In CRC a click is never text, so any change to EntryText
+    // that a click fill did not make drops the whole record (OnEntryTextChanged), typing the same text back included; that
+    // covers typing, Backspace, history, staging, Esc and the run's own clear.
+    private readonly List<string> _clickSlews = [];
+
+    // True while a click fill writes the entry, so its own write keeps the record.
+    private bool _fillingFromClick;
+
+    partial void OnEntryTextChanged(string value)
+    {
+        if (!_fillingFromClick)
+        {
+            _clickSlews.Clear();
+        }
+    }
+
+    // Records a click on callsign whose fill (fill) wrote the entry.
+    private void FillFromClick(string callsign, Action fill)
+    {
+        _fillingFromClick = true;
+        try
+        {
+            fill();
+        }
+        finally
+        {
+            _fillingFromClick = false;
+        }
+
+        _clickSlews.Add(callsign);
+    }
+
+    /// <summary>A STARS entry's slew: the track it acts on, the entry text without a clicked callsign, and whether a click gave it.</summary>
+    private readonly record struct ScopeSlew(AircraftModel? Aircraft, string Text, bool Clicked);
 
     // The number of the latest entry run, bumped as each starts, as a measure prompt shows (ScopeViewModel.Measure.cs) and at a
     // STARS entry's first key; a run answers only while its number is still the latest, so a slow answer never overwrites a
@@ -255,7 +293,7 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        SetEntry(ScopeEntryFill.Track(EntryText, callsign, FillContext(callsign), IsKnownCallsign));
+        FillFromClick(callsign, () => SetEntry(ScopeEntryFill.Track(EntryText, callsign, FillContext(callsign), IsKnownCallsign)));
         _pickedCallsign = callsign;
         _entryHistoryIndex = -1;
     }
@@ -460,6 +498,8 @@ public sealed partial class ScopeViewModel
     private async Task RunEntryAsync(string entry, string? ownerTemplateId, int seq)
     {
         ScopeEntryReading reading = ScopeEntryClassifier.Classify(entry, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme);
+        IReadOnlyList<string> clicks = [.. _clickSlews];
+        ScopeSlew? clicked = ClickedSlew(entry, clicks);
         string? pickedCallsign = TakeEntry(entry);
 
         // A *T entry, and any entry completing a *T anchor, runs on the Scope (ScopeViewModel.Measure.cs) and sends nothing.
@@ -475,12 +515,12 @@ public sealed partial class ScopeViewModel
         }
 
         // MIN runs on the Scope (ScopeViewModel.MinSep.cs) and sends nothing.
-        if ((reading.Kind == ScopeEntryKind.Stars) && reading.Supported && TryRunMinSep(entry))
+        if ((reading.Kind == ScopeEntryKind.Stars) && reading.Supported && TryRunMinSep(entry, clicks))
         {
             return;
         }
 
-        (string? sendText, string? refusal) = ResolveSendText(entry, reading);
+        (string? sendText, string? refusal) = ResolveEntry(entry, reading, clicked, ownerTemplateId);
         if (sendText is null)
         {
             Main.AddHistory("", entry);
@@ -490,6 +530,39 @@ public sealed partial class ScopeViewModel
 
         await SendEntryAsync(entry, sendText, SendSchemeFor(reading.Kind), seq);
     }
+
+    // A STARS entry ending in the callsign a click filled runs without it, on that track (CRC's slew); any other on the
+    // selected aircraft.
+    private (string? Text, string? Refusal) ResolveEntry(string entry, ScopeEntryReading reading, ScopeSlew? clicked, string? ownerTemplateId) =>
+        (clicked is { } slew)
+            ? ResolveSendText(slew.Text, ScopeEntryClassifier.Classify(slew.Text, ProfileKind, ownerTemplateId, Main.Preferences.CommandScheme), slew)
+            : ResolveSendText(entry, reading, new ScopeSlew(Main.SelectedAircraft, entry, false));
+
+    /// <summary>
+    /// The slew a click gave <paramref name="entry"/>: when its last word is the callsign the last click filled, and the entry
+    /// without that word reads, in the clicked track's dialect, as a STARS entry whose CRC form ends in a slew (one with an
+    /// answer for no slew, bare <c>HND</c>, bare <c>*J</c>/<c>*P</c>), that track and the entry without its callsign; null
+    /// otherwise, so a typed trailing callsign reads as typed.
+    /// </summary>
+    private ScopeSlew? ClickedSlew(string entry, IReadOnlyList<string> clicks)
+    {
+        int space = entry.LastIndexOf(' ');
+        if ((space < 0) || (clicks.Count == 0) || !string.Equals(entry[(space + 1)..], clicks[^1], StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        string rest = entry[..space].TrimEnd();
+        string callsign = clicks[^1];
+        bool stars =
+            ScopeEntryClassifier.Classify(rest, ProfileKind, OwnerTemplateIdOf(callsign), Main.Preferences.CommandScheme).Kind
+            == ScopeEntryKind.Stars;
+        return (stars && EndsInSlew(StarsEntryParser.TryRead(rest)) && (FindAircraft(callsign) is { } ac)) ? new ScopeSlew(ac, rest, true) : null;
+    }
+
+    // Whether a STARS entry's CRC form ends in a slew.
+    private static bool EndsInSlew(StarsEntryRead? read) =>
+        read is { WithoutSlew: not null } or { Need: StarsEntryNeed.RingRemoval } or { Need: StarsEntryNeed.HandoffAccept, Callsign: null };
 
     // The command scheme an entry's YAAT command is written in: a STARS entry's translation in the default verbs, any other
     // entry in the user's own.
@@ -514,16 +587,27 @@ public sealed partial class ScopeViewModel
         return pickedCallsign;
     }
 
-    // The text a non-ERAM entry sends, or null and its refusal: an entry that reads as nothing answers FORMAT, an unsupported
-    // STARS entry NOT SUPPORTED. A $ command sends as it reads: a clicked track is in its text already (the click fill wrote
-    // it), and one naming no callsign is for the selected aircraft, which SendTextAsync supplies.
-    private (string? Text, string? Refusal) ResolveSendText(string entry, ScopeEntryReading reading) =>
+    // The text a non-ERAM entry sends, or null and its refusal: an entry that reads as nothing answers FORMAT, a STARS entry
+    // with no YAAT command CRC's category where CRC refuses it (StarsRefusal), else NOT SUPPORTED. A $ command sends as it reads:
+    // a clicked track is in its text already (the click fill wrote it), and one naming no callsign is for the selected aircraft,
+    // which SendTextAsync supplies.
+    private (string? Text, string? Refusal) ResolveSendText(string entry, ScopeEntryReading reading, ScopeSlew slew) =>
         reading.Kind switch
         {
             ScopeEntryKind.None => (null, FormatMessage),
-            _ when !reading.Supported => (null, NotSupportedMessage),
-            ScopeEntryKind.Stars => ResolveStarsEntry(entry, reading.SendText),
+            _ when !reading.Supported => (null, StarsRefusal(entry, slew.Aircraft)),
+            ScopeEntryKind.Stars => ResolveStarsEntry(entry, reading.SendText, slew),
             _ => (reading.SendText, null),
+        };
+
+    // The answer to a STARS entry with no YAAT command: CRC's category where CRC refuses it, else, with no slewed aircraft, its
+    // answer for no slew, else NOT SUPPORTED.
+    private static string StarsRefusal(string entry, AircraftModel? slewed) =>
+        StarsEntryParser.TryRead(entry) switch
+        {
+            { Error: { } error } => error,
+            { WithoutSlew: { } withoutSlew } when slewed is null => withoutSlew,
+            _ => NotSupportedMessage,
         };
 
     // Sends sendText, the entry's YAAT command written in scheme, through the pilot path with the Scope's own sink; its answer
@@ -604,67 +688,150 @@ public sealed partial class ScopeViewModel
     }
 
     /// <summary>
-    /// The text a supported STARS entry sends, once the rows that need the Scope's state have it: bare <c>HND</c> becomes
-    /// <c>CANCEL</c> for a handoff outbound from the acting position (else it stays <c>ACCEPT</c>, which the pilot path refuses
-    /// when there is no handoff to take), <c>*J</c>/<c>*P</c> act on the selected aircraft's Scope rings, and bare <c>MF R</c>
-    /// toggles the selected track's PTL.
+    /// The text a supported STARS entry sends, once the rows that need the Scope's state have it. <paramref name="slew"/> is
+    /// CRC's slew (a clicked track, else the selected aircraft): an entry that acts on one (it has a
+    /// <see cref="StarsEntryRead.WithoutSlew"/>) answers that when there is none, else runs on it (<see cref="ResolveOnSlew"/>);
+    /// any other runs by what it needs (<see cref="ResolveStarsNeed"/>).
     /// </summary>
     /// <returns>The text to send, or null and the refusal to answer with.</returns>
-    private (string? Text, string? Refusal) ResolveStarsEntry(string entry, string translation)
+    private (string? Text, string? Refusal) ResolveStarsEntry(string entry, string translation, ScopeSlew slew)
     {
         if (StarsEntryParser.TryRead(entry) is not { } read)
         {
             return (translation, null);
         }
 
-        return read.Need switch
+        if (read.WithoutSlew is not { } withoutSlew)
         {
-            StarsEntryNeed.HandoffAcceptOrCancel => (ResolveHandoff(read, translation), null),
-            StarsEntryNeed.RingPlacement or StarsEntryNeed.SelectedTrack => (Main.SelectedAircraft is { } ac)
-                ? ($"{translation} {ac.Callsign}", null)
-                : (null, MainViewModel.NoAircraftMatchedMessage),
-            StarsEntryNeed.RingRemoval => ResolveRingRemoval(read.Ring),
+            return ResolveStarsNeed(read, translation, slew);
+        }
+
+        return (slew.Aircraft is { } slewed) ? ResolveOnSlew(read, translation, slewed) : (null, withoutSlew);
+    }
+
+    /// <summary>
+    /// An entry that acts on the slewed track <paramref name="slewed"/>: <c>*J</c>/<c>*P</c> with a size and bare <c>MF R</c>
+    /// name it after the translation, bare <c>**</c> converts its point-out or force-quicklooks it
+    /// (<see cref="ResolvePointoutOrQuicklook"/>), and a leader direction names it first.
+    /// </summary>
+    private (string? Text, string? Refusal) ResolveOnSlew(StarsEntryRead read, string translation, AircraftModel slewed) =>
+        read.Need switch
+        {
+            StarsEntryNeed.RingPlacement or StarsEntryNeed.SelectedTrack => ($"{translation} {slewed.Callsign}", null),
+            StarsEntryNeed.ConvertPointoutOrQuicklook => ResolvePointoutOrQuicklook(translation, slewed),
+            _ => ($"{slewed.Callsign} {translation}", null),
+        };
+
+    /// <summary>
+    /// An entry that needs no slew by what it needs: bare <c>HND</c> accepts a handoff (<see cref="ResolveHandoff"/>), bare
+    /// <c>*J</c>/<c>*P</c> remove the slewed track's Scope ring, and <c>MF L&lt;d&gt; &lt;id&gt;</c> finds the id's track
+    /// (<see cref="ResolveLeaderForTrack"/>).
+    /// </summary>
+    private (string? Text, string? Refusal) ResolveStarsNeed(StarsEntryRead read, string translation, ScopeSlew slew) =>
+        read.Need switch
+        {
+            StarsEntryNeed.HandoffAccept => ResolveHandoff(read, translation, slew),
+            StarsEntryNeed.RingRemoval => ResolveRingRemoval(read.Ring, slew.Aircraft),
+            StarsEntryNeed.LeaderForTrack when read.TrackId is { } id => ResolveLeaderForTrack(id, translation),
+            // The parser always gives MF L<d> <id> its id; an entry without one cannot be read.
+            StarsEntryNeed.LeaderForTrack => (null, StarsErrorText.Format),
             _ => (translation, null),
+        };
+
+    /// <summary>
+    /// <c>HND</c> with no handoff id accepts, never cancels: a typed (partial) callsign is matched as the pilot path matches one,
+    /// and the command names the matched aircraft's full callsign; with none typed it is for the slewed track (a click, else the
+    /// selected aircraft); with no slew either, for the handoff to the acting position nearest the home centre, else
+    /// <see cref="StarsErrorText.NoFlight"/>, as CRC's bare HND (InputManager.ProcessHandoffCommand).
+    /// </summary>
+    private (string? Text, string? Refusal) ResolveHandoff(StarsEntryRead read, string translation, ScopeSlew slew)
+    {
+        if (read.Callsign is { } callsign)
+        {
+            return (CallsignMatcher.Match(callsign, Main.Aircraft).Match is { } typed) ? ($"{typed.Callsign} ACCEPT", null) : (translation, null);
+        }
+
+        if (slew.Aircraft is { } slewed)
+        {
+            return (slew.Clicked ? $"{slewed.Callsign} {translation}" : translation, null);
+        }
+
+        return (NearestIncomingHandoff() is { } nearest) ? ($"{nearest.Callsign} {translation}", null) : (null, StarsErrorText.NoFlight);
+    }
+
+    // The aircraft in handoff to the acting position nearest the Scope's home centre (its map source centre: the primary
+    // airport when its position is known, else the first area's centre; CRC orders the area's visibility centre first, a
+    // difference booked on its own), or the display centre while there is no home centre; null with none, or while the acting
+    // position is unknown.
+    private AircraftModel? NearestIncomingHandoff()
+    {
+        if (ActingAs() is not { } acting)
+        {
+            return null;
+        }
+
+        LatLon centre = HomeCenter(Main.ScopeMaps) ?? new LatLon(CenterLat, CenterLon);
+        return Main
+            .Aircraft.Where(ac => TrackCoordinationView.IsHandoffToActing(HandoffPeerOf(ac), RedirectedByOf(ac), acting))
+            .MinBy(ac => GeoMath.DistanceNm(ac.Position, centre));
+    }
+
+    /// <summary>
+    /// Bare <c>**</c> on the slewed track: <c>POHO</c> converts a point-out pending to the acting position, else <c>FQL</c>
+    /// force-quicklooks the track to the acting position's own TCP, each named for the track;
+    /// <see cref="StarsErrorText.IllegalPosition"/> while the acting position is unknown.
+    /// </summary>
+    private (string? Text, string? Refusal) ResolvePointoutOrQuicklook(string translation, AircraftModel ac)
+    {
+        if (ActingAs() is not { } acting)
+        {
+            return (null, StarsErrorText.IllegalPosition);
+        }
+
+        bool pointoutToUs =
+            AircraftCommandApplicability.HasPendingPointout(ac) && TrackCoordinationView.IsPointoutToActing(ac.PointoutRecipientCode, acting);
+        return ($"{ac.Callsign} {(pointoutToUs ? translation : $"FQL {Main.ActiveTcp}")}", null);
+    }
+
+    /// <summary>
+    /// <c>MF L&lt;d&gt; &lt;id&gt;</c>: <paramref name="direction"/> (the translation, <c>LDR d</c>) for the track <paramref name="id"/>
+    /// names, as CRC's LookupAssociatedTrack finds it: a four-digit beacon code (<see cref="MainViewModel.TracksWithBeacon"/>),
+    /// else a callsign matched whole, ignoring case. None is <see cref="StarsErrorText.NoTrack"/>, several
+    /// <see cref="StarsErrorText.DuplicateTrack"/>; a one- or two-digit line number has no YAAT meaning
+    /// (<see cref="StarsErrorText.NotSupported"/>).
+    /// </summary>
+    private (string? Text, string? Refusal) ResolveLeaderForTrack(string id, string direction)
+    {
+        if ((id.Length <= 2) && id.All(char.IsAsciiDigit))
+        {
+            return (null, StarsErrorText.NotSupported);
+        }
+
+        AircraftModel[] tracks =
+            (id.Length == 4) && id.All(char.IsAsciiDigit)
+                ? Main.TracksWithBeacon(id)
+                : [.. Main.Aircraft.Where(ac => string.Equals(ac.Callsign, id, StringComparison.OrdinalIgnoreCase))];
+        return tracks switch
+        {
+            [] => (null, StarsErrorText.NoTrack),
+            [AircraftModel track] => ($"{track.Callsign} {direction}", null),
+            _ => (null, StarsErrorText.DuplicateTrack),
         };
     }
 
-    // Bare HND: CANCEL for a handoff from the acting position to another, else ACCEPT. A typed (partial) callsign is matched as
-    // the pilot path matches one, and the command then names the matched aircraft's full callsign.
-    private string ResolveHandoff(StarsEntryRead read, string translation)
+    // The position the client acts as; null while it is unknown.
+    private ActingPosition? ActingAs() =>
+        string.IsNullOrEmpty(Main.ActiveTcp) ? null : new ActingPosition(Main.ActingCallsign, Main.ActingTrackFacilityId, Main.ActiveTcp);
+
+    private static TrackPositionIdentity HandoffPeerOf(AircraftModel ac) => new(ac.HandoffPeer, ac.HandoffPeerFacilityId, ac.HandoffPeerSectorCode);
+
+    private static TrackPositionIdentity RedirectedByOf(AircraftModel ac) =>
+        new(ac.HandoffRedirectedByCallsign, ac.HandoffRedirectedByFacilityId, ac.HandoffRedirectedBySectorCode);
+
+    // Bare *J / *P: the slewed track's ring of that kind, at its size, which the ring command toggles off.
+    private (string? Text, string? Refusal) ResolveRingRemoval(ScopeRingTool tool, AircraftModel? slewed)
     {
-        AircraftModel? ac = (read.Callsign is { } callsign) ? CallsignMatcher.Match(callsign, Main.Aircraft).Match : Main.SelectedAircraft;
-        if (ac is null)
-        {
-            return translation;
-        }
-
-        string prefix = (read.Callsign is null) ? "" : $"{ac.Callsign} ";
-        return $"{prefix}{(IsOutboundHandoff(ac) ? "CANCEL" : "ACCEPT")}";
-    }
-
-    // A handoff from the acting position to another, not one to it; false while the acting position is unknown.
-    private bool IsOutboundHandoff(AircraftModel ac)
-    {
-        if (string.IsNullOrEmpty(Main.ActiveTcp))
-        {
-            return false;
-        }
-
-        var acting = new ActingPosition(Main.ActingCallsign, Main.ActingTrackFacilityId, Main.ActiveTcp);
-        var owner = new TrackPositionIdentity(ac.Owner, ac.OwnerFacilityId, ac.OwnerSectorCode);
-        var peer = new TrackPositionIdentity(ac.HandoffPeer, ac.HandoffPeerFacilityId, ac.HandoffPeerSectorCode);
-        var redirectedBy = new TrackPositionIdentity(
-            ac.HandoffRedirectedByCallsign,
-            ac.HandoffRedirectedByFacilityId,
-            ac.HandoffRedirectedBySectorCode
-        );
-        return !TrackCoordinationView.IsHandoffToActing(peer, redirectedBy, acting) && TrackCoordinationView.IsHandoffFromActing(owner, peer, acting);
-    }
-
-    // Bare *J / *P: the selected aircraft's ring of that kind, at its size, which the ring command toggles off.
-    private (string? Text, string? Refusal) ResolveRingRemoval(ScopeRingTool tool)
-    {
-        if (Main.SelectedAircraft is not { } ac)
+        if (slewed is not { } ac)
         {
             return (null, MainViewModel.NoAircraftMatchedMessage);
         }

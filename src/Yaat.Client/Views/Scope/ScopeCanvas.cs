@@ -795,6 +795,18 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// The range the view of <paramref name="viewNm"/> syncs the stored <paramref name="storedNm"/> to: the view's range, whole NM
+    /// from 1 up and eighths below (never under <see cref="ScopeViewModel.MinRangeNm"/>), when it differs from the stored one by
+    /// at least the step of the smaller of the two (1 NM from 1 up, an eighth below); else the stored range, a decimal one kept.
+    /// </summary>
+    internal static double SyncedRangeNm(double viewNm, double storedNm)
+    {
+        double synced = (viewNm >= 1) ? Math.Round(viewNm) : Math.Max(ScopeViewModel.MinRangeNm, Math.Round(viewNm * 8) / 8);
+        double step = (Math.Min(synced, storedNm) >= 1) ? 1 : ScopeViewModel.MinRangeNm;
+        return (Math.Abs(synced - storedNm) >= step) ? synced : storedNm;
+    }
+
     protected override void OnViewportChanged()
     {
         _lastFrame = null;
@@ -804,11 +816,11 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         }
 
         float maxPixels = Math.Max(Viewport.PixelWidth, Viewport.PixelHeight);
-        int rounded = Math.Max(1, (int)Math.Round(maxPixels * 60.0 / (DefaultPixelsPerDeg * Viewport.Zoom)));
-        if (Math.Abs(rounded - RangeNm) >= 1)
+        double synced = SyncedRangeNm(maxPixels * 60.0 / (DefaultPixelsPerDeg * Viewport.Zoom), RangeNm);
+        if (synced != RangeNm)
         {
             _suppressRangeFit = true;
-            RangeNm = rounded;
+            RangeNm = synced;
             _suppressRangeFit = false;
         }
 

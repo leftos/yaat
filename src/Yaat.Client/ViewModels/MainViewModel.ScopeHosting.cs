@@ -228,7 +228,7 @@ public partial class MainViewModel
     /// <paramref name="captured"/> with the rows of the old per-scenario Radar settings <paramref name="old"/> that have a
     /// Scope equivalent, and a value inside the Scope's gates, overridden. The capture supplies what has no old row: the
     /// template, the DB, the lens and the map tools the Scope shows. The centre is copied as stored, so the Scope's
-    /// <c>IsCentre</c> gate drops a zero one and the map source's seed stands; a range outside 1-256 NM takes
+    /// <c>IsCentre</c> gate drops a zero one and the map source's seed stands; a range outside 0.125-256 NM takes
     /// <see cref="ScopeViewModel.DefaultRangeNm"/>, never the captured range, which may belong to the facility being left.
     /// PTL has no Scope equivalent and is dropped.
     /// </summary>
@@ -238,7 +238,7 @@ public partial class MainViewModel
             Maps = [.. old.EnabledStarsIds],
             CenterLat = old.CenterLat,
             CenterLon = old.CenterLon,
-            RangeNm = (old.RangeNm is >= 1 and <= 256) ? old.RangeNm : ScopeViewModel.DefaultRangeNm,
+            RangeNm = (old.RangeNm is >= ScopeViewModel.MinRangeNm and <= ScopeViewModel.MaxRangeNm) ? old.RangeNm : ScopeViewModel.DefaultRangeNm,
             MapTools = captured.MapTools with
             {
                 Lock = old.IsPanZoomLocked,
