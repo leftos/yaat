@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-2683: how the Scope draws ERAM tracks</title>
+<style>
+@font-face { font-family: "VT323"; src: url("fonts/VT323-Regular.ttf") format("truetype"); }
+@font-face { font-family: "B612 Mono"; src: url("fonts/B612Mono-Bold.ttf") format("truetype"); font-weight: 700; }
+@font-face { font-family: "Share Tech Mono"; src: url("fonts/ShareTechMono-Regular.ttf") format("truetype"); }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; }
+:root { color-scheme: dark; }
+body { background: #161616; color: #c8c8c8; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; margin: 0; padding: 20px 28px 60px; }
+h1 { font-size: 20px; margin: 0 0 6px; color: #eee; }
+h2 { font-size: 17px; margin: 34px 0 4px; color: #eee; border-top: 1px solid #333; padding-top: 18px; }
+p { margin: 4px 0; max-width: 1150px; }
+.note { color: #9a9a9a; font-size: 13px; }
+.zoom { display: inline-block; background: #2a2a10; border: 1px solid #555520; color: #e0e0a0; padding: 4px 10px; margin: 8px 0; font-size: 13px; }
+#dprwarn { display: none; background: #4a1010; border: 1px solid #a33; color: #fcc; padding: 6px 10px; margin: 8px 0; }
+#fontwarn { display: none; background: #4a1010; border: 1px solid #a33; color: #fcc; padding: 6px 10px; margin: 8px 0; }
+.lane { margin: 18px 0 8px; }
+.lane h3 { font-size: 15px; margin: 0; color: #eee; }
+.lane h3 .id { display: inline-block; min-width: 30px; color: #000; background: #c8c800; padding: 0 5px; margin-right: 8px; text-align: center; }
+.lane .cap { color: #b0b0b0; font-size: 13px; margin: 2px 0 6px; }
+.row { display: flex; gap: 16px; align-items: flex-start; }
+.scope { position: relative; background: #000; border: 1px solid #3a3a3a; flex: none; }
+.scope svg, .scope canvas { position: absolute; left: 0; top: 0; display: block; }
+.legend { list-style: none; margin: 0; padding: 0; font-size: 12px; line-height: 1.35; color: #8c8c8c; width: 400px; }
+.legend li { margin: 0 0 6px; }
+.legend b { color: #a8a8a8; font-weight: 600; }
+table.fonts { border-collapse: collapse; margin-top: 8px; }
+table.fonts td, table.fonts th { border: 1px solid #333; padding: 6px 8px; vertical-align: top; text-align: left; }
+table.fonts th { color: #ccc; font-weight: 600; font-size: 13px; }
+table.fonts td.fname { color: #ccc; font-size: 13px; width: 210px; }
+table.fonts td.fname span { display: block; color: #8c8c8c; font-size: 12px; }
+.cellcap { color: #8c8c8c; font-size: 12px; margin-top: 3px; }
+.key { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 8px; }
+.key figure { margin: 0; width: 118px; background: #000; border: 1px solid #333; padding: 6px; }
+.key figure .pair { display: flex; align-items: flex-end; gap: 10px; height: 64px; }
+.key figcaption { color: #8c8c8c; font-size: 11px; line-height: 1.25; margin-top: 4px; }
+.key canvas { image-rendering: pixelated; }
+footer { margin-top: 40px; border-top: 1px solid #333; padding-top: 12px; font-size: 12px; color: #8c8c8c; }
+footer td { padding: 2px 10px 2px 0; vertical-align: top; }
+</style>
+</head>
+<body>
+<h1>YAAT-2683: how should the YAAT Scope draw ERAM tracks?</h1>
+<p>In the <b>Mixed</b> template a STARS-owned track and an ERAM track sit side by side, and today they look the same apart from the datablock's text layout. Each lane below draws the same small Mixed scene: two STARS tracks (always drawn as today) and six ERAM tracks, one of each state an en-route controller meets. Pick one lane in Section A; Sections B and C only matter if that lane brings a new font or ERAM glyphs.</p>
+<p class="note">Every element is labelled in grey beside its lane, never on the scope. Text content is the same in every lane (what YAAT's <code>eram</code> template prints today); only the drawing changes. ERAM glyphs here are YAAT's own drawings from descriptions of CRC's shapes (12 x 15 px cell, 2 px strokes, no antialiasing); no CRC font or bitmap is copied.</p>
+<div class="zoom">View at 100 % browser zoom on a 100 % display scale: every scope is drawn 1 screen pixel = 1 CRC pixel. A scaled page blurs the pixel glyphs and makes them look bigger than they would on the Scope.</div>
+<div id="dprwarn"></div>
+<div id="fontwarn"></div>
+
+<h2>Section A: overall look (the main question)</h2>
+<p class="note">CRC's leader "length 1" is min(display width / 32, 60) px, drawn here as 60 px (a 1920 px-wide Scope). Colours: CRC's ERAM yellow at its default brightness groups (targets 200,200,0; FDB 196,196,0; LDB 129,129,0; history 34,34,0); YAAT's symbol blue 0,176,255; STARS ownership white (own) and 50,205,50 green (others).</p>
+<div id="secA"></div>
+
+<h2>Section B: datablock font (only if the lane picked brings a new font)</h2>
+<p class="note">The A2 scene's FDB (UAL123, with its target glyph, track-position diamond and leader) and a limited block (N512RK) in ERAM yellow, in each candidate font. Row pitch follows CRC's rule (cap height + 7 px). The outline fonts draw antialiased as YAAT draws text today; VT323 is a pixel face and draws aliased at sizes where its pixel grid lands on whole screen pixels: 25 px is pixel-exact (10 px advance, CRC's default size-1 advance), 12.5 px is a half grid and is the nearest crisp size to 12 px.</p>
+<table class="fonts" id="secB"><tr><th>Font</th><th>YAAT default size (12 px equivalent)</th><th>Larger</th></tr></table>
+
+<h2>Section C: symbol set (only if the lane picked uses ERAM glyphs)</h2>
+<p class="note">CRC draws two layers: the <i>target</i> glyph (the radar return, by state) and, under an FDB, a separate <i>track-position</i> symbol at the same point. The key shows each glyph at 1:1 and at 4 x (pixels enlarged, not redrawn). The lanes are all A2 otherwise.</p>
+<div class="key" id="key"></div>
+<div id="secC"></div>
+
+<footer>
+<p><b>Fonts</b> (all beside this page in <code>fonts/</code> with their licence files; Consolas is a Microsoft system font, used for the "today" reference only and never shipped):</p>
+<table>
+<tr><td>VT323 Regular</td><td>SIL OFL 1.1</td><td>fonts/OFL-VT323.txt</td><td>https://github.com/google/fonts/tree/main/ofl/vt323</td></tr>
+<tr><td>B612 Mono Bold</td><td>SIL OFL 1.1</td><td>fonts/OFL-B612Mono.txt</td><td>https://github.com/google/fonts/tree/main/ofl/b612mono</td></tr>
+<tr><td>Share Tech Mono Regular</td><td>SIL OFL 1.1</td><td>fonts/OFL-ShareTechMono.txt</td><td>https://github.com/google/fonts/tree/main/ofl/sharetechmono</td></tr>
+<tr><td>JetBrains Mono Bold</td><td>SIL OFL 1.1</td><td>fonts/OFL-JetBrainsMono.txt</td><td>already in YAAT: src/Yaat.Client.Strips/Resources/Fonts/</td></tr>
+</table>
+<p>B612 Mono and JetBrains Mono are shown in Bold to match today's Consolas Bold; VT323 and Share Tech Mono have only a Regular weight.</p>
+</footer>
+
+<script>
+"use strict";
+// ---------- colours ----------
+const C = {
+  blue: "rgb(0,176,255)", blueHist: "rgb(0,30,43)", white: "rgb(255,255,255)", green: "rgb(50,205,50)",
+  eTgt: "rgb(200,200,0)", eFdb: "rgb(196,196,0)", eLdb: "rgb(129,129,0)", eHist: "rgb(34,34,0)",
+};
+
+// ---------- glyphs: YAAT's own drawings in a 12 x 15 cell, centre (6, 7.5) ----------
+const L = (x1, y1, x2, y2) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke-width="2" stroke="currentColor"/>';
+const R = (x, y, w, h) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="currentColor"/>';
+const P = (d) => '<path d="' + d + '" stroke-width="2" stroke="currentColor" fill="none"/>';
+const GLYPH = {
+  primaryStrong: { name: "Uncorrelated primary, strong", svg: R(5, 1, 2, 13) + R(2, 7, 8, 2) },
+  primaryWeak:   { name: "Uncorrelated primary, weak", svg: R(4, 7, 5, 2) },
+  corrPrimary:   { name: "Correlated primary", svg: L(1, 1, 11, 14) + L(11, 1, 1, 14) },
+  uncBeacon:     { name: "Uncorrelated beacon", svg: L(1, 14, 11, 1) },
+  corrBeacon:    { name: "Correlated beacon", svg: L(1, 1, 11, 14) },
+  reducedSep:    { name: "Reduced separation", svg: R(4, 5, 4, 5) },
+  spi:           { name: "Identing beacon (SPI)", svg: R(0, 2, 12, 2) + R(0, 7, 12, 2) + R(0, 12, 12, 2) },
+  mci:           { name: "MCI", svg: R(1, 1, 10, 2) + R(1, 12, 10, 2) + R(5, 3, 2, 9) },
+  vfr:           { name: "VFR (1200)", svg: L(1, 1, 6, 10) + L(11, 1, 6, 10) + R(5, 10, 2, 4) },
+  flat:          { name: "Track: flat (correlated, has destination)", svg: P("M6,1 L11,7.5 L6,14 L1,7.5 Z") },
+  free:          { name: "Track: free", svg: P("M10,1 L10,14 M10,1 A8,6.5 0 0 0 10,14") },
+  coast:         { name: "Track: coast (CST)", svg: R(3, 1, 2, 13) + R(7, 1, 2, 13) + R(1, 4, 10, 2) + R(1, 9, 10, 2) },
+  frozen:        { name: "Track: frozen (FRZN)", svg: R(1, 1, 10, 2) + R(1, 12, 10, 2) + L(2, 3, 10, 12) + L(10, 3, 2, 12) },
+};
+const glyphAt = (key, x, y, color) =>
+  '<g transform="translate(' + (Math.round(x) - 6) + "," + (Math.round(y) - 7) + ')" color="' + color + '" shape-rendering="crispEdges">' + GLYPH[key].svg + "</g>";
+const REDUCED = { corrBeacon: "corrBeacon", uncBeacon: "corrBeacon", spi: "corrBeacon", mci: "corrBeacon", reducedSep: "corrBeacon",
+  coast: "corrBeacon", primaryStrong: "primaryStrong", primaryWeak: "primaryStrong", corrPrimary: "primaryStrong", vfr: "vfr" };
+
+// ---------- the scene ----------
+const W = 720, H = 380;
+const TRACKS = [
+  { id: "SWA1832", kind: "stars", own: true, x: 110, y: 100, hdg: 270, sp: 14, lines: ["SWA1832", "060 22 F/B737"] },
+  { id: "DAL412", kind: "stars", own: false, x: 330, y: 335, hdg: 60, sp: 14, lines: ["DAL412", "090 25 F/B739"] },
+  { id: "UAL123", kind: "fdb", own: true, state: "corrBeacon", trk: "flat", x: 150, y: 255, hdg: 90, sp: 18,
+    lines: ["UAL123", "350C 45 F/B738", "H-23", "ORD"] },
+  { id: "SKW5410", kind: "fdb", own: false, state: "spi", trk: "flat", x: 430, y: 160, hdg: 160, sp: 16,
+    lines: ["SKW5410", "110C 29 E/CRJ9 ID", "DEN"], hist: ["spi", "corrBeacon", "corrBeacon", "corrBeacon", "corrBeacon"] },
+  { id: "AAL88", kind: "fdb", own: false, state: "coast", trk: "coast", x: 470, y: 290, hdg: 300, sp: 16, gap: 2,
+    lines: ["AAL88", "240C 41 F/A321", " CST", "DFW"], hist: Array(5).fill("corrBeacon") },
+  { id: "N512RK", kind: "ldb", own: false, state: "vfr", x: 80, y: 300, hdg: 10, sp: 12, lines: ["N512RK", "045"] },
+  { id: "4621", kind: "ldb", own: false, state: "uncBeacon", x: 330, y: 75, hdg: 120, sp: 15, lines: ["4621", "128"] },
+  { id: "PRI", kind: "none", state: "primaryStrong", x: 695, y: 330, hdg: 190, sp: 16 },
+];
+
+const IDENT = {
+  stars: "<b>SWA1832</b> (top left, white) and <b>DAL412</b> (bottom centre, green): STARS-owned tracks, drawn as today in every lane (blue circle, blue history dots, Consolas Bold 12 px).",
+  UAL123: "<b>UAL123</b> (left): correlated Mode C beacon, yours, full datablock, in handoff to sector 23 (H-23).",
+  SKW5410: "<b>SKW5410</b> (upper right): correlated, another sector's, full datablock, squawking ident (SPI).",
+  AAL88: "<b>AAL88</b> (lower right): correlated, another sector's, coasting (no radar return), full datablock with CST.",
+  N512RK: "<b>N512RK</b> (bottom left): VFR on 1200, limited block (callsign, altitude).",
+  "4621": "<b>4621</b> (top centre): uncorrelated beacon target, limited block (code, altitude).",
+  PRI: "<b>Lone primary</b> (bottom right, no block): uncorrelated primary target.",
+};
+
+// ---------- fonts ----------
+const FONTS = {
+  consolas12: { family: "Consolas", weight: "bold", size: 12, cap: 7.66, aliased: false, label: "Consolas Bold 12 px" },
+  consolas16: { family: "Consolas", weight: "bold", size: 16, cap: 10.2, aliased: false, label: "Consolas Bold 16 px" },
+  vt12:  { family: "VT323", weight: "normal", size: 12.5, cap: 7, aliased: true, label: "VT323 12.5 px, aliased (half pixel grid)" },
+  vt25:  { family: "VT323", weight: "normal", size: 25, cap: 14, aliased: true, label: "VT323 25 px, aliased (pixel-exact grid, 10 px advance)" },
+  b612_12: { family: "B612 Mono", weight: "bold", size: 12, cap: 9, aliased: false, label: "B612 Mono Bold 12 px" },
+  b612_16: { family: "B612 Mono", weight: "bold", size: 16, cap: 12, aliased: false, label: "B612 Mono Bold 16 px" },
+  stm12: { family: "Share Tech Mono", weight: "normal", size: 12, cap: 8.4, aliased: false, label: "Share Tech Mono 12 px" },
+  stm16: { family: "Share Tech Mono", weight: "normal", size: 16, cap: 11.2, aliased: false, label: "Share Tech Mono 16 px" },
+  jb12:  { family: "JetBrains Mono", weight: "bold", size: 12, cap: 8.76, aliased: false, label: "JetBrains Mono Bold 12 px" },
+  jb16:  { family: "JetBrains Mono", weight: "bold", size: 16, cap: 11.7, aliased: false, label: "JetBrains Mono Bold 16 px" },
+};
+const cssFont = (f) => f.weight + " " + f.size + "px '" + f.family + "'";
+
+// ---------- lanes ----------
+const TODAY = { target: "circle", trackSym: false, history: "dots", leader: "yaat", font: FONTS.consolas12, colors: "yaat" };
+const A2 = { target: "eram", trackSym: true, history: "glyph", leader: "crc", font: FONTS.vt25, colors: "eram" };
+const LANES_A = [
+  { id: "A1", title: "Today", cap: "YAAT as it is: one 5 px hollow blue circle for every ERAM state, blue history dots fading in, a leader to the block's box, Consolas Bold 12 px, white own / green others.",
+    opt: TODAY,
+    desc: {
+      UAL123: "Blue circle; 5 blue dots, oldest faintest; white leader to the block's box; white block.",
+      SKW5410: "Blue circle (ident shows only as the ID token); blue dots; green leader and block.",
+      AAL88: "Blue circle at the extrapolated position; blue dots; CST on line 3 is the only coast cue.",
+      N512RK: "Blue circle; blue dots; green block beside it, no leader.",
+      "4621": "Blue circle; blue dots; green block beside it, no leader.",
+      PRI: "Blue circle and blue dots: reads the same as every other target." } },
+  { id: "A2", title: "ERAM faithful", cap: "CRC's ERAM: a glyph per target state plus the track-position symbol, history repeats the glyph in dim yellow, leader starts 6 px out and runs 60 px NE, VT323 25 px aliased, everything yellow at CRC's default brightness (no ownership colour).",
+    opt: A2,
+    desc: {
+      UAL123: "\\ correlated-beacon glyph over a hollow diamond (track, has destination); 5 dim \\ history; 6 px gap then 60 px leader NE; FDB yellow.",
+      SKW5410: "Three bars (ident) over the diamond; newest history also bars, older \\; same yellow as yours: CRC shows no ownership colour.",
+      AAL88: "No target glyph (no return), only the coast hash; the history stops where returns stopped; CST on line 3.",
+      N512RK: "V glyph (VFR) with V history; LDB dimmer yellow (129), 3 px right of the glyph, no leader.",
+      "4621": "/ glyph (uncorrelated beacon) with / history; dim LDB beside it.",
+      PRI: "+ glyph (primary) with + history; no block." } },
+  { id: "A3", title: "ERAM glyphs, YAAT colours", cap: "A2's glyphs, history, leader and font, but YAAT's colours: target glyphs and history in the symbol blue, track symbols, leaders and blocks white own / green others.",
+    opt: Object.assign({}, A2, { colors: "yaat" }),
+    desc: {
+      UAL123: "Blue \\ over a white diamond; dim blue \\ history; white leader and block.",
+      SKW5410: "Blue bars over a green diamond; green leader and block.",
+      AAL88: "Green coast hash only; dim blue history stops short; green block.",
+      N512RK: "Blue V with dim blue history; green LDB.",
+      "4621": "Blue / with dim blue history; green LDB.",
+      PRI: "Blue + with dim blue history." } },
+  { id: "A4", title: "Lighter touch", cap: "Today's look with one change of shape and one of colour: the circle becomes the ERAM glyph for the state (no track-position symbol); dots, box leader, Consolas and today's layout kept; all ERAM yellow.",
+    opt: { target: "eram", trackSym: false, history: "dots", leader: "yaat", font: FONTS.consolas12, colors: "eram" },
+    desc: {
+      UAL123: "Yellow \\ glyph; yellow dots fading in; leader to the box, which starts at the centre and so runs through the glyph; yellow block.",
+      SKW5410: "Yellow ident bars; dots; same yellow as yours.",
+      AAL88: "Coast hash as its glyph (no return to draw); dots; CST.",
+      N512RK: "Yellow V; dots; dim yellow block beside it.",
+      "4621": "Yellow /; dots; dim yellow block.",
+      PRI: "Yellow +; dots." } },
+];
+const LANES_C = [
+  { id: "C1", title: "Full set (as A2)", cap: "Target glyph by state, plus the track-position symbol (diamond, D, hash, bow-tie) under every full datablock.",
+    opt: A2, desc: LANES_A[1].desc },
+  { id: "C2", title: "Target glyph only", cap: "One glyph per track: the target glyph by state; no track-position symbol. A coasting track has no return, so the coast hash is its only glyph.",
+    opt: Object.assign({}, A2, { trackSym: false }),
+    desc: {
+      UAL123: "\\ alone (no diamond).", SKW5410: "Ident bars alone.", AAL88: "Coast hash (the one track symbol kept, since there is no target).",
+      N512RK: "V.", "4621": "/.", PRI: "+." } },
+  { id: "C3", title: "Beacon / primary / VFR only", cap: "Three glyphs: \\ for every beacon target (correlated, uncorrelated, ident, coast), + for every primary, V for VFR 1200; no track-position symbol.",
+    opt: Object.assign({}, A2, { target: "reduced", trackSym: false }),
+    desc: {
+      UAL123: "\\.", SKW5410: "\\ (ident shows only as the ID token).", AAL88: "\\ at the coast position; CST on line 3 is the only coast cue.",
+      N512RK: "V.", "4621": "\\ (same as a correlated beacon).", PRI: "+." } },
+];
+
+// ---------- drawing ----------
+function rad(d) { return d * Math.PI / 180; }
+function histPoints(t) {
+  const b = rad(t.hdg + 180), g = t.gap || 0, pts = [];
+  for (let k = 1 + g; k <= 5 + g; k++) pts.push([Math.round(t.x + Math.sin(b) * t.sp * k), Math.round(t.y - Math.cos(b) * t.sp * k)]);
+  return pts; // newest first
+}
+function colorOf(t, role, opt) {
+  const yaat = (t.kind === "stars") || (opt.colors === "yaat");
+  if (yaat) {
+    if (role === "target") return C.blue;
+    if (role === "hist") return (t.kind !== "stars" && opt.history === "glyph") ? C.blueHist : C.blue;
+    return t.own ? C.white : C.green;
+  }
+  if (role === "target") return C.eTgt;
+  if (role === "hist") return opt.history === "glyph" ? C.eHist : C.eTgt;
+  if (role === "block") return t.kind === "ldb" ? C.eLdb : C.eFdb;
+  return C.eFdb; // leader, track symbol
+}
+function targetGlyph(t, opt, state) {
+  if (opt.target === "reduced") return REDUCED[state];
+  if (state === "coast") return opt.trackSym ? null : "coast";
+  return state;
+}
+
+function blockGeometry(t, opt, ctx) {
+  const f = (t.kind === "stars") ? FONTS.consolas12 : opt.font;
+  ctx.font = cssFont(f);
+  const width = Math.max(...t.lines.map((s) => ctx.measureText(s).width));
+  const crc = (t.kind !== "stars") && (opt.leader === "crc");
+  const pitch = crc ? Math.round(f.cap) + 7 : f.size + 2;
+  const n = t.lines.length;
+  let left, top, leader = null;
+  if (t.kind === "ldb") {
+    if (crc) { left = t.x + 9; top = t.y + 8 - Math.round(f.cap); }
+    else { left = t.x + 10; top = t.y - 12; }
+  } else if (crc) {
+    const u = Math.SQRT1_2;
+    const a = [t.x + 6 * u, t.y - 6 * u], e = [t.x + 66 * u, t.y - 66 * u];
+    left = Math.round(e[0] + 5); top = Math.round(e[1] - 2 * pitch);
+    leader = [a, e];
+  } else {
+    left = t.x + 22; top = t.y - 8 - n * pitch;
+    const pad = 3, bx = [left - pad, top - pad, left + width + pad, top + n * pitch + pad];
+    const end = [Math.min(Math.max(t.x, bx[0]), bx[2]), Math.min(Math.max(t.y, bx[1]), bx[3])];
+    leader = [[t.x, t.y], end];
+  }
+  return { f, pitch, left, top, leader, crc };
+}
+
+function renderScope(host, opt) {
+  host.style.width = W + "px"; host.style.height = H + "px";
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H; canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  const ctx = canvas.getContext("2d");
+  const aliasLayer = new OffscreenCanvas(W, H), actx = aliasLayer.getContext("2d");
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">';
+  const crispLine = (a, b, color, w) => '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + color + '" stroke-width="' + w + '" shape-rendering="crispEdges"/>';
+
+  // history first (below everything)
+  for (const t of TRACKS) {
+    const pts = histPoints(t);
+    const dots = (t.kind === "stars") || (opt.history === "dots");
+    pts.forEach((p, i) => {
+      if (dots) {
+        const alpha = (pts.length - i) / pts.length; // newest (i = 0) full
+        svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="2.5" fill="' + colorOf(t, "hist", opt) + '" fill-opacity="' + alpha.toFixed(2) + '"/>';
+      } else {
+        const st = (t.hist && t.hist[i]) || t.state;
+        svg += glyphAt(targetGlyph(t, opt, st) || st, p[0], p[1], colorOf(t, "hist", opt));
+      }
+    });
+  }
+  // tracks
+  for (const t of TRACKS) {
+    const circle = (t.kind === "stars") || (opt.target === "circle");
+    if (circle) {
+      svg += '<circle cx="' + t.x + '" cy="' + t.y + '" r="5" fill="none" stroke="' + C.blue + '" stroke-width="1.5" shape-rendering="crispEdges"/>';
+    } else {
+      if (opt.trackSym && t.kind === "fdb") svg += glyphAt(t.trk, t.x, t.y, colorOf(t, "track", opt));
+      const g = targetGlyph(t, opt, t.state);
+      if (g) svg += glyphAt(g, t.x, t.y, g === "coast" ? colorOf(t, "track", opt) : colorOf(t, "target", opt));
+    }
+    if (!t.lines) continue;
+    const geo = blockGeometry(t, opt, ctx);
+    if (geo.leader && t.kind !== "ldb") {
+      const a = geo.leader[0].map(Math.round), b = geo.leader[1].map(Math.round);
+      svg += crispLine(a, b, colorOf(t, "leader", opt), 2);
+    }
+    const tctx = geo.f.aliased ? actx : ctx;
+    tctx.font = cssFont(geo.f); tctx.fillStyle = colorOf(t, "block", opt); tctx.textBaseline = "alphabetic";
+    t.lines.forEach((s, i) => {
+      const base = geo.crc ? geo.top + i * geo.pitch + Math.round(geo.f.cap) : geo.top + i * geo.pitch + 11;
+      tctx.fillText(s, geo.left, base);
+    });
+  }
+  svg += "</svg>";
+  if (opt.font.aliased) {
+    const d = actx.getImageData(0, 0, W, H);
+    for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] >= 128 ? 255 : 0;
+    actx.putImageData(d, 0, 0);
+    ctx.drawImage(aliasLayer, 0, 0);
+  }
+  host.innerHTML = svg;
+  host.appendChild(canvas);
+}
+
+function renderLane(parent, lane) {
+  const div = document.createElement("div"); div.className = "lane"; div.id = "lane-" + lane.id;
+  div.innerHTML = '<h3><span class="id">' + lane.id + "</span>" + lane.title + '</h3><p class="cap">' + lane.cap + '</p><div class="row"><div class="scope"></div><ul class="legend"></ul></div>';
+  parent.appendChild(div);
+  renderScope(div.querySelector(".scope"), lane.opt);
+  const ul = div.querySelector(".legend");
+  let items = "<li>" + IDENT.stars + "</li>";
+  for (const id of ["UAL123", "SKW5410", "AAL88", "N512RK", "4621", "PRI"]) items += "<li>" + IDENT[id] + " " + lane.desc[id] + "</li>";
+  ul.innerHTML = items;
+}
+
+// ---------- Section B: small FDB + LDB cells ----------
+function renderFontCell(td, font) {
+  const w = 400, h = 150;
+  const host = document.createElement("div"); host.className = "scope"; host.style.width = w + "px"; host.style.height = h + "px";
+  td.appendChild(host);
+  const t1 = Object.assign({}, TRACKS[2], { x: 24, y: 128 }), t2 = Object.assign({}, TRACKS[5], { x: 300, y: 110 });
+  const opt = Object.assign({}, A2, { font });
+  const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const al = new OffscreenCanvas(w, h), actx = al.getContext("2d");
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">';
+  svg += glyphAt("flat", t1.x, t1.y, C.eFdb) + glyphAt("corrBeacon", t1.x, t1.y, C.eTgt) + glyphAt("vfr", t2.x, t2.y, C.eTgt);
+  for (const t of [t1, t2]) {
+    const geo = blockGeometry(t, opt, ctx);
+    if (t.kind === "fdb") {
+      const a = geo.leader[0].map(Math.round), b = geo.leader[1].map(Math.round);
+      svg += '<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" stroke="' + C.eFdb + '" stroke-width="2" shape-rendering="crispEdges"/>';
+    }
+    const tctx = font.aliased ? actx : ctx;
+    tctx.font = cssFont(font); tctx.fillStyle = t.kind === "ldb" ? C.eLdb : C.eFdb;
+    t.lines.forEach((s, i) => tctx.fillText(s, geo.left, geo.top + i * geo.pitch + Math.round(font.cap)));
+  }
+  svg += "</svg>";
+  if (font.aliased) {
+    const d = actx.getImageData(0, 0, w, h);
+    for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] >= 128 ? 255 : 0;
+    actx.putImageData(d, 0, 0); ctx.drawImage(al, 0, 0);
+  }
+  host.innerHTML = svg; host.appendChild(canvas);
+  const cap = document.createElement("div"); cap.className = "cellcap"; cap.textContent = font.label; td.appendChild(cap);
+}
+
+// ---------- symbol key ----------
+async function renderKey() {
+  const key = document.getElementById("key");
+  const order = ["corrBeacon", "uncBeacon", "corrPrimary", "primaryStrong", "primaryWeak", "spi", "vfr", "mci", "reducedSep", "flat", "free", "coast", "frozen"];
+  for (const k of order) {
+    const fig = document.createElement("figure");
+    const color = ["flat", "free", "coast", "frozen"].includes(k) ? C.eFdb : C.eTgt;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="15">' + glyphAt(k, 6, 7, color) + "</svg>";
+    fig.innerHTML = '<div class="pair"><span style="display:inline-block;width:12px;height:15px">' + svg + '</span><canvas width="48" height="60" style="width:48px;height:60px"></canvas></div><figcaption>' + GLYPH[k].name + "</figcaption>";
+    key.appendChild(fig);
+    const img = new Image();
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    await img.decode();
+    const c = fig.querySelector("canvas").getContext("2d");
+    c.imageSmoothingEnabled = false; c.drawImage(img, 0, 0, 12, 15, 0, 0, 48, 60);
+  }
+}
+
+// ---------- boot ----------
+(async () => {
+  if (window.devicePixelRatio !== 1) {
+    const w = document.getElementById("dprwarn");
+    w.style.display = "block";
+    w.textContent = "This window's device pixel ratio is " + window.devicePixelRatio + " (browser zoom or display scaling is not 100 %), so the scopes are scaled and not 1:1. Set the browser zoom so that ratio is 1 (about " + Math.round(100 / window.devicePixelRatio) + " %).";
+  }
+  const want = ["25px VT323", "bold 12px 'B612 Mono'", "12px 'Share Tech Mono'", "bold 12px 'JetBrains Mono'"];
+  const failed = [];
+  for (const f of want) {
+    try { const got = await document.fonts.load(f); if (!got.length) failed.push(f); }
+    catch (e) { failed.push(f); console.error("font load failed: " + f, e); }
+  }
+  if (failed.length) {
+    console.error("fonts not loaded: " + failed.join(", "));
+    const w = document.getElementById("fontwarn"); w.style.display = "block";
+    w.textContent = "These fonts did not load, so lanes using them show a fallback: " + failed.join(", ");
+  }
+  const secA = document.getElementById("secA");
+  for (const lane of LANES_A) renderLane(secA, lane);
+  const rows = [
+    ["Consolas Bold", "today's reference; Microsoft licence, not shippable", FONTS.consolas12, FONTS.consolas16],
+    ["VT323", "pixel terminal face; OFL", FONTS.vt12, FONTS.vt25],
+    ["B612 Mono", "Airbus cockpit-display face; OFL", FONTS.b612_12, FONTS.b612_16],
+    ["Share Tech Mono", "squared technical face; OFL", FONTS.stm12, FONTS.stm16],
+    ["JetBrains Mono", "already bundled (Scope menus, toolbar); OFL", FONTS.jb12, FONTS.jb16],
+  ];
+  const tbl = document.getElementById("secB");
+  rows.forEach(([name, note, a, b], i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td class="fname">B' + i + ": " + name + "<span>" + note + "</span></td><td></td><td></td>";
+    tbl.appendChild(tr);
+    renderFontCell(tr.children[1], a); renderFontCell(tr.children[2], b);
+  });
+  await renderKey();
+  const secC = document.getElementById("secC");
+  for (const lane of LANES_C) renderLane(secC, lane);
+  document.body.dataset.ready = "1";
+})();
+</script>
+</body>
+</html>
