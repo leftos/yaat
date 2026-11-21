@@ -5,7 +5,7 @@
 ## YAATEdit in YAAT
 
 ### M1 Scenario editor (2/8 done)
-- [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser (sub-issue of YAAT-1989) · release vNext
+- [/] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
@@ -14,7 +14,7 @@
 
 ### M2 Export (0/3 done)
 - [ ] YAAT-2495 YAATEdit M2.1: Export JSON (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
 ### M3 Routes, timing and metrics (2/16 done)
@@ -44,14 +44,14 @@
 
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
-  - [ ] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser · release vNext
+  - [/] YAAT-2489 YAATEdit M1.3: Scenario Editor window and browser · release vNext
   - [ ] YAAT-2490 YAATEdit M1.4: General tab · release vNext
   - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext
   - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
   - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext
   - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide · release vNext
   - [ ] YAAT-2495 YAATEdit M2.1: Export JSON · release vNext
-  - [ ] YAAT-2496 YAATEdit M2.2: Server changes on re-download · release vNext
+  - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
   - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
   - [ ] YAAT-2499 YAATEdit M3.2: Preferred routes source · release vNext
   - [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) · release vNext
@@ -76,13 +76,9 @@
   - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392)
   - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON
   - [ ] YAAT-2692 Break the Data.Vnas and Authoring namespace cycle in Yaat.Sim (shared atomic write and id rule) · release vNext
-  - [ ] YAAT-2693 Make the GuideCapture load-scenario dialog deterministic and regenerate its screenshot · release vNext
-  - [ ] YAAT-2694 Enforce the minimum line vertices in MapFeature itself, not only in NewFeature · release vNext
-  - [ ] YAAT-2695 Keep a finished scenario download's status when a slow hub call then fails · release vNext
-  - [ ] YAAT-2696 Dedupe the notice lines after an offline scenario download · release vNext
   - [ ] YAAT-2697 Share LocalScenarioStore's mirror read-and-check step and test the unindexed-file paths · release vNext
-  - [ ] YAAT-2703 Drop navdata routes with a direct leg over 260 NM for a non-RNAV equipment suffix · release vNext
-  - [ ] YAAT-2704 List only the runways whose transition ends at a navdata route row's SID exit · release vNext
+  - [ ] YAAT-2710 Keep RNAV-only fixes and low-altitude navaid legs out of non-RNAV navdata routes
+  - [ ] YAAT-2712 Don't capture the caller's context in ScenarioDownloader's awaits
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -160,8 +156,6 @@
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2683 Scope: draw ERAM targets and datablocks in an ERAM look, distinct from STARS · release vNext
-  - [/] YAAT-2689 Scope: a compact or realistic datablock text setting per profile, with Terminus Bold at CRC's STARS and ERAM sizes · release vNext
-  - [ ] YAAT-2702 Keep ERAM history glyphs right across a template switch and on a track's first sample · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -1201,7 +1195,7 @@
 ### 1 Defects (5/23 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
   - [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
-    - [ ] YAAT-2699 Cap an uncleared VFR pattern, approach or departure climb below a Class B shelf · release vNext
+    - [/] YAAT-2699 Cap an uncleared VFR pattern, approach or departure climb below a Class B shelf · release vNext
     - [ ] YAAT-2700 Hold an uncleared VFR pattern or approach in front of its phase at the Class B boundary and resume it · release vNext
     - [ ] YAAT-2701 Judge Class B entry along the pattern or approach path and release the hold when the path clears · release vNext
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
@@ -1218,7 +1212,7 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext
 
-### 2 Refinements and rulings (9/23 done)
+### 2 Refinements and rulings (9/24 done)
 - [ ] YAAT-2287 Solo: an IFR arrival told to expect an approach but never cleared queries the clearance near final or the IAF
 - [ ] YAAT-2288 Solo: time the approach-assignment request to the approach gate and skip it in visual weather
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext
@@ -1233,6 +1227,7 @@
 - [ ] YAAT-2260 Decide the further-clearance request's re-ask interval (300 s vs 120/150 s)
 - [ ] YAAT-2676 Solo Class B clearance survives pattern work just outside the boundary (exit timer resets on each projected re-entry)
 - [ ] YAAT-2687 RMOB refinements: 30 NM from the airport, the silent orbit after an unprompted RMOB, compound altitude, "remain clear" phrasing
+- [ ] YAAT-2709 Review the Class B shelf margin and the surface-area departure exemption with the aviation expert
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext
@@ -1250,7 +1245,7 @@
 
 ## Server: CRC, ERAM, vEDST and rooms
 
-### 1 Defects (0/22 done)
+### 1 Defects (1/24 done)
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
 - [ ] YAAT-1489 Forward the disconnect-coast clears from RoomEngine.DrainStateChangesToRoom like the engine's own drain
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
@@ -1273,6 +1268,7 @@
 - [ ] YAAT-1475 A room can pin another load's ground layout between its prefetch and its pin
 - [ ] YAAT-1498 Keep a runway configuration that names one runway twice from throwing in the ASDE-X alert step
 - [ ] YAAT-1502 Rebuild ASDE-X hold bars when a pushed runway footprint changes, not only on a layout or id change
+- [ ] YAAT-2711 Gate yaat-server's dev-auth every-ARTCC answers on the Development environment, as /auth/dev is
 
 ### 2 Refinements and rulings (1/7 done)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
@@ -1394,7 +1390,7 @@
 - [ ] YAAT-1368 Offer Resume published speed (RPS) in the speed context menus beside RNS
 - [ ] YAAT-1919 Let the nav-route speed-latency walk read queued AT-fix speed blocks (SPD until E, AT N SPD)
 
-### 3 Hygiene and tests (0/17 done)
+### 3 Hygiene and tests (0/18 done)
 - [ ] YAAT-98 Observe and log a throwing onSubmit in MenuPopups' text-entry popup
 - [ ] YAAT-104 Share one runway-ends helper between RunwayFlyout and Core
 - [ ] YAAT-211 Split RadarCanvas.OnPointerPressed into one helper per ladder rung
@@ -1412,6 +1408,7 @@
 - [ ] YAAT-1900 Remove NavRouteFixDto.RestrictionLines at the next Minimum-client bump
 - [ ] YAAT-2258 Split FavoritesBarView.ShowEditFlyout and ShowEditBlankFlyout under the 100-line limit
 - [ ] YAAT-2261 Split three UserPreferences methods over the complexity limit (RecoverFields, SetPoppedOut, FromSaved)
+- [ ] YAAT-2707 Export the clamped Scope text sizes in a settings bundle, not the raw stored values
 
 ### No milestone
 - [ ] YAAT-1907 Nav-route overlay: draw a pending hold-in-lieu of a procedure turn dashed
@@ -1494,9 +1491,8 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (23/35 done)
+### 1 Defects (24/36 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
-- [ ] YAAT-2705 Ship NOTICE and the bundled fonts' licence texts in every release package
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
 - [ ] YAAT-1689 Make tools/tests collect: add brotli to the dev dependencies
@@ -1507,6 +1503,7 @@
 - [ ] YAAT-2180 Stop HeldLayoutFetch.Dispose masking a test failure with Directory not empty
 - [ ] YAAT-2262 Reject NaN and Infinity in SoakRunner's --sim-hours and --sim-rate-limit
 - [ ] YAAT-2677 Point Yaat.Sim.Tests at a temp app-data folder so no test writes the real %LOCALAPPDATA%/yaat
+- [ ] YAAT-2713 Ship the OpenFlights ODbL licence text in every package, as the font licences are
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
