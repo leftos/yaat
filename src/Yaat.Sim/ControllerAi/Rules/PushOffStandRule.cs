@@ -22,6 +22,10 @@ namespace Yaat.Sim.ControllerAi.Rules;
 /// onto is preferred. It never pushes to a blocked target (<c>PUSHF</c>) and never taxis the aircraft off a push-back
 /// stand. An aircraft an RPO already pushed is left alone.</para>
 ///
+/// <para>A tow stopped for the asking aircraft itself (the ground conflict detector holds it for that aircraft,
+/// <see cref="AircraftGroundOps.AutoYieldTarget"/>) waits on it, so it does not hold the push for the ramp area; it still
+/// counts as traffic when the targets are graded.</para>
+///
 /// <para>A wait that cannot end on its own opens a <see cref="AiAnomalyKind.PushbackHeld"/> anomaly with the standby that
 /// finds it — the stand has no push plan, or every target is unflyable or blocked by aircraft parked and waiting on this
 /// one — and any wait does at the <see cref="StandbysBeforeAnomaly"/>th standby for the same request.</para>
@@ -123,7 +127,7 @@ public sealed class PushOffStandRule : IDecisionRule
         }
 
         List<AircraftState> pushers = [.. ask.Scope.Tick.Snapshot.Where(other => IsPusherHere(ask, other))];
-        List<string> sameArea = [.. pushers.Where(pusher => InRampArea(ask.Layout, standNode, pusher)).Select(pusher => pusher.Callsign)];
+        List<string> sameArea = SameAreaHolders(ask, standNode, pushers);
         if (sameArea.Count > 0)
         {
             Standby(ask, stand, $"{string.Join(", ", sameArea)} pushing in the same ramp area", hopeless: false);
@@ -143,6 +147,43 @@ public sealed class PushOffStandRule : IDecisionRule
             ask.Memo.Intent = GroundIntent.PushIssued;
         }
     }
+
+    /// <summary>
+    /// The callsigns of the pushers in the ramp area of <paramref name="standNode"/> that hold the asking aircraft: every one
+    /// but a tow stopped for the asking aircraft itself (<see cref="TowStoppedFor"/>), which waits on it.
+    /// </summary>
+    private static List<string> SameAreaHolders(Ask ask, GroundNode standNode, List<AircraftState> pushers)
+    {
+        var holders = new List<string>();
+        foreach (AircraftState pusher in pushers.Where(pusher => InRampArea(ask.Layout, standNode, pusher)))
+        {
+            if (TowStoppedFor(pusher, ask.Aircraft))
+            {
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "{Callsign}: {Pusher}'s tow is stopped for it; not held for the same ramp area",
+                        ask.Aircraft.Callsign,
+                        pusher.Callsign
+                    );
+                }
+
+                continue;
+            }
+
+            holders.Add(pusher.Callsign);
+        }
+
+        return holders;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="pusher"/> is under tow and the ground conflict detector holds it for
+    /// <paramref name="aircraft"/> (<see cref="AircraftGroundOps.AutoYieldTarget"/>).
+    /// </summary>
+    private static bool TowStoppedFor(AircraftState pusher, AircraftState aircraft) =>
+        (pusher.Phases?.CurrentPhase is PushbackPhase)
+        && string.Equals(pusher.Ground.AutoYieldTarget, aircraft.Callsign, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether <paramref name="other"/> is another aircraft pushing at this aircraft's airport: the same ground layout, and in

@@ -844,10 +844,13 @@ A named ERAM continuous range readout group (`LF`): a point and its member aircr
 The part of the Scope's entry area that shows the outcome of a sent entry (ACCEPT or the echo, a red error, or the handler's text); on STARS it replaces the Preview area, on ERAM/Mixed it is the lower half of the MCA, under the Preview area, and it clears on the next key (STARS), the next entry sent (ERAM/Mixed) or Esc.
 
 **Field menu (Radar)**:
-The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude, ground speed (Field E) and each line-4 token open a popup (Scope data column beside PILOT column) instead.
+The pick menu a left click on a datablock field opens (`ScopeFieldMenus`): the one entry for that field from the shared menu catalog, with its submenu or flyout already open; a row sends for the clicked aircraft, or stages it when picked with Shift held. A middle click on an ERAM block with an empty preview opens it too. An ERAM altitude, ground speed (Field E) and each line-4 token open a popup (Scope data column beside PILOT column) instead; an ERAM altitude, heading and speed follow the Field-menu style. A STARS block's fields open one only with the "STARS field menus" setting on (`scopeStarsFieldMenus`, default off, as in CRC's STARS); off, a click on them only selects the track, and the note field still opens its box. With it on, a STARS altitude and ground speed follow the Field-menu style too.
 
 **Field style**:
 A per-field draw flag in Radar (`ScopeFieldStyle`: dim tail, strikethrough) that the presenter sets and the renderer reads; it never changes a field's rect.
+
+**Field-menu style (Radar)**:
+The "ERAM field menus" setting (`ScopeFieldMenuStyle`): what a click on an ERAM block's altitude, heading or speed opens. Simple (CRC) is CRC's compact FDB menu (`CrcMenuPopup`), Tabbed (the default) is the SCOPE DATA and PILOT columns one at a time behind an ERAM | PILOT tab strip, Side by side shows both columns. Tabbed and Simple open on the remembered mode: the column (ERAM or PILOT) the last command sent or staged from either came from (`scopeFieldMenuLastMode`, kept locally, never in the settings bundle); switching tabs alone does not change it. On a STARS block (with "STARS field menus" on) Tabbed is a popup with one PILOT tab, Simple is CRC's compact menu in STARS colours with no chip, and neither touches the remembered mode.
 
 **Block level**:
 How much of a Radar datablock shows: Limited, Partial, Full, or Dwell (Full with the hover emphasis); YAAT's scale, composed from CRC's ERAM paired LDB, enhanced LDB and FDB and the STARS levels (`ScopeBlockLevel`).

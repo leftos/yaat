@@ -23,10 +23,9 @@ internal sealed class ScopeDataAltitudePopup : ScopeDataPopupBase
 
     /// <param name="aircraft">The clicked track, whose callsign every entry names last.</param>
     /// <param name="host">The host the PILOT panel sends through and reads the field elevation, the MVA and the clock from.</param>
-    /// <param name="recordShift">Told whether Shift is held at each press, release and key press inside the popup.</param>
-    /// <param name="pick">Runs a SCOPE DATA row's entry, or stages it while Shift is held.</param>
-    public ScopeDataAltitudePopup(AircraftModel aircraft, IMenuHost host, Action<bool> recordShift, Action<string> pick)
-        : base(aircraft.Callsign, pick)
+    /// <param name="hooks">Shift, the SCOPE DATA pick, the column each send came from, and whether the popup is tabbed.</param>
+    public ScopeDataAltitudePopup(AircraftModel aircraft, IMenuHost host, ScopeDataPopupHooks hooks)
+        : base(aircraft.Callsign, hooks)
     {
         _aircraft = aircraft;
         AltitudeBox = NewBox(BoxPlaceholder);
@@ -41,7 +40,7 @@ internal sealed class ScopeDataAltitudePopup : ScopeDataPopupBase
         PilotPanel = AltitudeFlyout.MaintainPanelFactory(aircraft, host)?.Invoke(Chooser(host));
         Control[] pilot = (PilotPanel is null) ? [] : [PilotPanel];
         IFlyoutPanel[] panels = (PilotPanel is IFlyoutPanel panel) ? [panel] : [];
-        Attach(Panel(AltitudeColumn(), PilotColumn(pilot), scrollPilot: false), recordShift, host, panels);
+        Attach(Panel(AltitudeColumn(), PilotColumn(pilot), scrollPilot: false), hooks.RecordShift, host, panels);
     }
 
     /// <summary>The SCOPE DATA altitude box, in hundreds of feet.</summary>
@@ -55,6 +54,9 @@ internal sealed class ScopeDataAltitudePopup : ScopeDataPopupBase
 
     // The PILOT list centres on the selected altitude once the box has the focus.
     protected override void AfterFocus() => PilotPanel?.CentreSelected();
+
+    // The PILOT tab focuses the Maintain altitude panel's box.
+    protected override Control? PilotFocus => PilotPanel?.Box;
 
     // The box's text as hundreds of feet, 1-999; null for anything else.
     private int? Hundreds() =>

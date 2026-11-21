@@ -83,6 +83,8 @@ public sealed class HelicopterLandingPhase : Phase
                 Log.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
             }
             ctx.Aircraft.IsOnGround = true;
+            // Landing ends a VFR Class B clearance (AIM 3-2-3.d.2.b).
+            ctx.Aircraft.EndBravoClearance();
             // The field is the runway's; a landing on a helipad or spot has none, and lands on the field of the layout the
             // spot was found in.
             LandingPhase.SetTouchdownField(ctx.Aircraft, ctx.Runway?.AirportId ?? ctx.GroundLayout?.AirportId);

@@ -24,7 +24,7 @@ public partial class MainViewModel
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|1|2|4|8|own|all> | .scope hist {ScopeHistRange}"
+        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
@@ -46,7 +46,7 @@ public partial class MainViewModel
 
     private const string ScopeOthersUsage = "Usage: .scope others <full|partial>";
 
-    private const string ScopeVectorUsage = "Usage: .scope vector <0|1|2|4|8> | .scope vector <own|all>";
+    private const string ScopeVectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
 
     private static readonly string ScopeHistUsage = $"Usage: .scope hist {ScopeHistRange}";
 
@@ -477,7 +477,7 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <c>.scope vector 0|1|2|4|8</c>: pins the vector minutes until <c>.scope auto</c>; <c>.scope vector own|all</c>: the
+    /// <c>.scope vector 0|0.5|1|1.5|2|2.5|3|4|8</c>: pins the vector minutes until <c>.scope auto</c>; <c>.scope vector own|all</c>: the
     /// tracks vectors draw on, a setting that never pins.
     /// </summary>
     private static string SetScopeVector(ScopeViewModel scope, string[] parts)
@@ -493,7 +493,10 @@ public partial class MainViewModel
             return $"Radar vector {ScopeVectorOwnerships.NameOf(ownership).ToUpperInvariant()}";
         }
 
-        if (!int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int minutes) || !ScopeViewModel.IsVectorMinutes(minutes))
+        if (
+            (!double.TryParse(parts[2], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double minutes))
+            || (!ScopeViewModel.IsVectorMinutes(minutes))
+        )
         {
             return ScopeVectorUsage;
         }

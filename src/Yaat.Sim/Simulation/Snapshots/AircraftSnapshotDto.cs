@@ -154,10 +154,26 @@ public sealed class AircraftSnapshotDto
     public string? CompletionDetail { get; init; }
 
     /// <summary>
-    /// Explicit VFR Class Bravo clearance gate. Non-required so older snapshots deserialize
-    /// cleanly with the default <see langword="false"/>.
+    /// The Class B the pilot holds a VFR clearance into, explicit or implied (<see cref="AircraftState.ClearedBravoIdent"/>).
+    /// Optional and left out of the JSON while null: a pre-V56 snapshot, whose flag named no Class B, restores none.
     /// </summary>
-    public bool IsClearedIntoBravo { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ClearedBravoIdent { get; init; }
+
+    /// <summary>
+    /// The aircraft has been laterally inside its cleared Class B (<see cref="AircraftState.HasEnteredClearedBravo"/>).
+    /// Optional and left out of the JSON while false.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasEnteredClearedBravo { get; init; }
+
+    /// <summary>
+    /// When the aircraft was first seen outside its entered Class B with no re-entry projected
+    /// (<see cref="AircraftState.BravoExitSinceSeconds"/>), in scenario-elapsed seconds. Optional and left out of the JSON
+    /// while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BravoExitSinceSeconds { get; init; }
 
     /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
@@ -407,6 +423,13 @@ public sealed class PilotPendingRequestDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AskedInStepDownBand { get; init; }
+
+    /// <summary>
+    /// How a Class B request asked (<c>BravoClearanceWording</c> as an int: 0 into, 1 through); null for any other request.
+    /// Optional and left out of the JSON while null: a pre-V56 open Class B request restores "into".
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BravoWording { get; init; }
 }
 
 public sealed class ApproachScoreDto

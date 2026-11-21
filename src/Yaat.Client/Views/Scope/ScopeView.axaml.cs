@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -10,7 +11,9 @@ using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.EuroScopeFlyouts;
 using Yaat.Client.Views.Scope.FieldMenus;
+using Yaat.Client.Views.Scope.FieldMenus.Crc;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 
@@ -58,8 +61,12 @@ public partial class ScopeView : UserControl
     private static readonly ILogger Log = AppLog.CreateLogger("ScopeView");
 
     private ContextMenu? _activeContextMenu;
-    private ScopeDataPopupBase? _activeFieldPopup;
+    private IScopeFieldSurface? _activeFieldPopup;
+
+    // The EuroScope scratchpad or handoff entry popup a field click opened, while it is open.
+    private Popup? _activeEntryPopup;
     private ScopeViewModel? _vm;
+    private UserPreferences? _flyoutPrefs;
     private TopLevel? _topLevel;
 
     // Whether Shift was held at the last pointer press, release or key press inside the open field menu.
@@ -101,8 +108,13 @@ public partial class ScopeView : UserControl
     /// <summary>The aircraft menu a right click opened, while it is open. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
 
-    /// <summary>The ERAM altitude or fourth-line popup a field click opened, while it is open. Test seam.</summary>
-    internal ScopeDataPopupBase? ActiveFieldPopup => _activeFieldPopup;
+    /// <summary>
+    /// The surface a field click opened, while it is open: the ERAM altitude or fourth-line popup, or a CRC FDB menu. Test seam.
+    /// </summary>
+    internal IScopeFieldSurface? ActiveFieldPopup => _activeFieldPopup;
+
+    /// <summary>The EuroScope scratchpad or handoff entry popup a field click opened, while it is open. Test seam.</summary>
+    internal Popup? ActiveEntryPopup => _activeEntryPopup;
 
     /// <summary>
     /// The aircraft menu for <paramref name="callsign"/>: the shared aircraft menu, with relative actions aimed at
@@ -134,14 +146,34 @@ public partial class ScopeView : UserControl
         _vm = DataContext as ScopeViewModel;
         if (_vm is null)
         {
+            _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+            _flyoutPrefs = null;
             return;
         }
 
         _vm.PropertyChanged += OnViewModelPropertyChanged;
+        WatchFlyoutFontSize(_vm.Preferences);
         Canvas.Preferences = _vm.Preferences;
         Canvas.DataBlockState = _vm.DataBlockState;
         PushMaps(_vm);
         AttachFeatures(_vm);
+    }
+
+    // The EuroScope tag flyouts take the "Radar Tag Flyouts" font size now and at each font-size change, as the Radar view did.
+    private void WatchFlyoutFontSize(UserPreferences prefs)
+    {
+        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs = prefs;
+        prefs.FontSizesChanged += ApplyFlyoutFontSize;
+        ApplyFlyoutFontSize();
+    }
+
+    private void ApplyFlyoutFontSize()
+    {
+        if (_flyoutPrefs is { } prefs)
+        {
+            FlyoutAppearance.FontSize = prefs.RadarFlyoutFontSize;
+        }
     }
 
     // The maps arrive later, at each seed from the Scope's map source.
@@ -165,13 +197,20 @@ public partial class ScopeView : UserControl
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(KeyDownEvent, OnTopLevelKeyDown, RoutingStrategies.Tunnel);
+        if (_vm is not null)
+        {
+            WatchFlyoutFontSize(_vm.Preferences);
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         _topLevel = null;
+        _flyoutPrefs?.FontSizesChanged -= ApplyFlyoutFontSize;
+        _flyoutPrefs = null;
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         _activeContextMenu?.Close();
         base.OnDetachedFromVisualTree(e);
     }
@@ -182,6 +221,11 @@ public partial class ScopeView : UserControl
     // Ctrl+Shift+T typed in the command box or a grid stay theirs.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
+        if (TakeEntryPopupKey(e))
+        {
+            return;
+        }
+
         if ((DataContext is not ScopeViewModel vm) || ((_activeFieldPopup is not { IsOpen: true }) && (!IsKeyFocusInside())))
         {
             return;
@@ -207,6 +251,24 @@ public partial class ScopeView : UserControl
             vm.RunCommand(ScopeToolbarButtons.TdmCommand(!vm.IsTdm));
             e.Handled = true;
         }
+    }
+
+    // While the EuroScope scratchpad or handoff popup is open its keys are its box's: Esc closes it, leaving the preview's text,
+    // and no Scope shortcut runs. False while none is open.
+    private bool TakeEntryPopupKey(KeyEventArgs e)
+    {
+        if (_activeEntryPopup is not { IsOpen: true } popup)
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            popup.Close();
+            e.Handled = true;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -339,11 +401,11 @@ public partial class ScopeView : UserControl
         }
         else if (action == ScopeFieldAction.OpenEramAltitudeMenu)
         {
-            OpenEramAltitudePopup(vm, ac, action);
+            OpenEramAltitudeMenu(vm, ac, action);
         }
         else if (HsfKindFor(action) is { } kind)
         {
-            OpenEramHsfPopup(vm, ac, kind, action);
+            OpenEramHsfMenu(vm, ac, kind, action);
         }
         else if (action == ScopeFieldAction.StartDrawRoute)
         {
@@ -355,7 +417,7 @@ public partial class ScopeView : UserControl
         }
         else
         {
-            OpenFieldMenu(vm, ac, action);
+            OpenFieldMenu(vm, ac, action, pos);
         }
     }
 
@@ -374,10 +436,23 @@ public partial class ScopeView : UserControl
     private ClientMenuHost FieldMenuHost(ScopeViewModel vm, AircraftModel ac) =>
         new(vm.Main, ac, Canvas) { Stage = (callsign, command) => _fieldMenuShift && StageEntry(vm, callsign, command) };
 
-    // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them.
-    private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    // The field's pick menu, whose rows stage their command in the entry instead of sending it while Shift is held on them. A
+    // EuroScope tag opens its own flyout for the fields that have one (OpenEuroScopeFlyout); a STARS block's altitude and ground
+    // speed open the menu of the field-menu style (OpenStarsStyledMenu).
+    private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
     {
         _fieldMenuShift = false;
+        string kind = ScopeOwnerKind.Resolve(vm.TemplateId, ac);
+        if ((kind == ScopeTemplates.EuroScopeId) && OpenEuroScopeFlyout(vm, ac, action, pos))
+        {
+            return;
+        }
+
+        if ((kind == ScopeTemplates.StarsId) && OpenStarsStyledMenu(vm, ac, action))
+        {
+            return;
+        }
+
         if (ScopeFieldMenus.Build(action, ac, FieldMenuHost(vm, ac)) is { } menu)
         {
             ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
@@ -385,42 +460,386 @@ public partial class ScopeView : UserControl
         }
     }
 
-    // The ERAM altitude popup: a SCOPE DATA row runs its entry, or with Shift stages it; a PILOT row sends, or with Shift stages,
-    // as a field menu's row does.
-    private void OpenEramAltitudePopup(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    // The EuroScope tag's own flyout for the action, as the Radar view opened it: a pick menu for the altitude, speed, runway
+    // and squawk, an entry popup for the scratchpad and handoff; false for an action with none. Its rows and buttons send
+    // through the field menu's host, so Shift held on one stages its command as a field menu's row does.
+    private bool OpenEuroScopeFlyout(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
+    {
+        ClientMenuHost host = FieldMenuHost(vm, ac);
+        if (EuroScopeMenu(action, ac, host) is { } menu)
+        {
+            ScopeFieldMenus.RecordShift(menu, shift => _fieldMenuShift = shift);
+            ShowContextMenu(menu);
+            return true;
+        }
+
+        if (EuroScopePopup(action, ac, host, pos) is { } popup)
+        {
+            ShowEntryPopup(popup);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static ContextMenu? EuroScopeMenu(ScopeFieldAction action, AircraftModel ac, IMenuHost host) =>
+        action switch
+        {
+            ScopeFieldAction.OpenAltitudeMenu => EuroScopeAltitudeFlyout.Build(ac, host),
+            ScopeFieldAction.OpenSpeedMenu => EuroScopeSpeedFlyout.Build(ac, host),
+            ScopeFieldAction.OpenRunwayMenu => EuroScopeRunwayFlyout.Build(ac, host),
+            ScopeFieldAction.OpenSquawkMenu => EuroScopeSquawkFlyout.Build(ac, host),
+            _ => null,
+        };
+
+    private Popup? EuroScopePopup(ScopeFieldAction action, AircraftModel ac, IMenuHost host, Point pos) =>
+        action switch
+        {
+            ScopeFieldAction.OpenScratchpadMenu => EuroScopeScratchpadFlyout.Build(Canvas, ac, host, ScratchpadSlotAt(pos)),
+            ScopeFieldAction.OpenHandoffMenu => EuroScopeHandoffFlyout.Build(Canvas, ac, host),
+            _ => null,
+        };
+
+    // The scratchpad the click hit: 2 on the tag's second scratchpad, else 1 (a click with no field under it included).
+    private int ScratchpadSlotAt(Point pos) =>
+        Canvas.CurrentFrame.FieldAt((float)pos.X, (float)pos.Y) is { Field.Slot: ScopeFieldSlot.Scratchpad2 } ? 2 : 1;
+
+    // Closes any open menu or popup, then opens the entry popup on the canvas's overlay layer as the one open, until it closes.
+    // Shift held at a press or key inside it is recorded, so a button or Enter stages through the field menu's host.
+    private void ShowEntryPopup(Popup popup)
+    {
+        _activeContextMenu?.Close();
+        _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
+        if (OverlayLayer.GetOverlayLayer(Canvas) is not { } overlay)
+        {
+            Log.LogWarning("ScopeView: no overlay layer for the canvas; the EuroScope entry popup is not shown");
+            return;
+        }
+
+        if (popup.Child is { } content)
+        {
+            ScopeFieldMenus.RecordShift(content, shift => _fieldMenuShift = shift);
+        }
+
+        overlay.Children.Add(popup);
+        _activeEntryPopup = popup;
+        popup.Closed += (_, _) =>
+        {
+            overlay.Children.Remove(popup);
+            if (_activeEntryPopup == popup)
+            {
+                _activeEntryPopup = null;
+            }
+        };
+        popup.IsOpen = true;
+    }
+
+    // The ERAM altitude menu the "ERAM field menus" setting picks: CRC's simple menu, or the popup tabbed or side by side.
+    private void OpenEramAltitudeMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        ScopeFieldMenuStyle style = vm.Main.Preferences.ScopeFieldMenuStyle;
+        if (style == ScopeFieldMenuStyle.Simple)
+        {
+            OpenCrcAltitudeMenu(vm, ac, action);
+            return;
+        }
+
+        OpenEramAltitudePopup(vm, ac, action, style);
+    }
+
+    // An ERAM fourth-line menu: heading and speed as the setting picks, as the altitude's; free text and the HSF fallback their
+    // side-by-side popup whatever the setting says.
+    private void OpenEramHsfMenu(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind, ScopeFieldAction action)
+    {
+        ScopeFieldMenuStyle style = vm.Main.Preferences.ScopeFieldMenuStyle;
+        if (kind is not (HsfPopupKind.Heading or HsfPopupKind.Speed))
+        {
+            OpenEramHsfPopup(vm, ac, kind, action, null);
+        }
+        else if (style != ScopeFieldMenuStyle.Simple)
+        {
+            OpenEramHsfPopup(vm, ac, kind, action, style);
+        }
+        else if (kind == HsfPopupKind.Heading)
+        {
+            OpenCrcHeadingMenu(vm, ac, action);
+        }
+        else
+        {
+            OpenCrcSpeedMenu(vm, ac, action);
+        }
+    }
+
+    // CRC's altitude menu, its chip on the remembered mode: on ERAM a pick runs CRC's entries, on PILOT it sends the climb or
+    // descent (CrcMenuCommands).
+    private void OpenCrcAltitudeMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcAltitudeMenu(ac.Callsign, CrcMenuCommands.AltitudeValues(ac), CrcModeNow(vm), showModeChip: true);
+        menu.Picked += pick =>
+            ActOnCrcPick(
+                vm,
+                ac,
+                (menu.Mode == CrcMenuMode.Eram)
+                    ? CrcPickAction.Eram(CrcMenuCommands.EramAltitude(pick, ac), pick.Area, pick.Shift)
+                    : CrcPickAction.Pilot(CrcMenuCommands.PilotAltitude(pick, ac.AltitudeFeet, ac.AssignedAltitude), pick.Area, pick.Shift)
+            );
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
+    }
+
+    // CRC's heading menu, as the altitude menu (CrcMenuCommands.EramHeading, PilotHeading).
+    private void OpenCrcHeadingMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcHeadingMenu(ac.Callsign, CrcMenuCommands.HeadingValues(ac), CrcModeNow(vm), showModeChip: true);
+        menu.Picked += pick =>
+            ActOnCrcPick(
+                vm,
+                ac,
+                (menu.Mode == CrcMenuMode.Eram)
+                    ? CrcPickAction.Eram([CrcMenuCommands.EramHeading(pick, ac.Callsign)], pick.Area, pick.Shift)
+                    : CrcPickAction.Pilot(CrcMenuCommands.PilotHeading(pick), pick.Area, pick.Shift)
+            );
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
+    }
+
+    // CRC's speed menu, as the altitude menu (CrcMenuCommands.EramSpeed, PilotSpeed).
+    private void OpenCrcSpeedMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcSpeedMenu(ac.Callsign, CrcMenuCommands.SpeedValues(ac), CrcModeNow(vm), showModeChip: true);
+        menu.Picked += pick =>
+            ActOnCrcPick(
+                vm,
+                ac,
+                (menu.Mode == CrcMenuMode.Eram)
+                    ? CrcPickAction.Eram([CrcMenuCommands.EramSpeed(pick, ac.Callsign)], pick.Area, pick.Shift)
+                    : CrcPickAction.Pilot(CrcMenuCommands.PilotSpeed(pick), pick.Area, pick.Shift)
+            );
+        ShowCrcMenu(menu, ac.Callsign, action, Canvas.FdbLineMiddleY(ac.Callsign, menu.FdbAlignLine));
+    }
+
+    // A CRC menu as the one open surface, its list level with `alignY` (CrcMenuPopup); at the pointer when that is null.
+    private void ShowCrcMenu(CrcFdbMenu menu, string callsign, ScopeFieldAction action, double? alignY) =>
+        ShowFieldPopup(new CrcMenuPopup(menu, alignY), callsign, action);
+
+    // The field a STARS CRC-style menu aligns with: the altitude or the ground speed, whatever line the drawn block puts it on
+    // (line 2 of a full block, line 1 of a limited or partial one).
+    private static ScopeFieldSlot StarsSlotFor(ScopeFieldAction action) =>
+        (action == ScopeFieldAction.OpenAltitudeMenu) ? ScopeFieldSlot.Altitude : ScopeFieldSlot.GroundSpeed;
+
+    // The vertical middle of the callsign's drawn field in the slot, in canvas coordinates; null when the frame draws none.
+    private double? FieldMiddleY(string callsign, ScopeFieldSlot slot) => FieldMiddleY(Canvas.CurrentFrame, callsign, slot);
+
+    /// <summary>
+    /// The vertical middle of <paramref name="callsign"/>'s field in <paramref name="slot"/> as <paramref name="frame"/> draws it,
+    /// on whatever line its block puts it; null when the frame draws no such field.
+    /// </summary>
+    internal static double? FieldMiddleY(ScopeFrame frame, string callsign, ScopeFieldSlot slot) =>
+        frame
+            .Tracks.Where(t => t.Aircraft.Callsign == callsign)
+            .SelectMany(t => t.Block.Fields)
+            .Where(f => f.Slot == slot)
+            .Select(f => (double?)f.Rect.MidY)
+            .FirstOrDefault();
+
+    // A STARS block's altitude or ground speed with the "STARS field menus" setting on, in the "ERAM field menus" style: Tabbed
+    // opens a popup with one PILOT tab, Simple CRC's compact menu in STARS colours, PILOT picks only. False for Side by side and
+    // any other field, which open their catalog menu as before, and for an altitude with no PILOT panel to show.
+    private bool OpenStarsStyledMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        if (action is not (ScopeFieldAction.OpenAltitudeMenu or ScopeFieldAction.OpenSpeedMenu))
+        {
+            return false;
+        }
+
+        bool altitude = (action == ScopeFieldAction.OpenAltitudeMenu);
+        switch (vm.Main.Preferences.ScopeFieldMenuStyle)
+        {
+            case ScopeFieldMenuStyle.Tabbed:
+                return OpenStarsPilotPopup(vm, ac, action, altitude ? StarsPilotPopupKind.Altitude : StarsPilotPopupKind.Speed);
+            case ScopeFieldMenuStyle.Simple when altitude:
+                OpenStarsCrcAltitudeMenu(vm, ac, action);
+                return true;
+            case ScopeFieldMenuStyle.Simple:
+                OpenStarsCrcSpeedMenu(vm, ac, action);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    // The STARS tabbed popup: its PILOT panel sends, or with Shift stages, as a field menu's row does; it remembers no column.
+    private bool OpenStarsPilotPopup(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, StarsPilotPopupKind kind)
+    {
+        var hooks = new ScopeDataPopupHooks(shift => _fieldMenuShift = shift, _ => { });
+        if (ScopeStarsPilotPopup.Create(ac, FieldMenuHost(vm, ac), hooks, kind) is not { } popup)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ScopeView: no PILOT {Kind} panel for {Callsign}; the catalog menu opens instead", kind, ac.Callsign);
+            }
+
+            return false;
+        }
+
+        ShowFieldPopup(popup, ac.Callsign, action);
+        return true;
+    }
+
+    // CRC's compact altitude menu in STARS colours, PILOT only: a pick sends the climb or descent (CrcMenuCommands.PilotAltitude).
+    private void OpenStarsCrcAltitudeMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcAltitudeMenu(ac.Callsign, CrcMenuCommands.AltitudeValues(ac), CrcPalette.Stars);
+        menu.Picked += pick =>
+            SendStarsPilotPick(vm, ac, CrcMenuCommands.PilotAltitude(pick, ac.AltitudeFeet, ac.AssignedAltitude), pick.Area, pick.Shift);
+        ShowCrcMenu(menu, ac.Callsign, action, FieldMiddleY(ac.Callsign, StarsSlotFor(action)));
+    }
+
+    // CRC's compact speed menu in STARS colours, PILOT only: a pick sends the speed (CrcMenuCommands.PilotSpeed).
+    private void OpenStarsCrcSpeedMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action)
+    {
+        var menu = new CrcSpeedMenu(ac.Callsign, CrcMenuCommands.SpeedValues(ac), CrcPalette.Stars);
+        menu.Picked += pick => SendStarsPilotPick(vm, ac, CrcMenuCommands.PilotSpeed(pick), pick.Area, pick.Shift);
+        ShowCrcMenu(menu, ac.Callsign, action, FieldMiddleY(ac.Callsign, StarsSlotFor(action)));
+    }
+
+    // A STARS CRC-style menu pick: the pilot command sent, or with Shift staged, the menu closing either way; the remembered
+    // ERAM | PILOT mode is the ERAM menus' and stays as it was. A pick with no pilot command leaves the menu open.
+    private void SendStarsPilotPick(ScopeViewModel vm, AircraftModel ac, string? command, Enum area, bool stage)
+    {
+        if (command is null)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ScopeView: the STARS pick {Area} for {Callsign} has no pilot command", area, ac.Callsign);
+            }
+
+            return;
+        }
+
+        SendOrStagePilot(vm, ac, command, stage);
+    }
+
+    // The chip mode a CRC menu opens on: the remembered one.
+    private static CrcMenuMode CrcModeNow(ScopeViewModel vm) =>
+        (vm.Main.Preferences.ScopeFieldMenuLastMode == ScopeFieldMenuMode.Pilot) ? CrcMenuMode.Pilot : CrcMenuMode.Eram;
+
+    // What a CRC menu pick does: in its mode, the ERAM entries to run in order or the one pilot command to send (none for a pick
+    // with no pilot command), staged with Shift; the pick area names it in the log.
+    private sealed record CrcPickAction(ScopeFieldMenuMode Mode, IReadOnlyList<string> Commands, Enum Area, bool Stage)
+    {
+        public static CrcPickAction Eram(IReadOnlyList<string> entries, Enum area, bool stage) => new(ScopeFieldMenuMode.Eram, entries, area, stage);
+
+        public static CrcPickAction Pilot(string? command, Enum area, bool stage) =>
+            new(ScopeFieldMenuMode.Pilot, (command is null) ? [] : [command], area, stage);
+    }
+
+    // A CRC menu pick: the menu closes and the mode is remembered, then the ERAM entries run (with Shift the first is staged), or
+    // the pilot command is sent (with Shift staged). A pick with nothing to send leaves the menu open and the mode as it was.
+    private void ActOnCrcPick(ScopeViewModel vm, AircraftModel ac, CrcPickAction act)
+    {
+        if (act.Commands.Count == 0)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("ScopeView: the CRC {Mode} pick {Area} for {Callsign} has nothing to send", act.Mode, act.Area, ac.Callsign);
+            }
+
+            return;
+        }
+
+        vm.Main.Preferences.SetScopeFieldMenuLastMode(act.Mode);
+        if (act.Mode == ScopeFieldMenuMode.Eram)
+        {
+            _activeFieldPopup?.Close();
+            _activeEntryPopup?.Close();
+            RunCrcEramEntries(vm, ac.Callsign, act.Commands, act.Stage);
+        }
+        else
+        {
+            SendOrStagePilot(vm, ac, act.Commands[0], act.Stage);
+        }
+    }
+
+    // A CRC menu's ERAM entries: staged (the first alone) with Shift, else run one after another.
+    private void RunCrcEramEntries(ScopeViewModel vm, string callsign, IReadOnlyList<string> entries, bool stage)
+    {
+        if (stage || (entries.Count == 1))
+        {
+            RunOrStageEramText(vm, callsign, entries[0], stage);
+            return;
+        }
+
+        _ = RunEramEntriesAsync(vm, callsign, entries);
+    }
+
+    private static async Task RunEramEntriesAsync(ScopeViewModel vm, string callsign, IReadOnlyList<string> entries)
+    {
+        foreach (string entry in entries)
+        {
+            await vm.RunEramText(callsign, entry);
+        }
+    }
+
+    // A pilot command from a CRC menu: staged in the entry with Shift, else sent for the aircraft; the menu closes either way.
+    private void SendOrStagePilot(ScopeViewModel vm, AircraftModel ac, string command, bool stage)
+    {
+        if (stage)
+        {
+            StageEntry(vm, ac.Callsign, command);
+            return;
+        }
+
+        _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
+        var host = new ClientMenuHost(vm.Main, ac, Canvas);
+        _ = host.SendAsync(ac.Callsign, command, host.Session.Initials);
+    }
+
+    // What a field popup tells this view: Shift, and a SCOPE DATA pick runs or stages its entry. With a style (an altitude,
+    // heading or speed popup) the column of each send or stage is remembered, and a Tabbed popup opens on the remembered one.
+    private ScopeDataPopupHooks FieldPopupHooks(ScopeViewModel vm, string callsign, ScopeFieldMenuStyle? style)
+    {
+        var hooks = new ScopeDataPopupHooks(shift => _fieldMenuShift = shift, entry => PickScopeData(vm, callsign, entry));
+        if (style is not { } chosen)
+        {
+            return hooks;
+        }
+
+        UserPreferences preferences = vm.Main.Preferences;
+        return hooks with
+        {
+            TabbedOpening = (chosen == ScopeFieldMenuStyle.Tabbed) ? preferences.ScopeFieldMenuLastMode : null,
+            ModeSent = preferences.SetScopeFieldMenuLastMode,
+        };
+    }
+
+    // The ERAM altitude popup in the style: a SCOPE DATA row runs its entry, or with Shift stages it; a PILOT row sends, or with
+    // Shift stages, as a field menu's row does.
+    private void OpenEramAltitudePopup(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, ScopeFieldMenuStyle style)
     {
         _fieldMenuShift = false;
         string callsign = ac.Callsign;
-        var popup = new ScopeDataAltitudePopup(
-            ac,
-            FieldMenuHost(vm, ac),
-            shift => _fieldMenuShift = shift,
-            entry => PickScopeData(vm, callsign, entry)
-        );
+        var popup = new ScopeDataAltitudePopup(ac, FieldMenuHost(vm, ac), FieldPopupHooks(vm, callsign, style));
         ShowFieldPopup(popup, callsign, action);
     }
 
-    // An ERAM fourth-line popup of the kind: its rows run or stage as the altitude popup's do.
-    private void OpenEramHsfPopup(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind, ScopeFieldAction action)
+    // An ERAM fourth-line popup of the kind, in the style (none: side by side, remembering nothing): its rows run or stage as
+    // the altitude popup's do.
+    private void OpenEramHsfPopup(ScopeViewModel vm, AircraftModel ac, HsfPopupKind kind, ScopeFieldAction action, ScopeFieldMenuStyle? style)
     {
         _fieldMenuShift = false;
         string callsign = ac.Callsign;
-        var popup = new ScopeDataHsfPopup(
-            ac,
-            FieldMenuHost(vm, ac),
-            shift => _fieldMenuShift = shift,
-            entry => PickScopeData(vm, callsign, entry),
-            kind
-        );
+        var popup = new ScopeDataHsfPopup(ac, FieldMenuHost(vm, ac), FieldPopupHooks(vm, callsign, style), kind);
         ShowFieldPopup(popup, callsign, action);
     }
 
     // Closes any open aircraft menu or field popup, then opens the popup as the one open, until it closes: below the track's
     // block, or at the pointer when the frame draws none for it.
-    private void ShowFieldPopup(ScopeDataPopupBase popup, string callsign, ScopeFieldAction action)
+    private void ShowFieldPopup(IScopeFieldSurface popup, string callsign, ScopeFieldAction action)
     {
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         Rect? block = Canvas.BlockBoundsOf(callsign);
         if (block is null)
         {
@@ -448,6 +867,7 @@ public partial class ScopeView : UserControl
     {
         bool stage = _fieldMenuShift;
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         RunOrStageEramText(vm, callsign, entry, stage);
     }
 
@@ -471,6 +891,7 @@ public partial class ScopeView : UserControl
         vm.StageEntry(callsign, command);
         _activeContextMenu?.Close();
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         Canvas.Focus();
         return true;
     }
@@ -573,6 +994,7 @@ public partial class ScopeView : UserControl
     private void ShowContextMenu(ContextMenu menu)
     {
         _activeFieldPopup?.Close();
+        _activeEntryPopup?.Close();
         _activeContextMenu?.Close();
         _activeContextMenu = menu;
         menu.Closed += (_, _) =>

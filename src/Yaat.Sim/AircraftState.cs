@@ -440,10 +440,75 @@ public class AircraftState
     public string? CompletionDetail { get; set; }
 
     /// <summary>
-    /// Set when the controller has issued the explicit VFR Class Bravo clearance
-    /// (FAA 7110.65 §7-9-2). Snapshot-serialized so replays keep the entry gate state.
+    /// The Class B the pilot holds a VFR clearance into (FAA 7110.65 §7-9-2), explicit (<c>CLBRV</c>) or implied by an
+    /// instruction that can only be flown by entering it, named by its area name (the volume's Ident, else its ICAO id),
+    /// which covers every shelf volume of that Class B; null when it holds none. Written only by
+    /// <see cref="GrantBravoClearance"/> and <see cref="EndBravoClearance"/>. The entry gates read it through
+    /// <see cref="IsClearedIntoBravo"/>; the expiry tick (<see cref="Pilot.PilotProactive.TickBravoClearanceExpiry"/>) reads
+    /// this field and the two below directly. Snapshot-serialized so replays keep the entry gate state.
     /// </summary>
-    public bool IsClearedIntoBravo { get; set; }
+    public string? ClearedBravoIdent { get; private set; }
+
+    /// <summary>
+    /// Whether the aircraft has been laterally inside the Class B named by <see cref="ClearedBravoIdent"/> since the
+    /// clearance (explicit or implied) was given. Before entry nothing but a landing or a new grant ends the clearance;
+    /// after it, a continuous exit does (<see cref="BravoExitSinceSeconds"/>). Written only by
+    /// <see cref="MarkClearedBravoEntered"/> and reset by <see cref="GrantBravoClearance"/> and
+    /// <see cref="EndBravoClearance"/>; read directly by the expiry tick. Snapshot-serialized.
+    /// </summary>
+    public bool HasEnteredClearedBravo { get; private set; }
+
+    /// <summary>Whether the pilot holds a Class B clearance into the Class B named <paramref name="ident"/> (case-insensitive).</summary>
+    public bool IsClearedIntoBravo(string ident) => string.Equals(ClearedBravoIdent, ident, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Grants the Class B clearance into the Class B named <paramref name="ident"/>, replacing any other; not yet entered.</summary>
+    public void GrantBravoClearance(string ident)
+    {
+        ClearedBravoIdent = ident;
+        HasEnteredClearedBravo = false;
+        BravoExitSinceSeconds = null;
+    }
+
+    /// <summary>
+    /// When the aircraft, after entering its cleared Class B, was first seen laterally outside every volume of it with no
+    /// re-entry projected, in scenario-elapsed seconds; null while it is inside or a re-entry is projected. The clearance
+    /// ends once this has held for <see cref="Pilot.ImplicitBravoClearance.ExitGraceSeconds"/>. Written only by
+    /// <see cref="MarkOutsideClearedBravo"/>, and cleared by <see cref="ClearBravoExit"/>, <see cref="MarkClearedBravoEntered"/>,
+    /// <see cref="GrantBravoClearance"/> and <see cref="EndBravoClearance"/>; read directly by the expiry tick.
+    /// Snapshot-serialized.
+    /// </summary>
+    public double? BravoExitSinceSeconds { get; private set; }
+
+    /// <summary>
+    /// Records that the aircraft is laterally inside the Class B it is cleared into, which also ends any exit in progress;
+    /// nothing when it holds no clearance.
+    /// </summary>
+    public void MarkClearedBravoEntered()
+    {
+        HasEnteredClearedBravo = ClearedBravoIdent is not null;
+        BravoExitSinceSeconds = null;
+    }
+
+    /// <summary>
+    /// Records that the aircraft is outside its cleared Class B with no re-entry projected at <paramref name="nowSeconds"/>,
+    /// keeping the first such moment, and returns the seconds since it.
+    /// </summary>
+    public double MarkOutsideClearedBravo(double nowSeconds)
+    {
+        BravoExitSinceSeconds ??= nowSeconds;
+        return nowSeconds - BravoExitSinceSeconds.Value;
+    }
+
+    /// <summary>A re-entry into the cleared Class B is projected again: the exit in progress is over.</summary>
+    public void ClearBravoExit() => BravoExitSinceSeconds = null;
+
+    /// <summary>Ends the Class B clearance: the aircraft left that Class B, or landed.</summary>
+    public void EndBravoClearance()
+    {
+        ClearedBravoIdent = null;
+        HasEnteredClearedBravo = false;
+        BravoExitSinceSeconds = null;
+    }
 
     /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder fires once. Never
@@ -641,7 +706,9 @@ public class AircraftState
             CompletedAtSeconds = dto.CompletedAtSeconds,
             CompletionReason = (CompletionReason)dto.CompletionReasonValue,
             CompletionDetail = dto.CompletionDetail,
-            IsClearedIntoBravo = dto.IsClearedIntoBravo,
+            ClearedBravoIdent = dto.ClearedBravoIdent,
+            HasEnteredClearedBravo = dto.HasEnteredClearedBravo,
+            BravoExitSinceSeconds = dto.BravoExitSinceSeconds,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
@@ -766,7 +833,9 @@ public class AircraftState
             CompletedAtSeconds = CompletedAtSeconds,
             CompletionReasonValue = (int)CompletionReason,
             CompletionDetail = CompletionDetail,
-            IsClearedIntoBravo = IsClearedIntoBravo,
+            ClearedBravoIdent = ClearedBravoIdent,
+            HasEnteredClearedBravo = HasEnteredClearedBravo,
+            BravoExitSinceSeconds = BravoExitSinceSeconds,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),

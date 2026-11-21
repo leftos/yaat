@@ -38,7 +38,15 @@ public sealed partial class SavedServer : ObservableObject
 /// Bundled into one record so <see cref="UserPreferences.SetFontSizes"/> stays a
 /// single-parameter call rather than a long positional list.
 /// </summary>
-public readonly record struct FontSizePrefs(int RadarDatablock, int GroundDatablock, int GroundLabel, int DataGrid, int Terminal, int Interface);
+public readonly record struct FontSizePrefs(
+    int RadarDatablock,
+    int RadarFlyout,
+    int GroundDatablock,
+    int GroundLabel,
+    int DataGrid,
+    int Terminal,
+    int Interface
+);
 
 public sealed partial class UserPreferences
 {
@@ -675,6 +683,28 @@ public sealed partial class UserPreferences
     public string? CrcAliasDirectory => _data.CrcAliasDirectory;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
     public bool EuroScopeMode => _data.EuroScopeMode;
+
+    /// <summary>The surface an ERAM block's altitude, heading or speed click opens. Default <see cref="ScopeFieldMenuStyle.Tabbed"/>.</summary>
+    public ScopeFieldMenuStyle ScopeFieldMenuStyle =>
+        (Enum.TryParse<ScopeFieldMenuStyle>(_data.ScopeFieldMenuStyle, out ScopeFieldMenuStyle style) && Enum.IsDefined(style))
+            ? style
+            : ScopeFieldMenuStyle.Tabbed;
+
+    /// <summary>
+    /// Whether a click on a STARS block's altitude, speed, beacon or line-3 field opens a pick menu, in the
+    /// <see cref="ScopeFieldMenuStyle"/>; off, as in CRC's STARS, it only selects the track. Default off.
+    /// </summary>
+    public bool ScopeStarsFieldMenus => _data.ScopeStarsFieldMenus;
+
+    /// <summary>
+    /// The column the last command sent or staged from an ERAM field menu came from, which a tabbed menu opens on. Default
+    /// <see cref="ScopeFieldMenuMode.Eram"/>.
+    /// </summary>
+    public ScopeFieldMenuMode ScopeFieldMenuLastMode =>
+        (Enum.TryParse<ScopeFieldMenuMode>(_data.ScopeFieldMenuLastMode, out ScopeFieldMenuMode mode) && Enum.IsDefined(mode))
+            ? mode
+            : ScopeFieldMenuMode.Eram;
+
     public bool FlashNoLandingClearance => _data.FlashNoLandingClearance;
     public bool ShowConflictAlerts => _data.ShowConflictAlerts;
 
@@ -1011,6 +1041,7 @@ public sealed partial class UserPreferences
     public bool AutoExpandSuggestionOnEnter => _data.AutoExpandSuggestionOnEnter;
     public int DataGridFontSize => _data.DataGridFontSize;
     public int RadarDatablockFontSize => _data.RadarDatablockFontSize;
+    public int RadarFlyoutFontSize => _data.RadarFlyoutFontSize;
     public int GroundDatablockFontSize => _data.GroundDatablockFontSize;
     public int GroundLabelFontSize => _data.GroundLabelFontSize;
     public int TerminalFontSize => _data.TerminalFontSize;
@@ -1372,6 +1403,29 @@ public sealed partial class UserPreferences
     public void SetEuroScopeMode(bool enabled)
     {
         _data.EuroScopeMode = enabled;
+        Save();
+    }
+
+    public void SetScopeFieldMenuStyle(ScopeFieldMenuStyle style)
+    {
+        _data.ScopeFieldMenuStyle = style.ToString();
+        Save();
+    }
+
+    public void SetScopeStarsFieldMenus(bool enabled)
+    {
+        _data.ScopeStarsFieldMenus = enabled;
+        Save();
+    }
+
+    public void SetScopeFieldMenuLastMode(ScopeFieldMenuMode mode)
+    {
+        if (_data.ScopeFieldMenuLastMode == mode.ToString())
+        {
+            return;
+        }
+
+        _data.ScopeFieldMenuLastMode = mode.ToString();
         Save();
     }
 
@@ -1917,6 +1971,7 @@ public sealed partial class UserPreferences
     public void SetFontSizes(FontSizePrefs sizes)
     {
         _data.RadarDatablockFontSize = Math.Clamp(sizes.RadarDatablock, 8, 24);
+        _data.RadarFlyoutFontSize = Math.Clamp(sizes.RadarFlyout, 8, 24);
         _data.GroundDatablockFontSize = Math.Clamp(sizes.GroundDatablock, 8, 24);
         _data.GroundLabelFontSize = Math.Clamp(sizes.GroundLabel, 8, 24);
         _data.DataGridFontSize = Math.Clamp(sizes.DataGrid, 8, 24);
@@ -2597,6 +2652,9 @@ public sealed partial class UserPreferences
             CrcAliasDirectory = GetFieldOr<string?>(obj, "crcAliasDirectory", null),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
             EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
+            ScopeFieldMenuStyle = GetFieldOr(obj, "scopeFieldMenuStyle", nameof(Services.ScopeFieldMenuStyle.Tabbed)),
+            ScopeFieldMenuLastMode = GetFieldOr(obj, "scopeFieldMenuLastMode", nameof(ScopeFieldMenuMode.Eram)),
+            ScopeStarsFieldMenus = GetFieldOr(obj, "scopeStarsFieldMenus", false),
             FlashNoLandingClearance = GetFieldOr(obj, "flashNoLandingClearance", true),
             ShowConflictAlerts = GetFieldOr(obj, "showConflictAlerts", true),
             ShowTypeMismatchHints = GetFieldOr(obj, "showTypeMismatchHints", true),
@@ -2709,6 +2767,7 @@ public sealed partial class UserPreferences
             AutoExpandSuggestionOnEnter = GetFieldOr(obj, "autoExpandSuggestionOnEnter", true),
             DataGridFontSize = GetFieldOr(obj, "dataGridFontSize", 12),
             RadarDatablockFontSize = GetFieldOr(obj, "radarDatablockFontSize", 12),
+            RadarFlyoutFontSize = GetFieldOr(obj, "radarFlyoutFontSize", 12),
             GroundDatablockFontSize = GetFieldOr(obj, "groundDatablockFontSize", 12),
             GroundLabelFontSize = GetFieldOr(obj, "groundLabelFontSize", 13),
             ScenarioNames = GetFieldOr<Dictionary<string, string>>(obj, "scenarioNames", []),
@@ -3021,6 +3080,12 @@ public sealed partial class UserPreferences
         public string? CrcAliasDirectory { get; set; }
         public bool ValidateDctFixes { get; set; }
         public bool EuroScopeMode { get; set; }
+
+        // ScopeFieldMenuStyle and ScopeFieldMenuMode names, stored as strings so enum reordering can't misassign them.
+        public string ScopeFieldMenuStyle { get; set; } = nameof(Services.ScopeFieldMenuStyle.Tabbed);
+        public string ScopeFieldMenuLastMode { get; set; } = nameof(ScopeFieldMenuMode.Eram);
+        public bool ScopeStarsFieldMenus { get; set; }
+
         public bool FlashNoLandingClearance { get; set; } = true;
         public bool ShowConflictAlerts { get; set; } = true;
         public bool ShowTypeMismatchHints { get; set; } = true;
@@ -3173,6 +3238,7 @@ public sealed partial class UserPreferences
         public bool AutoExpandSuggestionOnEnter { get; set; } = true;
         public int DataGridFontSize { get; set; } = 12;
         public int RadarDatablockFontSize { get; set; } = 12;
+        public int RadarFlyoutFontSize { get; set; } = 12;
         public int GroundDatablockFontSize { get; set; } = 12;
         public int GroundLabelFontSize { get; set; } = 13;
         public int TerminalFontSize { get; set; } = 12;
@@ -3493,6 +3559,32 @@ public enum FavoriteMapScope
     Artcc,
     Airport,
     Scenario,
+}
+
+/// <summary>
+/// Which surface a click on an ERAM block's altitude, heading or speed opens: CRC's simple menu, the detailed popup with an
+/// ERAM | PILOT tab strip, or the detailed popup with both columns side by side. Stored by name; the Settings choice follows
+/// this order (<see cref="ScopeFieldMenuStyleLabels"/>).
+/// </summary>
+public enum ScopeFieldMenuStyle
+{
+    Simple,
+    Tabbed,
+    SideBySide,
+}
+
+/// <summary>The words the "ERAM field menus" choice shows for each <see cref="ScopeFieldMenuStyle"/>.</summary>
+public static class ScopeFieldMenuStyleLabels
+{
+    /// <summary>One label per <see cref="ScopeFieldMenuStyle"/> value, indexed by the value.</summary>
+    public static IReadOnlyList<string> Options { get; } = ["Simple (CRC)", "Tabbed", "Side by side"];
+}
+
+/// <summary>Which column of an ERAM field menu a command came from: the ERAM scope-data entry or the pilot command.</summary>
+public enum ScopeFieldMenuMode
+{
+    Eram,
+    Pilot,
 }
 
 public sealed class SavedRadarSettings

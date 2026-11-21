@@ -57,7 +57,7 @@ public sealed class SoloBravoImplicitClearanceTests
         Assert.Same(holdList, ac.Phases);
         Assert.True(ac.Phases!.IsComplete, "no fresh hold may re-arm and turn the aircraft away from the vector");
         Assert.Equal(90, ac.Targets.AssignedMagneticHeading?.Degrees ?? double.NaN, 0.5);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         // The pilot asked to go through the Bravo, so it reads the clearance back the same way.
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.Equal("fly heading 090, cleared through the bravo", readback.Text);
@@ -72,7 +72,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 090");
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.Equal("fly heading 090, cleared into the bravo", readback.Text);
         Assert.EndsWith($", cleared into the bravo, {SpokenCallsign}.", readback.SpeechText);
@@ -87,7 +87,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 270");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ac.IsClearedIntoBravo);
+        Assert.Null(ac.ClearedBravoIdent);
         AssertNoBravoClause(ac);
     }
 
@@ -100,7 +100,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "DCT SFO");
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.EndsWith(", cleared into the bravo", readback.Text);
     }
@@ -129,7 +129,7 @@ public sealed class SoloBravoImplicitClearanceTests
 
         Assert.True(result.Success, result.Message);
         Assert.Equal(reactionDelayed, ac.DeferredDispatches.Count > 0);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.EndsWith(", cleared into the bravo", readback.Text);
     }
@@ -143,7 +143,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "ERD 28R");
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "CAPP ILS28R");
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.EndsWith(", cleared into the bravo", readback.Text);
     }
@@ -174,7 +174,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "CT OAK_TWR");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ac.IsClearedIntoBravo);
+        Assert.Null(ac.ClearedBravoIdent);
         // The tracker still counts a contact instruction as the answer to the request.
         Assert.Equal(PilotPendingRequestResponseState.Satisfied, ac.PendingPilotRequest!.ResponseState);
     }
@@ -260,7 +260,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 270");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ac.IsClearedIntoBravo);
+        Assert.Null(ac.ClearedBravoIdent);
         AssertNoBravoClause(ac);
     }
 
@@ -270,13 +270,15 @@ public sealed class SoloBravoImplicitClearanceTests
         AircraftState ac = Airborne(DistantWestRing, trueHeading: 270, destination: "KMOD");
         (SimulationEngine engine, _) = SoloEngine(ac);
         PilotSpeechText through = PilotResponder.BuildBravoClearanceRequest(ac, BravoClearanceWording.Through);
-        PilotRequestTracker.RecordRequest(
-            ac,
-            PilotPendingRequestKind.AirspaceEntry,
-            nowSeconds: 0,
-            through,
-            PilotRequestContext.Airspace(AirspaceClass.Bravo, "SFO", new LatLon(37.6213, -122.3790))
-        );
+        PilotRequestTracker
+            .RecordRequest(
+                ac,
+                PilotPendingRequestKind.AirspaceEntry,
+                nowSeconds: 0,
+                through,
+                PilotRequestContext.Airspace(AirspaceClass.Bravo, "SFO", new LatLon(37.6213, -122.3790))
+            )
+            .BravoWording = BravoClearanceWording.Through;
         var eastbound = new TrueHeading(100);
         Assert.Null(
             AirspaceDatabase.Default.FindLevelTrackClassBEntry(
@@ -292,7 +294,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 090");
 
         Assert.True(result.Success, result.Message);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
         PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
         Assert.Equal("fly heading 090, cleared through the bravo", readback.Text);
     }
@@ -306,7 +308,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "AT SFO FH 090");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ac.IsClearedIntoBravo);
+        Assert.Null(ac.ClearedBravoIdent);
         AssertNoBravoClause(ac);
     }
 
@@ -320,14 +322,14 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 090");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ifr.IsClearedIntoBravo);
+        Assert.Null(ifr.ClearedBravoIdent);
         AssertNoBravoClause(ifr);
 
         AircraftState onGround = Airborne(NearWestRing, trueHeading: 270, destination: "KMOD");
         onGround.IsOnGround = true;
         var vectorIn = new CompoundCommand([new ParsedBlock(null, [new FlyHeadingCommand(new MagneticHeading(90))])]);
         Assert.Null(ImplicitBravoClearance.TryGrant(onGround, vectorIn, wait: null, scenario, AirspaceDatabase.Default, LookupAirport));
-        Assert.False(onGround.IsClearedIntoBravo);
+        Assert.Null(onGround.ClearedBravoIdent);
     }
 
     [Fact]
@@ -362,7 +364,7 @@ public sealed class SoloBravoImplicitClearanceTests
         CommandResult result = engine.SendCommand(Callsign, "FH 090");
 
         Assert.True(result.Success, result.Message);
-        Assert.False(ac.IsClearedIntoBravo);
+        Assert.Null(ac.ClearedBravoIdent);
         Assert.Null(ac.PendingPilotRequest);
     }
 

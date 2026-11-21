@@ -223,6 +223,12 @@ public partial class SettingsViewModel
             Field("validateDctFixes", vm => vm.ValidateDctFixes, (vm, v) => vm.ValidateDctFixes = v),
             Field("euroScopeMode", vm => vm.EuroScopeMode, (vm, v) => vm.EuroScopeMode = v),
             Field(
+                "scopeFieldMenuStyle",
+                vm => ((ScopeFieldMenuStyle)vm.SelectedScopeFieldMenuStyleIndex).ToString(),
+                (vm, v) => vm.SelectedScopeFieldMenuStyleIndex = (int)Enum.Parse<ScopeFieldMenuStyle>(v)
+            ),
+            Field("scopeStarsFieldMenus", vm => vm.ScopeStarsFieldMenus, (vm, v) => vm.ScopeStarsFieldMenus = v),
+            Field(
                 "vfrCommandsForIfr",
                 vm => ((VfrCommandsForIfr)vm.SelectedVfrCommandsForIfrIndex).ToString(),
                 (vm, v) => vm.SelectedVfrCommandsForIfrIndex = (int)Enum.Parse<VfrCommandsForIfr>(v)
@@ -307,6 +313,7 @@ public partial class SettingsViewModel
     private static (string Key, BundledField Field)[] DisplayFields() =>
         [
             Field("radarDatablockFontSize", vm => vm.RadarDatablockFontSize, (vm, v) => vm.RadarDatablockFontSize = v),
+            Field("radarFlyoutFontSize", vm => vm.RadarFlyoutFontSize, (vm, v) => vm.RadarFlyoutFontSize = v),
             Field("groundDatablockFontSize", vm => vm.GroundDatablockFontSize, (vm, v) => vm.GroundDatablockFontSize = v),
             Field("groundLabelFontSize", vm => vm.GroundLabelFontSize, (vm, v) => vm.GroundLabelFontSize = v),
             Field("dataGridFontSize", vm => vm.DataGridFontSize, (vm, v) => vm.DataGridFontSize = v),

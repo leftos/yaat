@@ -11,12 +11,48 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Scope.Entries;
 
 namespace Yaat.Client.Views.Scope.FieldMenus;
+
+/// <summary>
+/// A surface a Scope field click opens over the canvas, one at a time: an ERAM field popup (<see cref="ScopeDataPopupBase"/>)
+/// or a CRC FDB menu (<see cref="CrcMenuPopup"/>).
+/// </summary>
+internal interface IScopeFieldSurface
+{
+    /// <summary>Whether it is open.</summary>
+    bool IsOpen { get; }
+
+    /// <summary>Fired when it closes, however it closes.</summary>
+    event EventHandler<EventArgs>? Closed;
+
+    /// <summary>Opens it over <paramref name="anchor"/>, by <paramref name="block"/> (in the anchor's coordinates) when given.</summary>
+    /// <returns>False when the anchor has no overlay layer.</returns>
+    bool Open(Control anchor, Rect? block);
+
+    /// <summary>Closes it.</summary>
+    void Close();
+}
+
+/// <summary>
+/// What an ERAM field popup tells its opener, and how it lays out its columns.
+/// </summary>
+/// <param name="RecordShift">Told whether Shift is held at each press, release and key press inside the popup.</param>
+/// <param name="Pick">Runs a SCOPE DATA row's entry, or stages it while Shift is held.</param>
+internal sealed record ScopeDataPopupHooks(Action<bool> RecordShift, Action<string> Pick)
+{
+    /// <summary>The tab a tabbed popup opens on; null lays the SCOPE DATA and PILOT columns side by side.</summary>
+    public ScopeFieldMenuMode? TabbedOpening { get; init; }
+
+    /// <summary>Told which column each command sent or staged from the popup came from; tab switches tell it nothing.</summary>
+    public Action<ScopeFieldMenuMode>? ModeSent { get; init; }
+}
 
 /// <summary>
 /// What every ERAM field popup shares (<see cref="ScopeDataAltitudePopup"/>, <see cref="ScopeDataHsfPopup"/>): a popup below the
@@ -24,9 +60,10 @@ namespace Yaat.Client.Views.Scope.FieldMenus;
 /// shows the ERAM entry it runs and is disabled, its entry and note faded, while it has none; a row click hands its entry to the pick. Shift is
 /// recorded at each pointer press, release and key press inside the popup, before the row under it runs; Esc closes it, as does
 /// a click outside it, which still reaches the Scope. On opening, the PILOT panels reset and follow the aircraft once a second,
-/// and only the first SCOPE DATA box takes the focus.
+/// and only the first SCOPE DATA box takes the focus. A tabbed popup (<see cref="ScopeDataPopupHooks.TabbedOpening"/>) shows the
+/// two columns one at a time under an ERAM | PILOT tab strip, at the size of the larger.
 /// </summary>
-internal abstract class ScopeDataPopupBase
+internal abstract class ScopeDataPopupBase : IScopeFieldSurface
 {
     /// <summary>The scope-data column's head.</summary>
     public const string ScopeDataHead = "SCOPE DATA";
@@ -42,6 +79,12 @@ internal abstract class ScopeDataPopupBase
 
     /// <summary>The faded hint after each SCOPE DATA box: the rows below run what it holds.</summary>
     public const string RowsHint = "→ rows";
+
+    /// <summary>The tabbed popup's SCOPE DATA tab.</summary>
+    public const string EramTabLabel = "ERAM";
+
+    /// <summary>The tabbed popup's PILOT tab.</summary>
+    public const string PilotTabLabel = "PILOT";
 
     private const double ScopeDataWidth = 320;
     private const double SingleColumnWidth = 321;
@@ -73,20 +116,22 @@ internal abstract class ScopeDataPopupBase
     private static readonly IImmutableSolidColorBrush HoverFill = new ImmutableSolidColorBrush(Color.Parse("#1FFFFFFF"));
     private static readonly IImmutableSolidColorBrush PressedFill = new ImmutableSolidColorBrush(Color.Parse("#2EFFFFFF"));
 
-    private readonly Action<string> _pick;
+    private readonly ScopeDataPopupHooks _hooks;
     private readonly List<Row> _rows = [];
     private readonly List<(string Caption, TextBlock Note, Func<string> NoteNow)> _captionNotes = [];
     private readonly List<IFlyoutPanel> _panels = [];
     private FlyoutLiveTick? _tick;
     private (Control Anchor, Rect Block)? _placement;
     private OverlayLayer? _overlay;
+    private Tabs? _tabs;
+    private Border? _tabFrame;
 
     /// <param name="flid">The clicked track's callsign, which every entry names last.</param>
-    /// <param name="pick">Runs a SCOPE DATA row's entry, or stages it while Shift is held.</param>
-    protected ScopeDataPopupBase(string flid, Action<string> pick)
+    /// <param name="hooks">What the popup tells its opener, and whether it is tabbed.</param>
+    protected ScopeDataPopupBase(string flid, ScopeDataPopupHooks hooks)
     {
         Flid = flid;
-        _pick = pick;
+        _hooks = hooks;
         Popup = new Popup
         {
             Placement = PlacementMode.Pointer,
@@ -114,8 +159,8 @@ internal abstract class ScopeDataPopupBase
     /// <summary>The clicked track's callsign.</summary>
     protected string Flid { get; }
 
-    /// <summary>The SCOPE DATA box that takes the focus as the popup opens.</summary>
-    protected abstract TextBox FocusBox { get; }
+    /// <summary>The SCOPE DATA box that takes the focus as the popup opens; null in a popup with no SCOPE DATA column.</summary>
+    protected abstract TextBox? FocusBox { get; }
 
     /// <summary>The SCOPE DATA row labelled <paramref name="label"/>.</summary>
     public Button RowFor(string label) =>
@@ -147,6 +192,50 @@ internal abstract class ScopeDataPopupBase
 
     /// <summary>The scroller around the PILOT column; null where the column does not scroll.</summary>
     public ScrollViewer? PilotScroll { get; private set; }
+
+    /// <summary>The column a tabbed popup shows; null in a popup with its columns side by side.</summary>
+    public ScopeFieldMenuMode? ShownTab => _tabs?.Shown;
+
+    /// <summary>The tab of <paramref name="mode"/>'s column; null in a popup with its columns side by side.</summary>
+    public ToggleButton? TabFor(ScopeFieldMenuMode mode) => (mode == ScopeFieldMenuMode.Eram) ? _tabs?.Eram : _tabs?.Pilot;
+
+    /// <summary>
+    /// Shows <paramref name="mode"/>'s column alone, as its tab does, and gives the SCOPE DATA box the focus with the ERAM
+    /// column; remembers nothing. A popup with its columns side by side has no tabs to switch.
+    /// </summary>
+    public void ShowTab(ScopeFieldMenuMode mode)
+    {
+        if (_tabs is not { } tabs)
+        {
+            Log.LogWarning("{Flid} popup has no tabs; {Mode} is not shown alone", Flid, mode);
+            return;
+        }
+
+        tabs.Show(mode);
+        if (Popup.IsOpen)
+        {
+            FocusShown();
+        }
+    }
+
+    /// <summary>The control a tabbed popup focuses while its PILOT column shows; null focuses the panel's frame.</summary>
+    protected virtual Control? PilotFocus => null;
+
+    // The focus goes to the column on show: the SCOPE DATA box with ERAM (and side by side), else the PILOT column's own box,
+    // else the frame, so the popup keeps the focus (and with it Esc and the Shift record) and no hidden box takes typing.
+    private void FocusShown()
+    {
+        if (ShownTab != ScopeFieldMenuMode.Pilot)
+        {
+            FocusBox?.Focus(NavigationMethod.Directional);
+            return;
+        }
+
+        if ((PilotFocus?.Focus(NavigationMethod.Directional) != true) && (_tabFrame?.Focus() != true))
+        {
+            Log.LogWarning("{Flid} popup: nothing in its PILOT column took the focus", Flid);
+        }
+    }
 
     /// <summary>
     /// Opens the popup over <paramref name="anchor"/>, in its overlay layer: below <paramref name="block"/> (in the anchor's
@@ -366,10 +455,17 @@ internal abstract class ScopeDataPopupBase
 
     /// <summary>
     /// The panel: SCOPE DATA and, split by a one-pixel rule, the PILOT column as wide as its panels need (at least 319) with 8 to
-    /// spare on its right. With <paramref name="scrollPilot"/> the panel is at most 600 high and the PILOT column scrolls.
+    /// spare on its right. With <paramref name="scrollPilot"/> the panel is at most 600 high and the PILOT column scrolls. A
+    /// tabbed popup (<see cref="ScopeDataPopupHooks.TabbedOpening"/>) shows one column at a time instead
+    /// (<see cref="TabbedPanel"/>), and never scrolls.
     /// </summary>
     protected Border Panel(Control left, Control right, bool scrollPilot)
     {
+        if (_hooks.TabbedOpening is { } opening)
+        {
+            return TabbedPanel(left, right, opening);
+        }
+
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions($"{ScopeDataWidth},Auto,Auto") };
         grid.Children.Add(left);
         PilotScroll = scrollPilot
@@ -404,6 +500,54 @@ internal abstract class ScopeDataPopupBase
         }
 
         return panel;
+    }
+
+    // The tabbed panel: the ERAM | PILOT tab strip above a body holding both columns in one cell, the one not shown kept in the
+    // layout unseen, so the body takes the larger column's size and switching tabs never resizes the popup. It opens on
+    // `opening`.
+    private Border TabbedPanel(Control left, Control right, ScopeFieldMenuMode opening)
+    {
+        var scopeData = new Border { MinWidth = ScopeDataWidth, Child = left };
+        var pilot = new Border
+        {
+            MinWidth = PilotMinWidth,
+            Padding = new Thickness(0, 0, PilotRightPadding, 0),
+            Child = right,
+        };
+        PilotColumnHost = pilot;
+        var tabs = new Tabs(scopeData, pilot, this);
+        _tabs = tabs;
+        tabs.Show(opening);
+        return TabbedFrame(tabs, new Grid { Children = { scopeData, pilot } });
+    }
+
+    /// <summary>
+    /// The panel of a popup with a PILOT column alone, as the STARS field menus' tabbed style shows it: a tab strip holding the one
+    /// PILOT tab above the column, shown.
+    /// </summary>
+    protected Border PilotOnlyPanel(Control pilotColumn)
+    {
+        var pilot = new Border
+        {
+            MinWidth = PilotMinWidth,
+            Padding = new Thickness(0, 0, PilotRightPadding, 0),
+            Child = pilotColumn,
+        };
+        PilotColumnHost = pilot;
+        var tabs = new Tabs(null, pilot, this);
+        _tabs = tabs;
+        tabs.Show(ScopeFieldMenuMode.Pilot);
+        return TabbedFrame(tabs, pilot);
+    }
+
+    // The tab strip above the body, in a frame that takes the focus while no box in it has it.
+    private Border TabbedFrame(Tabs tabs, Control body)
+    {
+        var content = new StackPanel { Children = { FlyoutPanelParts.ToggleStrip(tabs.Buttons), body } };
+        Border frame = Frame(content, double.NaN);
+        frame.Focusable = true;
+        _tabFrame = frame;
+        return frame;
     }
 
     /// <summary>The panel of one column alone, as wide as the two-column panel's SCOPE DATA column and its rule.</summary>
@@ -530,7 +674,8 @@ internal abstract class ScopeDataPopupBase
     {
         if (row.EntryNow() is { } entry)
         {
-            _pick(entry);
+            _hooks.ModeSent?.Invoke(ScopeFieldMenuMode.Eram);
+            _hooks.Pick(entry);
         }
     }
 
@@ -550,7 +695,19 @@ internal abstract class ScopeDataPopupBase
         }
 
         _tick?.Start();
-        FlyoutPanelParts.FocusLater(FocusBox, () => Popup.IsOpen, AfterFocus);
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (!Popup.IsOpen)
+                {
+                    return;
+                }
+
+                FocusShown();
+                AfterFocus();
+            },
+            DispatcherPriority.Loaded
+        );
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -564,6 +721,7 @@ internal abstract class ScopeDataPopupBase
 
     private async Task ChooseAsync(IMenuHost host, string command, string initials)
     {
+        _hooks.ModeSent?.Invoke(ScopeFieldMenuMode.Pilot);
         Task sending = host.SendAsync(Flid, command, initials);
         Close();
         await sending;
@@ -657,6 +815,44 @@ internal abstract class ScopeDataPopupBase
             Padding = new Thickness(7, 2, 7, 4),
             Child = grid,
         };
+    }
+
+    // A tabbed popup's ERAM and PILOT tabs and the columns they show: the shown column seen, the other kept in the layout but
+    // unseen, out of hit testing and disabled, so it takes neither a click nor the focus. With no SCOPE DATA column there is no
+    // ERAM tab, and the PILOT tab stands alone.
+    private sealed class Tabs(Control? scopeData, Control pilot, ScopeDataPopupBase popup)
+    {
+        public ToggleButton? Eram { get; } =
+            (scopeData is null) ? null : FlyoutPanelParts.VerbToggle(EramTabLabel, "", first: true, () => popup.ShowTab(ScopeFieldMenuMode.Eram));
+
+        public ToggleButton Pilot { get; } =
+            FlyoutPanelParts.VerbToggle(PilotTabLabel, "", first: (scopeData is null), () => popup.ShowTab(ScopeFieldMenuMode.Pilot));
+
+        public ScopeFieldMenuMode Shown { get; private set; }
+
+        // The tab strip's buttons, ERAM (where there is one) then PILOT.
+        public Button[] Buttons => (Eram is { } eram) ? [eram, Pilot] : [Pilot];
+
+        public void Show(ScopeFieldMenuMode mode)
+        {
+            bool eram = (mode == ScopeFieldMenuMode.Eram) && (scopeData is not null);
+            Shown = eram ? ScopeFieldMenuMode.Eram : ScopeFieldMenuMode.Pilot;
+            Eram?.IsChecked = eram;
+            Pilot.IsChecked = !eram;
+            if (scopeData is not null)
+            {
+                Reveal(scopeData, eram);
+            }
+
+            Reveal(pilot, !eram);
+        }
+
+        private static void Reveal(Control column, bool shown)
+        {
+            column.Opacity = shown ? 1 : 0;
+            column.IsHitTestVisible = shown;
+            column.IsEnabled = shown;
+        }
     }
 
     // A SCOPE DATA row: its label left, and right its note, right-aligned, beside the entry it runs, in the monospace font. Its

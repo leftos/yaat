@@ -277,6 +277,18 @@ public static class AltitudeFlyout
     }
 
     /// <summary>
+    /// The command the Maintain altitude panel's row for <paramref name="altitude"/> feet sends, by the same rule
+    /// (<see cref="MaintainCommand"/>): the row is the now row when it is within 50 ft of <paramref name="current"/>, and then
+    /// climbs unless the assigned altitude is below the present one.
+    /// </summary>
+    internal static string MaintainCommandFor(int altitude, double current, double? assigned)
+    {
+        bool isNow = Math.Abs(altitude - current) < 50;
+        bool isAssigned = (assigned is { } value) && (Math.Abs(value - altitude) < 0.5);
+        return MaintainCommand(altitude, MaintainKind(isNow, isAssigned, altitude, current), current, assigned);
+    }
+
+    /// <summary>
     /// One altitude row with its glyph and hint: the ● and ◆ rows name their mark (<c>now</c>, <c>assigned</c>,
     /// <c>now · assigned</c>), the ↑ and ↓ rows their command. Every row under <paramref name="mvaFloor"/> is greyed
     /// (<see cref="MenuRichRowKind.BelowMva"/>), keeps its glyph, ends its hint with <c>below MVA</c> in place of the

@@ -150,7 +150,7 @@ public class TrackPresenterTests
         Assert.Equal(ScopeBlockLevel.Full, idle.Level);
         Assert.Equal(ScopeBlockColor.Default, idle.BlockColor);
         Assert.Equal(ScopeBlockColor.Default, selected.BlockColor);
-        Assert.All(idle.Fields, f => Assert.Equal(TrackPresenter.ActionFor(ScopeTemplates.EuroScopeId, f.Slot), f.Action));
+        Assert.All(idle.Fields, f => Assert.Equal(TrackPresenter.ActionFor(ScopeTemplates.EuroScopeId, f.Slot, starsFieldMenus: true), f.Action));
         Assert.Contains(idle.Fields, f => f.Action != ScopeFieldAction.None);
     }
 
@@ -765,7 +765,10 @@ internal static class ScopeTestAircraft
         ShowEramCaRing: true
     );
 
-    /// <summary>Every display hint on and student colour sync on, as the preferences default; no initials, both tints off.</summary>
+    /// <summary>
+    /// Every display hint on and student colour sync on, as the preferences default; no initials, both tints off; the STARS field
+    /// menus on.
+    /// </summary>
     public static readonly ScopeDisplayOptions AllDisplay = new(
         MarkStudentLevel: true,
         ShowTypeMismatchHints: true,
@@ -776,7 +779,8 @@ internal static class ScopeTestAircraft
         UnassignedTint: false,
         Viewer: ScopeViewer.None,
         EramLine4Type: true,
-        EramLine4Destination: true
+        EramLine4Destination: true,
+        StarsFieldMenus: true
     );
 
     /// <summary>A beacon-code mismatch: Mode C reporting 1200 while 0301 is assigned.</summary>

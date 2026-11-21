@@ -261,6 +261,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _euroScopeMode;
 
+    /// <summary>The "ERAM field menus" choice, a <see cref="ScopeFieldMenuStyle"/> by index.</summary>
+    [ObservableProperty]
+    private int _selectedScopeFieldMenuStyleIndex;
+
+    /// <summary>The "STARS field menus" checkbox (<see cref="UserPreferences.ScopeStarsFieldMenus"/>).</summary>
+    [ObservableProperty]
+    private bool _scopeStarsFieldMenus;
+
     [ObservableProperty]
     private bool _flashNoLandingClearance;
 
@@ -529,6 +537,9 @@ public partial class SettingsViewModel : ObservableObject
     private double _scrollSensitivityPercent;
 
     [ObservableProperty]
+    private int _radarFlyoutFontSize;
+
+    [ObservableProperty]
     private int _groundDatablockFontSize;
 
     [ObservableProperty]
@@ -744,6 +755,9 @@ public partial class SettingsViewModel : ObservableObject
     // Indexed by the SoloAdvisoryPrefill value, so SelectedSoloAdvisoryPrefillIndex maps directly to the enum.
     public static IReadOnlyList<string> SoloAdvisoryPrefillOptions => SoloAdvisoryPrefillLabels.Options;
 
+    // Indexed by the ScopeFieldMenuStyle value, so SelectedScopeFieldMenuStyleIndex maps directly to the enum.
+    public static IReadOnlyList<string> ScopeFieldMenuStyleOptions => ScopeFieldMenuStyleLabels.Options;
+
     public bool IsMacOs { get; } = OperatingSystem.IsMacOS();
 
     public ObservableCollection<VerbMappingRow> VerbMappings { get; } = [];
@@ -830,6 +844,8 @@ public partial class SettingsViewModel : ObservableObject
         _departureAutoDeleteDistanceNm = _preferences.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
+        _selectedScopeFieldMenuStyleIndex = (int)_preferences.ScopeFieldMenuStyle;
+        _scopeStarsFieldMenus = _preferences.ScopeStarsFieldMenus;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showConflictAlerts = _preferences.ShowConflictAlerts;
         _showTypeMismatchHints = _preferences.ShowTypeMismatchHints;
@@ -967,6 +983,7 @@ public partial class SettingsViewModel : ObservableObject
         _autoExpandSuggestionOnEnter = _preferences.AutoExpandSuggestionOnEnter;
         _dataGridFontSize = _preferences.DataGridFontSize;
         _radarDatablockFontSize = _preferences.RadarDatablockFontSize;
+        _radarFlyoutFontSize = _preferences.RadarFlyoutFontSize;
         _tpaConeHalfAngleDegrees = _preferences.TpaConeHalfAngleDegrees;
         _scrollSensitivityPercent = _preferences.ScrollSensitivity * 100.0;
         _groundDatablockFontSize = _preferences.GroundDatablockFontSize;
@@ -1095,6 +1112,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
+        _preferences.SetScopeFieldMenuStyle((ScopeFieldMenuStyle)SelectedScopeFieldMenuStyleIndex);
+        _preferences.SetScopeStarsFieldMenus(ScopeStarsFieldMenus);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
         _preferences.SetShowTypeMismatchHints(ShowTypeMismatchHints);
@@ -1262,6 +1281,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetFontSizes(
             new FontSizePrefs(
                 RadarDatablock: RadarDatablockFontSize,
+                RadarFlyout: RadarFlyoutFontSize,
                 GroundDatablock: GroundDatablockFontSize,
                 GroundLabel: GroundLabelFontSize,
                 DataGrid: DataGridFontSize,
@@ -2010,6 +2030,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         DataGridFontSize = defaults.DataGridFontSize;
         RadarDatablockFontSize = defaults.RadarDatablockFontSize;
+        RadarFlyoutFontSize = defaults.RadarFlyoutFontSize;
         GroundDatablockFontSize = defaults.GroundDatablockFontSize;
         GroundLabelFontSize = defaults.GroundLabelFontSize;
         TerminalFontSize = defaults.TerminalFontSize;
@@ -2052,6 +2073,8 @@ public partial class SettingsViewModel : ObservableObject
     private void ResetRadar(UserPreferences defaults)
     {
         EuroScopeMode = defaults.EuroScopeMode;
+        SelectedScopeFieldMenuStyleIndex = (int)defaults.ScopeFieldMenuStyle;
+        ScopeStarsFieldMenus = defaults.ScopeStarsFieldMenus;
         FlashNoLandingClearance = defaults.FlashNoLandingClearance;
         ShowConflictAlerts = defaults.ShowConflictAlerts;
         ShowTypeMismatchHints = defaults.ShowTypeMismatchHints;
@@ -2262,6 +2285,8 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnRadarDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnTpaConeHalfAngleDegreesChanged(double value) => VisualSettingsChanged?.Invoke();
+
+    partial void OnRadarFlyoutFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 
     partial void OnGroundDatablockFontSizeChanged(int value) => VisualSettingsChanged?.Invoke();
 

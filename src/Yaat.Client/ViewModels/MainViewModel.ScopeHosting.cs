@@ -233,25 +233,44 @@ public partial class MainViewModel
     /// template, the DB, the lens and the map tools the Scope shows. The centre is copied as stored, so the Scope's
     /// <c>IsCentre</c> gate drops a zero one and the map source's seed stands; a range outside 0.125-256 NM takes
     /// <see cref="ScopeViewModel.DefaultRangeNm"/>, never the captured range, which may belong to the facility being left.
-    /// PTL has no Scope equivalent and is dropped.
+    /// An old PTL that was on (OWN or ALL) pins the vector length and its OWN or ALL.
     /// </summary>
     private ScopePrefSet BuildMigratedPrefSet(ScopePrefSet captured, SavedRadarSettings old) =>
-        captured with
-        {
-            Maps = [.. old.EnabledStarsIds],
-            CenterLat = old.CenterLat,
-            CenterLon = old.CenterLon,
-            RangeNm = (old.RangeNm is >= ScopeViewModel.MinRangeNm and <= ScopeViewModel.MaxRangeNm) ? old.RangeNm : ScopeViewModel.DefaultRangeNm,
-            MapTools = captured.MapTools with
+        MigratePtl(
+            captured with
             {
-                Lock = old.IsPanZoomLocked,
-                RangeRing = MigrateRangeRing(old),
-                FixesAndMarkers = MigrateFixesAndMarkers(old),
+                Maps = [.. old.EnabledStarsIds],
+                CenterLat = old.CenterLat,
+                CenterLon = old.CenterLon,
+                RangeNm =
+                    (old.RangeNm is >= ScopeViewModel.MinRangeNm and <= ScopeViewModel.MaxRangeNm) ? old.RangeNm : ScopeViewModel.DefaultRangeNm,
+                MapTools = captured.MapTools with
+                {
+                    Lock = old.IsPanZoomLocked,
+                    RangeRing = MigrateRangeRing(old),
+                    FixesAndMarkers = MigrateFixesAndMarkers(old),
+                },
+                Tdm = old.ShowTopDown,
+                Brightness = MigrateBrightness(captured.Brightness, old.BrightnessValues),
+                PinHistory = (old.HistoryCount is > 0 and <= ScopeViewModel.MaxHistory) ? old.HistoryCount : captured.PinHistory,
             },
-            Tdm = old.ShowTopDown,
-            Brightness = MigrateBrightness(captured.Brightness, old.BrightnessValues),
-            PinHistory = (old.HistoryCount is > 0 and <= ScopeViewModel.MaxHistory) ? old.HistoryCount : captured.PinHistory,
+            old
+        );
+
+    /// <summary><paramref name="migrated"/> with the old PTL's length pinned, and its OWN or ALL, when the old PTL was on.</summary>
+    private static ScopePrefSet MigratePtl(ScopePrefSet migrated, SavedRadarSettings old)
+    {
+        if (((!old.PtlOwn) && (!old.PtlAll)) || (old.PtlLengthMinutes <= 0) || (!ScopeViewModel.IsVectorMinutes(old.PtlLengthMinutes)))
+        {
+            return migrated;
+        }
+
+        return migrated with
+        {
+            PinVectorMin = old.PtlLengthMinutes,
+            VectorOwnership = old.PtlAll ? ScopeVectorOwnerships.AllName : ScopeVectorOwnerships.OwnName,
         };
+    }
 
     /// <summary>Whether the old range ring's centre is placed: not both latitude and longitude zero, the old "no centre".</summary>
     private static bool IsRingCentrePlaced(double lat, double lon) => (lat != 0) || (lon != 0);

@@ -96,7 +96,7 @@ public sealed class Issue308AirspaceLevelOffTests
         ac.Altitude = 2000;
         ac.Targets.TargetAltitude = null;
 
-        ac.IsClearedIntoBravo = true;
+        ac.GrantBravoClearance("SFO");
         Assert.True(phase.OnTick(ctx));
         phase.OnEnd(ctx, PhaseStatus.Completed);
 

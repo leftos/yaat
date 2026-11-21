@@ -28,6 +28,31 @@
             />
           </StackPanel>
           <StackPanel Spacing="4">
+            <TextBlock Text="ERAM field menus" />
+            <ComboBox
+              ItemsSource="{Binding ScopeFieldMenuStyleOptions}"
+              SelectedIndex="{Binding SelectedScopeFieldMenuStyleIndex}"
+              Width="240"
+              HorizontalAlignment="Left"
+            />
+            <TextBlock
+              Text="What a click on an ERAM data block's altitude, heading or speed opens. Simple (CRC): CRC's compact pick menu, with an ERAM | PILOT chip. Tabbed: the detailed menu, one column at a time behind an ERAM | PILOT tab strip, opening on the tab you last sent from. Side by side: the detailed menu with both columns at once. Default Tabbed."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <CheckBox Content="STARS field menus" IsChecked="{Binding ScopeStarsFieldMenus}" />
+            <TextBlock
+              Text="Off (as in CRC's STARS): a click on a STARS data block field only selects the track. On: altitude, speed, beacon and line-3 fields open pick menus, in the ERAM field menus style."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="28,0,0,0"
+            />
+          </StackPanel>
+          <StackPanel Spacing="4">
             <CheckBox
               Content="Flash 'NoLndgClnc' on datablock when approaching final without landing clearance"
               IsChecked="{Binding FlashNoLandingClearance}"

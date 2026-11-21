@@ -41,7 +41,7 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// The vector lengths, in minutes, the VECTOR spinner and <c>.scope vector</c> take, ascending; 0 draws no line.
     /// </summary>
-    internal static IReadOnlyList<double> VectorMinutes { get; } = [0, 1, 2, 4, 8];
+    internal static IReadOnlyList<double> VectorMinutes { get; } = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 8];
 
     /// <summary>The most history dots HIST takes: every sample the server keeps.</summary>
     internal const int MaxHistory = AircraftState.PositionHistoryCapacity;
@@ -67,7 +67,7 @@ public sealed partial class ScopeViewModel
             {
                 VectorMin = minutes,
             }
-            : throw new ArgumentOutOfRangeException(nameof(minutes), minutes, "Vector minutes are 0, 1, 2, 4 or 8.");
+            : throw new ArgumentOutOfRangeException(nameof(minutes), minutes, "Vector minutes are 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8.");
 
     /// <summary>Pins the history dot count to <paramref name="count"/>, as <c>.scope hist</c> does.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The count is outside 0 to <see cref="MaxHistory"/>.</exception>

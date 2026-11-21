@@ -150,6 +150,8 @@ public class ScopeCanvasDwellLockTests
         (MainViewModel main, _, ScopeView view, Window window) = ShowScope(ScopeTemplates.StarsId);
         try
         {
+            // The STARS field menus on, so the lower block's altitude has a menu the top block must keep from opening.
+            main.Preferences.SetScopeStarsFieldMenus(true);
             AddAircraft(main, view.Canvas, "UAL238", 300, 300);
             IReadOnlyList<FieldRect> lower = Assert.Single(view.Canvas.CurrentFrame.Tracks).Block.Fields;
             FieldRect altitude = lower.First(f => f.Slot == ScopeFieldSlot.Altitude);

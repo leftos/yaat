@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -15,9 +16,12 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
+using Yaat.Client.UI.Tests.Views.Crc;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.EuroScopeFlyouts;
 using Yaat.Client.Views.Scope.FieldMenus;
+using Yaat.Client.Views.Scope.FieldMenus.Crc;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -31,7 +35,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// its one catalog entry's submenu already open; a field without one only selects; ERAM Field A keeps its dwell-lock click;
 /// the armed Rings tool wins; the EuroScope owner takes control. A row of a field menu sends for the clicked aircraft.
 /// </summary>
-public class ScopeFieldMenuTests
+public partial class ScopeFieldMenuTests
 {
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> ShowScope(string templateId) =>
         ShowScope(templateId, 800, 600);
@@ -136,6 +140,7 @@ public class ScopeFieldMenuTests
     {
         view.ActiveContextMenu?.Close();
         view.ActiveFieldPopup?.Close();
+        view.ActiveEntryPopup?.Close();
         Dispatcher.UIThread.RunJobs();
         CloseWindow(window);
     }
@@ -156,7 +161,7 @@ public class ScopeFieldMenuTests
             ScopeTemplates.StarsId,
             ScopeFieldSlot.Altitude,
             _ => { },
-            _ => { }
+            StarsMenusSideBySide
         );
         try
         {
@@ -333,10 +338,13 @@ public class ScopeFieldMenuTests
         return panel.RowFor(panel.Altitudes.Where(a => a > 5000).Min());
     }
 
+    // The two columns side by side, the PILOT rows in view as the popup opens (the default style, Tabbed, opens on ERAM).
+    private static void SideBySide(ScopeViewModel scope) => scope.Main.Preferences.SetScopeFieldMenuStyle(ScopeFieldMenuStyle.SideBySide);
+
     [AvaloniaFact]
     public async Task EramAltitudePopup_PlainClickOnAPilotRow_Sends_AndStagesNothing()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(SideBySide);
         try
         {
             ScopeDataAltitudePopup popup = OpenPopup(view);
@@ -356,7 +364,7 @@ public class ScopeFieldMenuTests
     [AvaloniaFact]
     public async Task EramAltitudePopup_ShiftClickOnAPilotRow_StagesThePilotEntry_AndSendsNothing()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(SideBySide);
         try
         {
             string statusBefore = main.StatusText;
@@ -569,7 +577,7 @@ public class ScopeFieldMenuTests
     public void EramAltitudePopup_APilotRow_SendsItsCommandForTheAircraft()
     {
         var host = new RecordingMenuHost("");
-        var popup = new ScopeDataAltitudePopup(Jet(), host, _ => { }, _ => { });
+        var popup = new ScopeDataAltitudePopup(Jet(), host, new ScopeDataPopupHooks(_ => { }, _ => { }));
         MaintainAltitudePanel panel = Assert.IsType<MaintainAltitudePanel>(popup.PilotPanel);
         int altitude = panel.Altitudes.Where(a => a > 11000).Min();
 
@@ -705,7 +713,7 @@ public class ScopeFieldMenuTests
     {
         var host = new RecordingMenuHost("");
         AircraftModel ac = Jet();
-        var popup = new ScopeDataHsfPopup(ac, host, _ => { }, _ => { }, HsfPopupKind.FreeText);
+        var popup = new ScopeDataHsfPopup(ac, host, new ScopeDataPopupHooks(_ => { }, _ => { }), HsfPopupKind.FreeText);
         Window window = OpenInWindow(popup);
         try
         {
@@ -732,7 +740,7 @@ public class ScopeFieldMenuTests
     {
         var host = new RecordingMenuHost("");
         AircraftModel ac = Jet();
-        var popup = new ScopeDataHsfPopup(ac, host, _ => { }, _ => { }, HsfPopupKind.Heading);
+        var popup = new ScopeDataHsfPopup(ac, host, new ScopeDataPopupHooks(_ => { }, _ => { }), HsfPopupKind.Heading);
         Window window = OpenInWindow(popup);
         try
         {
@@ -755,7 +763,7 @@ public class ScopeFieldMenuTests
     public void EramSpeedPopup_APilotAssignSpeedChoice_SendsItsCommandForTheAircraft_AndClosesThePopup()
     {
         var host = new RecordingMenuHost("");
-        var popup = new ScopeDataHsfPopup(Jet(), host, _ => { }, _ => { }, HsfPopupKind.Speed);
+        var popup = new ScopeDataHsfPopup(Jet(), host, new ScopeDataPopupHooks(_ => { }, _ => { }), HsfPopupKind.Speed);
         Window window = OpenInWindow(popup);
         try
         {
@@ -840,7 +848,7 @@ public class ScopeFieldMenuTests
     public void EramHsfPopup_ClearHeading_FollowsTheStoredHeading_OnRefresh()
     {
         AircraftModel ac = Jet();
-        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, _ => { }, HsfPopupKind.Combined);
+        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), new ScopeDataPopupHooks(_ => { }, _ => { }), HsfPopupKind.Combined);
         Assert.False(popup.RowFor("Clear heading").IsEnabled);
 
         ac.EramAssignedHeading = "H270";
@@ -880,7 +888,7 @@ public class ScopeFieldMenuTests
     {
         AircraftModel ac = Jet();
         setUp(ac);
-        return new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, _ => { }, kind);
+        return new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), new ScopeDataPopupHooks(_ => { }, _ => { }), kind);
     }
 
     // The popups against their mocks: the rows hint, the captions, a disabled row's colours, the notes' column, the altitude
@@ -908,7 +916,7 @@ public class ScopeFieldMenuTests
         AssertRowsHintBeside(combined.HeadingBox);
         AssertRowsHintBeside(combined.SpeedBox);
         AssertRowsHintBeside(NewHsf(HsfPopupKind.FreeText, _ => { }).FreeTextBox);
-        AssertRowsHintBeside(new ScopeDataAltitudePopup(Jet(), new RecordingMenuHost(""), _ => { }, _ => { }).AltitudeBox);
+        AssertRowsHintBeside(new ScopeDataAltitudePopup(Jet(), new RecordingMenuHost(""), new ScopeDataPopupHooks(_ => { }, _ => { })).AltitudeBox);
     }
 
     private static void AssertBoldCaption(ScopeDataHsfPopup popup, string caption)
@@ -1133,7 +1141,8 @@ public class ScopeFieldMenuTests
         }
     }
 
-    private static ScopeDataAltitudePopup AltitudePopupFor(AircraftModel ac) => new(ac, new RecordingMenuHost(""), _ => { }, _ => { });
+    private static ScopeDataAltitudePopup AltitudePopupFor(AircraftModel ac) =>
+        new(ac, new RecordingMenuHost(""), new ScopeDataPopupHooks(_ => { }, _ => { }));
 
     // EramInterimAltitude is in hundreds of feet, CruiseAltitude in feet.
     [AvaloniaFact]
@@ -1221,7 +1230,7 @@ public class ScopeFieldMenuTests
         AircraftModel ac = Jet();
         WithFreeText(ac);
         var picks = new List<string>();
-        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), _ => { }, picks.Add, HsfPopupKind.FreeText);
+        var popup = new ScopeDataHsfPopup(ac, new RecordingMenuHost(""), new ScopeDataPopupHooks(_ => { }, picks.Add), HsfPopupKind.FreeText);
 
         Assert.Equal("QS ○LOWALT UAL238", popup.EntryShownFor("Set free text"));
 
@@ -1717,7 +1726,7 @@ public class ScopeFieldMenuTests
     public void EramHeadingPopup_APilotFlyHeadingChoice_SendsItsCommandForTheAircraft()
     {
         var host = new RecordingMenuHost("");
-        var popup = new ScopeDataHsfPopup(Jet(), host, _ => { }, _ => { }, HsfPopupKind.Heading);
+        var popup = new ScopeDataHsfPopup(Jet(), host, new ScopeDataPopupHooks(_ => { }, _ => { }), HsfPopupKind.Heading);
         HeadingFlyoutPanel panel = Assert.IsType<HeadingFlyoutPanel>(popup.HeadingPanel);
 
         panel.PresentRow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -2028,7 +2037,17 @@ public class ScopeFieldMenuTests
 
     private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window, AircraftModel Aircraft)> OpenSpeedMenuAsync(
         Action<ScopeViewModel> beforeClick
-    ) => ClickFieldAsync(ScopeTemplates.StarsId, ScopeFieldSlot.GroundSpeed, Speedy, beforeClick);
+    ) =>
+        ClickFieldAsync(
+            ScopeTemplates.StarsId,
+            ScopeFieldSlot.GroundSpeed,
+            Speedy,
+            s =>
+            {
+                StarsMenusSideBySide(s);
+                beforeClick(s);
+            }
+        );
 
     /// <summary>Shift held on a row inside the speed flyout, a submenu popup: the row stages its command and sends nothing.</summary>
     [AvaloniaFact]
@@ -2127,7 +2146,7 @@ public class ScopeFieldMenuTests
         }
     }
 
-    /// <summary>A menu-item row (not a flyout button) picked with Shift: the EuroScope runway field's 28L row stages.</summary>
+    /// <summary>A menu-item row picked with Shift: the EuroScope runway flyout's 28L row stages.</summary>
     [AvaloniaFact]
     public async Task EuroScopeRunwayRow_ShiftClick_StagesTheRunway_AndSendsNothing()
     {
@@ -2144,7 +2163,7 @@ public class ScopeFieldMenuTests
         try
         {
             string statusBefore = main.StatusText;
-            MenuItem row = Assert.Single(OpenEntry(view).Items.OfType<MenuItem>(), i => (i.Header as string) == "28L");
+            MenuItem row = EuroScopeRow(OpenEuroScopeMenu(view, "Runway — UAL238"), "28L");
 
             ClickInPopup(row, RawInputModifiers.Shift);
 
@@ -2291,5 +2310,1042 @@ public class ScopeFieldMenuTests
 
         (string callsign, string command, _) = Assert.Single(host.Sent);
         Assert.Equal(("UAL238", "RWY 28R"), (callsign, command));
+    }
+
+    // ---- The EuroScope tag's own flyouts (restored from the Radar view) ----
+
+    // The EuroScope flyout the click opened: an open context menu whose first row is its bold header.
+    private static ContextMenu OpenEuroScopeMenu(ScopeView view, string header)
+    {
+        ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
+        Assert.True(menu.IsOpen);
+        Assert.Equal(header, Assert.IsType<MenuItem>(menu.Items[0]).Header);
+        return menu;
+    }
+
+    private static List<string> EuroScopeHeaders(ContextMenu menu) => [.. menu.Items.OfType<MenuItem>().Select(i => i.Header as string ?? "")];
+
+    private static MenuItem EuroScopeRow(ContextMenu menu, string header) =>
+        Assert.Single(menu.Items.OfType<MenuItem>(), i => (i.Header as string) == header);
+
+    private static void Pick(MenuItem row)
+    {
+        row.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static List<string> SentCommands(RecordingMenuHost host) => [.. host.Sent.Select(s => $"{s.Callsign} {s.Command}")];
+
+    // Shows a EuroScope scope with UAL238 as setUp leaves it and runs the action as a field click does.
+    private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window)> OpenEuroScopeAsync(
+        ScopeFieldAction action,
+        Action<AircraftModel> setUp
+    )
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EuroScopeId);
+        await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        AddAt(main, view.Canvas, setUp);
+        view.OnFieldClicked("UAL238", action, default, KeyModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        return (main, scope, view, window);
+    }
+
+    private static List<string> ButtonLabels(Popup popup) =>
+        [.. Assert.IsAssignableFrom<Control>(popup.Child).GetLogicalDescendants().OfType<Button>().Select(b => b.Content as string ?? "")];
+
+    private static Button PopupButton(Popup popup, string label) =>
+        Assert.Single(Assert.IsAssignableFrom<Control>(popup.Child).GetLogicalDescendants().OfType<Button>(), b => (b.Content as string) == label);
+
+    [AvaloniaFact]
+    public async Task EuroScopeAltitudeClick_OpensTheEuroScopeAltitudeFlyout_FL400ToFL010_CappedAt280()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.EuroScopeId, ScopeFieldSlot.Altitude, _ => { }, _ => { });
+        try
+        {
+            ContextMenu menu = OpenEuroScopeMenu(view, "Altitude — UAL238");
+            List<string> rows = [.. EuroScopeHeaders(menu).Skip(1)];
+            Assert.Equal([.. Enumerable.Range(1, 40).Reverse().Select(fl => $"FL{fl * 10:D3}")], rows);
+            ScrollViewer scroller = menu.GetVisualDescendants().OfType<ScrollViewer>().First();
+            Assert.Equal(280.0, scroller.MaxHeight);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public void EuroScopeAltitudeFlyout_FL120AboveTheAircraft_SendsCm120_AndBelowItDm()
+    {
+        var host = new RecordingMenuHost("");
+        var ac = new AircraftModel { Callsign = "UAL238", Altitude = 5000 };
+        ContextMenu menu = EuroScopeAltitudeFlyout.Build(ac, host);
+
+        Pick(EuroScopeRow(menu, "FL120"));
+        Pick(EuroScopeRow(menu, "FL030"));
+
+        Assert.Equal(["UAL238 CM 120", "UAL238 DM 30"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeAltitudeRow_ShiftClick_StagesTheClimb_AndSendsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.EuroScopeId,
+            ScopeFieldSlot.Altitude,
+            _ => { },
+            _ => { }
+        );
+        try
+        {
+            string statusBefore = main.StatusText;
+            MenuItem row = EuroScopeRow(OpenEuroScopeMenu(view, "Altitude — UAL238"), "FL120");
+            row.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+
+            ClickInPopup(row, RawInputModifiers.Shift);
+
+            Assert.Equal("$ UAL238 CM 120", scope.EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeSpeedClick_OpensTheEuroScopeSpeedFlyout_AndARowSendsSpd()
+    {
+        (_, _, ScopeView view, Window window) = await OpenEuroScopeAsync(ScopeFieldAction.OpenSpeedMenu, _ => { });
+        try
+        {
+            List<string> headers = EuroScopeHeaders(OpenEuroScopeMenu(view, "Speed — UAL238"));
+            Assert.Equal("Resume Normal Speed (RNS)", headers[1]);
+            Assert.Equal([.. Enumerable.Range(8, 28).Reverse().Select(s => $"{s * 10:D3} kt")], headers.Skip(2).Take(28));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = EuroScopeSpeedFlyout.Build(new AircraftModel { Callsign = "UAL238", GroundSpeed = 250 }, host);
+        Pick(EuroScopeRow(menu, "250 kt"));
+        Pick(EuroScopeRow(menu, "Resume Normal Speed (RNS)"));
+        Assert.Equal(["UAL238 SPD 250", "UAL238 RNS"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeSquawkClick_OpensTheEuroScopeSquawkFlyout_AndItsFiveRowsSend()
+    {
+        (_, _, ScopeView view, Window window) = await OpenEuroScopeAsync(ScopeFieldAction.OpenSquawkMenu, _ => { });
+        try
+        {
+            OpenEuroScopeMenu(view, "Squawk — UAL238");
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = EuroScopeSquawkFlyout.Build(new AircraftModel { Callsign = "UAL238" }, host);
+        foreach (MenuItem row in menu.Items.OfType<MenuItem>().Where(i => i.IsEnabled))
+        {
+            Pick(row);
+        }
+
+        Assert.Equal(["UAL238 SN", "UAL238 SS", "UAL238 SQVFR", "UAL238 IDENT", "UAL238 RANDSQ"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeRunwayClick_OpensTheEuroScopeRunwayFlyout_AndClearSendsRwy()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.EuroScopeId,
+            ScopeFieldSlot.AssignedRunway,
+            ac =>
+            {
+                ac.Destination = "KSFO";
+                ac.AssignedRunway = "28R";
+            },
+            _ => { }
+        );
+        try
+        {
+            List<string> headers = EuroScopeHeaders(OpenEuroScopeMenu(view, "Runway — UAL238"));
+            Assert.Contains("Currently assigned: 28R", headers);
+            Assert.Contains("▶ 28R", headers);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        ContextMenu menu = EuroScopeRunwayFlyout.Build(new AircraftModel { Callsign = "UAL238" }, host);
+        Pick(EuroScopeRow(menu, "Clear assigned runway"));
+        Assert.Equal(["UAL238 RWY"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeScratchpadClick_OpensTheScratchpadPopup_WithItsPresets_AndASubmitSendsSp1()
+    {
+        (_, _, ScopeView view, Window window) = await OpenEuroScopeAsync(ScopeFieldAction.OpenScratchpadMenu, _ => { });
+        try
+        {
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+            Assert.True(popup.IsOpen);
+            Assert.Null(view.ActiveContextMenu);
+            List<string> labels = ButtonLabels(popup);
+            Assert.Equal(["CLEA", "NOTC", "ST-UP", "PUSH", "TAXI", "DEPA"], labels.Skip(2));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        var anchor = new Border();
+        Popup built = EuroScopeScratchpadFlyout.Build(anchor, new AircraftModel { Callsign = "UAL238" }, host, 1);
+        PopupButton(built, "PUSH").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["UAL238 SP1 PUSH"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeHandoffClick_ShowsAccept_OnlyWithAPendingHandoff_AndAcceptSends()
+    {
+        (_, _, ScopeView view, Window window) = await OpenEuroScopeAsync(ScopeFieldAction.OpenHandoffMenu, ac => ac.HandoffPeerSectorCode = "1C");
+        try
+        {
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+            Assert.True(popup.IsOpen);
+            Assert.Contains("Accept handoff", ButtonLabels(popup));
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        Popup none = EuroScopeHandoffFlyout.Build(new Border(), new AircraftModel { Callsign = "UAL238" }, new RecordingMenuHost(""));
+        Assert.DoesNotContain("Accept handoff", ButtonLabels(none));
+
+        var host = new RecordingMenuHost("");
+        Popup pending = EuroScopeHandoffFlyout.Build(new Border(), new AircraftModel { Callsign = "UAL238", HandoffPeerSectorCode = "1C" }, host);
+        PopupButton(pending, "Accept handoff").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["UAL238 ACCEPT"], SentCommands(host));
+    }
+
+    private static TextBox EntryBox(Popup popup) =>
+        Assert.Single(Assert.IsAssignableFrom<Control>(popup.Child).GetLogicalDescendants().OfType<TextBox>());
+
+    // Types the text in the open popup's box and presses Enter there, with the modifiers held.
+    private static void SubmitTyped(Popup popup, string text, RawInputModifiers modifiers)
+    {
+        TextBox box = EntryBox(popup);
+        box.Text = text;
+        Assert.True(box.Focus());
+        TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(box));
+        top.KeyPressQwerty(PhysicalKey.Enter, modifiers);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // Types the text in a built, unopened popup's box and raises Enter on it.
+    private static void SubmitUnopened(Popup popup, string text)
+    {
+        TextBox box = EntryBox(popup);
+        box.Text = text;
+        box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static string PopupTitle(Popup popup) =>
+        Assert.IsAssignableFrom<Control>(popup.Child).GetLogicalDescendants().OfType<TextBlock>().First().Text ?? "";
+
+    /// <summary>Esc in the open scratchpad box closes the popup and leaves the Scope's entry; Ctrl+M there arms nothing.</summary>
+    [AvaloniaFact]
+    public async Task EuroScopeScratchpadPopup_EscClosesIt_KeepingTheEntry_AndCtrlMInItsBoxArmsNothing()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await OpenEuroScopeAsync(ScopeFieldAction.OpenScratchpadMenu, _ => { });
+        try
+        {
+            scope.TypeEntryText("$ UAL238 FH 270");
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+            TextBox box = EntryBox(popup);
+            Assert.True(box.Focus());
+            TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(box));
+            ScopeEntryResponse? responseBefore = scope.EntryResponse;
+
+            top.KeyPressQwerty(PhysicalKey.M, RawInputModifiers.Control);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Same(responseBefore, scope.EntryResponse);
+            Assert.True(popup.IsOpen);
+
+            top.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(popup.IsOpen);
+            Assert.Null(view.ActiveEntryPopup);
+            Assert.Equal("$ UAL238 FH 270", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeScratchpadPreset_ShiftClick_StagesSp1_AndSendsNothing()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await OpenEuroScopeAsync(
+            ScopeFieldAction.OpenScratchpadMenu,
+            _ => { }
+        );
+        try
+        {
+            string statusBefore = main.StatusText;
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+
+            ClickInPopup(PopupButton(popup, "PUSH"), RawInputModifiers.Shift);
+
+            Assert.Equal("$ UAL238 SP1 PUSH", scope.EntryText);
+            Assert.Equal(statusBefore, main.StatusText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeScratchpad2Click_OpensScratchpad2_AndATypedSubmitSendsSp2()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.EuroScopeId,
+            ScopeFieldSlot.Scratchpad2,
+            ac => ac.Scratchpad2 = "XY",
+            _ => { }
+        );
+        try
+        {
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+            Assert.Equal("Scratchpad 2 — UAL238", PopupTitle(popup));
+
+            SubmitTyped(popup, "ABC", RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        SubmitUnopened(EuroScopeScratchpadFlyout.Build(new Border(), new AircraftModel { Callsign = "UAL238" }, host, 2), "ABC");
+        Assert.Equal(["UAL238 SP2 ABC"], SentCommands(host));
+    }
+
+    [AvaloniaFact]
+    public async Task EuroScopeHandoffPopup_ATypedSubmitSendsHo()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await OpenEuroScopeAsync(
+            ScopeFieldAction.OpenHandoffMenu,
+            _ => { }
+        );
+        try
+        {
+            Popup popup = Assert.IsType<Popup>(view.ActiveEntryPopup);
+            Assert.Equal("Handoff — UAL238", PopupTitle(popup));
+
+            SubmitTyped(popup, "1C", RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal("", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+
+        var host = new RecordingMenuHost("");
+        SubmitUnopened(EuroScopeHandoffFlyout.Build(new Border(), new AircraftModel { Callsign = "UAL238" }, host), "1C");
+        Assert.Equal(["UAL238 HO 1C"], SentCommands(host));
+    }
+
+    /// <summary>Mixed resolves each track to STARS or ERAM only, so its altitude click keeps today's surface.</summary>
+    [AvaloniaFact]
+    public async Task MixedAltitudeClick_OnAnUnownedTrack_OpensTheEramPopup_NotTheEuroScopeFlyout()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.MixedId, ScopeFieldSlot.EramAltitude, _ => { }, _ => { });
+        try
+        {
+            Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup);
+            Assert.Null(view.ActiveContextMenu);
+            Assert.Null(view.ActiveEntryPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAndStarsAltitudeClicks_StillOpenTodaysSurfaces()
+    {
+        (_, _, ScopeView eramView, Window eramWindow, _) = await ClickFieldAsync(
+            ScopeTemplates.EramId,
+            ScopeFieldSlot.EramAltitude,
+            _ => { },
+            _ => { }
+        );
+        try
+        {
+            Assert.IsType<ScopeDataAltitudePopup>(eramView.ActiveFieldPopup);
+            Assert.Null(eramView.ActiveEntryPopup);
+        }
+        finally
+        {
+            CloseWindow(eramWindow, eramView);
+        }
+
+        (_, _, ScopeView starsView, Window starsWindow, _) = await ClickFieldAsync(
+            ScopeTemplates.StarsId,
+            ScopeFieldSlot.Altitude,
+            _ => { },
+            StarsMenusSideBySide
+        );
+        try
+        {
+            Assert.Equal(MenuCatalog.Get(MenuIds.AltitudeMaintain).Label, OpenEntry(starsView).Header);
+        }
+        finally
+        {
+            CloseWindow(starsWindow, starsView);
+        }
+    }
+
+    // The ERAM field-menu style (Settings, Radar, "ERAM field menus"): Tabbed by default, the tabbed popup opening on the tab of
+    // the last command sent or staged from one; SideBySide is the two columns at once.
+
+    private static void Reopen(ScopeView view, ScopeFieldAction action)
+    {
+        view.ActiveFieldPopup?.Close();
+        Dispatcher.UIThread.RunJobs();
+        view.OnFieldClicked("UAL238", action, default, KeyModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void Settle(Window window)
+    {
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void ClickTab(Window window, ScopeDataPopupBase popup, ScopeFieldMenuMode mode)
+    {
+        ClickInPopup(Assert.IsAssignableFrom<Button>(popup.TabFor(mode)), RawInputModifiers.None);
+        Settle(window);
+        Assert.Equal(mode, popup.ShownTab);
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_Tabbed_OpensOnTheEramTab_WithNoSavedMode()
+    {
+        (MainViewModel main, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            Assert.Equal(ScopeFieldMenuStyle.Tabbed, main.Preferences.ScopeFieldMenuStyle);
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+
+            Assert.Equal(ScopeFieldMenuMode.Eram, popup.ShownTab);
+            Assert.True(popup.TabFor(ScopeFieldMenuMode.Eram)?.IsChecked);
+            Assert.False(popup.TabFor(ScopeFieldMenuMode.Pilot)?.IsChecked);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_APilotSend_ReopensOnPilot_AndAnEramRun_ReopensOnEram()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            ClickInPopup(PilotRowAbove(popup), RawInputModifiers.None);
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, main.Preferences.ScopeFieldMenuLastMode);
+            Reopen(view, ScopeFieldAction.OpenEramAltitudeMenu);
+            popup = OpenPopup(view);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, popup.ShownTab);
+
+            ClickTab(window, popup, ScopeFieldMenuMode.Eram);
+            ClickInPopup(popup.RowFor("Clear CERA"), RawInputModifiers.None);
+            await scope.LastEntryRun;
+
+            Assert.Single(sends);
+            Assert.Equal(ScopeFieldMenuMode.Eram, main.Preferences.ScopeFieldMenuLastMode);
+            Reopen(view, ScopeFieldAction.OpenEramAltitudeMenu);
+            Assert.Equal(ScopeFieldMenuMode.Eram, OpenPopup(view).ShownTab);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_AStagedPilotRow_IsRemembered()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            ClickInPopup(PilotRowAbove(popup), RawInputModifiers.Shift);
+
+            Assert.Matches(@"^\$ UAL238 CM \d+$", scope.EntryText);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, main.Preferences.ScopeFieldMenuLastMode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_SwitchingTabsWithoutSending_KeepsTheModeOnReopen()
+    {
+        (MainViewModel main, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            Assert.Equal(ScopeFieldMenuMode.Eram, main.Preferences.ScopeFieldMenuLastMode);
+            Reopen(view, ScopeFieldAction.OpenEramAltitudeMenu);
+            Assert.Equal(ScopeFieldMenuMode.Eram, OpenPopup(view).ShownTab);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_OpeningOnPilot_PutsTheFocusInThePopup_AndEscClosesIt()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(s =>
+            s.Main.Preferences.SetScopeFieldMenuLastMode(ScopeFieldMenuMode.Pilot)
+        );
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            Settle(window);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, popup.ShownTab);
+            Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+
+            Assert.True(content.IsKeyboardFocusWithin, "nothing in the popup has the focus");
+            TopLevel top = Assert.IsAssignableFrom<TopLevel>(TopLevel.GetTopLevel(content));
+            top.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(popup.IsOpen);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_SwitchingToPilot_TakesTheFocusOutOfTheAltitudeBox()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            Settle(window);
+            Assert.True(popup.AltitudeBox.IsFocused, "the altitude box does not open focused");
+
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            Assert.False(popup.AltitudeBox.IsFocused, "the hidden altitude box keeps the focus");
+            Assert.True(Assert.IsAssignableFrom<Control>(popup.Popup.Child).IsKeyboardFocusWithin, "nothing in the popup has the focus");
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudePopup_Tabbed_ShowsOneColumnAtATime_AtTheSameSizeOnBothTabs()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(_ => { });
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+            Settle(window);
+            Size onEram = content.Bounds.Size;
+            Assert.True(popup.RowFor("Clear CERA").IsEffectivelyEnabled);
+            Assert.False(PilotRowAbove(popup).IsEffectivelyEnabled);
+
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            Assert.True(onEram.Width > 0);
+            Assert.Equal(onEram, content.Bounds.Size);
+            Assert.False(popup.RowFor("Clear CERA").IsEffectivelyEnabled);
+            Assert.True(PilotRowAbove(popup).IsEffectivelyEnabled);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_SideBySide_OpensBothColumns_AndAPilotSendIsRemembered()
+    {
+        (MainViewModel main, _, ScopeView view, Window window, _) = await OpenEramAltitudeAsync(s =>
+            s.Main.Preferences.SetScopeFieldMenuStyle(ScopeFieldMenuStyle.SideBySide)
+        );
+        try
+        {
+            ScopeDataAltitudePopup popup = OpenPopup(view);
+            Settle(window);
+
+            Assert.Null(popup.ShownTab);
+            Assert.Null(popup.TabFor(ScopeFieldMenuMode.Pilot));
+            Assert.True(popup.RowFor("Clear CERA").IsEffectivelyEnabled);
+            Assert.True(PilotRowAbove(popup).IsEffectivelyEnabled);
+
+            ClickInPopup(PilotRowAbove(popup), RawInputModifiers.None);
+
+            Assert.Equal(ScopeFieldMenuMode.Pilot, main.Preferences.ScopeFieldMenuLastMode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // A PILOT send from the heading or speed popup: Fly present heading, or the 250-knot chip.
+    private static void SendPilotIn(ScopeDataHsfPopup popup)
+    {
+        Button button = (popup.HeadingPanel is { } heading) ? heading.PresentRow : Assert.IsType<SpeedFlyoutPanel>(popup.SpeedPanel).KnotChip(250);
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(ScopeFieldAction.OpenEramHeadingMenu)]
+    [InlineData(ScopeFieldAction.OpenEramSpeedMenu)]
+    public async Task EramHsfPopup_Tabbed_OpensOnEram_KeepsItsSize_AndReopensOnTheTabOfTheLastSend(ScopeFieldAction action)
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(
+            action,
+            ac =>
+            {
+                WithHsf(ac);
+                Speedy(ac);
+            }
+        );
+        try
+        {
+            ScopeDataHsfPopup popup = OpenHsf(view);
+            Assert.Equal(ScopeFieldMenuMode.Eram, popup.ShownTab);
+            Control content = Assert.IsAssignableFrom<Control>(popup.Popup.Child);
+            Settle(window);
+            Size onEram = content.Bounds.Size;
+
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            Assert.Equal(onEram, content.Bounds.Size);
+            Assert.Equal(ScopeFieldMenuMode.Eram, scope.Main.Preferences.ScopeFieldMenuLastMode);
+            Reopen(view, action);
+            popup = OpenHsf(view);
+            Assert.Equal(ScopeFieldMenuMode.Eram, popup.ShownTab);
+            ClickTab(window, popup, ScopeFieldMenuMode.Pilot);
+
+            SendPilotIn(popup);
+
+            Assert.Equal(ScopeFieldMenuMode.Pilot, scope.Main.Preferences.ScopeFieldMenuLastMode);
+            Reopen(view, action);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, OpenHsf(view).ShownTab);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(ScopeFieldAction.OpenEramHeadingMenu)]
+    [InlineData(ScopeFieldAction.OpenEramSpeedMenu)]
+    public async Task EramHsfPopup_SideBySide_OpensBothColumns(ScopeFieldAction action)
+    {
+        // Saved before the scope's MainViewModel loads the preferences file.
+        new UserPreferences().SetScopeFieldMenuStyle(ScopeFieldMenuStyle.SideBySide);
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(action, WithHsf);
+        try
+        {
+            Assert.Equal(ScopeFieldMenuStyle.SideBySide, scope.Main.Preferences.ScopeFieldMenuStyle);
+            Assert.Null(OpenHsf(view).ShownTab);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The Simple style: CRC's FDB menus with the ERAM | PILOT chip. On ERAM a pick runs the scope-data entry CRC's menu makes,
+    // on PILOT it sends the matching pilot command; Shift stages either; a send or stage remembers its mode.
+
+    private static void Simple(ScopeViewModel scope) => scope.Main.Preferences.SetScopeFieldMenuStyle(ScopeFieldMenuStyle.Simple);
+
+    private static void SimpleOnPilot(ScopeViewModel scope)
+    {
+        Simple(scope);
+        scope.Main.Preferences.SetScopeFieldMenuLastMode(ScopeFieldMenuMode.Pilot);
+    }
+
+    private static TMenu OpenCrc<TMenu>(ScopeView view)
+        where TMenu : CrcFdbMenu
+    {
+        CrcMenuPopup popup = Assert.IsType<CrcMenuPopup>(view.ActiveFieldPopup);
+        Assert.True(popup.IsOpen);
+        return Assert.IsType<TMenu>(popup.Menu);
+    }
+
+    private static void Cruising(AircraftModel ac) => ac.CruiseAltitude = 35000;
+
+    private static Task<(MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window, AircraftModel Aircraft)> OpenCrcAltitudeAsync(
+        Action<ScopeViewModel> beforeClick
+    ) => ClickFieldAsync(ScopeTemplates.EramId, ScopeFieldSlot.EramAltitude, Cruising, beforeClick);
+
+    [AvaloniaFact]
+    public async Task EramAltitudeClick_Simple_OpensTheCrcMenu_WithTheChipOnTheRememberedMode()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(SimpleOnPilot);
+        try
+        {
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+
+            Assert.True(menu.ShowModeChip);
+            Assert.Equal(CrcMenuMode.Pilot, menu.Mode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_OnEram_AListPick_RunsQz_AndRemembersEram()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(SimpleOnPilot);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+            CrcMenuHarness.Click(window, menu, "ERAM");
+            Assert.Equal(ScopeFieldMenuMode.Pilot, main.Preferences.ScopeFieldMenuLastMode);
+
+            CrcMenuHarness.Click(window, menu, "350");
+            await scope.LastEntryRun;
+
+            Assert.Equal(["QZ", "350", "UAL238"], Assert.Single(sends).Tokens);
+            Assert.Equal(ScopeFieldMenuMode.Eram, main.Preferences.ScopeFieldMenuLastMode);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_OnEram_AShiftPick_StagesTheEntry()
+    {
+        (_, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+
+            CrcMenuHarness.Click(window, OpenCrc<CrcAltitudeMenu>(view), "350", shift: true);
+
+            Assert.Equal("QZ 350 UAL238", scope.EntryText);
+            Assert.Empty(sends);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_OnPilot_APick_SendsTheClimb_AndAShiftPickStagesIt()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+            CrcMenuHarness.Click(window, menu, "PILOT");
+
+            CrcMenuHarness.Click(window, menu, "350");
+
+            Assert.Equal(NotConnected, main.StatusText);
+            Assert.Null(view.ActiveFieldPopup);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, main.Preferences.ScopeFieldMenuLastMode);
+
+            Reopen(view, ScopeFieldAction.OpenEramAltitudeMenu);
+            menu = OpenCrc<CrcAltitudeMenu>(view);
+            Assert.Equal(CrcMenuMode.Pilot, menu.Mode);
+            CrcMenuHarness.Click(window, menu, "340", shift: true);
+
+            Assert.Equal("$ UAL238 CM 34000", scope.EntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_Esc_ClosesIt()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            OpenCrc<CrcAltitudeMenu>(view);
+
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    private static void HeadingAssigned(AircraftModel ac) => ac.EramAssignedHeading = "H270";
+
+    [AvaloniaFact]
+    public async Task CrcHeadingMenu_OnEram_APick_RunsQsH_AndOnPilot_AShiftPickStagesFh()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenCrcHsfAsync(ScopeFieldAction.OpenEramHeadingMenu, HeadingAssigned);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            CrcMenuHarness.Click(window, OpenCrc<CrcHeadingMenu>(view), "H270");
+            await scope.LastEntryRun;
+            Assert.Equal("QS H270 UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+
+            Reopen(view, ScopeFieldAction.OpenEramHeadingMenu);
+            CrcHeadingMenu menu = OpenCrc<CrcHeadingMenu>(view);
+            CrcMenuHarness.Click(window, menu, "PILOT");
+            CrcMenuHarness.Click(window, menu, "H270", shift: true);
+
+            Assert.Equal("$ UAL238 FH 270", scope.EntryText);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, scope.Main.Preferences.ScopeFieldMenuLastMode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    private static void SpeedAssigned(AircraftModel ac)
+    {
+        ac.CruiseAltitude = 10000;
+        ac.EramAssignedSpeed = "250";
+    }
+
+    [AvaloniaFact]
+    public async Task CrcSpeedMenu_OnEram_APick_RunsQsS_AndOnPilot_AShiftPickStagesSpd()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenCrcHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, SpeedAssigned);
+        try
+        {
+            List<ScopeEramEntryDto> sends = CaptureEram(scope);
+            CrcMenuHarness.Click(window, OpenCrc<CrcSpeedMenu>(view), "250");
+            await scope.LastEntryRun;
+            Assert.Equal("QS /S250 UAL238", string.Join(' ', Assert.Single(sends).Tokens));
+
+            Reopen(view, ScopeFieldAction.OpenEramSpeedMenu);
+            CrcSpeedMenu menu = OpenCrc<CrcSpeedMenu>(view);
+            CrcMenuHarness.Click(window, menu, "PILOT");
+            CrcMenuHarness.Click(window, menu, "250", shift: true);
+
+            Assert.Equal("$ UAL238 SPD 250", scope.EntryText);
+            Assert.Equal(ScopeFieldMenuMode.Pilot, scope.Main.Preferences.ScopeFieldMenuLastMode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The ERAM scope in the Simple style with UAL238 at (300, 300) as setUp leaves it, the field of the action clicked.
+    private static async Task<(ScopeViewModel Scope, ScopeView View, Window Window)> OpenCrcHsfAsync(
+        ScopeFieldAction action,
+        Action<AircraftModel> setUp
+    )
+    {
+        new UserPreferences().SetScopeFieldMenuStyle(ScopeFieldMenuStyle.Simple);
+        (ScopeViewModel scope, ScopeView view, Window window) = await OpenHsfAsync(action, setUp);
+        Settle(window);
+        return (scope, view, window);
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_OnPilot_APickWithNoPilotCommand_KeepsTheMenuOpen_AndTheMode()
+    {
+        (MainViewModel main, _, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.EramId,
+            ScopeFieldSlot.EramAltitude,
+            ac =>
+            {
+                Cruising(ac);
+                ac.EramInterimAltitude = 240;
+            },
+            Simple
+        );
+        try
+        {
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+            CrcMenuHarness.Click(window, menu, "PILOT");
+
+            CrcMenuHarness.Click(window, menu, "FP 350");
+
+            Assert.Same(menu, OpenCrc<CrcAltitudeMenu>(view));
+            Assert.Equal(ScopeFieldMenuMode.Eram, main.Preferences.ScopeFieldMenuLastMode);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_TheXCell_ClosesIt()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            CrcMenuHarness.Click(window, OpenCrc<CrcAltitudeMenu>(view), "X");
+
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_AClickOutside_ClosesIt()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            CrcMenuPopup popup = Assert.IsType<CrcMenuPopup>(view.ActiveFieldPopup);
+
+            ClickAt(window, view.Canvas, new Point(40, 40));
+
+            Assert.False(popup.IsOpen);
+            Assert.Null(view.ActiveFieldPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    // The menu's left edge at the block's right, its list's middle level with the middle of FDB line `line`.
+    private static void AssertBesideTheBlock(ScopeView view, Window window, CrcFdbMenu menu, int line)
+    {
+        Settle(window);
+        Rect block = Assert.IsType<Rect>(view.Canvas.BlockBoundsOf("UAL238"));
+        double lineMiddle = Assert.IsType<double>(view.Canvas.FdbLineMiddleY("UAL238", line));
+        Point topLeft = Assert.IsType<Point>(menu.TranslatePoint(default, view.Canvas));
+
+        Assert.InRange(topLeft.X, block.Right - 1, block.Right + 1);
+        Assert.InRange(topLeft.Y + menu.ListMiddleY, lineMiddle - 1, lineMiddle + 1);
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_OpensRightOfTheBlock_ItsListLevelWithLine2()
+    {
+        (_, _, ScopeView view, Window window, _) = await OpenCrcAltitudeAsync(Simple);
+        try
+        {
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+            Assert.Equal(2, menu.FdbAlignLine);
+
+            AssertBesideTheBlock(view, window, menu, 2);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcSpeedMenu_OpensRightOfTheBlock_ItsListLevelWithLine4()
+    {
+        (_, ScopeView view, Window window) = await OpenCrcHsfAsync(ScopeFieldAction.OpenEramSpeedMenu, SpeedAssigned);
+        try
+        {
+            CrcSpeedMenu menu = OpenCrc<CrcSpeedMenu>(view);
+            Assert.Equal(4, menu.FdbAlignLine);
+
+            AssertBesideTheBlock(view, window, menu, 4);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CrcAltitudeMenu_NearTheRightEdge_OpensLeftOfTheBlock()
+    {
+        new UserPreferences().SetScopeFieldMenuStyle(ScopeFieldMenuStyle.Simple);
+        (MainViewModel main, _, ScopeView view, Window window) = await ShowScope(ScopeTemplates.EramId);
+        try
+        {
+            AddAt(main, view.Canvas, Cruising, new Point(700, 300));
+            view.OnFieldClicked("UAL238", ScopeFieldAction.OpenEramAltitudeMenu, default, KeyModifiers.None);
+            Settle(window);
+            CrcAltitudeMenu menu = OpenCrc<CrcAltitudeMenu>(view);
+            Rect block = Assert.IsType<Rect>(view.Canvas.BlockBoundsOf("UAL238"));
+            Point topLeft = Assert.IsType<Point>(menu.TranslatePoint(default, view.Canvas));
+
+            Assert.InRange(topLeft.X + menu.MenuWidth, block.Left - 1, block.Left + 1);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
     }
 }

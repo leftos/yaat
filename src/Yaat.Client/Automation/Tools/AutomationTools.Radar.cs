@@ -16,7 +16,7 @@ public sealed partial class AutomationTools
     private const double MaxRangeNm = ScopeViewModel.MaxRangeNm;
 
     /// <summary>The vector lengths <c>set_ptl</c> and <c>prepare_take</c> take, as the Scope's VECTOR spinner offers them.</summary>
-    private const string VectorMinutesText = "0, 1, 2, 4 or 8";
+    private const string VectorMinutesText = "0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8";
 
     private static readonly JsonSerializerOptions FramingJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -96,7 +96,7 @@ public sealed partial class AutomationTools
         nameof(ScopeNotReady)
     )]
     public Task<AppToolOutcome> SetPtl(
-        [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double lengthMinutes,
+        [Description("The vector length in minutes: 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8; 0 draws no vector line.")] double lengthMinutes,
         [Description("True to draw vectors on all tracks (ALL), false on the viewer's own tracks only (OWN).")] bool all
     )
     {

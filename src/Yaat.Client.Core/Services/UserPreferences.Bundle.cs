@@ -33,6 +33,8 @@ public sealed partial class UserPreferences
         ("departureAutoDeleteDistanceNm", OptionalDoubleRange(1, 500)),
         ("validateDctFixes", Flag),
         ("euroScopeMode", Flag),
+        ("scopeFieldMenuStyle", EnumName<ScopeFieldMenuStyle>()),
+        ("scopeStarsFieldMenus", Flag),
         ("vfrCommandsForIfr", EnumName<VfrCommandsForIfr>()),
         ("showQuickCommandIcons", Flag),
         ("soloTrainingMode", Flag),
@@ -84,6 +86,7 @@ public sealed partial class UserPreferences
         ("unassignedTintColor", Color),
         ("selectedColor", Color),
         ("radarDatablockFontSize", IntRange(8, 24)),
+        ("radarFlyoutFontSize", IntRange(8, 24)),
         ("groundDatablockFontSize", IntRange(8, 24)),
         ("groundLabelFontSize", IntRange(8, 24)),
         ("dataGridFontSize", IntRange(8, 24)),
@@ -253,6 +256,7 @@ public sealed partial class UserPreferences
         ["vStripsSplitMode"] = "a Strips view split, not a Settings section field",
         ["vStripsSplitRatio"] = "a Strips view split, not a Settings section field",
         ["terminalSplitRatio"] = "a window split, carried by layouts",
+        ["scopeFieldMenuLastMode"] = "the tab the ERAM field menus last sent from, not a Settings section field",
         ["preferencesVersion"] = "file bookkeeping",
     };
 

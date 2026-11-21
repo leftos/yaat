@@ -326,6 +326,103 @@ public class ScopeRadarSettingsMigrationTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task OldPtlOwnOn_CarriesItsHalfMinuteLengthAndOwn()
+    {
+        WritePreferences(
+            (
+                "S1",
+                new JsonObject
+                {
+                    ["rangeNm"] = 55,
+                    ["ptlLengthMinutes"] = 0.5,
+                    ["ptlOwn"] = true,
+                    ["ptlAll"] = false,
+                }
+            )
+        );
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
+        try
+        {
+            MainViewModel vm = await ScopeTestFixture.MainAsync();
+            vm.ApplyScenarioBootstrap(Bootstrap("S1", Config(Sector44)));
+
+            ScopePrefSet state = SavedState(root)!;
+            Assert.Equal(0.5, state.PinVectorMin);
+            Assert.Equal("own", state.VectorOwnership);
+            Assert.Equal(0.5, vm.PrimaryScope.Pins.VectorMin);
+        }
+        finally
+        {
+            ScopeStoreFixture.DeleteStoreRoot(root);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OldPtlAllOn_CarriesItsLengthAndAll()
+    {
+        WritePreferences(
+            (
+                "S1",
+                new JsonObject
+                {
+                    ["rangeNm"] = 55,
+                    ["ptlLengthMinutes"] = 2.5,
+                    ["ptlOwn"] = false,
+                    ["ptlAll"] = true,
+                }
+            )
+        );
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
+        try
+        {
+            MainViewModel vm = await ScopeTestFixture.MainAsync();
+            vm.ApplyScenarioBootstrap(Bootstrap("S1", Config(Sector44)));
+
+            ScopePrefSet state = SavedState(root)!;
+            Assert.Equal(2.5, state.PinVectorMin);
+            Assert.Equal("all", state.VectorOwnership);
+        }
+        finally
+        {
+            ScopeStoreFixture.DeleteStoreRoot(root);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OldPtlOff_LeavesTheCapturedPinAndOwn()
+    {
+        WritePreferences(
+            (
+                "S1",
+                new JsonObject
+                {
+                    ["rangeNm"] = 55,
+                    ["ptlLengthMinutes"] = 1.5,
+                    ["ptlOwn"] = false,
+                    ["ptlAll"] = false,
+                }
+            )
+        );
+        string root = ScopeStoreFixture.NewStoreRoot();
+        using IDisposable store = ScopeStoreFixture.UseStore(root);
+        try
+        {
+            MainViewModel vm = await ScopeTestFixture.MainAsync();
+            vm.ApplyScenarioBootstrap(Bootstrap("S1", Config(Sector44)));
+
+            ScopePrefSet state = SavedState(root)!;
+            Assert.Null(state.PinVectorMin);
+            Assert.Equal("own", state.VectorOwnership);
+        }
+        finally
+        {
+            ScopeStoreFixture.DeleteStoreRoot(root);
+        }
+    }
+
     private static ActivePositionDto Position(string facilityId = "ZOA", string? trackFacilityId = null) =>
         Sector44 with
         {

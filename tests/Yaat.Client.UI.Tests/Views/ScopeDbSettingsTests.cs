@@ -218,6 +218,7 @@ public class ScopeDbSettingsTests
     private static FontSizePrefs Sizes(UserPreferences prefs, int radarDatablock) =>
         new(
             radarDatablock,
+            prefs.RadarFlyoutFontSize,
             prefs.GroundDatablockFontSize,
             prefs.GroundLabelFontSize,
             prefs.DataGridFontSize,

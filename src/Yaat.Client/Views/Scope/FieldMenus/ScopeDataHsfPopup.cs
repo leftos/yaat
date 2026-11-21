@@ -57,11 +57,10 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
 
     /// <param name="aircraft">The clicked track, whose callsign every entry names last and whose HSF values the boxes open with.</param>
     /// <param name="host">The host the PILOT panels send through and follow the clock of.</param>
-    /// <param name="recordShift">Told whether Shift is held at each press, release and key press inside the popup.</param>
-    /// <param name="pick">Runs a SCOPE DATA row's entry, or stages it while Shift is held.</param>
+    /// <param name="hooks">Shift, the SCOPE DATA pick, the column each send came from, and whether the popup is tabbed.</param>
     /// <param name="kind">Which sections and PILOT panels the popup holds.</param>
-    public ScopeDataHsfPopup(AircraftModel aircraft, IMenuHost host, Action<bool> recordShift, Action<string> pick, HsfPopupKind kind)
-        : base(aircraft.Callsign, pick)
+    public ScopeDataHsfPopup(AircraftModel aircraft, IMenuHost host, ScopeDataPopupHooks hooks, HsfPopupKind kind)
+        : base(aircraft.Callsign, hooks)
     {
         _aircraft = aircraft;
         Kind = kind;
@@ -77,7 +76,7 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
         Control[] pilot = sections.PilotPanels();
         Control content =
             (pilot.Length == 0) ? SingleColumnPanel(column) : Panel(column, PilotColumn(pilot), scrollPilot: kind == HsfPopupKind.Combined);
-        Attach(content, recordShift, host, [.. pilot.OfType<IFlyoutPanel>()]);
+        Attach(content, hooks.RecordShift, host, [.. pilot.OfType<IFlyoutPanel>()]);
     }
 
     // The boxes and PILOT panels of a kind: heading for Heading and Combined, speed for Speed and Combined, free text alone.
@@ -140,6 +139,9 @@ internal sealed class ScopeDataHsfPopup : ScopeDataPopupBase
 
     // The box opens with its stored value selected, so typing replaces it.
     protected override void AfterFocus() => _focusBox.SelectAll();
+
+    // The PILOT tab focuses the Fly heading panel's box, or the Assign speed panel's.
+    protected override Control? PilotFocus => (Control?)HeadingPanel?.Box ?? SpeedPanel?.Box;
 
     // What the free-text box keeps of what it is given: the characters QS free text accepts, upper-cased, the first eight.
     private static string FreeTextAccepted(string typed) =>

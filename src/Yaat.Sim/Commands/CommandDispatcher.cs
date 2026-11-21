@@ -1646,7 +1646,7 @@ public static class CommandDispatcher
             case FrequencyChangeApprovedCommand:
                 return ContactCommandHandler.HandleFrequencyChangeApproved(aircraft, ctx);
             case ClearedBravoAirspaceCommand:
-                aircraft.IsClearedIntoBravo = true;
+                ImplicitBravoClearance.GrantExplicit(aircraft, Data.Airspace.AirspaceDatabase.Default);
                 return Ok("Cleared into Bravo airspace");
             case AcknowledgePilotContactCommand:
                 aircraft.HasControllerAcknowledgedInitialContact = true;

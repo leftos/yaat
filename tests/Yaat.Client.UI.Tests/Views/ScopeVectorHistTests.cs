@@ -12,13 +12,13 @@ using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// VECTOR and HIST: band values until a hand change pins them, AUTO clearing both; VECTOR steps 0, 1, 2, 4 and 8 minutes
-/// and HIST 0 to 10 dots; a VECTOR click flips OWN and ALL, a setting that never pins; pref sets and the saved state keep
-/// OWN or ALL and the two pins.
+/// VECTOR and HIST: band values until a hand change pins them, AUTO clearing both; VECTOR steps 0, 0.5, 1, 1.5, 2, 2.5,
+/// 3, 4 and 8 minutes and HIST 0 to 10 dots; a VECTOR click flips OWN and ALL, a setting that never pins; pref sets and the
+/// saved state keep OWN or ALL and the two pins.
 /// </summary>
 public class ScopeVectorHistTests : IDisposable
 {
-    private const string VectorUsage = "Usage: .scope vector <0|1|2|4|8> | .scope vector <own|all>";
+    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
 
     private const string HistUsage = "Usage: .scope hist <0-10>";
 
@@ -64,42 +64,61 @@ public class ScopeVectorHistTests : IDisposable
     private ScopePrefSetStore Store() => new(_root, AppLog.CreateLogger<ScopePrefSetStore>());
 
     [AvaloniaFact]
-    public async Task VectorSpinner_StepsThe_0_1_2_4_8_Grid_AndStopsAtItsEnds()
+    public async Task VectorSpinner_StepsThe_CrcGrid_AndStopsAtItsEnds()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
             Assert.Equal(1, scope.EffectiveBand.VectorMin);
 
-            scope.StepSpinner(ScopeButtonId.Vector, 1);
-            Assert.Equal(2, scope.EffectiveBand.VectorMin);
-            Assert.Equal("Radar vector 2 MIN (pinned)", main.StatusText);
-            scope.StepSpinner(ScopeButtonId.Vector, 1);
-            Assert.Equal(4, scope.EffectiveBand.VectorMin);
-            scope.StepSpinner(ScopeButtonId.Vector, 1);
-            Assert.Equal(8, scope.EffectiveBand.VectorMin);
-
-            main.StatusText = "";
-            scope.StepSpinner(ScopeButtonId.Vector, 1);
-            Assert.Equal(8, scope.EffectiveBand.VectorMin);
-            Assert.Equal("", main.StatusText);
-
-            scope.StepSpinner(ScopeButtonId.Vector, -2);
-            Assert.Equal(2, scope.EffectiveBand.VectorMin);
-            scope.StepSpinner(ScopeButtonId.Vector, -5);
+            scope.StepSpinner(ScopeButtonId.Vector, -1);
+            Assert.Equal(0.5, scope.EffectiveBand.VectorMin);
+            Assert.Equal("Radar vector 0.5 MIN (pinned)", main.StatusText);
+            scope.StepSpinner(ScopeButtonId.Vector, -1);
             Assert.Equal(0, scope.EffectiveBand.VectorMin);
-            Assert.Equal("Radar vector 0 MIN (pinned)", main.StatusText);
 
             main.StatusText = "";
             scope.StepSpinner(ScopeButtonId.Vector, -1);
             Assert.Equal(0, scope.EffectiveBand.VectorMin);
             Assert.Equal("", main.StatusText);
+
+            foreach (double minutes in new[] { 0.5, 1, 1.5, 2, 2.5, 3, 4, 8 })
+            {
+                scope.StepSpinner(ScopeButtonId.Vector, 1);
+                Assert.Equal(minutes, scope.EffectiveBand.VectorMin);
+            }
+
+            main.StatusText = "";
+            scope.StepSpinner(ScopeButtonId.Vector, 1);
+            Assert.Equal(8, scope.EffectiveBand.VectorMin);
+            Assert.Equal("", main.StatusText);
+
+            foreach (double minutes in new[] { 4, 3, 2.5, 2, 1.5, 1, 0.5, 0 })
+            {
+                scope.StepSpinner(ScopeButtonId.Vector, -1);
+                Assert.Equal(minutes, scope.EffectiveBand.VectorMin);
+            }
         }
         finally
         {
             scope.Dispose();
         }
     }
+
+    [Theory]
+    [InlineData(0.0, 1, 0.5)]
+    [InlineData(0.5, 1, 1.0)]
+    [InlineData(3.0, 1, 4.0)]
+    [InlineData(4.0, 1, 8.0)]
+    [InlineData(8.0, 1, 8.0)]
+    [InlineData(0.5, -1, 0.0)]
+    [InlineData(4.0, -1, 3.0)]
+    [InlineData(0.0, -1, 0.0)]
+    [InlineData(0.7, 1, 1.0)]
+    [InlineData(0.7, -1, 0.5)]
+    [InlineData(1.0, 3, 2.5)]
+    public void SteppedVectorMinutes_StepsAlongTheCrcGrid(double current, int steps, double expected) =>
+        Assert.Equal(expected, ScopeViewModel.SteppedVectorMinutes(current, steps));
 
     [AvaloniaFact]
     public async Task HistSpinner_StepsByOne_AndStopsAt0And10()
@@ -256,10 +275,10 @@ public class ScopeVectorHistTests : IDisposable
     }
 
     [AvaloniaTheory]
-    [InlineData(".scope vector 3")]
+    [InlineData(".scope vector 0.6")]
     [InlineData(".scope vector 9")]
     [InlineData(".scope vector -1")]
-    [InlineData(".scope vector 0.5")]
+    [InlineData(".scope vector 3.5")]
     [InlineData(".scope vector x")]
     [InlineData(".scope vector")]
     [InlineData(".scope vector 1 2")]
@@ -323,8 +342,8 @@ public class ScopeVectorHistTests : IDisposable
     [AvaloniaTheory]
     [InlineData(9.0)]
     [InlineData(-1.0)]
-    [InlineData(3.0)]
-    [InlineData(0.5)]
+    [InlineData(3.5)]
+    [InlineData(0.6)]
     [InlineData(double.NaN)]
     public async Task PrefSet_VectorMinOffTheGrid_KeepsTheCurrentPin(double minutes)
     {
@@ -345,6 +364,8 @@ public class ScopeVectorHistTests : IDisposable
 
     [AvaloniaTheory]
     [InlineData(0.0)]
+    [InlineData(0.5)]
+    [InlineData(1.5)]
     [InlineData(8.0)]
     public async Task PrefSet_VectorMinOnTheGrid_IsPinned(double minutes)
     {
@@ -389,7 +410,7 @@ public class ScopeVectorHistTests : IDisposable
         (_, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => scope.PinVectorMin(3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => scope.PinVectorMin(5));
             Assert.Throws<ArgumentOutOfRangeException>(() => scope.PinHistory(11));
             Assert.Equal(ScopeBandPins.None, scope.Pins);
         }

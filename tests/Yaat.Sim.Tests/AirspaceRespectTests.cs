@@ -222,7 +222,7 @@ public sealed class AirspaceRespectTests
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, TestDispatch.Context(Random.Shared, soloTrainingMode: true));
 
         Assert.True(result.Success);
-        Assert.True(ac.IsClearedIntoBravo);
+        Assert.Equal("SFO", ac.ClearedBravoIdent);
     }
 
     [Theory]
