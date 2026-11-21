@@ -6,6 +6,10 @@
 
 - [?] YAAT-2600 vStrips: SEP rack-out-of-range error reports the 0-based internal rack, not the 1-based rack the user typed (StripCommandHandler.HandleSeparatorCreate)
 
+## Do first
+
+- [ ] YAAT-2660 Flaky: GroundMeasureOwnershipTests.GroundEsc_WithAGroundAnchor_CancelsIt failed once under full test-all — Urgent · No project
+
 ## YAATEdit in YAAT
 
 ### M1 Scenario editor (0/8 done)
@@ -1689,7 +1693,6 @@
 
 ## No project
 
-- [/] YAAT-2630 Scope STARS entries match CRC's grammar (*T, RANGE, HND, MF, bare digits, errors)
 - [ ] YAAT-2631 Scope STARS display-only entries CRC accepts
   - [ ] YAAT-2632 Scope STARS: MF D: flight-plan digest, slewed coordinates, consolidation display
   - [ ] YAAT-2636 Scope STARS: MF E: toggle FDBs for overflights
@@ -1719,6 +1722,7 @@
 - [ ] YAAT-2657 PAUSE typed with no server connection throws instead of reporting to the command line
 - [ ] YAAT-2658 Scope STARS *J/*P removal and MIN leftovers answer with CRC categories
 - [ ] YAAT-2659 Scope home centre follows CRC's order: area visibility centre, then tower-list airport
+- [ ] YAAT-2661 Scope wheel zoom-out stores a range past 256 NM
 
 ## Design files
 
