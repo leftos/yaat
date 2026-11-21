@@ -37,13 +37,16 @@ public static partial class ContextDecoder
         }
 
         DecodeResult chosen = ChooseHypothesis(input.Hypotheses, outcomes, settings);
-        Log.LogDebug(
-            "Decoded hypothesis {Index}: {State}, callsign {Callsign}, joint score {Joint}",
-            chosen.HypothesisIndex,
-            chosen.State,
-            chosen.Callsign?.Entity.Value,
-            chosen.JointScore
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Decoded hypothesis {Index}: {State}, callsign {Callsign}, joint score {Joint}",
+                chosen.HypothesisIndex,
+                chosen.State,
+                chosen.Callsign?.Entity.Value,
+                chosen.JointScore
+            );
+        }
         return chosen;
     }
 

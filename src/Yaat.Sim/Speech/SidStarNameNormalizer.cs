@@ -63,7 +63,14 @@ public static class SidStarNameNormalizer
         {
             if (TryCollapseAt(tokens, i, procedures, out string? canonical, out int consumed))
             {
-                Log.LogDebug("[Speech] SidStarCollapse: \"{Spoken}\" → \"{Canonical}\"", string.Join(' ', tokens.GetRange(i, consumed)), canonical);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[Speech] SidStarCollapse: \"{Spoken}\" → \"{Canonical}\"",
+                        string.Join(' ', tokens.GetRange(i, consumed)),
+                        canonical
+                    );
+                }
                 output.Add(canonical);
                 i += consumed;
                 continue;

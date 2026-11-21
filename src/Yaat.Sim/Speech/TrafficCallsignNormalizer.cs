@@ -72,19 +72,35 @@ public static class TrafficCallsignNormalizer
             // check against, so the parse stands.
             if ((activeCallsigns.Count > 0) && !activeCallsigns.Contains(parsed.IcaoCallsign, StringComparer.OrdinalIgnoreCase))
             {
-                Log.LogDebug("[Speech] TrafficCallsign: {Icao} is not on frequency, tokens left as spoken", parsed.IcaoCallsign);
+                LogNotOnFrequency(parsed.IcaoCallsign);
                 continue;
             }
 
+            LogCollapsed(tokens, callsignStart, parsed);
+            result.Add(parsed.IcaoCallsign);
+            i = callsignStart + parsed.TokensConsumed;
+        }
+        return result;
+    }
+
+    private static void LogNotOnFrequency(string icao)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Speech] TrafficCallsign: {Icao} is not on frequency, tokens left as spoken", icao);
+        }
+    }
+
+    private static void LogCollapsed(List<string> tokens, int callsignStart, CallsignParser.ParsedCallsign parsed)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
             Log.LogDebug(
                 "[Speech] TrafficCallsign: \"{Spoken}\" → {Icao}",
                 string.Join(' ', tokens.GetRange(callsignStart, parsed.TokensConsumed)),
                 parsed.IcaoCallsign
             );
-            result.Add(parsed.IcaoCallsign);
-            i = callsignStart + parsed.TokensConsumed;
         }
-        return result;
     }
 
     /// <summary>

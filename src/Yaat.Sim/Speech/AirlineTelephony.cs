@@ -113,11 +113,14 @@ public static class AirlineTelephony
             icaos.Add(icao);
         }
 
-        Log.LogInformation(
-            "Loaded {IcaoCount} airline ICAOs covering {TelephonyCount} distinct telephonies",
-            icaoToTelephony.Count,
-            telephonyToIcaos.Count
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "Loaded {IcaoCount} airline ICAOs covering {TelephonyCount} distinct telephonies",
+                icaoToTelephony.Count,
+                telephonyToIcaos.Count
+            );
+        }
 
         var frozenTelephony = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (KeyValuePair<string, List<string>> kvp in telephonyToIcaos)

@@ -159,7 +159,7 @@ public static class PhraseologyMapper
 
         // Step 1: normalize spoken numbers to digits.
         string normalized = AtcNumberParser.NormalizeDigits(transcript);
-        if (!string.Equals(normalized, transcript, StringComparison.Ordinal))
+        if (!string.Equals(normalized, transcript, StringComparison.Ordinal) && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("[Speech] NumberNormalize: \"{Before}\" → \"{After}\"", transcript, normalized);
         }
@@ -172,14 +172,17 @@ public static class PhraseologyMapper
         var strippedFillers = tokens.Where(t => FillerWords.Contains(t)).ToList();
         if (strippedFillers.Count > 0)
         {
-            Log.LogDebug("[Speech] FillerStrip: removed [{Fillers}]", string.Join(", ", strippedFillers));
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Speech] FillerStrip: removed [{Fillers}]", string.Join(", ", strippedFillers));
+            }
             tokens = [.. tokens.Where(t => !FillerWords.Contains(t))];
         }
         if (context.CustomFixPatterns.Count > 0)
         {
             List<string> beforeCustomFix = tokens;
             tokens = CollapseCustomFixNames(tokens, context.CustomFixPatterns);
-            if (!beforeCustomFix.SequenceEqual(tokens))
+            if (!beforeCustomFix.SequenceEqual(tokens) && Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("[Speech] CustomFixCollapse: \"{Before}\" → \"{After}\"", string.Join(' ', beforeCustomFix), string.Join(' ', tokens));
             }
@@ -207,7 +210,10 @@ public static class PhraseologyMapper
         if (callsign is not null)
         {
             List<string> consumedTokens = tokens.GetRange(callsignStart, callsignEnd - callsignStart);
-            Log.LogDebug("[Speech] CallsignExtract: \"{Spoken}\" → {Icao}", string.Join(' ', consumedTokens), callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Speech] CallsignExtract: \"{Spoken}\" → {Icao}", string.Join(' ', consumedTokens), callsign);
+            }
             // Remove the callsign tokens from the list.
             tokens = RemoveRange(tokens, callsignStart, callsignEnd - callsignStart);
         }
@@ -222,7 +228,10 @@ public static class PhraseologyMapper
         if (conditionPrefix is not null)
         {
             var consumedTokens = tokens.Take(conditionConsumed).ToList();
-            Log.LogDebug("[Speech] ConditionPrefix: \"{Spoken}\" → {Canonical}", string.Join(' ', consumedTokens), conditionPrefix);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Speech] ConditionPrefix: \"{Spoken}\" → {Canonical}", string.Join(' ', consumedTokens), conditionPrefix);
+            }
             tokens = [.. tokens.Skip(conditionConsumed)];
         }
 
@@ -234,7 +243,7 @@ public static class PhraseologyMapper
         // captures against already-collapsed tokens.
         List<string> beforeNatoCollapse = tokens;
         tokens = CollapseNatoKeepingAliasFixes(tokens, context);
-        if (!beforeNatoCollapse.SequenceEqual(tokens))
+        if (!beforeNatoCollapse.SequenceEqual(tokens) && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
                 "[Speech] NatoCollapse: \"{Before}\" → \"{After}\" (topology-aware, {Count} taxiway names)",
@@ -252,7 +261,7 @@ public static class PhraseologyMapper
         {
             List<string> beforeProcedureCollapse = tokens;
             tokens = SidStarNameNormalizer.Collapse(tokens, context.Procedures);
-            if (!beforeProcedureCollapse.SequenceEqual(tokens))
+            if (!beforeProcedureCollapse.SequenceEqual(tokens) && Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug(
                     "[Speech] SidStarCollapse: \"{Before}\" → \"{After}\" ({Count} procedures)",
@@ -304,10 +313,13 @@ public static class PhraseologyMapper
         if (inputContainsSecondPassFiller && !pass1UsedSecondPassFiller)
         {
             var pass2Stripped = tokens.Where(t => SecondPassFillers.Contains(t)).ToList();
-            Log.LogDebug(
-                "[Speech] Pass2FillerStrip: retrying with [{Fillers}] removed (pass 1 did not consume them)",
-                string.Join(", ", pass2Stripped)
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Speech] Pass2FillerStrip: retrying with [{Fillers}] removed (pass 1 did not consume them)",
+                    string.Join(", ", pass2Stripped)
+                );
+            }
             var strippedTokens = tokens.Where(t => !SecondPassFillers.Contains(t)).ToList();
             var matchedRulesPass2 = new List<PhraseologyRule>();
             bool runwayInvalidPass2 = false;
@@ -320,7 +332,10 @@ public static class PhraseologyMapper
             // additional non-filler tokens beyond what pass 1 reached.
             if (outputsPass2.Count > outputs.Count || (outputsPass2.Count == outputs.Count && consumedPass2 > consumedPass1))
             {
-                Log.LogDebug("[Speech] Pass2Wins: {Pass1Count} outputs → {Pass2Count} outputs", outputs.Count, outputsPass2.Count);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Speech] Pass2Wins: {Pass1Count} outputs → {Pass2Count} outputs", outputs.Count, outputsPass2.Count);
+                }
                 outputs = outputsPass2;
                 winningMatchedRules = matchedRulesPass2;
             }
@@ -360,7 +375,7 @@ public static class PhraseologyMapper
         }
         for (int i = 0; i < before.Count; i++)
         {
-            if (!string.Equals(before[i], after[i], StringComparison.Ordinal))
+            if (!string.Equals(before[i], after[i], StringComparison.Ordinal) && Log.IsEnabled(LogLevel.Debug))
             {
                 Log.LogDebug("[Speech] {Step}: \"{Before}\" → \"{After}\"", step, before[i], after[i]);
             }
@@ -431,12 +446,15 @@ public static class PhraseologyMapper
             outputs.Add(best.Value.Output);
             matchedRules.Add(best.Value.Rule);
             totalConsumed += best.Value.Consumed;
-            Log.LogDebug(
-                "[Speech] RuleMatch: {Pattern} → {Canonical} (consumed {Consumed} tokens)",
-                string.Join(' ', best.Value.Rule.Pattern),
-                best.Value.Output,
-                best.Value.Consumed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Speech] RuleMatch: {Pattern} → {Canonical} (consumed {Consumed} tokens)",
+                    string.Join(' ', best.Value.Rule.Pattern),
+                    best.Value.Output,
+                    best.Value.Consumed
+                );
+            }
             idx += best.Value.Consumed;
         }
         return (outputs, totalConsumed);
@@ -528,7 +546,7 @@ public static class PhraseologyMapper
                     {
                         // Only log on non-trivial rewrites — case-normalization ("cepin" →
                         // "CEPIN") is routine and doesn't need a log line per call.
-                        if (!string.Equals(matched, rawValue, StringComparison.OrdinalIgnoreCase))
+                        if (!string.Equals(matched, rawValue, StringComparison.OrdinalIgnoreCase) && Log.IsEnabled(LogLevel.Debug))
                         {
                             Log.LogDebug("[Speech] FixCorrect: \"{Before}\" → \"{After}\" (phonetic match to programmed fix)", rawValue, matched);
                         }
@@ -563,18 +581,24 @@ public static class PhraseologyMapper
                         string? recovered = TryRecoverRunway(rawValue, context.AvailableRunways);
                         if (recovered is null)
                         {
-                            Log.LogDebug("[Speech] RunwayRecover: \"{Raw}\" failed — not in scenario runway list, rule rejected", rawValue);
+                            if (Log.IsEnabled(LogLevel.Debug))
+                            {
+                                Log.LogDebug("[Speech] RunwayRecover: \"{Raw}\" failed — not in scenario runway list, rule rejected", rawValue);
+                            }
                             runwayInvalid = true;
                             output = "";
                             return false;
                         }
                         if (!string.Equals(recovered, rawValue, StringComparison.Ordinal))
                         {
-                            Log.LogDebug(
-                                "[Speech] RunwayRecover: \"{Raw}\" → \"{Recovered}\" (fuzzy-matched to scenario runway)",
-                                rawValue,
-                                recovered
-                            );
+                            if (Log.IsEnabled(LogLevel.Debug))
+                            {
+                                Log.LogDebug(
+                                    "[Speech] RunwayRecover: \"{Raw}\" → \"{Recovered}\" (fuzzy-matched to scenario runway)",
+                                    rawValue,
+                                    recovered
+                                );
+                            }
                             captures[name] = recovered;
                         }
                     }
@@ -587,7 +611,10 @@ public static class PhraseologyMapper
             // in "behind the landing traffic") is not a callsign, so the rule does not match.
             if (captures.TryGetValue("callsign", out string? callsignCapture) && !callsignCapture.Any(char.IsDigit))
             {
-                Log.LogDebug("[Speech] CallsignCapture: \"{Raw}\" has no digit, not a callsign, rule rejected", callsignCapture);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("[Speech] CallsignCapture: \"{Raw}\" has no digit, not a callsign, rule rejected", callsignCapture);
+                }
                 output = "";
                 return false;
             }
@@ -602,11 +629,17 @@ public static class PhraseologyMapper
                     string? letter = AtcNumberParser.TryResolveCardinalLetter(rawValue);
                     if (letter is null)
                     {
-                        Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" failed — not a cardinal direction, rule rejected", rawValue);
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" failed — not a cardinal direction, rule rejected", rawValue);
+                        }
                         output = "";
                         return false;
                     }
-                    Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Letter}", rawValue, letter);
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug("[Speech] CardinalResolve: \"{Raw}\" → {Letter}", rawValue, letter);
+                    }
                     captures[name] = letter;
                 }
             }
@@ -622,14 +655,20 @@ public static class PhraseologyMapper
                 {
                     if (!IsPlausibleTaxiwayName(rawValue))
                     {
-                        Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed length/charset sanity, rule rejected", rawValue);
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed length/charset sanity, rule rejected", rawValue);
+                        }
                         output = "";
                         return false;
                     }
                     string upper = rawValue.ToUpperInvariant();
                     if (context.TaxiwayNames.Count > 0 && !context.TaxiwayNames.Contains(upper))
                     {
-                        Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed — not in scenario taxiway list, rule rejected", rawValue);
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug("[Speech] TaxiwayValidate: \"{Raw}\" failed — not in scenario taxiway list, rule rejected", rawValue);
+                        }
                         output = "";
                         return false;
                     }
@@ -651,10 +690,13 @@ public static class PhraseologyMapper
                     || (((next + 1) < tokens.Count) && string.Equals(tokens[next + 1], "departure", StringComparison.OrdinalIgnoreCase));
                 if (ClimbViaWordStopWords.Contains(viaWord) || IsDigitString(viaWord) || followedByDeparture)
                 {
-                    Log.LogDebug(
-                        "[Speech] ClimbViaWord: \"{Raw}\" is a clearance keyword, number, or followed by \"departure\", rule rejected",
-                        viaWord
-                    );
+                    if (Log.IsEnabled(LogLevel.Debug))
+                    {
+                        Log.LogDebug(
+                            "[Speech] ClimbViaWord: \"{Raw}\" is a clearance keyword, number, or followed by \"departure\", rule rejected",
+                            viaWord
+                        );
+                    }
                     output = "";
                     return false;
                 }
@@ -670,7 +712,10 @@ public static class PhraseologyMapper
                     string? resolved = ResolveDestinationName(rawValue, name, context.DestinationNames);
                     if (resolved is null)
                     {
-                        Log.LogDebug("[Speech] DestinationName: \"{Raw}\" is not a parking/spot name, rule rejected", rawValue);
+                        if (Log.IsEnabled(LogLevel.Debug))
+                        {
+                            Log.LogDebug("[Speech] DestinationName: \"{Raw}\" is not a parking/spot name, rule rejected", rawValue);
+                        }
                         output = "";
                         return false;
                     }
@@ -702,11 +747,14 @@ public static class PhraseologyMapper
                         }
                         if (!isKnown)
                         {
-                            Log.LogDebug(
-                                "[Speech] ProcedureValidate: \"{Raw}\" failed — not a known {Kind} in scenario, rule rejected",
-                                rawValue,
-                                expectedKind
-                            );
+                            if (Log.IsEnabled(LogLevel.Debug))
+                            {
+                                Log.LogDebug(
+                                    "[Speech] ProcedureValidate: \"{Raw}\" failed — not a known {Kind} in scenario, rule rejected",
+                                    rawValue,
+                                    expectedKind
+                                );
+                            }
                             output = "";
                             return false;
                         }
@@ -913,11 +961,7 @@ public static class PhraseologyMapper
                 bool onFrequency = activeCallsigns.Contains(trailing.IcaoCallsign, StringComparer.OrdinalIgnoreCase);
                 if (directlyAfterNoun || !onFrequency)
                 {
-                    Log.LogDebug(
-                        "[Speech] CallsignExtract: \"{Spoken}\" after parking/spot read as the position name, not {Callsign}",
-                        string.Join(' ', tokens.Skip(trailingStart)),
-                        trailing.IcaoCallsign
-                    );
+                    LogPositionNameNotCallsign(tokens, trailingStart, trailing.IcaoCallsign);
                     return null;
                 }
             }
@@ -928,6 +972,18 @@ public static class PhraseologyMapper
         }
 
         return null;
+    }
+
+    private static void LogPositionNameNotCallsign(List<string> tokens, int trailingStart, string callsign)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Speech] CallsignExtract: \"{Spoken}\" after parking/spot read as the position name, not {Callsign}",
+                string.Join(' ', tokens.Skip(trailingStart)),
+                callsign
+            );
+        }
     }
 
     /// <summary>

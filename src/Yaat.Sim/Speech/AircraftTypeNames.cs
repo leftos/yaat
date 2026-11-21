@@ -130,7 +130,10 @@ public static class AircraftTypeNames
             }
         }
 
-        Log.LogInformation("Loaded {ManufacturerCount} ICAO type manufacturers and {FamilyCount} families", mfr.Count, fam.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded {ManufacturerCount} ICAO type manufacturers and {FamilyCount} families", mfr.Count, fam.Count);
+        }
         return new Data(mfr, fam, LoadAliases());
     }
 
@@ -169,7 +172,10 @@ public static class AircraftTypeNames
             list.Add(name);
         }
 
-        Log.LogInformation("Loaded spoken alias names for {AliasCount} ICAO types", aliases.Count);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Loaded spoken alias names for {AliasCount} ICAO types", aliases.Count);
+        }
         return aliases;
     }
 

@@ -266,7 +266,10 @@ public sealed class GriddedWindField
             throw new InvalidOperationException($"None of the {messages.Count} GRIB2 messages is UGRD, VGRD or TMP on an isobaric surface");
         }
 
-        Log.LogDebug("Gridded wind field: {Used} of {Total} GRIB2 messages used", relevant.Count, messages.Count);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Gridded wind field: {Used} of {Total} GRIB2 messages used", relevant.Count, messages.Count);
+        }
         return relevant;
     }
 

@@ -86,7 +86,10 @@ public static class RoomContextFactory
             );
             if (callsign is null)
             {
-                Log.LogDebug("Room aircraft {Callsign} left out of the speech context: its airline telephony is unknown", input.Callsign);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Room aircraft {Callsign} left out of the speech context: its airline telephony is unknown", input.Callsign);
+                }
                 continue;
             }
 
@@ -150,7 +153,15 @@ public static class RoomContextFactory
             );
             if (runway is null)
             {
-                Log.LogDebug("Room aircraft {Callsign}: assigned runway {Runway} is not a runway of {Airport}", input.Callsign, value, airportIcao);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "Room aircraft {Callsign}: assigned runway {Runway} is not a runway of {Airport}",
+                        input.Callsign,
+                        value,
+                        airportIcao
+                    );
+                }
             }
             else
             {

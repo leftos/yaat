@@ -67,7 +67,10 @@ public static class Grib2Reader
             offset += length;
         }
 
-        Log.LogDebug("Decoded {Count} GRIB2 messages from {Bytes} bytes", messages.Count, data.Length);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Decoded {Count} GRIB2 messages from {Bytes} bytes", messages.Count, data.Length);
+        }
         return messages;
     }
 

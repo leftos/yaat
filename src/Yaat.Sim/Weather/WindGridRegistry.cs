@@ -242,14 +242,17 @@ public static class WindGridRegistry
 
             var entry = new Entry(copy, field);
             Entries[hash] = entry;
-            Log.LogInformation(
-                "Registered GFS wind grid {Hash}: {Bytes} bytes, run {ReferenceTimeUtc:u} f{ForecastHours:D3}, {Levels} levels",
-                hash,
-                copy.Length,
-                field.ReferenceTimeUtc,
-                field.ForecastHours,
-                field.LevelsHpa.Count
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Registered GFS wind grid {Hash}: {Bytes} bytes, run {ReferenceTimeUtc:u} f{ForecastHours:D3}, {Levels} levels",
+                    hash,
+                    copy.Length,
+                    field.ReferenceTimeUtc,
+                    field.ForecastHours,
+                    field.LevelsHpa.Count
+                );
+            }
             PinHandle? handle = UseAndPin(hash, entry, pin);
             EvictUnpinned();
             return handle;
@@ -288,7 +291,14 @@ public static class WindGridRegistry
         for (int i = 0; i < unpinned.Count - MaxUnpinned; i++)
         {
             Entries.Remove(unpinned[i].Key);
-            Log.LogInformation("Evicted GFS wind grid {Hash}, the least recently used of {Count} unpinned grids", unpinned[i].Key, unpinned.Count);
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Evicted GFS wind grid {Hash}, the least recently used of {Count} unpinned grids",
+                    unpinned[i].Key,
+                    unpinned.Count
+                );
+            }
         }
     }
 

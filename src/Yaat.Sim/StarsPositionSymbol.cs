@@ -80,11 +80,19 @@ public static class StarsPositionSymbol
         StarsHandoffIdConfig? entry = handoffIds?.Find(i => i.FacilityId == ownerFacilityId);
         if (entry is null)
         {
-            Log.LogDebug("No STARS handoff number for {Owner} in {Viewer}'s list; symbol C", ownerFacilityId, viewer.FacilityId);
+            LogNoHandoffNumber(ownerFacilityId, viewer);
             return 'C';
         }
 
         return entry.HandoffNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)[0];
+    }
+
+    private static void LogNoHandoffNumber(string ownerFacilityId, TrackOwner viewer)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("No STARS handoff number for {Owner} in {Viewer}'s list; symbol C", ownerFacilityId, viewer.FacilityId);
+        }
     }
 
     private static char CentreSymbol(string centreId, TrackOwner viewer, ArtccConfigRoot? config)
@@ -97,7 +105,10 @@ public static class StarsPositionSymbol
         string? nasId = CentreNasId(centreId, config);
         if (string.IsNullOrEmpty(nasId))
         {
-            Log.LogDebug("No NAS ID for centre {Centre}; symbol C", centreId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("No NAS ID for centre {Centre}; symbol C", centreId);
+            }
             return 'C';
         }
 
