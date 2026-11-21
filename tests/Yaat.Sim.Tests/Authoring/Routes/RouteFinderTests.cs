@@ -15,7 +15,7 @@ public class RouteFinderTests
     private const string SstikIrnmn = "SSTIK5 SUSEY EBAYE BURGL IRNMN2";
     private const string WeslaIrnmn = "WESLA5 SUSEY EBAYE BURGL IRNMN2";
 
-    private static readonly RouteQuery SfoLax = new("KSFO", "KLAX");
+    private static readonly RouteQuery SfoLax = new("KSFO", "KLAX", [], [], null);
 
     public RouteFinderTests() => TestVnasData.EnsureInitialized();
 
@@ -62,7 +62,7 @@ public class RouteFinderTests
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(CskoRouteSourceTests.FixtureJson()) });
     }
 
-    private static FoundRoute Route(string text, int count, string source) => new(text, count, [source]);
+    private static FoundRoute Route(string text, int count, string source) => new(text, count, [source], Published: null);
 
     private static IEnumerable<string> UnresolvedTokens(string route)
     {

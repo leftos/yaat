@@ -423,7 +423,21 @@ public static class CifpParser
             rawLegs,
             terminalWaypoints
         );
-        return new CifpSidProcedure(airport, procedureId, common, runway, enroute);
+        return new CifpSidProcedure(airport, procedureId, common, runway, enroute, ClassifyRouteKind(rawLegs, isSid: true));
+    }
+
+    /// <summary>
+    /// The procedure's route kind from its legs' ARINC 424 route types: a SID with any T/V leg is radar vector; any
+    /// 4/5/6 leg makes it RNAV; otherwise conventional (1/2/3).
+    /// </summary>
+    private static ProcedureRouteKind ClassifyRouteKind(List<RawProcedureLeg> rawLegs, bool isSid)
+    {
+        if (isSid && rawLegs.Exists(leg => leg.RouteType is 'T' or 'V'))
+        {
+            return ProcedureRouteKind.RadarVector;
+        }
+
+        return rawLegs.Exists(leg => leg.RouteType is '4' or '5' or '6') ? ProcedureRouteKind.Rnav : ProcedureRouteKind.Conventional;
     }
 
     private static CifpStarProcedure? BuildStarProcedure(
@@ -442,7 +456,7 @@ public static class CifpParser
             rawLegs,
             terminalWaypoints
         );
-        return new CifpStarProcedure(airport, procedureId, common, enroute, runway);
+        return new CifpStarProcedure(airport, procedureId, common, enroute, runway, ClassifyRouteKind(rawLegs, isSid: false));
     }
 
     private static RawProcedureLeg? ParseProcedureLeg(string line)

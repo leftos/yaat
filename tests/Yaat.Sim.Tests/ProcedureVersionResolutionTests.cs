@@ -103,7 +103,8 @@ public class ProcedureVersionResolutionTests
             "BDEGA4",
             [],
             new Dictionary<string, CifpTransition>(),
-            new Dictionary<string, CifpTransition>()
+            new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         var navDb = NavigationDatabase.ForTesting(stars: [currentStar]);
@@ -122,7 +123,8 @@ public class ProcedureVersionResolutionTests
             "CNDEL6",
             [],
             new Dictionary<string, CifpTransition>(),
-            new Dictionary<string, CifpTransition>()
+            new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         var navDb = NavigationDatabase.ForTesting(sids: [currentSid]);
@@ -220,7 +222,8 @@ public class ProcedureVersionResolutionTests
                 MakeLeg("BRIXX", CifpPathTerminator.TF, new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrAbove, 5000)),
             ],
             new Dictionary<string, CifpTransition>(),
-            new Dictionary<string, CifpTransition>()
+            new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         var navDb = NavigationDatabase.ForTesting(fixes, starBodies: starBodies, stars: [cifpStar]);

@@ -192,20 +192,39 @@ public sealed record CifpTransition(string Name, IReadOnlyList<CifpLeg> Legs)
         !Legs.Any(l => l.PathTerminator is CifpPathTerminator.PI or CifpPathTerminator.HM or CifpPathTerminator.HF or CifpPathTerminator.HA);
 }
 
+/// <summary>
+/// How a SID or STAR is flown, from the ARINC 424 route type (column 20) of its legs.
+/// </summary>
+public enum ProcedureRouteKind
+{
+    /// <summary>Conventional (ground-based navaid) procedure: SID route types 1/2/3, STAR route types 1/2/3.</summary>
+    Conventional,
+
+    /// <summary>RNAV procedure: route types 4/5/6 on any leg.</summary>
+    Rnav,
+
+    /// <summary>Radar vector SID: route type T or V on any leg (SIDs only).</summary>
+    RadarVector,
+}
+
+/// <param name="RouteKind">How the SID is flown: radar vector when any leg is route type T/V, else RNAV when any is 4/5/6, else conventional.</param>
 public sealed record CifpSidProcedure(
     string Airport,
     string ProcedureId,
     IReadOnlyList<CifpLeg> CommonLegs,
     IReadOnlyDictionary<string, CifpTransition> RunwayTransitions,
-    IReadOnlyDictionary<string, CifpTransition> EnrouteTransitions
+    IReadOnlyDictionary<string, CifpTransition> EnrouteTransitions,
+    ProcedureRouteKind RouteKind
 );
 
+/// <param name="RouteKind">How the STAR is flown: RNAV when any leg is route type 4/5/6, else conventional.</param>
 public sealed record CifpStarProcedure(
     string Airport,
     string ProcedureId,
     IReadOnlyList<CifpLeg> CommonLegs,
     IReadOnlyDictionary<string, CifpTransition> EnrouteTransitions,
-    IReadOnlyDictionary<string, CifpTransition> RunwayTransitions
+    IReadOnlyDictionary<string, CifpTransition> RunwayTransitions,
+    ProcedureRouteKind RouteKind
 );
 
 public sealed record CifpApproachProcedure(

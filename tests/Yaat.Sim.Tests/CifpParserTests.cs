@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
@@ -1030,6 +1031,39 @@ public class CifpParserTests
         }
 
         return new string(line);
+    }
+
+    // --- Route kind (ARINC 424 route type, column 20) on the committed CIFP ---
+
+    [Theory]
+    [InlineData("KSFO", "SSTIK5", ProcedureRouteKind.Rnav)]
+    [InlineData("KSFO", "MOLEN9", ProcedureRouteKind.Conventional)]
+    [InlineData("KSFO", "GAPP7", ProcedureRouteKind.RadarVector)]
+    [InlineData("KOAK", "OAK7", ProcedureRouteKind.RadarVector)]
+    [InlineData("KOAK", "SALAD6", ProcedureRouteKind.Conventional)]
+    public void ParseSids_RealCifp_RouteKindFromRouteTypeColumn(string airport, string sidId, ProcedureRouteKind expected)
+    {
+        TestVnasData.EnsureInitialized();
+
+        CifpSidProcedure? sid = NavigationDatabase.Instance.GetSid(airport, sidId);
+
+        Assert.NotNull(sid);
+        Assert.Equal(sidId, sid.ProcedureId);
+        Assert.Equal(expected, sid.RouteKind);
+    }
+
+    [Theory]
+    [InlineData("KLAX", "ANJLL4", ProcedureRouteKind.Rnav)]
+    [InlineData("KLAX", "SADDE8", ProcedureRouteKind.Conventional)]
+    public void ParseStars_RealCifp_RouteKindFromRouteTypeColumn(string airport, string starId, ProcedureRouteKind expected)
+    {
+        TestVnasData.EnsureInitialized();
+
+        CifpStarProcedure? star = NavigationDatabase.Instance.GetStar(airport, starId);
+
+        Assert.NotNull(star);
+        Assert.Equal(starId, star.ProcedureId);
+        Assert.Equal(expected, star.RouteKind);
     }
 }
 

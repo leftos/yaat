@@ -1377,6 +1377,9 @@ _Avoid_: video map (the radar's facility video maps are a different thing)
 
 ## Scenario authoring
 
+**Path ratio**:
+A published route's expanded length (departure airport, every fix, arrival airport, great-circle legs summed) divided by the airport-to-airport great circle; `NavdataRouteSource` ranks by it and drops routes above 1.25 (or beyond the great circle plus 50 NM on a short hop), a judgement call and not an FAA limit (`PublishedRouteInfo.Ratio`).
+
 **Route source**:
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 

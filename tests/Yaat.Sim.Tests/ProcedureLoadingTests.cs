@@ -169,7 +169,8 @@ public class ProcedureLoadingTests
             EnrouteTransitions: new Dictionary<string, CifpTransition>
             {
                 ["SUNOL"] = new("SUNOL", [new CifpLeg("SUNOL", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 50, null, null, null)]),
-            }
+            },
+            RouteKind: ProcedureRouteKind.Conventional
         );
     }
 
@@ -244,7 +245,8 @@ public class ProcedureLoadingTests
                         ),
                     ]
                 ),
-            }
+            },
+            RouteKind: ProcedureRouteKind.Conventional
         );
     }
 
@@ -1014,7 +1016,8 @@ public class ProcedureLoadingTests
                     [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
                 ),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(
@@ -1048,7 +1051,8 @@ public class ProcedureLoadingTests
                     [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
                 ),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(
@@ -1081,7 +1085,8 @@ public class ProcedureLoadingTests
                     [new CifpLeg("SSTIK", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 10, null, null, null, IsFlyOver: true)]
                 ),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(
@@ -1119,7 +1124,8 @@ public class ProcedureLoadingTests
             RunwayTransitions: new Dictionary<string, CifpTransition>
             {
                 ["RW28B"] = new("RW28B", [new CifpLeg("BRIXX", CifpPathTerminator.TF, null, null, null, CifpFixRole.None, 30, null, null, null)]),
-            }
+            },
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(
@@ -1202,7 +1208,8 @@ public class ProcedureLoadingTests
                     ]
                 ),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(sid: sid);
@@ -1235,7 +1242,8 @@ public class ProcedureLoadingTests
             {
                 ["RW10B"] = new("RW10B", [new CifpLeg("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 10, 098.0, null, null)]),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(sid: sid);
@@ -1261,7 +1269,8 @@ public class ProcedureLoadingTests
             {
                 ["RW28B"] = new("RW28B", [new CifpLeg("", CifpPathTerminator.VM, null, null, null, CifpFixRole.None, 10, 315.0, null, null)]),
             },
-            EnrouteTransitions: new Dictionary<string, CifpTransition>()
+            EnrouteTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
 
         NavigationDatabase navDb = CreateNavDb(sid: sid);

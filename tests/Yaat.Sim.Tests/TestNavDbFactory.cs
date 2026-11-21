@@ -101,7 +101,8 @@ internal static class TestNavDbFactory
             ProcedureId: "__SENTINEL__",
             CommonLegs: [],
             EnrouteTransitions: new Dictionary<string, CifpTransition>(),
-            RunwayTransitions: new Dictionary<string, CifpTransition>()
+            RunwayTransitions: new Dictionary<string, CifpTransition>(),
+            RouteKind: ProcedureRouteKind.Conventional
         );
         return NavigationDatabase.ForTesting(fixPositions, null, null, null, null, [sentinelStar], starBodies, starTransitions, airways);
     }

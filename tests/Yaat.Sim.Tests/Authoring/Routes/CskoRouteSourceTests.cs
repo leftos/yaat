@@ -54,7 +54,7 @@ public class CskoRouteSourceTests
         {
             (CskoRouteSource source, _) = NewSource(dir, _ => Ok(FixtureJson()));
 
-            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX"), CancellationToken.None);
+            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX", [], [], null), CancellationToken.None);
 
             Assert.Null(result.FailureMessage);
             Assert.Equal(
@@ -77,8 +77,11 @@ public class CskoRouteSourceTests
         {
             (CskoRouteSource source, FakeHandler handler) = NewSource(dir, _ => Ok("[]"));
 
-            await source.FindAsync(new RouteQuery("KSFO", "KLAX"), CancellationToken.None);
-            await source.FindAsync(new RouteQuery("KSFO", "KLAX", Fix: "SUSEY", AirlinePrefix: "UAL", AircraftType: "B738"), CancellationToken.None);
+            await source.FindAsync(new RouteQuery("KSFO", "KLAX", [], [], null), CancellationToken.None);
+            await source.FindAsync(
+                new RouteQuery("KSFO", "KLAX", [], [], null, Fix: "SUSEY", AirlinePrefix: "UAL", AircraftType: "B738"),
+                CancellationToken.None
+            );
 
             Assert.Equal(2, handler.Requests.Count);
             string bare = handler.Requests[0].ToString();
@@ -115,7 +118,7 @@ public class CskoRouteSourceTests
         {
             (CskoRouteSource source, FakeHandler handler) = NewSource(dir, _ => Ok(body));
 
-            RouteSourceResult result = await source.FindAsync(new RouteQuery("CYYZ", "KLAX"), CancellationToken.None);
+            RouteSourceResult result = await source.FindAsync(new RouteQuery("CYYZ", "KLAX", [], [], null), CancellationToken.None);
 
             string url = handler.Requests.Single().ToString();
             Assert.DoesNotContain("departure=", url);
@@ -136,7 +139,7 @@ public class CskoRouteSourceTests
         try
         {
             (CskoRouteSource source, FakeHandler handler) = NewSource(dir, _ => Ok(FixtureJson()));
-            var query = new RouteQuery("KSFO", "KLAX");
+            var query = new RouteQuery("KSFO", "KLAX", [], [], null);
 
             await source.FindAsync(query, CancellationToken.None);
             RouteSourceResult second = await source.FindAsync(query, CancellationToken.None);
@@ -158,7 +161,7 @@ public class CskoRouteSourceTests
         {
             bool fail = false;
             (CskoRouteSource source, _) = NewSource(dir, _ => fail ? new HttpResponseMessage(HttpStatusCode.BadGateway) : Ok(FixtureJson()));
-            var query = new RouteQuery("KSFO", "KLAX");
+            var query = new RouteQuery("KSFO", "KLAX", [], [], null);
             await source.FindAsync(query, CancellationToken.None);
             foreach (string file in Directory.GetFiles(dir))
             {
@@ -186,7 +189,7 @@ public class CskoRouteSourceTests
         {
             bool notFound = false;
             (CskoRouteSource source, _) = NewSource(dir, _ => notFound ? new HttpResponseMessage(HttpStatusCode.NotFound) : Ok(FixtureJson()));
-            var query = new RouteQuery("KSFO", "KLAX");
+            var query = new RouteQuery("KSFO", "KLAX", [], [], null);
             await source.FindAsync(query, CancellationToken.None);
             foreach (string file in Directory.GetFiles(dir))
             {
@@ -213,7 +216,7 @@ public class CskoRouteSourceTests
         {
             (CskoRouteSource source, _) = NewSource(dir, _ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
-            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX"), CancellationToken.None);
+            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX", [], [], null), CancellationToken.None);
 
             Assert.Equal("csko answered HTTP 404 for the route search", result.FailureMessage);
             Assert.Empty(result.Routes);
@@ -231,7 +234,7 @@ public class CskoRouteSourceTests
         try
         {
             (CskoRouteSource source, FakeHandler handler) = NewSource(dir, _ => Ok("<html><body>Bad gateway</body></html>"));
-            var query = new RouteQuery("KSFO", "KLAX");
+            var query = new RouteQuery("KSFO", "KLAX", [], [], null);
 
             RouteSourceResult result = await source.FindAsync(query, CancellationToken.None);
 
@@ -255,7 +258,7 @@ public class CskoRouteSourceTests
         {
             (CskoRouteSource source, _) = NewSource(dir, _ => throw new HttpRequestException("connection refused"));
 
-            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX"), CancellationToken.None);
+            RouteSourceResult result = await source.FindAsync(new RouteQuery("KSFO", "KLAX", [], [], null), CancellationToken.None);
 
             Assert.Equal("csko did not answer the route search", result.FailureMessage);
             Assert.Empty(result.Routes);
