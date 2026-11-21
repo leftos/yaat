@@ -60,7 +60,16 @@ public sealed partial class CrcSpeedMenu : CrcFdbMenu
 
     /// <summary>Opens the menu as CRC does: knots or Mach from the assignment or the altitude, the list centred.</summary>
     public CrcSpeedMenu(string callsign, CrcSpeedValues values, CrcMenuMode mode, bool showModeChip)
-        : base(callsign, 14, mode, showModeChip)
+        : this(callsign, values, mode, showModeChip, CrcPalette.Eram) { }
+
+    /// <summary>
+    /// Opens the menu for PILOT picks alone, as the STARS field menus do: no ERAM | PILOT chip, in <paramref name="palette"/>.
+    /// </summary>
+    public CrcSpeedMenu(string callsign, CrcSpeedValues values, CrcPalette palette)
+        : this(callsign, values, CrcMenuMode.Pilot, showModeChip: false, palette) { }
+
+    private CrcSpeedMenu(string callsign, CrcSpeedValues values, CrcMenuMode mode, bool showModeChip, CrcPalette palette)
+        : base(callsign, 14, mode, showModeChip, palette)
     {
         _values = values;
         _isMach = InitialIsMach(values);
@@ -157,9 +166,9 @@ public sealed partial class CrcSpeedMenu : CrcFdbMenu
     private CrcNode SpeedRow(SpeedEntry entry)
     {
         char? modifier = entry.Selected ? _openModifier : _modifier;
-        var text = new CrcText(entry.Text + modifier, CrcPalette.Text)
+        var text = new CrcText(entry.Text + modifier, Palette.Text)
         {
-            CircleFill = entry.Selected ? CrcPalette.Emphasis : null,
+            CircleFill = entry.Selected ? Palette.Emphasis : null,
             PickKey = entry.Text,
             Pick = s => PickSpeed(entry, s),
         };

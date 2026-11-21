@@ -32,15 +32,20 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
     /// <param name="widthChars">The menu's minimum width in characters (BaseFdbMenu.GetWidth: 10 for heading, 14 otherwise).</param>
     /// <param name="mode">The chip cell lit at open.</param>
     /// <param name="showModeChip">Whether the ERAM | PILOT chip row shows.</param>
-    protected CrcFdbMenu(string callsign, int widthChars, CrcMenuMode mode, bool showModeChip)
+    /// <param name="palette">The colours the menu draws in.</param>
+    protected CrcFdbMenu(string callsign, int widthChars, CrcMenuMode mode, bool showModeChip, CrcPalette palette)
     {
         Callsign = callsign;
         _widthChars = widthChars;
         _menuName = GetType().Name;
         Mode = mode;
         ShowModeChip = showModeChip;
+        Palette = palette;
         Focusable = false;
     }
+
+    /// <summary>The colours the menu draws in.</summary>
+    public CrcPalette Palette { get; }
 
     /// <summary>Raised when the unlit chip cell is clicked, with the mode it selects.</summary>
     public event Action<CrcMenuMode>? ModeChanged;
@@ -117,7 +122,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
         {
             root.Add(BuildChip());
         }
-        var contents = new CrcColumn { Fill = CrcPalette.Black, WidthGrow = 1 };
+        var contents = new CrcColumn { Fill = Palette.Black, WidthGrow = 1 };
         contents.Add([.. BuildContents()]);
         root.Add(contents);
         root.Calculate();
@@ -134,27 +139,26 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
     }
 
     /// <summary>CRC's MenuPickArea: a bordered grey cell overlapping the one above by 1 px, its label centred, coral when lit.</summary>
-    private protected static CrcRow PickArea(string label, Action<bool> pick, bool lit) =>
-        PickArea(label, pick, lit, null, new CrcEdges(-1, 0, 0, 0));
+    private protected CrcRow PickArea(string label, Action<bool> pick, bool lit) => PickArea(label, pick, lit, null, new CrcEdges(-1, 0, 0, 0));
 
     /// <summary>As the other overload, at least <paramref name="minWidth"/> pixels wide.</summary>
-    private protected static CrcRow PickArea(string label, Action<bool> pick, bool lit, int minWidth) =>
+    private protected CrcRow PickArea(string label, Action<bool> pick, bool lit, int minWidth) =>
         PickArea(label, pick, lit, minWidth, new CrcEdges(-1, 0, 0, 0));
 
     /// <summary>As the other overloads, at least <paramref name="minWidth"/> pixels wide (none: as its label) with <paramref name="margin"/>.</summary>
-    private protected static CrcRow PickArea(string label, Action<bool> pick, bool lit, int? minWidth, CrcEdges margin)
+    private protected CrcRow PickArea(string label, Action<bool> pick, bool lit, int? minWidth, CrcEdges margin)
     {
         var area = new CrcRow
         {
             Margin = margin,
             MinWidth = minWidth,
             BorderWidth = 1,
-            BorderColor = CrcPalette.Outline,
-            Fill = lit ? CrcPalette.Emphasis : CrcPalette.PickBackground,
+            BorderColor = Palette.Outline,
+            Fill = lit ? Palette.Emphasis : Palette.PickBackground,
             PickKey = label,
             Pick = pick,
         };
-        area.Add(new CrcText(label, CrcPalette.Text) { WidthGrow = 1, HAlign = CrcAlign.Center });
+        area.Add(new CrcText(label, Palette.Text) { WidthGrow = 1, HAlign = CrcAlign.Center });
         return area;
     }
 
@@ -178,16 +182,16 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
             Padding = new CrcEdges(1, 0, 0, 0),
             Margin = new CrcEdges(-1, 0, 0, 0),
             BorderWidth = 1,
-            BorderColor = CrcPalette.Outline,
+            BorderColor = Palette.Outline,
         };
         _listBox = wrapper;
         return wrapper.Add(list, ScrollArrows(scroll));
     }
 
-    private static CrcNode ScrollArrows(CrcPageScroll scroll)
+    private CrcNode ScrollArrows(CrcPageScroll scroll)
     {
-        Color up = scroll.UpIsEnabled ? CrcPalette.ScrollEnabled : CrcPalette.ScrollDisabled;
-        Color down = scroll.DownIsEnabled ? CrcPalette.ScrollEnabled : CrcPalette.ScrollDisabled;
+        Color up = scroll.UpIsEnabled ? Palette.ScrollEnabled : Palette.ScrollDisabled;
+        Color down = scroll.DownIsEnabled ? Palette.ScrollEnabled : Palette.ScrollDisabled;
         var upBox = new CrcColumn
         {
             BorderWidth = 1,
@@ -196,7 +200,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
             PickKey = "UP",
             Pick = _ => scroll.Scroll(down: false),
         };
-        upBox.Add(new CrcText("▲", up) { Padding = CrcEdges.None, Fill = CrcPalette.Black });
+        upBox.Add(new CrcText("▲", up) { Padding = CrcEdges.None, Fill = Palette.Black });
         var downBox = new CrcColumn
         {
             BorderWidth = 1,
@@ -211,7 +215,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
                 Padding = CrcEdges.None,
                 HeightGrow = 1,
                 VAlign = CrcAlign.End,
-                Fill = CrcPalette.Black,
+                Fill = Palette.Black,
             }
         );
         var arrows = new CrcColumn
@@ -226,7 +230,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
     private CrcNode BuildHeader()
     {
         var header = new CrcRow { Margin = new CrcEdges(0, 0, -1, 0) };
-        var close = new CrcHeaderCell("X")
+        var close = new CrcHeaderCell("X", Palette)
         {
             WidthGrow = 0,
             Margin = new CrcEdges(0, 0, 0, -1),
@@ -234,7 +238,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
             PickKey = "X",
             Pick = _ => CloseRequested?.Invoke(),
         };
-        return header.Add(new CrcHeaderCell(Callsign), close);
+        return header.Add(new CrcHeaderCell(Callsign, Palette), close);
     }
 
     private CrcNode BuildChip()
@@ -244,10 +248,10 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
     }
 
     private CrcHeaderCell ChipCell(string label, CrcMenuMode mode, CrcEdges margin) =>
-        new(label)
+        new(label, Palette)
         {
             Margin = margin,
-            Fill = (Mode == mode) ? CrcPalette.Emphasis : CrcPalette.PickBackground,
+            Fill = (Mode == mode) ? Palette.Emphasis : Palette.PickBackground,
             PickKey = label,
             Pick = _ => SelectMode(mode),
         };
@@ -335,7 +339,7 @@ public abstract class CrcFdbMenu : Control, ICustomHitTest
         CrcPickTarget? hovered = (_hoveredKey is null) ? null : _targets.FirstOrDefault(t => t.Key == _hoveredKey);
         if (hovered is not null)
         {
-            DrawQuad(context, new CrcQuadOp(hovered.Area, null, CrcPalette.CursorEmphasis, hovered.IsText ? 1 : -1));
+            DrawQuad(context, new CrcQuadOp(hovered.Area, null, Palette.CursorEmphasis, hovered.IsText ? 1 : -1));
         }
     }
 

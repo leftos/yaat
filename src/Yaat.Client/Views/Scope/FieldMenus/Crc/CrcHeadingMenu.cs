@@ -56,7 +56,7 @@ public sealed partial class CrcHeadingMenu : CrcFdbMenu
 
     /// <summary>Opens the menu as CRC does: on the assigned turn's list, or on the compass centred on the heading.</summary>
     public CrcHeadingMenu(string callsign, CrcHeadingValues values, CrcMenuMode mode, bool showModeChip)
-        : base(callsign, 10, mode, showModeChip)
+        : base(callsign, 10, mode, showModeChip, CrcPalette.Eram)
     {
         _values = values;
         _circled = Open(values.AssignedHeading);
@@ -191,11 +191,11 @@ public sealed partial class CrcHeadingMenu : CrcFdbMenu
     /// <summary>CRC's HeadingValuePickArea: the value centred in three characters, circled when it is the assigned one.</summary>
     private CrcNode HeadingValue(HeadingCell cell)
     {
-        var text = new CrcText(cell.Display, CrcPalette.Text)
+        var text = new CrcText(cell.Display, Palette.Text)
         {
             MinWidth = CrcGrid.Chars(3),
             HAlign = CrcAlign.Center,
-            CircleFill = (cell.Value == _circled) ? CrcPalette.Emphasis : null,
+            CircleFill = (cell.Value == _circled) ? Palette.Emphasis : null,
             PickKey = cell.Value,
             Pick = s => PickHeading(cell, s),
         };

@@ -227,6 +227,7 @@ public partial class SettingsViewModel
                 vm => ((ScopeFieldMenuStyle)vm.SelectedScopeFieldMenuStyleIndex).ToString(),
                 (vm, v) => vm.SelectedScopeFieldMenuStyleIndex = (int)Enum.Parse<ScopeFieldMenuStyle>(v)
             ),
+            Field("scopeStarsFieldMenus", vm => vm.ScopeStarsFieldMenus, (vm, v) => vm.ScopeStarsFieldMenus = v),
             Field(
                 "vfrCommandsForIfr",
                 vm => ((VfrCommandsForIfr)vm.SelectedVfrCommandsForIfrIndex).ToString(),

@@ -265,6 +265,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedScopeFieldMenuStyleIndex;
 
+    /// <summary>The "STARS field menus" checkbox (<see cref="UserPreferences.ScopeStarsFieldMenus"/>).</summary>
+    [ObservableProperty]
+    private bool _scopeStarsFieldMenus;
+
     [ObservableProperty]
     private bool _flashNoLandingClearance;
 
@@ -841,6 +845,7 @@ public partial class SettingsViewModel : ObservableObject
         _validateDctFixes = _preferences.ValidateDctFixes;
         _euroScopeMode = _preferences.EuroScopeMode;
         _selectedScopeFieldMenuStyleIndex = (int)_preferences.ScopeFieldMenuStyle;
+        _scopeStarsFieldMenus = _preferences.ScopeStarsFieldMenus;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
         _showConflictAlerts = _preferences.ShowConflictAlerts;
         _showTypeMismatchHints = _preferences.ShowTypeMismatchHints;
@@ -1108,6 +1113,7 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
         _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetScopeFieldMenuStyle((ScopeFieldMenuStyle)SelectedScopeFieldMenuStyleIndex);
+        _preferences.SetScopeStarsFieldMenus(ScopeStarsFieldMenus);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
         _preferences.SetShowConflictAlerts(ShowConflictAlerts);
         _preferences.SetShowTypeMismatchHints(ShowTypeMismatchHints);
@@ -2068,6 +2074,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         EuroScopeMode = defaults.EuroScopeMode;
         SelectedScopeFieldMenuStyleIndex = (int)defaults.ScopeFieldMenuStyle;
+        ScopeStarsFieldMenus = defaults.ScopeStarsFieldMenus;
         FlashNoLandingClearance = defaults.FlashNoLandingClearance;
         ShowConflictAlerts = defaults.ShowConflictAlerts;
         ShowTypeMismatchHints = defaults.ShowTypeMismatchHints;

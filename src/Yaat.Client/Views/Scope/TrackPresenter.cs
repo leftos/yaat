@@ -39,6 +39,10 @@ public sealed record ScopeAlertOptions(
 /// <param name="Viewer">The position the scope is viewed from (<see cref="ScopeViewer"/>).</param>
 /// <param name="EramLine4Type">The ERAM line 4 falls back to the aircraft type and equipment suffix when no HSF is set.</param>
 /// <param name="EramLine4Destination">The ERAM line 4 falls back to a destination of four characters or fewer after the type.</param>
+/// <param name="StarsFieldMenus">
+/// The "STARS field menus" setting: a STARS block's altitude, speed, beacon and line-3 fields open pick menus; off, they are
+/// inert and a click on them only selects.
+/// </param>
 public sealed record ScopeDisplayOptions(
     bool MarkStudentLevel,
     bool ShowTypeMismatchHints,
@@ -49,7 +53,8 @@ public sealed record ScopeDisplayOptions(
     bool UnassignedTint,
     ScopeViewer Viewer,
     bool EramLine4Type,
-    bool EramLine4Destination
+    bool EramLine4Destination,
+    bool StarsFieldMenus
 );
 
 /// <summary>Every per-frame input <see cref="TrackPresenter.Present"/> reads.</summary>
@@ -423,16 +428,20 @@ public static class TrackPresenter
     /// What a left click on <paramref name="slot"/> does on a block drawn with <paramref name="templateId"/> (a resolved template:
     /// a Mixed track is presented for its owner's kind). A ground target's fields stay inert whatever this answers.
     /// </summary>
-    internal static ScopeFieldAction ActionFor(string templateId, ScopeFieldSlot slot) =>
+    internal static ScopeFieldAction ActionFor(string templateId, ScopeFieldSlot slot, bool starsFieldMenus) =>
         templateId switch
         {
-            ScopeTemplates.StarsId => StarsActionFor(slot),
+            ScopeTemplates.StarsId => StarsActionFor(slot, starsFieldMenus),
             ScopeTemplates.EramId => EramActionFor(slot),
             ScopeTemplates.EuroScopeId => EuroScopeActionFor(slot),
             _ => ScopeFieldAction.None,
         };
 
-    private static ScopeFieldAction StarsActionFor(ScopeFieldSlot slot) =>
+    // With the "STARS field menus" setting off a STARS field click only selects, as in CRC's STARS; the note still opens its box.
+    private static ScopeFieldAction StarsActionFor(ScopeFieldSlot slot, bool fieldMenus) =>
+        ((fieldMenus) || (slot == ScopeFieldSlot.InstructorNote)) ? StarsMenuActionFor(slot) : ScopeFieldAction.None;
+
+    private static ScopeFieldAction StarsMenuActionFor(ScopeFieldSlot slot) =>
         slot switch
         {
             ScopeFieldSlot.Altitude => ScopeFieldAction.OpenAltitudeMenu,
@@ -480,7 +489,9 @@ public static class TrackPresenter
 
     // Every field takes its slot's action; a ground target's stay inert.
     private static List<ScopeField> WithActions(List<ScopeField> fields, TrackPresenterInput input) =>
-        input.Level == ScopeBlockLevel.Ground ? fields : fields.ConvertAll(f => f with { Action = ActionFor(input.TemplateId, f.Slot) });
+        input.Level == ScopeBlockLevel.Ground
+            ? fields
+            : fields.ConvertAll(f => f with { Action = ActionFor(input.TemplateId, f.Slot, input.Display.StarsFieldMenus) });
 
     private static List<ScopeField> FieldsAt(TrackPresenterInput input) =>
         (input.TemplateId, input.Level) switch

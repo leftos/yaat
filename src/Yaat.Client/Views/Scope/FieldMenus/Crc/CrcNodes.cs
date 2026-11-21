@@ -306,13 +306,13 @@ internal sealed class CrcHeaderCell : CrcNode
 {
     private readonly CrcText _text;
 
-    public CrcHeaderCell(string text)
+    public CrcHeaderCell(string text, CrcPalette palette)
     {
         WidthGrow = 1;
         BorderWidth = 1;
-        BorderColor = CrcPalette.Outline;
-        Fill = CrcPalette.PickBackground;
-        _text = new CrcText(text, CrcPalette.Text) { HAlign = CrcAlign.Center, WidthGrow = 1 };
+        BorderColor = palette.Outline;
+        Fill = palette.PickBackground;
+        _text = new CrcText(text, palette.Text) { HAlign = CrcAlign.Center, WidthGrow = 1 };
         Children.Add(_text);
     }
 

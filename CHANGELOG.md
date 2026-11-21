@@ -4,6 +4,7 @@
 
 ### Added
 
+- Settings › Radar › STARS field menus (off by default, as in CRC) lets a STARS datablock field click open a menu, in the ERAM field-menus style.
 - Settings › Radar › ERAM field menus picks CRC-style compact menus, a tabbed ERAM | PILOT popup (default, opening on your last tab) or side by side.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 

@@ -159,8 +159,8 @@ internal abstract class ScopeDataPopupBase : IScopeFieldSurface
     /// <summary>The clicked track's callsign.</summary>
     protected string Flid { get; }
 
-    /// <summary>The SCOPE DATA box that takes the focus as the popup opens.</summary>
-    protected abstract TextBox FocusBox { get; }
+    /// <summary>The SCOPE DATA box that takes the focus as the popup opens; null in a popup with no SCOPE DATA column.</summary>
+    protected abstract TextBox? FocusBox { get; }
 
     /// <summary>The SCOPE DATA row labelled <paramref name="label"/>.</summary>
     public Button RowFor(string label) =>
@@ -227,7 +227,7 @@ internal abstract class ScopeDataPopupBase : IScopeFieldSurface
     {
         if (ShownTab != ScopeFieldMenuMode.Pilot)
         {
-            FocusBox.Focus(NavigationMethod.Directional);
+            FocusBox?.Focus(NavigationMethod.Directional);
             return;
         }
 
@@ -518,8 +518,32 @@ internal abstract class ScopeDataPopupBase : IScopeFieldSurface
         var tabs = new Tabs(scopeData, pilot, this);
         _tabs = tabs;
         tabs.Show(opening);
-        var body = new Grid { Children = { scopeData, pilot } };
-        var content = new StackPanel { Children = { FlyoutPanelParts.ToggleStrip([tabs.Eram, tabs.Pilot]), body } };
+        return TabbedFrame(tabs, new Grid { Children = { scopeData, pilot } });
+    }
+
+    /// <summary>
+    /// The panel of a popup with a PILOT column alone, as the STARS field menus' tabbed style shows it: a tab strip holding the one
+    /// PILOT tab above the column, shown.
+    /// </summary>
+    protected Border PilotOnlyPanel(Control pilotColumn)
+    {
+        var pilot = new Border
+        {
+            MinWidth = PilotMinWidth,
+            Padding = new Thickness(0, 0, PilotRightPadding, 0),
+            Child = pilotColumn,
+        };
+        PilotColumnHost = pilot;
+        var tabs = new Tabs(null, pilot, this);
+        _tabs = tabs;
+        tabs.Show(ScopeFieldMenuMode.Pilot);
+        return TabbedFrame(tabs, pilot);
+    }
+
+    // The tab strip above the body, in a frame that takes the focus while no box in it has it.
+    private Border TabbedFrame(Tabs tabs, Control body)
+    {
+        var content = new StackPanel { Children = { FlyoutPanelParts.ToggleStrip(tabs.Buttons), body } };
         Border frame = Frame(content, double.NaN);
         frame.Focusable = true;
         _tabFrame = frame;
@@ -794,23 +818,32 @@ internal abstract class ScopeDataPopupBase : IScopeFieldSurface
     }
 
     // A tabbed popup's ERAM and PILOT tabs and the columns they show: the shown column seen, the other kept in the layout but
-    // unseen, out of hit testing and disabled, so it takes neither a click nor the focus.
-    private sealed class Tabs(Control scopeData, Control pilot, ScopeDataPopupBase popup)
+    // unseen, out of hit testing and disabled, so it takes neither a click nor the focus. With no SCOPE DATA column there is no
+    // ERAM tab, and the PILOT tab stands alone.
+    private sealed class Tabs(Control? scopeData, Control pilot, ScopeDataPopupBase popup)
     {
-        public ToggleButton Eram { get; } = FlyoutPanelParts.VerbToggle(EramTabLabel, "", first: true, () => popup.ShowTab(ScopeFieldMenuMode.Eram));
+        public ToggleButton? Eram { get; } =
+            (scopeData is null) ? null : FlyoutPanelParts.VerbToggle(EramTabLabel, "", first: true, () => popup.ShowTab(ScopeFieldMenuMode.Eram));
 
         public ToggleButton Pilot { get; } =
-            FlyoutPanelParts.VerbToggle(PilotTabLabel, "", first: false, () => popup.ShowTab(ScopeFieldMenuMode.Pilot));
+            FlyoutPanelParts.VerbToggle(PilotTabLabel, "", first: (scopeData is null), () => popup.ShowTab(ScopeFieldMenuMode.Pilot));
 
         public ScopeFieldMenuMode Shown { get; private set; }
 
+        // The tab strip's buttons, ERAM (where there is one) then PILOT.
+        public Button[] Buttons => (Eram is { } eram) ? [eram, Pilot] : [Pilot];
+
         public void Show(ScopeFieldMenuMode mode)
         {
-            Shown = mode;
-            bool eram = mode == ScopeFieldMenuMode.Eram;
-            Eram.IsChecked = eram;
+            bool eram = (mode == ScopeFieldMenuMode.Eram) && (scopeData is not null);
+            Shown = eram ? ScopeFieldMenuMode.Eram : ScopeFieldMenuMode.Pilot;
+            Eram?.IsChecked = eram;
             Pilot.IsChecked = !eram;
-            Reveal(scopeData, eram);
+            if (scopeData is not null)
+            {
+                Reveal(scopeData, eram);
+            }
+
             Reveal(pilot, !eram);
         }
 

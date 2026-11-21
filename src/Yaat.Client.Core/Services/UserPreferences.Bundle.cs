@@ -34,6 +34,7 @@ public sealed partial class UserPreferences
         ("validateDctFixes", Flag),
         ("euroScopeMode", Flag),
         ("scopeFieldMenuStyle", EnumName<ScopeFieldMenuStyle>()),
+        ("scopeStarsFieldMenus", Flag),
         ("vfrCommandsForIfr", EnumName<VfrCommandsForIfr>()),
         ("showQuickCommandIcons", Flag),
         ("soloTrainingMode", Flag),
