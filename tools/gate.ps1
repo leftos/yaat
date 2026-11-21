@@ -30,7 +30,9 @@ that is neither an option nor an option's value, a -name: word split from its va
 -Cd/--cd, the command's working folder, and -Env/--env NAME=VALUE, a variable set for the command and restored after
 it, are used; a GATE_ name is refused with exit 2. There is no log, no tail, no failure markers, no slot and no
 watchdog. The launcher exits with the command's status: a program's own, 0 for a PowerShell command that succeeded and
-1 for one that failed. -StopTree, stop-tree and csharp cannot run without gate.exe: they say so and exit 1. With no command
+1 for one that failed. -StopTree, stop-tree and csharp cannot run without gate.exe: they say so and exit 1. A run naming
+--lock <name> runs only on a builder, so without gate.exe it says `gate: --lock needs gate.exe: a --lock run runs only on
+a builder` and exits 2, running nothing. With no command
 words the launcher prints its usage and exits 2. -Reason/--reason "<why>" is required by gate.exe with -Local/--local,
 -Slot critical/--slot critical and -Alone/--alone; the launcher passes it through and checks nothing itself.
 
@@ -73,7 +75,7 @@ $spellings = @{
     Cli = @{
         Prefix = '--'
         Joiner = '='
-        Values = @('log', 'timeout', 'slot', 'stall', 'tail', 'reason', 'builder', 'desktop', 'cd', 'env', 'bring-tracked', 'state-dir')
+        Values = @('log', 'timeout', 'slot', 'stall', 'tail', 'reason', 'builder', 'desktop', 'lock', 'cd', 'env', 'bring-tracked', 'state-dir')
         Flags = @('no-markers', 'local', 'alone')
     }
 }
@@ -226,9 +228,9 @@ function Find-CommandStart {
     return @{ Options = $options; Dash = $false; At = $Words.Count }
 }
 
-# Reads the option at $At in $Spelling, adding a -Cd folder and an -Env word to $Found; returns how many words it took,
-# or 0 when the word is not one of the spelling's options. A value option takes its value from the same word after the
-# spelling's joiner, or, when that is empty, from the next word.
+# Reads the option at $At in $Spelling, adding a -Cd folder, an -Env word and a --lock to $Found; returns how many
+# words it took, or 0 when the word is not one of the spelling's options. A value option takes its value from the same
+# word after the spelling's joiner, or, when that is empty, from the next word.
 function Read-DirectOption {
     param([hashtable]$Found, [object[]]$Words, [int]$At, [hashtable]$Spelling)
     $word = [string]$Words[$At]
@@ -250,16 +252,17 @@ function Read-DirectOption {
     }
     if ($name -eq 'Cd') { $Found.Cd = $value }
     elseif ($name -eq 'Env') { $Found.Env.Add($value) }
+    elseif ($name -eq 'lock') { $Found.Lock = $true }
     return $taken
 }
 
 # Where the command starts among the words read from $At in $Spelling: Dash, whether a -- ended the options; At, the
-# index of the first command word; Cd, the last -Cd folder or $null; Env, the -Env words in order. A word the spelling
-# does not know is skipped as a flag when $SkipUnknown is set or a -- follows it, and is otherwise the command's first
-# word, as is the first word that is neither an option nor an option's value.
+# index of the first command word; Cd, the last -Cd folder or $null; Env, the -Env words in order; Lock, whether a
+# --lock was given. A word the spelling does not know is skipped as a flag when $SkipUnknown is set or a -- follows it,
+# and is otherwise the command's first word, as is the first word that is neither an option nor an option's value.
 function Find-DirectStart {
     param([object[]]$Words, [int]$At, [hashtable]$Spelling, [bool]$SkipUnknown)
-    $found = @{ Dash = $false; At = $Words.Count; Cd = $null; Env = [System.Collections.Generic.List[string]]::new() }
+    $found = @{ Dash = $false; At = $Words.Count; Cd = $null; Env = [System.Collections.Generic.List[string]]::new(); Lock = $false }
     $later = [array]::IndexOf([string[]]@($Words | ForEach-Object { [string]$_ }), '--', [Math]::Min($At, $Words.Count))
     $read = $At
     while ($read -lt $Words.Count) {
@@ -346,7 +349,7 @@ function Read-DirectCommand {
     $found = Find-DirectStart -Words $Words -At ([int]$cli) -Spelling $spelling -SkipUnknown $false
     $rest = @($Words | Select-Object -Skip $found.At)
     $command = if ($found.Dash) { $rest } else { @(Join-ColonWord $rest) }
-    return @{ Command = @($command); Cd = $found.Cd; Env = $found.Env }
+    return @{ Command = @($command); Cd = $found.Cd; Env = $found.Env; Lock = $found.Lock }
 }
 
 # The pid word of a -StopTree <pid>, -StopTree:<pid> or stop-tree <pid> call, '' when it gives none; $null for any
@@ -414,8 +417,9 @@ function Invoke-Direct {
     }
 }
 
-# With no gate.exe: a stop-tree or csharp refused, the usage for a call with no command, a GATE_ -Env name refused, else the
-# command run directly in its -Cd folder with its -Env pairs, which are put back after it; exits with the status.
+# With no gate.exe: a stop-tree or csharp call refused, a run naming --lock refused (a --lock run runs only on a builder,
+# which only gate.exe reaches), the usage for a call with no command, a GATE_ -Env name refused, else the command run
+# directly in its -Cd folder with its -Env pairs, which are put back after it; exits with the status.
 function Invoke-WithoutGate {
     param([object[]]$Words)
     $target = Get-StopTreeTarget -Words $Words
@@ -428,6 +432,10 @@ function Invoke-WithoutGate {
         exit 1
     }
     $plan = Read-DirectCommand -Words $Words
+    if ($plan.Lock) {
+        Write-Gate 'gate: --lock needs gate.exe: a --lock run runs only on a builder'
+        exit 2
+    }
     if ($plan.Command.Count -lt 1) {
         Write-Gate 'gate: missing the command: put it after --, e.g. -- dotnet test'
         Write-Usage
