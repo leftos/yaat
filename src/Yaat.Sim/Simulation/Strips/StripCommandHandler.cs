@@ -887,7 +887,7 @@ internal static class StripCommandHandler
 
         if (rack < 0 || rack >= bay.NumberOfRacks)
         {
-            return Verdict(new CommandResult(false, $"Rack {rack} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)"));
+            return Verdict(new CommandResult(false, $"Rack {rack + 1} out of range (bay {bay.Name} has {bay.NumberOfRacks} racks)"));
         }
 
         // A run that already holds the recorded separator — a snapshot-based restore the record is re-applied
