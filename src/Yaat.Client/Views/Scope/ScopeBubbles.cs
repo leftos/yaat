@@ -68,7 +68,7 @@ public static class ScopeBubbles
     /// The rect a track's bubble hangs from: the block's bounds, or a box around the symbol when the block draws nothing, so a
     /// hidden block keeps its bubble at the target.
     /// </summary>
-    public static SKRect BubbleAnchor(ScopeTrack track) => (track.Block.Fields.Count > 0) ? track.Block.Bounds : SymbolBounds(track.Symbol);
+    public static SKRect BubbleAnchor(ScopeTrack track) => (track.Block.Fields.Count > 0) ? track.Block.Bounds : SymbolBounds(track);
 
     /// <summary>
     /// <paramref name="text"/> split into a bubble's lines: words packed to <see cref="MaxLineChars"/>, a word longer than that
@@ -145,13 +145,14 @@ public static class ScopeBubbles
         return new SKRect(left, top, left + widest + (2 * Pad), top + height);
     }
 
-    private static SKRect SymbolBounds(SKPoint symbol) =>
-        new(
-            symbol.X - ScopeRenderer.SymbolRadius,
-            symbol.Y - ScopeRenderer.SymbolRadius,
-            symbol.X + ScopeRenderer.SymbolRadius,
-            symbol.Y + ScopeRenderer.SymbolRadius
-        );
+    // The symbol's extent: the circle's, or an ERAM-look track's glyph cell.
+    private static SKRect SymbolBounds(ScopeTrack track)
+    {
+        SKPoint symbol = track.Symbol;
+        float halfWidth = track.EramLook ? EramGlyphs.HalfWidth : ScopeRenderer.SymbolRadius;
+        float halfHeight = track.EramLook ? EramGlyphs.HalfHeight : ScopeRenderer.SymbolRadius;
+        return new SKRect(symbol.X - halfWidth, symbol.Y - halfHeight, symbol.X + halfWidth, symbol.Y + halfHeight);
+    }
 
     private static void AddLine(List<string> lines, ref string? current)
     {

@@ -56,7 +56,16 @@ public static class DatablockDeconfliction
 
         /// <summary>Selected aircraft: placed first and biased toward its preferred position.</summary>
         public required bool IsPriority { get; init; }
+
+        /// <summary>
+        /// How far this item's symbol keeps blocks clear of it, in pixels: a block's rect inflated by it must not contain
+        /// <see cref="Anchor"/>. <see cref="DefaultSymbolPad"/> for a circle symbol; larger for a bigger glyph.
+        /// </summary>
+        public required float SymbolPad { get; init; }
     }
+
+    /// <summary>The symbol pad of a STARS, EuroScope or Ground circle symbol (<see cref="Item.SymbolPad"/>).</summary>
+    public const float DefaultSymbolPad = 2f;
 
     /// <summary>Tunable weights and screen bounds. Use <see cref="Default"/> for the standard set.</summary>
     public readonly record struct Options
@@ -74,7 +83,6 @@ public static class DatablockDeconfliction
         public required float LeaderRingStep { get; init; }
         public required float LeaderRingPenalty { get; init; }
         public required int LeaderExtraRings { get; init; }
-        public required float SymbolPad { get; init; }
         public required float SymbolHitCost { get; init; }
         public required float HysteresisMargin { get; init; }
         public required float PriorityBias { get; init; }
@@ -117,7 +125,6 @@ public static class DatablockDeconfliction
                 LeaderRingStep = 22f,
                 LeaderRingPenalty = 20f,
                 LeaderExtraRings = 3,
-                SymbolPad = 2f,
                 SymbolHitCost = 800f,
                 HysteresisMargin = 250f,
                 PriorityBias = 200f,
@@ -526,8 +533,8 @@ public static class DatablockDeconfliction
         }
 
         var delta = new SKPoint[n];
-        AccumulateBlockForces(blocks, delta, o);
-        AccumulatePinnedForces(blocks, pinned, delta, o);
+        AccumulateBlockForces(blocks, delta);
+        AccumulatePinnedForces(blocks, pinned, delta);
         AccumulateOrderForces(blocks, delta, o);
         ApplyForces(blocks, allItems, delta, o, offsets, maxLeaders);
     }
@@ -535,13 +542,13 @@ public static class DatablockDeconfliction
     /// <summary>The hard leader cap: the outermost compass ring's gap from the symbol.</summary>
     public static float MaxLeaderLength(in Options o) => o.LeaderGap + (o.LeaderExtraRings * o.LeaderRingStep);
 
-    private static void AccumulateBlockForces(Block[] blocks, SKPoint[] delta, in Options o)
+    private static void AccumulateBlockForces(Block[] blocks, SKPoint[] delta)
     {
         for (int i = 0; i < blocks.Length; i++)
         {
             for (int j = i + 1; j < blocks.Length; j++)
             {
-                if (PairSeparation(blocks[i], blocks[j], o) is { } v)
+                if (PairSeparation(blocks[i], blocks[j]) is { } v)
                 {
                     delta[i] = Add(delta[i], v.A);
                     delta[j] = Add(delta[j], v.B);
@@ -550,13 +557,13 @@ public static class DatablockDeconfliction
         }
     }
 
-    private static void AccumulatePinnedForces(Block[] blocks, List<SKRect> pinned, SKPoint[] delta, in Options o)
+    private static void AccumulatePinnedForces(Block[] blocks, List<SKRect> pinned, SKPoint[] delta)
     {
         for (int i = 0; i < blocks.Length; i++)
         {
             foreach (SKRect p in pinned)
             {
-                if (Separation(blocks[i], p, o) is { } v)
+                if (Separation(blocks[i], p) is { } v)
                 {
                     delta[i] = Add(delta[i], v);
                 }
@@ -571,7 +578,7 @@ public static class DatablockDeconfliction
     /// travelling along that row (a departure rolling past a holding aircraft) was shoved back exactly as
     /// fast as its anchor advanced and dragged hundreds of pixels from its aircraft (#402).
     /// </summary>
-    private static SKPoint? Separation(in Block self, SKRect other, in Options o)
+    private static SKPoint? Separation(in Block self, SKRect other)
     {
         if (MinTranslation(self.Rect, other) is not { } mtv)
         {
@@ -580,8 +587,8 @@ public static class DatablockDeconfliction
 
         SKPoint perp = PerpendicularTranslation(self.Rect, other, mtv);
         SKPoint hop = HopVector(self.Target, self.Offset, perp);
-        float afterMtv = MoveCost(self.Item, self.Target, Add(self.Offset, mtv), o);
-        float afterHop = MoveCost(self.Item, self.Target, Add(self.Offset, hop), o);
+        float afterMtv = MoveCost(self.Item, self.Target, Add(self.Offset, mtv));
+        float afterHop = MoveCost(self.Item, self.Target, Add(self.Offset, hop));
         return afterHop + 1f < afterMtv ? hop : mtv;
     }
 
@@ -599,7 +606,7 @@ public static class DatablockDeconfliction
     /// summed <see cref="MoveCost"/> is lower that way. Evaluated for the pair as a whole so the two never
     /// hop the same way.
     /// </summary>
-    private static (SKPoint A, SKPoint B)? PairSeparation(in Block a, in Block b, in Options o)
+    private static (SKPoint A, SKPoint B)? PairSeparation(in Block a, in Block b)
     {
         if (MinTranslation(a.Rect, b.Rect) is not { } mtv)
         {
@@ -609,9 +616,8 @@ public static class DatablockDeconfliction
         SKPoint perp = PerpendicularTranslation(a.Rect, b.Rect, mtv);
         SKPoint hopA = HopVector(a.Target, a.Offset, Scale(perp, 0.5f));
         SKPoint hopB = HopVector(b.Target, b.Offset, Scale(perp, -0.5f));
-        float costMtv =
-            MoveCost(a.Item, a.Target, Add(a.Offset, Scale(mtv, 0.5f)), o) + MoveCost(b.Item, b.Target, Add(b.Offset, Scale(mtv, -0.5f)), o);
-        float costHop = MoveCost(a.Item, a.Target, Add(a.Offset, hopA), o) + MoveCost(b.Item, b.Target, Add(b.Offset, hopB), o);
+        float costMtv = MoveCost(a.Item, a.Target, Add(a.Offset, Scale(mtv, 0.5f))) + MoveCost(b.Item, b.Target, Add(b.Offset, Scale(mtv, -0.5f)));
+        float costHop = MoveCost(a.Item, a.Target, Add(a.Offset, hopA)) + MoveCost(b.Item, b.Target, Add(b.Offset, hopB));
         return costHop + 1f < costMtv ? (hopA, hopB) : (Scale(mtv, 0.5f), Scale(mtv, -0.5f));
     }
 
@@ -620,10 +626,10 @@ public static class DatablockDeconfliction
     /// large penalty when the block (with symbol padding) would cover its own aircraft symbol — the
     /// free-form analogue of <see cref="Options.WSelf"/>.
     /// </summary>
-    private static float MoveCost(in Item item, SKPoint target, SKPoint candidate, in Options o)
+    private static float MoveCost(in Item item, SKPoint target, SKPoint candidate)
     {
         float cost = Dist(candidate, target);
-        SKRect rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), o.SymbolPad);
+        SKRect rect = Inflate(Translate(item.RectAtOrigin, Add(item.Anchor, candidate)), item.SymbolPad);
         if (Contains(rect, item.Anchor))
         {
             cost += SelfCoverPenalty;
@@ -697,7 +703,7 @@ public static class DatablockDeconfliction
         for (int i = 0; i < blocks.Length; i++)
         {
             Item item = blocks[i].Item;
-            SKPoint push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems, o));
+            SKPoint push = Add(delta[i], SymbolPush(blocks[i].Rect, allItems));
             SKPoint spring = Scale(Sub(blocks[i].Target, blocks[i].Offset), SpringStiffness);
             push = Add(push, spring);
             SKPoint next = Add(blocks[i].Offset, Scale(push, Damping));
@@ -706,12 +712,13 @@ public static class DatablockDeconfliction
         }
     }
 
-    private static SKPoint SymbolPush(SKRect rect, IReadOnlyList<Item> items, in Options o)
+    private static SKPoint SymbolPush(SKRect rect, IReadOnlyList<Item> items)
     {
-        SKRect inflated = Inflate(rect, o.SymbolPad);
         var push = new SKPoint(0, 0);
         foreach (Item it in items)
         {
+            // Each symbol keeps the block clear by its own pad, so a bigger glyph never moves a block off another's circle.
+            SKRect inflated = Inflate(rect, it.SymbolPad);
             if (Contains(inflated, it.Anchor))
             {
                 push = Add(push, ExpelPoint(inflated, it.Anchor));
@@ -754,11 +761,10 @@ public static class DatablockDeconfliction
 
     private static float ForeignSymbolPenalty(SKRect rect, string ownCallsign, IReadOnlyList<Item> items, in Options o)
     {
-        SKRect inflated = Inflate(rect, o.SymbolPad);
         float penalty = 0f;
         foreach (Item it in items)
         {
-            if (!string.Equals(it.Callsign, ownCallsign, StringComparison.Ordinal) && Contains(inflated, it.Anchor))
+            if (!string.Equals(it.Callsign, ownCallsign, StringComparison.Ordinal) && Contains(Inflate(rect, it.SymbolPad), it.Anchor))
             {
                 penalty += o.SymbolHitCost;
             }

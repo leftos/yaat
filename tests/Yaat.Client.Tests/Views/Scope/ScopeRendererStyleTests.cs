@@ -517,7 +517,7 @@ public class ScopeRendererStyleTests
             for (int x = area.Left; x < area.Right; x++)
             {
                 SKColor c = bitmap.GetPixel(x, y);
-                if ((Brightness(c) > 0) && (c.Red == c.Green) && (c.Green == c.Blue))
+                if ((Brightness(c) > 0) && (c.Red == c.Green) && (c.Blue == 0))
                 {
                     return true;
                 }

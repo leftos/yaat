@@ -92,7 +92,8 @@ public sealed class ScopeDeconfliction
     private void Resolve(DatablockDeconflictMode mode, ScopeFrame frame, ScopeFrameInput input)
     {
         var bounds = new SKRect(0, 0, input.Viewport.PixelWidth, input.Viewport.PixelHeight);
-        DatablockDeconfliction.Resolve(mode, BuildItems(frame, input), DatablockDeconfliction.Options.Default(bounds), _resolved, _scratch);
+        var options = DatablockDeconfliction.Options.Default(bounds);
+        DatablockDeconfliction.Resolve(mode, BuildItems(frame, input), options, _resolved, _scratch);
         _resolved.Clear();
         foreach (KeyValuePair<string, SKPoint> offset in _scratch)
         {
@@ -131,6 +132,9 @@ public sealed class ScopeDeconfliction
             PreferredOffset = track.BlockOffset,
             IsPinned = pinned,
             IsPriority = track.IsSelected,
+
+            // An ERAM glyph keeps blocks clear of its whole 12 x 15 cell; a circle keeps its own small pad.
+            SymbolPad = track.EramLook ? EramGlyphs.HalfHeight : DatablockDeconfliction.DefaultSymbolPad,
         };
     }
 }

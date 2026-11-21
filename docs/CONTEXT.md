@@ -914,6 +914,9 @@ The status area, a view of the Scope, open by default and floating at the scope'
 **Status slot (Radar)**:
 ERAM line 3's single status text: the first applicable of special-purpose code, handoff, recently accepted, beacon mismatch or `NONE`, `FRZN`, `CST`, never time-shared.
 
+**Target symbol (Radar)**:
+The glyph an ERAM-template track draws at its target for the return's state: `\` correlated beacon, `/` uncorrelated beacon, V for 1200, X or + for a primary, three bars for ident, none while coasting (`EramTargetGlyph`, `EramSymbolState.TargetOf`). Distinct from the *Track symbol*.
+
 **TDM (Radar)**:
 Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T in the Radar window) that draws on-ground aircraft (with the ground-target block on STARS and ERAM), below-the-display-floor aircraft and the TDM-only maps; a saved display setting, not a pin.
 
@@ -938,6 +941,9 @@ The full-width navy row of buttons across the top of the Radar window (`Views/Sc
 
 **TrackPresenter**:
 The pure Radar step from an aircraft's model, template id, ATPA peer, flash phase and selection to a `TrackPresentation`: slotted fields, each with its text, stable text, color token, click action and field style.
+
+**Track symbol (Radar)**:
+The track-position symbol an ERAM-template track draws under a Full or Dwell block, over its *Target symbol*: a flat diamond (correlated with a destination), a free D, a coast hash or a frozen bow-tie (`EramTrackSymbol`, `EramSymbolState.TrackOf`).
 
 **Tray (Radar)**:
 The grid of a menu button's children shown under the toolbar while the main row stays visible: two rows of one-line tiles filled column by column, continued in a further two-row block when wider than the window.

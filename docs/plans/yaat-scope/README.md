@@ -14,7 +14,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
   - Column 0 holds the VCI (on-frequency mark) and `R` (not your control).
   - There are four levels: Limited, Partial, Full, and Dwell (hover expands the block).
   - Held keys stand in for time-sharing: F1 shows beacon codes, F10 shows type and destination, Alt shows scratchpads.
-- **Colors** follow STARS ownership (white yours, green others', amber inbound handoff, yellow point out, cyan highlight, red CA). Brightness is set per group, as in ERAM.
+- **Colors** follow STARS ownership on a STARS-template track (white yours, green others', amber inbound handoff, yellow point out, cyan highlight, red CA); an ERAM-template track draws in CRC's ERAM yellow, with no ownership colour. Brightness is set per group, as in ERAM.
 - **Semantic zoom**: zoomed in it behaves like STARS (other controllers' blocks shown full, ATPA cones, rings). At medium range, others' blocks drop to partial and vector lines run 1 minute. Zoomed out it behaves like ERAM (vector lines 4 minutes, route lines, DRI halos). Band edges live in the profile. A manual change pins a value until AUTO is pressed.
 - **Input**: four ways to enter a command, all feeding one command pipeline.
   - Type, then click the track (STARS). A `$` command gets the clicked track's callsign after the `$`.

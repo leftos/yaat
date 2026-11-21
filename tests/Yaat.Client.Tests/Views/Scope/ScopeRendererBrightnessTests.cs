@@ -252,9 +252,10 @@ public class ScopeRendererBrightnessTests
 
         using SKBitmap bitmap = Render(frame, ScopeBrightness.Default with { Line4 = -10 });
 
-        Assert.True(AnyPixel(bitmap, line4, new SKColor(229, 229, 229)), "no 90% pixel in line 4");
-        Assert.False(AnyPixel(bitmap, line4, White), "a full-white pixel in line 4");
-        Assert.True(AnyPixel(bitmap, FieldPixels(track, ScopeFieldSlot.Callsign), White), "the callsign dimmed with line 4");
+        // An ERAM-template block draws in the ERAM FDB yellow (196, 196, 0); line 4 at 90 % of it.
+        Assert.True(AnyPixel(bitmap, line4, new SKColor(176, 176, 0)), "no 90% pixel in line 4");
+        Assert.False(AnyPixel(bitmap, line4, new SKColor(196, 196, 0)), "a full-yellow pixel in line 4");
+        Assert.True(AnyPixel(bitmap, FieldPixels(track, ScopeFieldSlot.Callsign), new SKColor(196, 196, 0)), "the callsign dimmed with line 4");
     }
 
     [Fact]
@@ -330,8 +331,9 @@ public class ScopeRendererBrightnessTests
         using SKBitmap bitmap = Render(frame, ScopeBrightness.Default with { Fdb = 0, Line4 = -20, Dwell = 10 });
 
         Assert.True(track.IsDwelled);
-        Assert.True(AnyPixel(bitmap, line4, HalfWhite), "no 50% pixel in the dwelled line 4");
-        Assert.False(Pixels(bitmap, line4).Any(c => c.Red > 127), "a pixel brighter than 50% in the dwelled line 4");
+        // 50 % of the ERAM FDB yellow (196, 196, 0).
+        Assert.True(AnyPixel(bitmap, line4, new SKColor(98, 98, 0)), "no 50% pixel in the dwelled line 4");
+        Assert.False(Pixels(bitmap, line4).Any(c => c.Red > 98), "a pixel brighter than 50% in the dwelled line 4");
     }
 
     [Theory]

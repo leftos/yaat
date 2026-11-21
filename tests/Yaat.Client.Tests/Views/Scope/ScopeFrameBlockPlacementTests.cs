@@ -105,7 +105,6 @@ public class ScopeFrameBlockPlacementTests
     }
 
     [Theory]
-    [InlineData(ScopeTemplates.EramId)]
     [InlineData(ScopeTemplates.EuroScopeId)]
     public void StudentLeaderDirection_LeavesANonStarsTrackAtTheDefault(string templateId)
     {
@@ -115,6 +114,21 @@ public class ScopeFrameBlockPlacementTests
         ScopeTrack track = Assert.Single(Frame(ac, new FrameSetup(TemplateId: templateId, SyncLeader: true)).Tracks);
 
         Assert.Equal(DatablockText.DefaultOffset, track.BlockOffset);
+    }
+
+    [Fact]
+    public void StudentLeaderDirection_LeavesAnEramTrackAtTheEramDefault()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.StudentLeaderDirection = 8;
+
+        ScopeTrack track = Assert.Single(Frame(ac, new FrameSetup(TemplateId: ScopeTemplates.EramId, SyncLeader: true)).Tracks);
+
+        // The ERAM default: the leader ends 6 + min(1000 / 32, 60) px out along the NE ray, and the text box's left sits 5 px
+        // past that end and its top two row pitches (the font size plus 2) above it.
+        float leg = (6f + 31.25f) / MathF.Sqrt(2f);
+        Assert.Equal(track.Symbol.X + leg + 5f, track.Block.TextBounds.Left, 3);
+        Assert.Equal(track.Symbol.Y - leg - (2f * (FontSize + 2f)), track.Block.TextBounds.Top, 3);
     }
 
     [Fact]

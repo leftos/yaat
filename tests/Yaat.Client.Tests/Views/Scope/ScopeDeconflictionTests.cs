@@ -342,4 +342,45 @@ public class ScopeDeconflictionTests
         Assert.Equal(name.ToLowerInvariant(), ScopeDeconfliction.NameOf(mode));
         Assert.Null(ScopeDeconfliction.ParseMode("compass"));
     }
+
+    /// <summary>
+    /// In a Mixed frame a STARS block keeps the circle's 2 px symbol pad: a STARS symbol 5 px off another STARS block (inside an
+    /// ERAM glyph's 7.5 px keep-out, outside the circle's) leaves that block where it was whether or not an ERAM-look track is on
+    /// screen elsewhere.
+    /// </summary>
+    [Fact]
+    public void MixedFrame_StarsBlock_DeconflictsTheSame_WithOrWithoutAnEramTrackElsewhere()
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        var setup = new FrameSetup(TemplateId: ScopeTemplates.MixedId);
+        AircraftModel first = StarsTrack("SWA1832");
+        SKRect block = TrackOf(Plain([first], setup), first.Callsign).Block.Bounds;
+        AircraftModel second = StarsTrack("DAL412");
+        (double lat, double lon) = Viewport().ScreenToLatLon(block.Right + 5f, block.MidY);
+        second.Position = new LatLon(lat, lon);
+        AircraftModel eram = ScopeTestAircraft.CreateModel();
+        eram.Callsign = "UAL123";
+        (lat, lon) = Viewport().ScreenToLatLon(100, 100);
+        eram.Position = new LatLon(lat, lon);
+
+        ScopeFrame without = Deconflicted(DatablockDeconflictMode.CompassSnap, [first, second], setup);
+        ScopeFrame with = Deconflicted(DatablockDeconflictMode.CompassSnap, [first, second, eram], setup);
+
+        Assert.True(TrackOf(with, eram.Callsign).EramLook);
+        Assert.False(TrackOf(with, first.Callsign).EramLook);
+        Assert.False(TrackOf(with, second.Callsign).EramLook);
+        Assert.Equal(TrackOf(without, first.Callsign).BlockOffset, TrackOf(with, first.Callsign).BlockOffset);
+        Assert.Equal(TrackOf(without, second.Callsign).BlockOffset, TrackOf(with, second.Callsign).BlockOffset);
+    }
+
+    // A track owned at NCT 2S, which the Mixed template draws as STARS.
+    private static AircraftModel StarsTrack(string callsign)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.Callsign = callsign;
+        ac.Owner = "OAK_APP";
+        ac.OwnerFacilityId = "NCT";
+        ac.OwnerSectorCode = "2S";
+        return ac;
+    }
 }

@@ -327,7 +327,7 @@ public class ScopeAltitudeMismatchTests
         return frame with { Tracks = [track with { Block = block }] };
     }
 
-    // A lit grey pixel (the white block colour at some coverage) brighter in drawn than in plain.
+    // A lit pixel in the ERAM block yellow (red equal to green, no blue) at some coverage, brighter in drawn than in plain.
     private static bool AnyBrightenedLit(SKBitmap drawn, SKBitmap plain, SKRectI area)
     {
         for (int y = area.Top; y < area.Bottom; y++)
@@ -336,8 +336,8 @@ public class ScopeAltitudeMismatchTests
             {
                 SKColor c = drawn.GetPixel(x, y);
                 SKColor before = plain.GetPixel(x, y);
-                bool grey = (c.Red == c.Green) && (c.Green == c.Blue);
-                if (grey && ((c.Red + c.Green + c.Blue) > (before.Red + before.Green + before.Blue)))
+                bool yellow = (c.Red == c.Green) && (c.Blue == 0);
+                if (yellow && ((c.Red + c.Green + c.Blue) > (before.Red + before.Green + before.Blue)))
                 {
                     return true;
                 }

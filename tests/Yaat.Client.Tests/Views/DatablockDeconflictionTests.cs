@@ -31,6 +31,7 @@ public class DatablockDeconflictionTests
             PreferredOffset = preferred,
             IsPinned = pinned,
             IsPriority = priority,
+            SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
         };
 
     private static SKRect ResolvedRect(DatablockDeconfliction.Item item, IReadOnlyDictionary<string, SKPoint> resolved)
@@ -570,6 +571,7 @@ public class DatablockDeconflictionTests
                     PreferredOffset = otherPreferred,
                     IsPinned = otherPinned,
                     IsPriority = false,
+                    SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
                 },
                 new DatablockDeconfliction.Item
                 {
@@ -579,6 +581,7 @@ public class DatablockDeconflictionTests
                     PreferredOffset = pref,
                     IsPinned = false,
                     IsPriority = false,
+                    SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
                 },
             ];
             DatablockDeconfliction.Resolve(DatablockDeconflictMode.FreeForm, items, DatablockDeconfliction.Options.Default(big), prev, res);
@@ -650,6 +653,7 @@ public class DatablockDeconflictionTests
                 PreferredOffset = pref,
                 IsPinned = false,
                 IsPriority = false,
+                SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
             },
             new DatablockDeconfliction.Item
             {
@@ -659,6 +663,7 @@ public class DatablockDeconflictionTests
                 PreferredOffset = pref,
                 IsPinned = false,
                 IsPriority = false,
+                SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
             },
         ];
         var prev = new Dictionary<string, SKPoint>();
@@ -717,6 +722,7 @@ public class DatablockDeconflictionTests
                     PreferredOffset = pref,
                     IsPinned = false,
                     IsPriority = false,
+                    SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
                 }
             );
         }

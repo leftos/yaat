@@ -2566,6 +2566,7 @@ public sealed class GroundCanvas : MapCanvasBase, IDisposable
                     PreferredOffset = hasManual ? manualOffset : DataBlockLayout.DefaultOffset,
                     IsPinned = hasManual,
                     IsPriority = ReferenceEquals(ac, SelectedAircraft),
+                    SymbolPad = DatablockDeconfliction.DefaultSymbolPad,
                 }
             );
         }

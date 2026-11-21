@@ -849,6 +849,8 @@ public class ScopeMiddleClickTests
             var inColumn0 = new SKPoint((b.Block.Bounds.Left + b.DwellBox.Left) / 2f, bCallsign.MidY);
             SKPoint target = VciTarget(b);
             AddWithPointAt(scope, view.Canvas, b, inColumn0);
+            // Both blocks sit at one offset on purpose, so the column-0 point measured on b's block lands on DAL238's.
+            scope.DataBlockState.SetManualOffset("DAL238", b.BlockOffset);
             scope.ToggleDwellLock("DAL238");
             Dispatcher.UIThread.RunJobs();
 

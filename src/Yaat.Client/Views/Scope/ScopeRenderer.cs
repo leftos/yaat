@@ -223,6 +223,27 @@ public sealed record ScopeTrack(
     /// </summary>
     public SKPoint BlockOffset { get; init; }
 
+    /// <summary>
+    /// Whether the track draws in the ERAM look (it resolved to the ERAM template): its target glyph and track-position symbol
+    /// (<see cref="EramSymbols"/>) in place of the circle, its history as glyphs, its leader from 6 px out and its block in yellow.
+    /// </summary>
+    public bool EramLook { get; init; }
+
+    /// <summary>The target glyph and track-position symbol an ERAM-look track draws; empty for any other.</summary>
+    public EramSymbolState EramSymbols { get; init; }
+
+    /// <summary>
+    /// The target glyph of each <see cref="History"/> sample, oldest first, null for a sample drawn without one (taken while
+    /// coasting); null for a track not in the ERAM look.
+    /// </summary>
+    public IReadOnlyList<EramTargetGlyph?>? HistoryGlyphs { get; init; }
+
+    /// <summary>
+    /// The block's row pitch (baseline to baseline) for an ERAM-look track, where its full block's leader meets the third row
+    /// (<see cref="ScopeRenderer.LeaderEnd"/>); 0 for any other.
+    /// </summary>
+    public float EramRowPitch { get; init; }
+
     /// <summary>The text bounds inflated <see cref="DwellBoxInflatePx"/>; the hover hit-test and the emphasis both read it.</summary>
     public SKRect DwellBox
     {
@@ -444,7 +465,8 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         TrackPresentation presentation = TrackPresenter.Present(presenterInput);
         ScopeBlockLayout atOrigin = DatablockTemplate.Layout(presentation, input.Metrics);
         (float sx, float sy) = input.Viewport.LatLonToScreen(ac.Position.Lat, ac.Position.Lon);
-        (ScopeBlockLayout placed, SKPoint offset) = PlaceBlock(new ScopeBlockSeed(input, ac, atOrigin, new SKPoint(sx, sy), hidden, templateId));
+        var seed = new ScopeBlockSeed(input, ac, atOrigin, new SKPoint(sx, sy), hidden, templateId) { Level = presentation.Level };
+        (ScopeBlockLayout placed, SKPoint offset) = PlaceBlock(seed);
         if (!EramDwellLock.HasEramSector(input.Display.Viewer))
         {
             // With no viewer ERAM sector the VCI can never light, so its cell takes no hover.
@@ -453,7 +475,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
                 VciCell = null,
             };
         }
-        return new ScopeTrack(
+        var track = new ScopeTrack(
             ac,
             new SKPoint(sx, sy),
             placed,
@@ -482,6 +504,29 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
                 (!hidden) && (CrrReadoutFor(ac, templateId, presentation.Level, input) is { } crr)
                     ? ScopeCrrReadout.Place(crr, new SKPoint(sx, sy), offset, input.Metrics)
                     : null,
+        };
+        return WithEramLook(track, templateId, input);
+    }
+
+    /// <summary>
+    /// <paramref name="track"/> in the ERAM look when it resolved to the ERAM template (<paramref name="templateId"/>): its glyph
+    /// and track symbol at its level, the glyph of each of its newest HIST history samples (<see cref="EramHistoryGlyphs"/>) and
+    /// its block's row pitch; else unchanged.
+    /// </summary>
+    private static ScopeTrack WithEramLook(ScopeTrack track, string templateId, ScopeFrameInput input)
+    {
+        if (templateId != ScopeTemplates.EramId)
+        {
+            return track;
+        }
+
+        var symbols = EramSymbolState.Of(track.Aircraft, track.Level);
+        return track with
+        {
+            EramLook = true,
+            EramSymbols = symbols,
+            HistoryGlyphs = EramHistoryGlyphs.For(track.Aircraft, input.HistoryCount, symbols.Target),
+            EramRowPitch = input.Metrics.LineHeight,
         };
     }
 
@@ -924,6 +969,25 @@ public sealed partial class ScopeRenderer : IDisposable
         PathEffect = ShadowSymbolDash,
     };
 
+    // The ERAM glyphs' 2 px strokes, a shadow's dashed, and their filled bars, all crisp as CRC's bitmap glyphs; coloured each draw.
+    // Outside the radar line style: the strokes scale with the canvas, as the 12 x 15 cell and the filled bars do.
+    private readonly SKPaint _glyphStrokePaint = new()
+    {
+        StrokeWidth = EramGlyphs.StrokeWidth,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = false,
+    };
+
+    private readonly SKPaint _shadowGlyphStrokePaint = new()
+    {
+        StrokeWidth = EramGlyphs.StrokeWidth,
+        Style = SKPaintStyle.Stroke,
+        IsAntialias = false,
+        PathEffect = ShadowSymbolDash,
+    };
+
+    private readonly SKPaint _glyphFillPaint = new() { Style = SKPaintStyle.Fill, IsAntialias = false };
+
     private readonly SKPaint _leaderPaint = new()
     {
         Color = BlockColor,
@@ -1110,7 +1174,7 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// Draws <paramref name="track"/>'s history dots at HIST: the oldest faintest, the alpha
-    /// ramping to full at the newest. DWELL never lifts them.
+    /// ramping to full at the newest; an ERAM-look track's as glyphs (<see cref="DrawEramHistory"/>). DWELL never lifts them.
     /// </summary>
     private void DrawHistory(SKCanvas canvas, ScopeTrack track, int percent)
     {
@@ -1119,11 +1183,40 @@ public sealed partial class ScopeRenderer : IDisposable
             return;
         }
 
+        if (track.EramLook)
+        {
+            DrawEramHistory(canvas, dots, track.HistoryGlyphs, percent);
+            return;
+        }
+
         SKColor color = ScopeBrightness.Apply(HistoryColor, percent);
         for (int i = 0; i < dots.Count; i++)
         {
             _historyPaint.Color = color.WithAlpha((byte)(255 * (i + 1) / dots.Count));
             canvas.DrawCircle(dots[i].X, dots[i].Y, SymbolRadius / 2f, _historyPaint);
+        }
+    }
+
+    /// <summary>
+    /// Draws each ERAM history sample in <paramref name="dots"/> as the glyph its target had then (<paramref name="glyphs"/>), all
+    /// in the one dim history yellow at HIST with no alpha ramp; a sample with no glyph (taken while coasting) draws nothing.
+    /// </summary>
+    private void DrawEramHistory(SKCanvas canvas, IReadOnlyList<SKPoint> dots, IReadOnlyList<EramTargetGlyph?>? glyphs, int percent)
+    {
+        if (glyphs is null)
+        {
+            return;
+        }
+
+        SKColor color = ScopeBrightness.Apply(EramGlyphs.HistoryColor, percent);
+        _glyphStrokePaint.Color = color;
+        _glyphFillPaint.Color = color;
+        for (int i = 0; i < Math.Min(dots.Count, glyphs.Count); i++)
+        {
+            if (glyphs[i] is { } glyph)
+            {
+                EramGlyphs.Draw(canvas, EramGlyphs.ShapeOf(glyph), dots[i], _glyphStrokePaint, _glyphFillPaint);
+            }
         }
     }
 
@@ -1253,6 +1346,9 @@ public sealed partial class ScopeRenderer : IDisposable
         _selectedBorderPaint.Dispose();
         _dwellBoxPaint.Dispose();
         _historyPaint.Dispose();
+        _glyphStrokePaint.Dispose();
+        _shadowGlyphStrokePaint.Dispose();
+        _glyphFillPaint.Dispose();
         _vectorPaint.Dispose();
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
@@ -1524,9 +1620,16 @@ public sealed partial class ScopeRenderer : IDisposable
     /// </summary>
     private void DrawTrack(SKCanvas canvas, ScopeTrack track, SKFont font, ScopePalette palette, ScopeBrightness brightness)
     {
-        SKPaint symbolPaint = SymbolPaintFor(track);
-        symbolPaint.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
-        canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, symbolPaint);
+        if (track.EramLook)
+        {
+            DrawEramSymbols(canvas, track, palette, brightness);
+        }
+        else
+        {
+            SKPaint symbolPaint = SymbolPaintFor(track);
+            symbolPaint.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
+            canvas.DrawCircle(track.Symbol.X, track.Symbol.Y, SymbolRadius, symbolPaint);
+        }
 
         if (track.IsSelected)
         {
@@ -1541,12 +1644,7 @@ public sealed partial class ScopeRenderer : IDisposable
             canvas.DrawRect(track.DwellBox, _dwellBoxPaint);
         }
 
-        if (track.ShowsLeader)
-        {
-            _leaderPaint.Color = blockColor;
-            canvas.DrawLine(track.Symbol, LeaderEnd(track), _leaderPaint);
-        }
-
+        DrawLeader(canvas, track, blockColor);
         foreach (FieldRect field in track.Block.Fields)
         {
             if (field.Text.Length > 0)
@@ -1554,6 +1652,43 @@ public sealed partial class ScopeRenderer : IDisposable
                 int percent = Lifted(track, FieldPercent(field, brightness), brightness.Dwell);
                 DrawField(canvas, field, font, ScopeBrightness.Apply(ColorFor(field.Token, rawBlockColor), percent));
             }
+        }
+    }
+
+    /// <summary>
+    /// Draws <paramref name="track"/>'s leader in <paramref name="color"/> when its block shows one: from the symbol, or for an
+    /// ERAM-look track from <see cref="EramLeaderStart"/> (none when the block is too close), to <see cref="LeaderEnd"/>.
+    /// </summary>
+    private void DrawLeader(SKCanvas canvas, ScopeTrack track, SKColor color)
+    {
+        SKPoint? leaderStart = track.EramLook ? EramLeaderStart(track) : track.Symbol;
+        bool drawsLeader = track.ShowsLeader && (leaderStart is not null);
+        if (drawsLeader)
+        {
+            _leaderPaint.Color = color;
+            canvas.DrawLine(leaderStart.GetValueOrDefault(), LeaderEnd(track), _leaderPaint);
+        }
+    }
+
+    /// <summary>
+    /// Draws an ERAM-look track's track-position symbol in FDB yellow at FDB, then its target glyph over it in its symbol colour
+    /// (<see cref="SymbolColorOf"/>) at TARGETS, each lifted by DWELL when dwelled; a shadow's strokes draw dashed.
+    /// </summary>
+    private void DrawEramSymbols(SKCanvas canvas, ScopeTrack track, ScopePalette palette, ScopeBrightness brightness)
+    {
+        SKPaint stroke = track.IsShadow ? _shadowGlyphStrokePaint : _glyphStrokePaint;
+        if (track.EramSymbols.Track is { } symbol)
+        {
+            stroke.Color = ScopeBrightness.Apply(Stale(track, EramGlyphs.FdbColor), Lifted(track, brightness.Fdb, brightness.Dwell));
+            _glyphFillPaint.Color = stroke.Color;
+            EramGlyphs.Draw(canvas, EramGlyphs.ShapeOf(symbol), track.Symbol, stroke, _glyphFillPaint);
+        }
+
+        if (track.EramSymbols.Target is { } target)
+        {
+            stroke.Color = ScopeBrightness.Apply(SymbolColorOf(track, palette), Lifted(track, brightness.Targets, brightness.Dwell));
+            _glyphFillPaint.Color = stroke.Color;
+            EramGlyphs.Draw(canvas, EramGlyphs.ShapeOf(target), track.Symbol, stroke, _glyphFillPaint);
         }
     }
 
@@ -1840,13 +1975,14 @@ public sealed partial class ScopeRenderer : IDisposable
     /// </summary>
     internal static SKColor BlockColorOf(ScopeTrack track, ScopePalette palette)
     {
-        SKColor color = ResolveBlockColor(track.BlockColor, palette);
+        SKColor color = track.EramLook ? ResolveEramBlockColor(track, palette) : ResolveBlockColor(track.BlockColor, palette);
         return track.IsDwelled ? color : Stale(track, color);
     }
 
     /// <summary>
-    /// The colour of <paramref name="track"/>'s symbol: the selected colour when selected, else its tint, else the symbol blue,
-    /// at the stale alpha when it coasts. The highlight and student colours leave the symbol alone.
+    /// The colour of <paramref name="track"/>'s symbol: the selected colour when selected, else its tint, else the symbol blue
+    /// (an ERAM-look track's target glyph: the target yellow), at the stale alpha when it coasts. The highlight and student colours
+    /// leave the symbol alone.
     /// </summary>
     internal static SKColor SymbolColorOf(ScopeTrack track, ScopePalette palette)
     {
@@ -1856,7 +1992,47 @@ public sealed partial class ScopeRenderer : IDisposable
             ScopeTintRole.AssignedToOther => palette.AssignedToOther,
             _ => null,
         };
-        return Stale(track, track.IsSelected ? palette.SelectedSymbol : (tint ?? SymbolColor));
+        SKColor plain = track.EramLook ? EramGlyphs.TargetColor : SymbolColor;
+        return Stale(track, track.IsSelected ? palette.SelectedSymbol : (tint ?? plain));
+    }
+
+    /// <summary>
+    /// An ERAM-look block's colour: the middle-click highlight, else the user's assignment tint when set, else ERAM yellow
+    /// (<see cref="EramDefaultBlockColor"/>); the student's ownership colours do not apply, as ERAM shows no ownership colour.
+    /// </summary>
+    private static SKColor ResolveEramBlockColor(ScopeTrack track, ScopePalette palette)
+    {
+        SKColor yellow = EramDefaultBlockColor(track.Level);
+        return track.BlockColor switch
+        {
+            ScopeBlockColor.Highlighted => HighlightColor,
+            ScopeBlockColor.AssignedToMe => palette.AssignedToMe ?? yellow,
+            ScopeBlockColor.AssignedToOther => palette.AssignedToOther ?? yellow,
+            _ => yellow,
+        };
+    }
+
+    /// <summary>The ERAM LDB yellow for a Limited or Partial block, the FDB yellow for any other.</summary>
+    private static SKColor EramDefaultBlockColor(ScopeBlockLevel level) =>
+        (level is ScopeBlockLevel.Limited or ScopeBlockLevel.Partial) ? EramGlyphs.LdbColor : EramGlyphs.FdbColor;
+
+    /// <summary>
+    /// Where an ERAM-look track's leader starts: <see cref="EramGlyphs.LeaderAnchorOffsetPx"/> out from the target toward
+    /// <see cref="LeaderEnd"/>; null when the block's edge is no farther than that, so no leader draws.
+    /// </summary>
+    internal static SKPoint? EramLeaderStart(ScopeTrack track)
+    {
+        SKPoint end = LeaderEnd(track);
+        float dx = end.X - track.Symbol.X;
+        float dy = end.Y - track.Symbol.Y;
+        float length = MathF.Sqrt((dx * dx) + (dy * dy));
+        if (length <= EramGlyphs.LeaderAnchorOffsetPx)
+        {
+            return null;
+        }
+
+        float k = EramGlyphs.LeaderAnchorOffsetPx / length;
+        return new SKPoint(track.Symbol.X + (dx * k), track.Symbol.Y + (dy * k));
     }
 
     /// <summary>The colour <paramref name="token"/> draws in; <see cref="ScopeColorToken.Default"/> takes <paramref name="block"/>.</summary>
@@ -1890,10 +2066,47 @@ public sealed partial class ScopeRenderer : IDisposable
     private static SKColor Stale(ScopeTrack track, SKColor color) => track.IsStale ? color.WithAlpha(StaleAlpha) : color;
 
     /// <summary>
-    /// Where <paramref name="track"/>'s leader meets its block: the nearest point of the text bounds, so column 0 never moves it
-    /// (CRC attaches the leader to the fields box).
+    /// Where <paramref name="track"/>'s leader ends: an ERAM-look full block's at <see cref="EramLeaderEnd"/>; any other block's at
+    /// the nearest point of the text bounds, so column 0 never moves it (CRC attaches the leader to the fields box).
     /// </summary>
-    internal static SKPoint LeaderEnd(ScopeTrack track) => ClampToBlockEdge(track.Symbol, track.Block.TextBounds);
+    internal static SKPoint LeaderEnd(ScopeTrack track) =>
+        (track.EramLook && (track.Level is ScopeBlockLevel.Full or ScopeBlockLevel.Dwell))
+            ? EramLeaderEnd(track)
+            : ClampToBlockEdge(track.Symbol, track.Block.TextBounds);
+
+    /// <summary>
+    /// Where an ERAM-look full block's leader ends, <see cref="EramGlyphs.BlockGapPx"/> off its text box so it never crosses it.
+    /// With the target outside the box's horizontal span widened by the gap (CRC's default to the east, or any block beside its
+    /// target), beside the box at its third row (<see cref="EramSideLeaderEnd"/>), which at the default is the mock's lane A2
+    /// end. With the target under or over the box (the N or S slot, a block dragged above or below), off the near edge
+    /// (<see cref="EramEdgeLeaderEnd"/>).
+    /// </summary>
+    private static SKPoint EramLeaderEnd(ScopeTrack track)
+    {
+        SKRect text = track.Block.TextBounds;
+        float x = track.Symbol.X;
+        bool beside = (x < text.Left - EramGlyphs.BlockGapPx) || (x > text.Right + EramGlyphs.BlockGapPx);
+        return beside ? EramSideLeaderEnd(track, text) : EramEdgeLeaderEnd(track.Symbol, text);
+    }
+
+    /// <summary>
+    /// The leader end beside <paramref name="text"/>: <see cref="EramGlyphs.BlockGapPx"/> off its left edge when its centre is
+    /// right of the target, else off its right, level with <see cref="EramGlyphs.LeaderRow"/> row pitches below its top (the
+    /// third row).
+    /// </summary>
+    private static SKPoint EramSideLeaderEnd(ScopeTrack track, SKRect text)
+    {
+        float x = (text.MidX >= track.Symbol.X) ? text.Left - EramGlyphs.BlockGapPx : text.Right + EramGlyphs.BlockGapPx;
+        return new SKPoint(x, text.Top + (EramGlyphs.LeaderRow * track.EramRowPitch));
+    }
+
+    /// <summary>
+    /// The leader end off <paramref name="text"/>'s near top or bottom edge: at the target's x clamped into the box's span,
+    /// <see cref="EramGlyphs.BlockGapPx"/> below the box when the target is below it, above when above; a target level with
+    /// the box keeps its own y, so the leader is too short to draw.
+    /// </summary>
+    private static SKPoint EramEdgeLeaderEnd(SKPoint symbol, SKRect text) =>
+        new(Math.Clamp(symbol.X, text.Left, text.Right), Math.Clamp(symbol.Y, text.Top - EramGlyphs.BlockGapPx, text.Bottom + EramGlyphs.BlockGapPx));
 
     /// <summary>The rect a selected track's border is drawn on: its text block, so column 0 never moves it.</summary>
     internal static SKRect SelectionBorder(ScopeTrack track) => track.Block.TextBounds;
