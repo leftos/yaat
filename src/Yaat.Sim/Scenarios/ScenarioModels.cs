@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Yaat.Sim.Scenarios;
@@ -55,6 +56,10 @@ public class Scenario
     /// </summary>
     [JsonPropertyName("liveSession")]
     public bool LiveSession { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class ScenarioAircraft
@@ -97,6 +102,10 @@ public class ScenarioAircraft
 
     [JsonPropertyName("expectedApproach")]
     public string? ExpectedApproach { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class StartingConditions
@@ -130,6 +139,10 @@ public class StartingConditions
 
     [JsonPropertyName("distanceFromRunway")]
     public double? DistanceFromRunway { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class ScenarioCoordinates
@@ -139,6 +152,10 @@ public class ScenarioCoordinates
 
     [JsonPropertyName("lon")]
     public double Lon { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class ScenarioFlightPlan
@@ -166,6 +183,10 @@ public class ScenarioFlightPlan
 
     [JsonPropertyName("aircraftType")]
     public string AircraftType { get; set; } = "";
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class PresetCommand
@@ -178,6 +199,10 @@ public class PresetCommand
 
     [JsonPropertyName("timeOffset")]
     public int TimeOffset { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class InitializationTrigger
@@ -190,6 +215,10 @@ public class InitializationTrigger
 
     [JsonPropertyName("timeOffset")]
     public int TimeOffset { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class AutoTrackConditions
@@ -208,6 +237,10 @@ public class AutoTrackConditions
 
     [JsonPropertyName("clearedAltitude")]
     public string? ClearedAltitude { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 /// <summary>
@@ -303,6 +336,10 @@ public class ScenarioGeneratorConfig : IGeneratorConfig
 
     [JsonPropertyName("autoTrackConfiguration")]
     public AutoTrackConditions? AutoTrackConfiguration { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 /// <summary>
@@ -373,6 +410,10 @@ public class VfrArrivalGeneratorConfig : IGeneratorConfig
 
     [JsonPropertyName("autoTrackConfiguration")]
     public AutoTrackConditions? AutoTrackConfiguration { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 /// <summary>
@@ -446,6 +487,10 @@ public class OverflightGeneratorConfig : IGeneratorConfig
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? Enabled { get; set; }
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class ScenarioAtc
@@ -467,6 +512,10 @@ public class ScenarioAtc
 
     [JsonPropertyName("autoTrackAirportIds")]
     public List<string> AutoTrackAirportIds { get; set; } = [];
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public class FlightStripConfiguration
@@ -485,6 +534,10 @@ public class FlightStripConfiguration
 
     [JsonPropertyName("aircraftIds")]
     public List<string> AircraftIds { get; set; } = [];
+
+    /// <summary>Unmodelled vNAS fields, kept for round trip.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 /// <summary>

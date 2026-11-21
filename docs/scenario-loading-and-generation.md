@@ -73,6 +73,8 @@ Each `ScenarioAircraft` carries `AircraftId` (the callsign), `AircraftType` (the
 > (note in `ScenarioModels.cs:197`). It's the JSON config; `AircraftGenerator` is the synthesizer; `GeneratorState` is the
 > per-generator runtime cursor.
 
+Every model class in `ScenarioModels.cs` carries a `[JsonExtensionData]` `ExtensionData` dictionary, so any deserializer, the loader included, keeps the fields YAAT does not model. `ScenarioLoader`'s logic ignores them, but a loaded generator config's extras also ride in snapshot `ConfigJson` and the hub's generator configs. `Authoring/ScenarioDocument.cs` is the reader/writer that round-trips a scenario JSON-equal, writing a member the source left out only once code gives it a non-default value (see § File map, `Authoring/`).
+
 Real example JSONs live in `docs/atctrainer-scenario-examples/`. Parse coverage is asserted by `VnasScenarioParseTests`
 (see [scenario-validation.md](scenario-validation.md)).
 
@@ -920,4 +922,8 @@ ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Stude
                                # IsRatingSufficient(rating, required) for the scenario gate and
                                # IsInstructorOrAbove(rating) for the server connection gate. Shared by the
                                # client picker filter and the server-side gating decision.
+
+# Authoring/ (UI-free scenario editing logic; tests in tests/Yaat.Sim.Tests/Authoring/)
+Authoring/ScenarioDocument.cs  # Scenario JSON in and out for the editor: Read(string), FromScenario(Scenario), Write() as indented JSON that is JSON-equal to what was read; fields YAAT does not model survive through ExtensionData and per-object presence tracking
+Authoring/ScenarioTime.cs      # Scenario time text: Parse(string?) → seconds (digits fill from the right, so "130" is 90 s), Format(int) → "m:ss" or "h:mm:ss"
 ```
