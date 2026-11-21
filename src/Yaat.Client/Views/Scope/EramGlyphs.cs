@@ -283,8 +283,10 @@ internal static class EramGlyphs
 /// The target glyph each ERAM history sample had when it was taken, kept per aircraft by the sample's position (a sample carries
 /// no time): a sample first seen takes the glyph its target has then, so a state change shows on the newer samples only, and a
 /// sample taken while coasting has none and is not drawn. On a track's first sight the samples it already has take its steady
-/// glyph (<see cref="EramSymbolState.SteadyTargetOf"/>), as their state is unknown. Samples gone from the history are forgotten,
-/// and with HIST at 0 the whole record is, so raising HIST seeds the trail afresh.
+/// glyph (<see cref="EramSymbolState.SteadyTargetOf"/>), as their state is unknown; a first sight with one sample only takes the
+/// current glyph, that sample being the one taken now. Samples gone from the history are forgotten, <see cref="Forget"/> drops
+/// the whole record when the track leaves the ERAM template, and with HIST at 0 it is dropped too, so raising HIST seeds the
+/// trail afresh.
 /// </summary>
 internal static class EramHistoryGlyphs
 {
@@ -292,14 +294,14 @@ internal static class EramHistoryGlyphs
 
     /// <summary>
     /// The glyph of each of <paramref name="ac"/>'s newest <paramref name="count"/> history samples, oldest first and one per
-    /// <see cref="ScopeTrackLayers.HistoryDots"/> point; new samples are recorded with <paramref name="current"/>, those present
-    /// at the track's first sight with its steady glyph.
+    /// <see cref="ScopeTrackLayers.HistoryDots"/> point; new samples are recorded with <paramref name="current"/>, a first
+    /// sight's older samples with its steady glyph, and a first sight's lone sample with <paramref name="current"/>.
     /// </summary>
     public static IReadOnlyList<EramTargetGlyph?> For(AircraftModel ac, int count, EramTargetGlyph? current)
     {
         if (count <= 0)
         {
-            Seen.Remove(ac);
+            Forget(ac);
             return [];
         }
 
@@ -311,7 +313,8 @@ internal static class EramHistoryGlyphs
         Dictionary<(double Lat, double Lon), EramTargetGlyph?> seen = Seen.GetValue(ac, static _ => []);
         lock (seen)
         {
-            Record(seen, samples, (seen.Count == 0) ? EramSymbolState.SteadyTargetOf(ac) : current);
+            EramTargetGlyph? firstSight = (samples.Count == 1) ? current : EramSymbolState.SteadyTargetOf(ac);
+            Record(seen, samples, (seen.Count == 0) ? firstSight : current);
             var glyphs = new List<EramTargetGlyph?>(Math.Min(count, samples.Count));
             for (int i = Math.Max(0, samples.Count - count); i < samples.Count; i++)
             {
@@ -324,6 +327,12 @@ internal static class EramHistoryGlyphs
             return glyphs;
         }
     }
+
+    /// <summary>
+    /// Forgets <paramref name="ac"/>'s record, as a track that left the ERAM template does, so a later sight seeds the trail
+    /// afresh rather than reusing the glyphs it had before the gap.
+    /// </summary>
+    public static void Forget(AircraftModel ac) => Seen.Remove(ac);
 
     private static void Record(Dictionary<(double Lat, double Lon), EramTargetGlyph?> seen, IReadOnlyList<double[]> samples, EramTargetGlyph? current)
     {

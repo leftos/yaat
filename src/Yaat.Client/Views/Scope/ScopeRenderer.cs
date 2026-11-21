@@ -519,12 +519,13 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// <summary>
     /// <paramref name="track"/> in the ERAM look when it resolved to the ERAM template (<paramref name="templateId"/>): its glyph
     /// and track symbol at its level, the glyph of each of its newest HIST history samples (<see cref="EramHistoryGlyphs"/>) and
-    /// its block's row pitch; else unchanged.
+    /// its block's row pitch; else unchanged, its history record forgotten so a return to the ERAM template seeds afresh.
     /// </summary>
     private static ScopeTrack WithEramLook(ScopeTrack track, string templateId, ScopeFrameInput input)
     {
         if (templateId != ScopeTemplates.EramId)
         {
+            EramHistoryGlyphs.Forget(track.Aircraft);
             return track;
         }
 

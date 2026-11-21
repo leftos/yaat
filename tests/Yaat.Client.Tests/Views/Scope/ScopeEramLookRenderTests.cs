@@ -400,6 +400,30 @@ public class ScopeEramLookRenderTests
     }
 
     [Fact]
+    public void FirstSeenWithOneSampleWhileIdenting_HistoryDrawsTheBars()
+    {
+        AircraftModel ac = WithHistory(CorrelatedBeacon(), 1);
+        ac.IsIdenting = true;
+
+        ScopeTrack track = HistoryTrack(ac, 1);
+
+        Assert.Equal(EramTargetGlyph.Ident, track.EramSymbols.Target);
+        Assert.Equal([EramTargetGlyph.Ident], track.HistoryGlyphs);
+    }
+
+    [Fact]
+    public void FirstSeenWithOneSampleWhileCoasting_HistoryDrawsNothing()
+    {
+        AircraftModel ac = WithHistory(CorrelatedBeacon(), 1);
+        ac.EramIsCoastTrack = true;
+
+        ScopeTrack track = HistoryTrack(ac, 1);
+
+        Assert.Null(track.EramSymbols.Target);
+        Assert.Equal([(EramTargetGlyph?)null], track.HistoryGlyphs);
+    }
+
+    [Fact]
     public void FirstSeenSteady_HistoryDrawsItsGlyph()
     {
         AircraftModel ac = WithHistory(CorrelatedBeacon(), 3);
@@ -420,6 +444,22 @@ public class ScopeEramLookRenderTests
 
         ScopeTrack track = HistoryTrack(ac, 3);
 
+        Assert.Equal([EramTargetGlyph.CorrelatedBeacon, EramTargetGlyph.CorrelatedBeacon, EramTargetGlyph.CorrelatedBeacon], track.HistoryGlyphs);
+    }
+
+    [Fact]
+    public void TemplateSwitchAwayAndBack_ReseedsTheTrailWithTheSteadyGlyph()
+    {
+        AircraftModel ac = WithHistory(CorrelatedBeacon(), 3);
+        using var pin = MapBlinkPin.Phase(true);
+        Frame(new Setup { HistoryCount = 3 }, ac);
+        Frame(new Setup { TemplateId = ScopeTemplates.StarsId, HistoryCount = 3 }, ac);
+        ac.IsIdenting = true;
+        AddNewestSample(ac);
+
+        ScopeTrack track = Assert.Single(Frame(new Setup { HistoryCount = 3 }, ac).Tracks);
+
+        Assert.Equal(EramTargetGlyph.Ident, track.EramSymbols.Target);
         Assert.Equal([EramTargetGlyph.CorrelatedBeacon, EramTargetGlyph.CorrelatedBeacon, EramTargetGlyph.CorrelatedBeacon], track.HistoryGlyphs);
     }
 
