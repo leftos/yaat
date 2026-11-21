@@ -255,6 +255,7 @@ public class SettingsViewModelImportTargetTests : IDisposable
                 .. NonEnumImportValues
                     .Concat(Enum.GetNames<VfrCommandsForIfr>())
                     .Concat(Enum.GetNames<SoloAdvisoryPrefill>())
+                    .Concat(Enum.GetNames<ScopeFieldMenuStyle>())
                     .Select(s => (JsonNode?)JsonValue.Create(s)),
             ],
         };

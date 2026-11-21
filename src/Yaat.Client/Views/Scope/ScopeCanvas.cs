@@ -1068,6 +1068,22 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             ? new Rect(b.Left, b.Top, b.Width, b.Height)
             : null;
 
+    /// <summary>
+    /// The vertical middle of line <paramref name="line"/> (1 at the top) of the callsign's drawn block: the text's top plus
+    /// whole line pitches, so a blank line still counts, plus half a pitch; null when no block is drawn for it.
+    /// </summary>
+    internal double? FdbLineMiddleY(string callsign, int line)
+    {
+        if (CurrentFrame.Tracks.FirstOrDefault(t => t.Aircraft.Callsign == callsign) is not { } track)
+        {
+            return null;
+        }
+
+        float pitch = ScopeTextMetrics.FromStyle(new TextStyle(MeasureFont(DatablockFontSize()), _measurePaint)).LineHeight;
+        float textTop = track.Block.TextBounds.Top + ScopeTemplates.Get(TemplateId).Padding;
+        return textTop + ((line - 1) * pitch) + (pitch / 2);
+    }
+
     // The aircraft whose block, else whose target, is under the point.
     private static AircraftModel? HitAt(ScopeFrame frame, Point pos) =>
         frame.BlockAt((float)pos.X, (float)pos.Y) ?? frame.TargetAt((float)pos.X, (float)pos.Y);

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Settings › Radar › ERAM field menus picks CRC-style compact menus, a tabbed ERAM | PILOT popup (default, opening on your last tab) or side by side.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 
 ### Fixed

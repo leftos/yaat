@@ -223,6 +223,11 @@ public partial class SettingsViewModel
             Field("validateDctFixes", vm => vm.ValidateDctFixes, (vm, v) => vm.ValidateDctFixes = v),
             Field("euroScopeMode", vm => vm.EuroScopeMode, (vm, v) => vm.EuroScopeMode = v),
             Field(
+                "scopeFieldMenuStyle",
+                vm => ((ScopeFieldMenuStyle)vm.SelectedScopeFieldMenuStyleIndex).ToString(),
+                (vm, v) => vm.SelectedScopeFieldMenuStyleIndex = (int)Enum.Parse<ScopeFieldMenuStyle>(v)
+            ),
+            Field(
                 "vfrCommandsForIfr",
                 vm => ((VfrCommandsForIfr)vm.SelectedVfrCommandsForIfrIndex).ToString(),
                 (vm, v) => vm.SelectedVfrCommandsForIfrIndex = (int)Enum.Parse<VfrCommandsForIfr>(v)

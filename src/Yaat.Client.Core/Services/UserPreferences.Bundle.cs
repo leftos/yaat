@@ -33,6 +33,7 @@ public sealed partial class UserPreferences
         ("departureAutoDeleteDistanceNm", OptionalDoubleRange(1, 500)),
         ("validateDctFixes", Flag),
         ("euroScopeMode", Flag),
+        ("scopeFieldMenuStyle", EnumName<ScopeFieldMenuStyle>()),
         ("vfrCommandsForIfr", EnumName<VfrCommandsForIfr>()),
         ("showQuickCommandIcons", Flag),
         ("soloTrainingMode", Flag),
@@ -254,6 +255,7 @@ public sealed partial class UserPreferences
         ["vStripsSplitMode"] = "a Strips view split, not a Settings section field",
         ["vStripsSplitRatio"] = "a Strips view split, not a Settings section field",
         ["terminalSplitRatio"] = "a window split, carried by layouts",
+        ["scopeFieldMenuLastMode"] = "the tab the ERAM field menus last sent from, not a Settings section field",
         ["preferencesVersion"] = "file bookkeeping",
     };
 

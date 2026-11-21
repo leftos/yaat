@@ -56,6 +56,8 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **Show quick command icons** (Input › Quick commands, default on) is the `showQuickCommandIcons` preference (`UserPreferences.ShowQuickCommandIcons`, `SettingsViewModel.ShowQuickCommandIcons`). It follows OK/Apply/Cancel, travels in the settings bundle as a flag, is found by Settings search, and the section's Reset turns it back on along with the quick-command lists.
 
+**ERAM field menus** (Radar › Radar Display, default Tabbed) is the `scopeFieldMenuStyle` preference (`UserPreferences.ScopeFieldMenuStyle`, a `ScopeFieldMenuStyle` stored by name; `SettingsViewModel.SelectedScopeFieldMenuStyleIndex` maps the combo by enum order, labels from `ScopeFieldMenuStyleLabels`): Simple (CRC), Tabbed or Side by side. It follows OK/Apply/Cancel, travels in the settings bundle, is found by Settings search, and the Radar section's Reset returns it to Tabbed. Its companion `scopeFieldMenuLastMode` (`ScopeFieldMenuMode`, the column the last command sent or staged came from) is local only, saved when a pick changes it, and listed as a non-section field in the bundle's exclusions.
+
 `ClientMenuHost` hands it to the menus as `MenuSession.ShowQuickCommandIcons`; what it changes is in [client-context-menus.md](client-context-menus.md) (Icons off).
 
 **The bundle is a zip of the single-item files.** A `.yaat-settings.zip` holds a `manifest.json` and one file per item, each in its single-item format. A single-item export keeps that item's own extension (`.yaat-macros.json`, `.yaat-verbs.json`, `.yaat-favset.zip` / `.yaat-favlibrary.zip`, `.yaat-grid-layout.json`), so files exported before the hub still import. Preferences and layouts have no single-item file and always travel in a bundle.
