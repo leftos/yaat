@@ -675,14 +675,17 @@ public static class PatternGeometry
 
         if (resolved.SizeNm > requestedSize)
         {
-            Log.LogInformation(
-                "Pattern for {Runway} widened from {Requested:F2} nm to the {Type} flyability floor {Floor:F2} nm (wind {Wind:F0} kt)",
-                request.Runway.Designator,
-                requestedSize,
-                request.AircraftType,
-                resolved.SizeNm,
-                request.WindSpeedKt
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "Pattern for {Runway} widened from {Requested:F2} nm to the {Type} flyability floor {Floor:F2} nm (wind {Wind:F0} kt)",
+                    request.Runway.Designator,
+                    requestedSize,
+                    request.AircraftType,
+                    resolved.SizeNm,
+                    request.WindSpeedKt
+                );
+            }
         }
 
         return resolved;

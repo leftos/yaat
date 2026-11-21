@@ -562,19 +562,23 @@ public sealed class FinalApproachPhase : Phase
         }
 
         double startXte = GeoMath.SignedCrossTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_anchorLat, _anchorLon), _finalApproachCourse);
-        Log.LogDebug(
-            "[FinalApproach] {Callsign}: started, fac={Fac:F0} (rwy {Rwy:F0}), dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, configSpd={Cfg:F0}kts, configSet={CfgSet}, fasSet={FasSet}, xte={Xte:F3}nm",
-            ctx.Aircraft.Callsign,
-            _finalApproachCourse.Degrees,
-            _runwayHeading.Degrees,
-            startDist,
-            ctx.Aircraft.Altitude,
-            approachSpeed,
-            configSpeed,
-            _configSet,
-            _fasSet,
-            startXte
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FinalApproach] {Callsign}: started, fac={Fac:F0} (rwy {Rwy:F0}), dist={Dist:F1}nm, alt={Alt:F0}ft, apchSpd={Spd:F0}kts, "
+                    + "configSpd={Cfg:F0}kts, configSet={CfgSet}, fasSet={FasSet}, xte={Xte:F3}nm",
+                ctx.Aircraft.Callsign,
+                _finalApproachCourse.Degrees,
+                _runwayHeading.Degrees,
+                startDist,
+                ctx.Aircraft.Altitude,
+                approachSpeed,
+                configSpeed,
+                _configSet,
+                _fasSet,
+                startXte
+            );
+        }
 
         // Pilot check-in for aircraft that spawn directly on final. Aircraft that flew the
         // approach sequence already announced upstream (at parking, on a STAR check-in) — the
@@ -761,13 +765,16 @@ public sealed class FinalApproachPhase : Phase
                 _fasSet = true;
                 _configSet = true;
                 _flapSet = true;
-                Log.LogDebug(
-                    "[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
-                    ctx.Aircraft.Callsign,
-                    fas,
-                    distNm,
-                    fasTrigger
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FinalApproach] {Callsign}: slowing to FAS {Fas:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
+                        ctx.Aircraft.Callsign,
+                        fas,
+                        distNm,
+                        fasTrigger
+                    );
+                }
             }
             else if (!_configSet)
             {
@@ -786,11 +793,14 @@ public sealed class FinalApproachPhase : Phase
         {
             _goAroundTriggered = true;
             string lead = ctx.Aircraft.Approach.FollowingCallsign!;
-            Log.LogDebug(
-                "[FinalApproach] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
-                ctx.Aircraft.Callsign,
-                lead
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: breaking off follow on {Lead}, going around (unable to maintain separation)",
+                    ctx.Aircraft.Callsign,
+                    lead
+                );
+            }
             AirborneFollowHelper.ClearFollowState(ctx.Aircraft);
             TriggerGoAround(ctx, "unable to maintain separation");
             return false;
@@ -851,7 +861,15 @@ public sealed class FinalApproachPhase : Phase
                 PilotReportRouting.From(ctx),
                 PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, leadCallsign)
             );
-            Log.LogDebug("[FinalApproach] {Callsign}: S-turn for spacing behind {Lead} at {Dist:F1}nm", ctx.Aircraft.Callsign, leadCallsign, distNm);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: S-turn for spacing behind {Lead} at {Dist:F1}nm",
+                    ctx.Aircraft.Callsign,
+                    leadCallsign,
+                    distNm
+                );
+            }
             return true;
         }
 
@@ -1146,13 +1164,17 @@ public sealed class FinalApproachPhase : Phase
             if ((ctx.Aircraft.Altitude <= mapAltitudeFt) && !hasLandingClearance && !forceLanding)
             {
                 _goAroundTriggered = true;
-                Log.LogDebug(
-                    "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at minimums: alt {Alt:F0}ft, MAP alt {MapAlt}ft, {Dist:F2}nm)",
-                    ctx.Aircraft.Callsign,
-                    ctx.Aircraft.Altitude,
-                    mapAltitudeFt,
-                    distNm
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at minimums: alt {Alt:F0}ft, MAP alt {MapAlt}ft, "
+                            + "{Dist:F2}nm)",
+                        ctx.Aircraft.Callsign,
+                        ctx.Aircraft.Altitude,
+                        mapAltitudeFt,
+                        distNm
+                    );
+                }
                 TriggerGoAround(ctx, "no landing clearance at minimums");
                 return false;
             }
@@ -1199,12 +1221,15 @@ public sealed class FinalApproachPhase : Phase
             if ((aglForClearance <= AutoGoAroundAgl) && !hasLandingClearance && !forceLanding)
             {
                 _goAroundTriggered = true;
-                Log.LogDebug(
-                    "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
-                    ctx.Aircraft.Callsign,
-                    aglForClearance,
-                    distNm
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FinalApproach] {Callsign}: go-around triggered (no landing clearance at {Agl:F0}ft AGL, {Dist:F2}nm)",
+                        ctx.Aircraft.Callsign,
+                        aglForClearance,
+                        distNm
+                    );
+                }
                 TriggerGoAround(ctx, "no landing clearance");
                 return false;
             }
@@ -1231,13 +1256,16 @@ public sealed class FinalApproachPhase : Phase
             if (ctx.Aircraft.Altitude > mapAlt + 200)
             {
                 _goAroundTriggered = true;
-                Log.LogDebug(
-                    "[FinalApproach] {Callsign}: go-around triggered (too high at MAP: {Alt:F0}ft, MAP alt {MapAlt}ft, at {Dist:F2}nm)",
-                    ctx.Aircraft.Callsign,
-                    ctx.Aircraft.Altitude,
-                    mapAlt,
-                    distNm
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[FinalApproach] {Callsign}: go-around triggered (too high at MAP: {Alt:F0}ft, MAP alt {MapAlt}ft, at {Dist:F2}nm)",
+                        ctx.Aircraft.Callsign,
+                        ctx.Aircraft.Altitude,
+                        mapAlt,
+                        distNm
+                    );
+                }
                 TriggerGoAround(ctx, "too high at missed approach point");
                 return false;
             }
@@ -1259,13 +1287,16 @@ public sealed class FinalApproachPhase : Phase
         bool complete = (agl < 30) || ((distNm < 0.05) && (agl < 50)) || (pastThresholdNm > 0);
         if (complete)
         {
-            Log.LogDebug(
-                "[FinalApproach] {Callsign}: crossing threshold, dist={Dist:F3}nm, agl={Agl:F0}ft, gs={Gs:F0}kts",
-                ctx.Aircraft.Callsign,
-                distNm,
-                agl,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: crossing threshold, dist={Dist:F3}nm, agl={Agl:F0}ft, gs={Gs:F0}kts",
+                    ctx.Aircraft.Callsign,
+                    distNm,
+                    agl,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
         }
 
         return complete;
@@ -1319,13 +1350,16 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.TargetSpeed = configSpeed;
             _spacingCeilingKts = configSpeed;
             _configSet = true;
-            Log.LogDebug(
-                "[FinalApproach] {Callsign}: slowing to config speed {Cfg:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
-                ctx.Aircraft.Callsign,
-                configSpeed,
-                distNm,
-                configTrigger
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: slowing to config speed {Cfg:F0}kts at {Dist:F1}nm (trigger={Trigger:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    configSpeed,
+                    distNm,
+                    configTrigger
+                );
+            }
         }
     }
 
@@ -1364,14 +1398,18 @@ public sealed class FinalApproachPhase : Phase
             ctx.Targets.TargetSpeed = flapSpeed;
             _spacingCeilingKts = flapSpeed;
             _flapSet = true;
-            Log.LogDebug(
-                "[FinalApproach] {Callsign}: slowing to approach-flap speed {Flap:F0}kts at {Dist:F1}nm (gate={Gate:F1}nm, trigger={Trigger:F2}nm)",
-                ctx.Aircraft.Callsign,
-                flapSpeed,
-                distNm,
-                flapGate.Value,
-                flapTrigger
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[FinalApproach] {Callsign}: slowing to approach-flap speed {Flap:F0}kts at {Dist:F1}nm (gate={Gate:F1}nm, "
+                        + "trigger={Trigger:F2}nm)",
+                    ctx.Aircraft.Callsign,
+                    flapSpeed,
+                    distNm,
+                    flapGate.Value,
+                    flapTrigger
+                );
+            }
         }
     }
 
@@ -1813,13 +1851,16 @@ public sealed class FinalApproachPhase : Phase
 
         double xteFt = Math.Abs(signedXteNm) * GeoMath.FeetPerNm;
         _goAroundTriggered = true;
-        Log.LogDebug(
-            "[FinalApproach] {Callsign}: go-around triggered (not aligned with {Runway}: {XteFt:F0} ft off centerline at {Dist:F2}nm)",
-            ctx.Aircraft.Callsign,
-            assignedRunway.Designator,
-            xteFt,
-            alongNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[FinalApproach] {Callsign}: go-around triggered (not aligned with {Runway}: {XteFt:F0} ft off centerline at {Dist:F2}nm)",
+                ctx.Aircraft.Callsign,
+                assignedRunway.Designator,
+                xteFt,
+                alongNm
+            );
+        }
         GoAroundHelper.Trigger(ctx, PilotResponder.BuildGoingAroundNotAligned(ctx.Aircraft, assignedRunway.Designator, xteFt));
         return true;
     }
@@ -1850,7 +1891,7 @@ public sealed class FinalApproachPhase : Phase
         if (held && _gsCaptured)
         {
             _gsCaptured = false;
-            Log.LogDebug("[FinalApproach] {Callsign}: glideslope capture cleared to fly the held altitude", ctx.Aircraft.Callsign);
+            LogGlideslopeCaptureCleared(ctx);
         }
 
         bool withinWindow = held
@@ -1863,6 +1904,15 @@ public sealed class FinalApproachPhase : Phase
         }
 
         ReleaseHeldAltitudeInsideFaf(ctx);
+    }
+
+    /// <summary>Logs at Debug that the glideslope capture was cleared so the aircraft flies its held altitude.</summary>
+    private static void LogGlideslopeCaptureCleared(PhaseContext ctx)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[FinalApproach] {Callsign}: glideslope capture cleared to fly the held altitude", ctx.Aircraft.Callsign);
+        }
     }
 
     private static bool IsLevelAtHeldAltitude(PhaseContext ctx) =>

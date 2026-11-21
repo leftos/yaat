@@ -102,12 +102,15 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
 
         _legEntryPosition = ctx.Aircraft.Position;
         ApplyActiveLegHeading(ctx);
-        Log.LogDebug(
-            "[DepartureProcedure] {Callsign}: started with {Count} coded legs, ceiling={Ceil:F0}ft",
-            ctx.Aircraft.Callsign,
-            Legs.Count,
-            ctx.Targets.TargetAltitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[DepartureProcedure] {Callsign}: started with {Count} coded legs, ceiling={Ceil:F0}ft",
+                ctx.Aircraft.Callsign,
+                Legs.Count,
+                ctx.Targets.TargetAltitude
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -333,14 +336,17 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         if (_radialFallbackLoggedLeg != _legIndex)
         {
             _radialFallbackLoggedLeg = _legIndex;
-            Log.LogDebug(
-                "[DepartureProcedure] {Callsign}: radial leg {Idx} ({Radial:F1}°) carries no recorded declination "
-                    + "(restored from a pre-V43 snapshot) — converting with the live {Decl:F1}°",
-                ctx.Aircraft.Callsign,
-                _legIndex,
-                leg.TerminationRadialMagnetic ?? double.NaN,
-                ctx.Aircraft.Declination
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[DepartureProcedure] {Callsign}: radial leg {Idx} ({Radial:F1}°) carries no recorded declination "
+                        + "(restored from a pre-V43 snapshot) — converting with the live {Decl:F1}°",
+                    ctx.Aircraft.Callsign,
+                    _legIndex,
+                    leg.TerminationRadialMagnetic ?? double.NaN,
+                    ctx.Aircraft.Declination
+                );
+            }
         }
 
         return ctx.Aircraft.Declination;
@@ -513,13 +519,16 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         NavigationTarget holder = PostRoute[index];
         FlightPhysics.RestoreSpeedPastFix(ctx.Aircraft, holder, PostRoute.GetRange(index + 1, PostRoute.Count - index - 1));
         NavigationCommandHandler.ClearSpeedReverts(holder);
-        Log.LogDebug(
-            "[DepartureProcedure] {Callsign}: crossing speed at {Fix} reverted as its leg sequenced, target {Target}kt assigned {Assigned}kt",
-            ctx.Aircraft.Callsign,
-            holder.Name,
-            ctx.Targets.TargetSpeed,
-            ctx.Targets.AssignedSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[DepartureProcedure] {Callsign}: crossing speed at {Fix} reverted as its leg sequenced, target {Target}kt assigned {Assigned}kt",
+                ctx.Aircraft.Callsign,
+                holder.Name,
+                ctx.Targets.TargetSpeed,
+                ctx.Targets.AssignedSpeed
+            );
+        }
     }
 
     /// <summary>
@@ -539,12 +548,15 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         ctx.Targets.TargetAltitude = ResolveReleaseAltitude(ctx);
         holder.RevertAltitude = null;
         holder.RevertAssignedAltitude = null;
-        Log.LogDebug(
-            "[DepartureProcedure] {Callsign}: crossing at {Fix} ended as its leg sequenced, target {Target:F0}ft",
-            ctx.Aircraft.Callsign,
-            holder.Name,
-            ctx.Targets.TargetAltitude
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[DepartureProcedure] {Callsign}: crossing at {Fix} ended as its leg sequenced, target {Target:F0}ft",
+                ctx.Aircraft.Callsign,
+                holder.Name,
+                ctx.Targets.TargetAltitude
+            );
+        }
     }
 
     private static bool FlyToFix(PhaseContext ctx, ProcedureLeg leg)
@@ -622,11 +634,14 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
         NavigationCommandHandler.ApplyTakenSpeedReverts(ctx.Aircraft, holders);
         _handedOver = true;
 
-        Log.LogDebug(
-            "[DepartureProcedure] {Callsign}: coded legs complete, loaded {Count} route fixes",
-            ctx.Aircraft.Callsign,
-            ctx.Targets.NavigationRoute.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[DepartureProcedure] {Callsign}: coded legs complete, loaded {Count} route fixes",
+                ctx.Aircraft.Callsign,
+                ctx.Targets.NavigationRoute.Count
+            );
+        }
         return true;
     }
 

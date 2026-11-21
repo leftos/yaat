@@ -92,18 +92,21 @@ public sealed class HelicopterApproachPhase(double targetLat, double targetLon, 
 
         ctx.Targets.TargetSpeed = EnRouteSpeed(ctx);
 
-        Log.LogDebug(
-            "[Approach-H] {Callsign}: started → {Dest} at ({Lat:F6},{Lon:F6}), hold={Hold:F0}ft, field={Field:F0}ft, "
-                + "tod={Tod:F2}nm, final={Final:F2}nm",
-            ctx.Aircraft.Callsign,
-            _destinationName ?? "direct",
-            _targetLat,
-            _targetLon,
-            _holdAltitude,
-            _fieldElevation,
-            TopOfDescentNm(_holdAltitude, _fieldElevation),
-            FinalStartNm(ctx.Category)
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Approach-H] {Callsign}: started → {Dest} at ({Lat:F6},{Lon:F6}), hold={Hold:F0}ft, field={Field:F0}ft, "
+                    + "tod={Tod:F2}nm, final={Final:F2}nm",
+                ctx.Aircraft.Callsign,
+                _destinationName ?? "direct",
+                _targetLat,
+                _targetLon,
+                _holdAltitude,
+                _fieldElevation,
+                TopOfDescentNm(_holdAltitude, _fieldElevation),
+                FinalStartNm(ctx.Category)
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -127,16 +130,19 @@ public sealed class HelicopterApproachPhase(double targetLat, double targetLon, 
         if (_timeSinceLastLog >= LogIntervalSeconds)
         {
             _timeSinceLastLog = 0;
-            Log.LogTrace(
-                "[Approach-H] {Callsign}: dist={Dist:F2}nm alt={Alt:F0} tgtAlt={TAlt:F0} vs={Vs:F0} gs={Gs:F0} tgtSpd={Tgt:F0}",
-                ctx.Aircraft.Callsign,
-                dist,
-                ctx.Aircraft.Altitude,
-                ctx.Targets.TargetAltitude ?? 0,
-                ctx.Targets.DesiredVerticalRate ?? 0,
-                ctx.Aircraft.GroundSpeed,
-                ctx.Targets.TargetSpeed ?? 0
-            );
+            if (Log.IsEnabled(LogLevel.Trace))
+            {
+                Log.LogTrace(
+                    "[Approach-H] {Callsign}: dist={Dist:F2}nm alt={Alt:F0} tgtAlt={TAlt:F0} vs={Vs:F0} gs={Gs:F0} tgtSpd={Tgt:F0}",
+                    ctx.Aircraft.Callsign,
+                    dist,
+                    ctx.Aircraft.Altitude,
+                    ctx.Targets.TargetAltitude ?? 0,
+                    ctx.Targets.DesiredVerticalRate ?? 0,
+                    ctx.Aircraft.GroundSpeed,
+                    ctx.Targets.TargetSpeed ?? 0
+                );
+            }
         }
 
         // Complete only stopped over the spot AND down at the air-taxi height: a clearance received
@@ -146,7 +152,14 @@ public sealed class HelicopterApproachPhase(double targetLat, double targetLon, 
         bool atArrivalHeight = agl <= CategoryPerformance.AirTaxiAltitudeAgl(ctx.Category) + ArrivalHeightToleranceFt;
         if ((dist <= ArrivalThresholdNm) && (ctx.Aircraft.GroundSpeed <= 2.0) && atArrivalHeight)
         {
-            Log.LogDebug("[Approach-H] {Callsign}: over {Dest}, hovering for the landing", ctx.Aircraft.Callsign, _destinationName ?? "destination");
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Approach-H] {Callsign}: over {Dest}, hovering for the landing",
+                    ctx.Aircraft.Callsign,
+                    _destinationName ?? "destination"
+                );
+            }
             return true;
         }
 
@@ -267,7 +280,10 @@ public sealed class HelicopterApproachPhase(double targetLat, double targetLon, 
             ctx.Targets.TurnRateOverride = null;
         }
 
-        Log.LogDebug("[Approach-H] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Approach-H] {Callsign}: ended ({Status})", ctx.Aircraft.Callsign, endStatus);
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) =>

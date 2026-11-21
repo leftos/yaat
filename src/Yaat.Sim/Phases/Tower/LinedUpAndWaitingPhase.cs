@@ -82,13 +82,22 @@ public sealed class LinedUpAndWaitingPhase : Phase
             ctx.Targets.TargetTrueHeading = rwy.TrueHeading;
         }
 
-        Log.LogDebug(
-            "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
-            ctx.Aircraft.Callsign,
-            rwy?.Designator ?? "?",
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon
-        );
+        LogLinedUpAndWaiting(ctx, rwy);
+    }
+
+    /// <summary>Logs at Debug that the aircraft is lined up and waiting on its runway.</summary>
+    private static void LogLinedUpAndWaiting(PhaseContext ctx, RunwayInfo? rwy)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: lined up and waiting, rwy={Rwy}, pos=({Lat:F6},{Lon:F6})",
+                ctx.Aircraft.Callsign,
+                rwy?.Designator ?? "?",
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)

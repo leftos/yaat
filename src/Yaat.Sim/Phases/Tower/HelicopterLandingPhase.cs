@@ -47,7 +47,10 @@ public sealed class HelicopterLandingPhase : Phase
         ctx.Targets.TargetAltitude = _fieldElevation;
         ctx.Targets.TargetSpeed = 0;
 
-        Log.LogDebug("[Landing-H] {Callsign}: started descent, fieldElev={Elev:F0}ft", ctx.Aircraft.Callsign, _fieldElevation);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Landing-H] {Callsign}: started descent, fieldElev={Elev:F0}ft", ctx.Aircraft.Callsign, _fieldElevation);
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -75,7 +78,10 @@ public sealed class HelicopterLandingPhase : Phase
         if (agl <= 0)
         {
             _touchedDown = true;
-            Log.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Landing-H] {Callsign}: touchdown", ctx.Aircraft.Callsign);
+            }
             ctx.Aircraft.IsOnGround = true;
             // The field is the runway's; a landing on a helipad or spot has none, and lands on the field of the layout the
             // spot was found in.

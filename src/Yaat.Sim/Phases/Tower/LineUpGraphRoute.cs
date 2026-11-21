@@ -162,15 +162,18 @@ public static class LineUpGraphRoute
         double maxSpeed = CategoryPerformance.TaxiSpeed(category);
         double flowSpeed = CategoryPerformance.TaxiCornerSpeed(category);
         double startAlongFt = AlongNoseFt(acPos, acHeading, start, GeoMath.DistanceNm(acPos, start.Position) * GeoMath.FeetPerNm);
-        Log.LogDebug(
-            "[LineUpGraphRoute] onto {Rwy}: start node {Start} ({Along:F1}ft ahead), junction {Junction}, centerline {Center}, {Segs} segments",
-            runway.Designator,
-            start.Id,
-            startAlongFt,
-            junction.Id,
-            centerlineNode.Id,
-            route.Segments.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUpGraphRoute] onto {Rwy}: start node {Start} ({Along:F1}ft ahead), junction {Junction}, centerline {Center}, {Segs} segments",
+                runway.Designator,
+                start.Id,
+                startAlongFt,
+                junction.Id,
+                centerlineNode.Id,
+                route.Segments.Count
+            );
+        }
 
         return new LineUpArcFollowPlan
         {

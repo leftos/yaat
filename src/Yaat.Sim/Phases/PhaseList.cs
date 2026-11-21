@@ -571,10 +571,13 @@ public sealed class PhaseList
         list.TaxiImpliedExit = (dto.RequestedExitIsTaxiImplied == true) ? list.RequestedExit : null;
         if ((dto.TaxiRoute is not null) && (list.TaxiRoute is null))
         {
-            Log.LogInformation(
-                "[PhaseList] stored taxi route dropped on restore: {Reason}",
-                groundLayout is null ? "no ground layout" : "its nodes are not in the layout"
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[PhaseList] stored taxi route dropped on restore: {Reason}",
+                    groundLayout is null ? "no ground layout" : "its nodes are not in the layout"
+                );
+            }
         }
 
         foreach (PhaseDto phaseDto in dto.Phases)

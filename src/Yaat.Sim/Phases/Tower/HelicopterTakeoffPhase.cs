@@ -97,7 +97,10 @@ public sealed class HelicopterTakeoffPhase : Phase
         // The lineup is complete — any brisk "immediate"/"without delay" lineup is done.
         ctx.Aircraft.Ground.IsExpeditingLineup = false;
 
-        Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft AGL", ctx.Aircraft.Callsign, _completionAgl);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Takeoff-H] {Callsign}: vertical liftoff, targetAlt={Alt:F0}ft AGL", ctx.Aircraft.Callsign, _completionAgl);
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -112,7 +115,10 @@ public sealed class HelicopterTakeoffPhase : Phase
         bool complete = agl >= _completionAgl;
         if (complete)
         {
-            Log.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Takeoff-H] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);
+            }
         }
 
         return complete;

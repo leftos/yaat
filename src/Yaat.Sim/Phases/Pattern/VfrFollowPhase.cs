@@ -401,7 +401,10 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             ctx.Targets.DesiredVerticalRate = null;
         }
 
-        Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[VfrFollow] {Callsign}: following {Target}", ctx.Aircraft.Callsign, TargetCallsign);
+        }
     }
 
     /// <summary>Gives back the break-off bank's turn rate however the phase ends (<see cref="RestoreBreakOffTurnRate"/>).</summary>
@@ -532,12 +535,15 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         )
         {
             _climbOutGate = null;
-            Log.LogDebug(
-                "[VfrFollow] {Callsign}: past the departure end at {Alt:F0}ft, steering for {Target}",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.Altitude,
-                TargetCallsign
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[VfrFollow] {Callsign}: past the departure end at {Alt:F0}ft, steering for {Target}",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.Altitude,
+                    TargetCallsign
+                );
+            }
             return false;
         }
 
@@ -707,14 +713,17 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         AircraftState aircraft = ctx.Aircraft;
         string runwayDisplay = RunwayIdentifier.ToDisplayDesignator(patternReturn.Runway.Designator);
         string side = patternReturn.Direction == PatternDirection.Right ? "right" : "left";
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: follow of {Lead} ended, re-entering {Side} traffic runway {Rwy} by the {Leg}",
-            aircraft.Callsign,
-            TargetCallsign,
-            side,
-            runwayDisplay,
-            leg
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: follow of {Lead} ended, re-entering {Side} traffic runway {Rwy} by the {Leg}",
+                aircraft.Callsign,
+                TargetCallsign,
+                side,
+                runwayDisplay,
+                leg
+            );
+        }
         if (!leadChangedRunway)
         {
             aircraft.PendingWarnings.Add($"{aircraft.Callsign} follow ended, re-entering {side} traffic runway {runwayDisplay}");
@@ -728,13 +737,16 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     private void JoinReturnFinal(PhaseContext ctx, FollowPatternReturn circuit)
     {
         List<Phase> legs = BuildFinalJoinLegs(ctx, circuit.Runway, circuit.Direction);
-        Log.LogDebug(
-            "[VfrFollow] {Callsign}: follow of {Lead} ended on the {Rwy} final, joining it ({Dir})",
-            ctx.Aircraft.Callsign,
-            TargetCallsign,
-            circuit.Runway.Designator,
-            circuit.Direction
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[VfrFollow] {Callsign}: follow of {Lead} ended on the {Rwy} final, joining it ({Dir})",
+                ctx.Aircraft.Callsign,
+                TargetCallsign,
+                circuit.Runway.Designator,
+                circuit.Direction
+            );
+        }
         InstallJoinedCircuit(ctx, circuit.Runway, circuit.Direction, legs, keepFollowing: false);
     }
 

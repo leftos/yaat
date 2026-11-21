@@ -604,14 +604,17 @@ public sealed class LandingPhase : Phase
             : agl <= _plan.FlareEntryAgl ? State.Flare
             : State.StabilizedApproach;
 
-        Log.LogDebug(
-            "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts, state={State}{Lahso}",
-            ctx.Aircraft.Callsign,
-            _plan.FieldElevation,
-            ctx.Aircraft.GroundSpeed,
-            CurrentState,
-            _hasLahso ? $", LAHSO hold-short at {_lahsoHoldShortDistNm:F2}nm" : ""
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: started, fieldElev={Elev:F0}ft, gs={Gs:F1}kts, state={State}{Lahso}",
+                ctx.Aircraft.Callsign,
+                _plan.FieldElevation,
+                ctx.Aircraft.GroundSpeed,
+                CurrentState,
+                _hasLahso ? $", LAHSO hold-short at {_lahsoHoldShortDistNm:F2}nm" : ""
+            );
+        }
     }
 
     private static LandingPlan BuildPlan(PhaseContext ctx)
@@ -1007,7 +1010,10 @@ public sealed class LandingPhase : Phase
         _touchdownLon = ctx.Aircraft.Position.Lon;
         TouchdownGroundSpeedKts = ctx.Aircraft.GroundSpeed;
 
-        Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Landing] {Callsign}: touchdown, gs={Gs:F1}kts", ctx.Aircraft.Callsign, ctx.Aircraft.GroundSpeed);
+        }
 
         CurrentState = State.Rollout;
         return false;
@@ -1355,14 +1361,23 @@ public sealed class LandingPhase : Phase
             Log.LogWarning("[Landing] {Callsign}: runway excursion: stopped {PastFt:F0} ft past the end", ctx.Aircraft.Callsign, pastEndFt);
         }
 
-        Log.LogInformation(
-            "[Landing] {Callsign}: stopped on runway {Runway} with no exit, {AlongFt:F0} ft along (stop point {StopFt:F0} ft)",
-            ctx.Aircraft.Callsign,
-            plan.RunwayId ?? "?",
-            alongFt,
-            stop.StopAlongFt
-        );
+        LogStoppedWithNoExit(ctx, plan, stop, alongFt);
         return true;
+    }
+
+    /// <summary>Logs at Information that the aircraft stopped on the runway with no exit.</summary>
+    private static void LogStoppedWithNoExit(PhaseContext ctx, LandingPlan plan, NoExitStopPlan.StopStep stop, double alongFt)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Landing] {Callsign}: stopped on runway {Runway} with no exit, {AlongFt:F0} ft along (stop point {StopFt:F0} ft)",
+                ctx.Aircraft.Callsign,
+                plan.RunwayId ?? "?",
+                alongFt,
+                stop.StopAlongFt
+            );
+        }
     }
 
     /// <summary>
@@ -1475,14 +1490,17 @@ public sealed class LandingPhase : Phase
         if (!_noExitStopLogged)
         {
             _noExitStopLogged = true;
-            Log.LogInformation(
-                "[Landing] {Callsign}: no exit available, planning a stop at {StopFt:F0} ft along ({Datum}), {DistFt:F0} ft ahead at {Gs:F0} kts",
-                ctx.Aircraft.Callsign,
-                stop.StopAlongFt,
-                stop.AtLastExit ? "short of the last exit" : "runway end less margin",
-                stop.StopAlongFt - alongFt,
-                ctx.Aircraft.GroundSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation(
+                    "[Landing] {Callsign}: no exit available, planning a stop at {StopFt:F0} ft along ({Datum}), {DistFt:F0} ft ahead at {Gs:F0} kts",
+                    ctx.Aircraft.Callsign,
+                    stop.StopAlongFt,
+                    stop.AtLastExit ? "short of the last exit" : "runway end less margin",
+                    stop.StopAlongFt - alongFt,
+                    ctx.Aircraft.GroundSpeed
+                );
+            }
         }
 
         if (stop.Excursion && !_noExitExcursionLogged)
@@ -1864,7 +1882,10 @@ public sealed class LandingPhase : Phase
         }
 
         StoppedForLahso = true;
-        Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Landing] {Callsign}: LAHSO stop", ctx.Aircraft.Callsign);
+        }
         return true;
     }
 
@@ -1949,15 +1970,18 @@ public sealed class LandingPhase : Phase
         ctx.Targets.DesiredDecelRate = null;
         ctx.Targets.TurnRateOverride = null;
 
-        Log.LogDebug(
-            "[Landing] {Callsign}: handoff at ({Lat:F6},{Lon:F6}) gs={Gs:F1}kts pref={Pref} candidate={Cand}",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Position.Lat,
-            ctx.Aircraft.Position.Lon,
-            ctx.Aircraft.GroundSpeed,
-            _activePreference is null ? "(none)" : $"{_activePreference.Taxiway ?? "?"}/{_activePreference.Side?.ToString() ?? "?"}",
-            _candidateExit is null ? "(none)" : $"{_candidateExit.TaxiwayName} branchId={_candidateExit.BranchPointNode.Id}"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: handoff at ({Lat:F6},{Lon:F6}) gs={Gs:F1}kts pref={Pref} candidate={Cand}",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Position.Lat,
+                ctx.Aircraft.Position.Lon,
+                ctx.Aircraft.GroundSpeed,
+                _activePreference is null ? "(none)" : $"{_activePreference.Taxiway ?? "?"}/{_activePreference.Side?.ToString() ?? "?"}",
+                _candidateExit is null ? "(none)" : $"{_candidateExit.TaxiwayName} branchId={_candidateExit.BranchPointNode.Id}"
+            );
+        }
 
         return true;
     }
@@ -2042,7 +2066,10 @@ public sealed class LandingPhase : Phase
         // A taxi route stored behind the exit (a TAXI on the rollout) goes with it: the aircraft exits where it can and holds clear.
         if (phases.TaxiRoute is not null)
         {
-            Log.LogDebug("[Landing] {Callsign}: exit {Taxiway} given up; the stored taxi route is dropped", aircraft.Callsign, taxiway);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Landing] {Callsign}: exit {Taxiway} given up; the stored taxi route is dropped", aircraft.Callsign, taxiway);
+            }
             phases.ClearStoredTaxiRoute();
             DropSideTowardTaxiRoute();
         }
@@ -2060,7 +2087,10 @@ public sealed class LandingPhase : Phase
 
         if (ctx.Aircraft.IndicatedAirspeed <= 0.5)
         {
-            Log.LogDebug("[Landing] {Callsign}: full-stop rollout complete", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[Landing] {Callsign}: full-stop rollout complete", ctx.Aircraft.Callsign);
+            }
             return true;
         }
 
@@ -2155,12 +2185,15 @@ public sealed class LandingPhase : Phase
             return false;
         }
 
-        Log.LogInformation(
-            "[Landing] {Callsign}: forced landing stopped on runway {Runway}, {ToEndFt:F0} ft before its end, no exit usable",
-            ctx.Aircraft.Callsign,
-            plan.RunwayId ?? "?",
-            toEndFt
-        );
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation(
+                "[Landing] {Callsign}: forced landing stopped on runway {Runway}, {ToEndFt:F0} ft before its end, no exit usable",
+                ctx.Aircraft.Callsign,
+                plan.RunwayId ?? "?",
+                toEndFt
+            );
+        }
         return true;
     }
 
@@ -2277,12 +2310,15 @@ public sealed class LandingPhase : Phase
         else
         {
             _candidateExit = last;
-            Log.LogDebug(
-                "[Landing] {Callsign}: forced rollout committing to the last usable exit {Taxiway}, turnOffSpeed={Speed:F0}kts",
-                ctx.Aircraft.Callsign,
-                last.TaxiwayName,
-                last.TurnOffSpeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Landing] {Callsign}: forced rollout committing to the last usable exit {Taxiway}, turnOffSpeed={Speed:F0}kts",
+                    ctx.Aircraft.Callsign,
+                    last.TaxiwayName,
+                    last.TurnOffSpeed
+                );
+            }
         }
     }
 
@@ -2403,13 +2439,16 @@ public sealed class LandingPhase : Phase
         }
 
         string missedTaxiway = _candidateExit.TaxiwayName;
-        Log.LogDebug(
-            "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
-            ctx.Aircraft.Callsign,
-            missedTaxiway,
-            ctx.Aircraft.GroundSpeed,
-            _candidateExit.TurnOffSpeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: missed exit {Taxiway} (gs={Gs:F1}kts > {TurnOff:F0}kts)",
+                ctx.Aircraft.Callsign,
+                missedTaxiway,
+                ctx.Aircraft.GroundSpeed,
+                _candidateExit.TurnOffSpeed
+            );
+        }
 
         ReportUnableToExit(ctx, missedTaxiway);
         _unableBranchPoints.Add(_candidateExit.BranchPointNode.Id);
@@ -2982,13 +3021,16 @@ public sealed class LandingPhase : Phase
         }
 
         _candidateExit = resolved;
-        Log.LogDebug(
-            "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts, selected at {Rate:F2}kt/s",
-            ctx.Aircraft.Callsign,
-            resolved.TaxiwayName,
-            resolved.TurnOffSpeed,
-            resolved.SelectionDecelRate
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: candidate exit {Taxiway}, turnOffSpeed={Speed:F0}kts, selected at {Rate:F2}kt/s",
+                ctx.Aircraft.Callsign,
+                resolved.TaxiwayName,
+                resolved.TurnOffSpeed,
+                resolved.SelectionDecelRate
+            );
+        }
     }
 
     /// <summary>
@@ -3169,15 +3211,24 @@ public sealed class LandingPhase : Phase
             return false;
         }
 
-        Log.LogDebug(
-            "[Landing] {Callsign}: instructed exit {Taxiway} needs more than {Limit:F1} kt/s; giving it up",
-            ctx.Aircraft.Callsign,
-            named.TaxiwayName,
-            RolloutBraking.NamedExitBrakingLimit(ctx.Category, ctx.Aircraft.Ground.IsExpeditingExit)
-        );
+        LogGivingUpUnreachableNamedExit(ctx, named.TaxiwayName);
         ReportUnableToExit(ctx, named.TaxiwayName);
         GiveUpNamedExit(ctx.Aircraft, named.TaxiwayName);
         return true;
+    }
+
+    /// <summary>Logs at Debug that the instructed exit needs more braking than the limit allows and is given up.</summary>
+    private static void LogGivingUpUnreachableNamedExit(PhaseContext ctx, string taxiwayName)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: instructed exit {Taxiway} needs more than {Limit:F1} kt/s; giving it up",
+                ctx.Aircraft.Callsign,
+                taxiwayName,
+                RolloutBraking.NamedExitBrakingLimit(ctx.Category, ctx.Aircraft.Ground.IsExpeditingExit)
+            );
+        }
     }
 
     /// <summary>
@@ -3314,16 +3365,19 @@ public sealed class LandingPhase : Phase
 
         if (reach == ExitReach.BeyondLimit)
         {
-            Log.LogDebug(
-                "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts) — "
-                    + "required decel exceeds the {Limit:F2}kt/s limit at gs={Gs:F1}kts",
-                aircraft.Callsign,
-                candidate.Taxiway,
-                candidate.ExitAngle,
-                turnOffSpeed,
-                brakingLimit,
-                query.From.GroundSpeedKts
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[Landing] {Callsign}: skipping exit {Taxiway} (angle={Angle:F0}, turnOff={Speed:F0}kts) — "
+                        + "required decel exceeds the {Limit:F2}kt/s limit at gs={Gs:F1}kts",
+                    aircraft.Callsign,
+                    candidate.Taxiway,
+                    candidate.ExitAngle,
+                    turnOffSpeed,
+                    brakingLimit,
+                    query.From.GroundSpeedKts
+                );
+            }
             return AirportGroundLayout.CandidateVerdict.Skip;
         }
 
@@ -3354,15 +3408,18 @@ public sealed class LandingPhase : Phase
             return true;
         }
 
-        Log.LogDebug(
-            "[Landing] {Callsign}: skipping exit {Taxiway} — branch point at {Branch:F3}nm plus a {RunOn:F3}nm "
-                + "turn-off arc is past the LAHSO stop limit at {StopLimit:F2}nm",
-            query.Aircraft.Callsign,
-            candidate.Taxiway,
-            branchFromThresholdNm,
-            runOnNm,
-            stopLimitNm
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Landing] {Callsign}: skipping exit {Taxiway} — branch point at {Branch:F3}nm plus a {RunOn:F3}nm "
+                    + "turn-off arc is past the LAHSO stop limit at {StopLimit:F2}nm",
+                query.Aircraft.Callsign,
+                candidate.Taxiway,
+                branchFromThresholdNm,
+                runOnNm,
+                stopLimitNm
+            );
+        }
         return false;
     }
 

@@ -253,32 +253,77 @@ public static class LineUpGeometry
         bool mustPivotByWaste = wasteStraightFt > WasteFractionThreshold * remainingRunwayFt;
         bool useAligned = alignedTurnOk && alignedConverges && !mustPivotByRadius && !mustPivotByWaste;
 
+        var trace = new LineUpChoiceTrace(
+            CrossFt: crossFt,
+            DHdgDeg: dHdgDeg,
+            TurnMagnitudeDeg: turnMagnitudeDeg,
+            WasteStraightFt: wasteStraightFt,
+            RemainingRunwayFt: remainingRunwayFt,
+            AlignedTurnOk: alignedTurnOk,
+            AlignedConverges: alignedConverges,
+            MustPivotByRadius: mustPivotByRadius,
+            MustPivotByWaste: mustPivotByWaste
+        );
+
         if (!useAligned)
         {
-            Log.LogDebug(
-                "[LineUpGeometry] pivot chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft (turn-ok={TurnOk}, converging={Conv}, radius-fail={RadFail}, waste-fail={WasteFail})",
-                crossFt,
-                dHdgDeg,
-                turnMagnitudeDeg,
-                wasteStraightFt,
-                remainingRunwayFt,
-                alignedTurnOk,
-                alignedConverges,
-                mustPivotByRadius,
-                mustPivotByWaste
-            );
+            LogPivotChosen(trace);
             return BuildPivotPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, signedCrossNm, mainGearRadiusFt);
         }
 
-        Log.LogDebug(
-            "[LineUpGeometry] aligned chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft remaining={Remain:F0}ft",
-            crossFt,
-            dHdgDeg,
-            turnMagnitudeDeg,
-            wasteStraightFt,
-            remainingRunwayFt
-        );
+        LogAlignedChosen(trace);
         return BuildAlignedPlan(runway, acLat, acLon, acHeading, category, dthetaDeg, arcSpeedKts, signedCrossNm, lineUpRadiusFt);
+    }
+
+    /// <summary>The pose measurements and path tests <see cref="Compute"/> logs when it chooses a path.</summary>
+    private readonly record struct LineUpChoiceTrace(
+        double CrossFt,
+        double DHdgDeg,
+        double TurnMagnitudeDeg,
+        double WasteStraightFt,
+        double RemainingRunwayFt,
+        bool AlignedTurnOk,
+        bool AlignedConverges,
+        bool MustPivotByRadius,
+        bool MustPivotByWaste
+    );
+
+    /// <summary>Logs at Debug that the pivot path was chosen, with the tests that ruled the aligned path out.</summary>
+    private static void LogPivotChosen(LineUpChoiceTrace trace)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUpGeometry] pivot chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft "
+                    + "remaining={Remain:F0}ft (turn-ok={TurnOk}, converging={Conv}, radius-fail={RadFail}, waste-fail={WasteFail})",
+                trace.CrossFt,
+                trace.DHdgDeg,
+                trace.TurnMagnitudeDeg,
+                trace.WasteStraightFt,
+                trace.RemainingRunwayFt,
+                trace.AlignedTurnOk,
+                trace.AlignedConverges,
+                trace.MustPivotByRadius,
+                trace.MustPivotByWaste
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug that the aligned single-arc path was chosen.</summary>
+    private static void LogAlignedChosen(LineUpChoiceTrace trace)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUpGeometry] aligned chosen: cross={Cross:F0}ft dHdg={DHdg:F1}° turn={Turn:F0}° wasteStraight={Waste:F0}ft "
+                    + "remaining={Remain:F0}ft",
+                trace.CrossFt,
+                trace.DHdgDeg,
+                trace.TurnMagnitudeDeg,
+                trace.WasteStraightFt,
+                trace.RemainingRunwayFt
+            );
+        }
     }
 
     // ---- Pure math helpers (public for unit testing) ----

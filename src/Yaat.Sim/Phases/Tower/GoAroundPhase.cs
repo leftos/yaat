@@ -130,13 +130,16 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
             }
         }
 
-        Log.LogDebug(
-            "[GoAround] {Callsign}: started, rwyHdg={Hdg:F0}, targetAlt={Alt:F0}ft, assignedHdg={AssHdg}",
-            ctx.Aircraft.Callsign,
-            _runwayTrueHeading.Degrees,
-            targetAlt,
-            AssignedMagneticHeading?.ToString() ?? "none"
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[GoAround] {Callsign}: started, rwyHdg={Hdg:F0}, targetAlt={Alt:F0}ft, assignedHdg={AssHdg}",
+                ctx.Aircraft.Callsign,
+                _runwayTrueHeading.Degrees,
+                targetAlt,
+                AssignedMagneticHeading?.ToString() ?? "none"
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -154,18 +157,32 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
         {
             _headingAssigned = true;
             ctx.Targets.TargetTrueHeading = AssignedMagneticHeading.Value.ToTrue(ctx.Aircraft.Declination);
-            Log.LogDebug(
-                "[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL",
-                ctx.Aircraft.Callsign,
-                AssignedMagneticHeading.Value.Degrees,
-                agl
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[GoAround] {Callsign}: turning to assigned heading {Hdg} at {Agl:F0}ft AGL",
+                    ctx.Aircraft.Callsign,
+                    AssignedMagneticHeading.Value.Degrees,
+                    agl
+                );
+            }
         }
 
         double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
 
         bool complete = agl >= targetAgl;
         if (complete)
+        {
+            LogComplete(ctx, agl);
+        }
+
+        return complete;
+    }
+
+    /// <summary>Logs at Debug that the go-around reached its target altitude.</summary>
+    private static void LogComplete(PhaseContext ctx, double agl)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
                 "[GoAround] {Callsign}: complete at {Agl:F0}ft AGL, IAS={Ias:F0}kts",
@@ -174,8 +191,6 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
                 ctx.Aircraft.IndicatedAirspeed
             );
         }
-
-        return complete;
     }
 
     /// <summary>
@@ -200,7 +215,10 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
             ctx.Targets.TurnRateOverride = CategoryPerformance.PatternTurnRate(ctx.Category);
         }
 
-        Log.LogDebug("[GoAround] {Callsign}: retargeted as pattern climb-out, targetAlt={Alt}ft", ctx.Aircraft.Callsign, targetAltitude);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[GoAround] {Callsign}: retargeted as pattern climb-out, targetAlt={Alt}ft", ctx.Aircraft.Callsign, targetAltitude);
+        }
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)

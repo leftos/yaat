@@ -257,14 +257,17 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
             ctx.Aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
         }
 
-        Log.LogDebug(
-            "[InitialClimb] {Callsign}: started, targetAlt={Alt:F0}ft, speed={Spd:F0}kts, sid={Sid}, route={RouteCount} fixes",
-            ctx.Aircraft.Callsign,
-            _targetAltitude,
-            initialSpeed,
-            DepartureSidId ?? "none",
-            DepartureRoute.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[InitialClimb] {Callsign}: started, targetAlt={Alt:F0}ft, speed={Spd:F0}kts, sid={Sid}, route={RouteCount} fixes",
+                ctx.Aircraft.Callsign,
+                _targetAltitude,
+                initialSpeed,
+                DepartureSidId ?? "none",
+                DepartureRoute.Count
+            );
+        }
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -342,13 +345,16 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
 
         if (complete)
         {
-            Log.LogDebug(
-                "[InitialClimb] {Callsign}: phase complete (hdg={Hdg}, alt={Alt:F0}ft, IAS={Ias:F0}kts)",
-                ctx.Aircraft.Callsign,
-                _departureHeading?.Degrees.ToString("F0") ?? "n/a",
-                ctx.Aircraft.Altitude,
-                ctx.Aircraft.IndicatedAirspeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[InitialClimb] {Callsign}: phase complete (hdg={Hdg}, alt={Alt:F0}ft, IAS={Ias:F0}kts)",
+                    ctx.Aircraft.Callsign,
+                    _departureHeading?.Degrees.ToString("F0") ?? "n/a",
+                    ctx.Aircraft.Altitude,
+                    ctx.Aircraft.IndicatedAirspeed
+                );
+            }
         }
 
         return complete;
@@ -523,11 +529,14 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
             CruiseAltitude = CruiseAltitude,
         };
         ctx.Aircraft.Phases?.InsertAfterCurrent(proc);
-        Log.LogDebug(
-            "[InitialClimb] {Callsign}: TERPS gate reached, handing off to DepartureProcedurePhase ({Count} coded legs)",
-            ctx.Aircraft.Callsign,
-            DepartureProcedureLegs!.Count
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[InitialClimb] {Callsign}: TERPS gate reached, handing off to DepartureProcedurePhase ({Count} coded legs)",
+                ctx.Aircraft.Callsign,
+                DepartureProcedureLegs!.Count
+            );
+        }
     }
 
     /// <summary>
@@ -599,13 +608,22 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
             SetupDepartureNavigation(ctx);
         }
 
-        Log.LogDebug(
-            "[InitialClimb] {Callsign}: departure turn applied (alt={Alt:F0}ft, hdg={Hdg}, vfr={IsVfr})",
-            ctx.Aircraft.Callsign,
-            ctx.Aircraft.Altitude,
-            _departureHeading?.Degrees.ToString("F0") ?? "nav",
-            IsVfr
-        );
+        LogDepartureTurnApplied(ctx);
+    }
+
+    /// <summary>Logs at Debug that the departure turn was applied.</summary>
+    private void LogDepartureTurnApplied(PhaseContext ctx)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[InitialClimb] {Callsign}: departure turn applied (alt={Alt:F0}ft, hdg={Hdg}, vfr={IsVfr})",
+                ctx.Aircraft.Callsign,
+                ctx.Aircraft.Altitude,
+                _departureHeading?.Degrees.ToString("F0") ?? "nav",
+                IsVfr
+            );
+        }
     }
 
     /// <summary>
@@ -635,11 +653,14 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
 
         if (_rvSidHandoffElapsed == 0)
         {
-            Log.LogDebug(
-                "[InitialClimb] {Callsign}: RV SID comms handed off, starting {Delay}s delay before vectoring to route",
-                ctx.Aircraft.Callsign,
-                RvSidPostHandoffDelaySec
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[InitialClimb] {Callsign}: RV SID comms handed off, starting {Delay}s delay before vectoring to route",
+                    ctx.Aircraft.Callsign,
+                    RvSidPostHandoffDelaySec
+                );
+            }
         }
 
         _rvSidHandoffElapsed += ctx.DeltaSeconds;
@@ -649,11 +670,14 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
             // Timer expired — load nav route and let FlightPhysics take over.
             _rvSidActive = false;
             SetupDepartureNavigation(ctx);
-            Log.LogDebug(
-                "[InitialClimb] {Callsign}: RV SID vectored to first fix after {Elapsed:F1}s post-handoff",
-                ctx.Aircraft.Callsign,
-                _rvSidHandoffElapsed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[InitialClimb] {Callsign}: RV SID vectored to first fix after {Elapsed:F1}s post-handoff",
+                    ctx.Aircraft.Callsign,
+                    _rvSidHandoffElapsed
+                );
+            }
         }
         else
         {

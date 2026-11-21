@@ -327,29 +327,67 @@ public sealed class LineUpPhase : Phase
             if (plan.IsAlreadyAligned)
             {
                 CurrentState = State.Rollout;
-                Log.LogDebug("[LineUp] {Callsign}: already aligned, entering Rollout directly", ctx.Aircraft.Callsign);
+                LogAlreadyAligned(ctx);
             }
             else if (plan.NoseOutLengthFt < StraightArrivalFt)
             {
                 EnterAlignedArc(plan);
-                Log.LogDebug("[LineUp] {Callsign}: zero nose-out, entering Arc directly", ctx.Aircraft.Callsign);
+                LogZeroNoseOut(ctx);
             }
             else
             {
                 CurrentState = State.NoseOut;
                 ctx.Targets.TargetTrueHeading = new TrueHeading(plan.NoseOutBearingDeg);
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: aligned path NoseOut (len={Len:F1}ft, arcSpeed={Speed:F1}kt, turn={Turn:F1}°)",
-                    ctx.Aircraft.Callsign,
-                    plan.NoseOutLengthFt,
-                    plan.ArcSpeedKts,
-                    plan.TurnAngleDeg
-                );
+                LogAlignedNoseOut(ctx, plan);
             }
         }
         else // Pivot
         {
             EnterPivotTurn1(plan);
+            LogPivotTurn1(ctx, plan);
+        }
+
+        return true;
+    }
+
+    /// <summary>Logs at Debug that the aircraft is already aligned and enters the rollout directly.</summary>
+    private static void LogAlreadyAligned(PhaseContext ctx)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[LineUp] {Callsign}: already aligned, entering Rollout directly", ctx.Aircraft.Callsign);
+        }
+    }
+
+    /// <summary>Logs at Debug that the aligned path has no nose-out and enters the arc directly.</summary>
+    private static void LogZeroNoseOut(PhaseContext ctx)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[LineUp] {Callsign}: zero nose-out, entering Arc directly", ctx.Aircraft.Callsign);
+        }
+    }
+
+    /// <summary>Logs at Debug that the aligned path starts with its nose-out straight.</summary>
+    private static void LogAlignedNoseOut(PhaseContext ctx, LineUpPathPlan plan)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: aligned path NoseOut (len={Len:F1}ft, arcSpeed={Speed:F1}kt, turn={Turn:F1}°)",
+                ctx.Aircraft.Callsign,
+                plan.NoseOutLengthFt,
+                plan.ArcSpeedKts,
+                plan.TurnAngleDeg
+            );
+        }
+    }
+
+    /// <summary>Logs at Debug that the pivot path starts with its first turn.</summary>
+    private static void LogPivotTurn1(PhaseContext ctx, LineUpPathPlan plan)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
             Log.LogDebug(
                 "[LineUp] {Callsign}: pivot path PivotTurn1 (turn={Turn:F1}°, straight={StraightLen:F1}ft)",
                 ctx.Aircraft.Callsign,
@@ -357,8 +395,6 @@ public sealed class LineUpPhase : Phase
                 plan.PivotStraightLengthFt
             );
         }
-
-        return true;
     }
 
     /// <summary>
@@ -385,15 +421,19 @@ public sealed class LineUpPhase : Phase
         StartGraphRoute(ctx, plan, segmentIndex: 0, new GroundNavigator(), maxSpeed);
         ctx.Targets.TargetSpeed = maxSpeed;
 
-        Log.LogDebug(
-            "[LineUp] {Callsign}: graph-taxi lineup onto {Rwy} — {Segs} segments, centerline node {Node}, maxSpeed={Speed:F1}kt (rolling={Rolling})",
-            ctx.Aircraft.Callsign,
-            rwy.Designator,
-            plan.Route.Segments.Count,
-            plan.CenterlineNode.Id,
-            maxSpeed,
-            RollingMode
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: graph-taxi lineup onto {Rwy} — {Segs} segments, centerline node {Node}, maxSpeed={Speed:F1}kt "
+                    + "(rolling={Rolling})",
+                ctx.Aircraft.Callsign,
+                rwy.Designator,
+                plan.Route.Segments.Count,
+                plan.CenterlineNode.Id,
+                maxSpeed,
+                RollingMode
+            );
+        }
         return true;
     }
 
@@ -469,11 +509,14 @@ public sealed class LineUpPhase : Phase
             if (RollingMode && (_lineUpRoute.CurrentSegmentIndex == _lineUpRoute.Segments.Count - 1))
             {
                 ctx.Targets.TargetTrueHeading = new TrueHeading(_runwayHeadingDeg);
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: graph-taxi lineup complete at the fillet exit (rolling, gs={Gs:F1}kt)",
-                    ctx.Aircraft.Callsign,
-                    ctx.Aircraft.GroundSpeed
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[LineUp] {Callsign}: graph-taxi lineup complete at the fillet exit (rolling, gs={Gs:F1}kt)",
+                        ctx.Aircraft.Callsign,
+                        ctx.Aircraft.GroundSpeed
+                    );
+                }
                 return true;
             }
 
@@ -487,12 +530,15 @@ public sealed class LineUpPhase : Phase
                     ctx.Aircraft.IndicatedAirspeed = 0;
                     ctx.Targets.TargetSpeed = 0;
                 }
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: graph-taxi lineup complete (rolling={Rolling}, gs={Gs:F1}kt)",
-                    ctx.Aircraft.Callsign,
-                    RollingMode,
-                    ctx.Aircraft.GroundSpeed
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[LineUp] {Callsign}: graph-taxi lineup complete (rolling={Rolling}, gs={Gs:F1}kt)",
+                        ctx.Aircraft.Callsign,
+                        RollingMode,
+                        ctx.Aircraft.GroundSpeed
+                    );
+                }
                 return true;
             }
 
@@ -699,7 +745,16 @@ public sealed class LineUpPhase : Phase
 
         if (alongRemainingFt <= StraightArrivalFt)
         {
-            Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (alongRem={D:F2}ft)", ctx.Aircraft.Callsign, CurrentState, onArrive, alongRemainingFt);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: {From} -> {To} (alongRem={D:F2}ft)",
+                    ctx.Aircraft.Callsign,
+                    CurrentState,
+                    onArrive,
+                    alongRemainingFt
+                );
+            }
             switch (onArrive)
             {
                 case State.Arc:
@@ -745,7 +800,10 @@ public sealed class LineUpPhase : Phase
 
         if (_arcState.IsComplete)
         {
-            Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (arc complete)", ctx.Aircraft.Callsign, CurrentState, onComplete);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[LineUp] {Callsign}: {From} -> {To} (arc complete)", ctx.Aircraft.Callsign, CurrentState, onComplete);
+            }
             CurrentState = onComplete switch
             {
                 State.PivotStraight => State.PivotStraight,
@@ -770,7 +828,8 @@ public sealed class LineUpPhase : Phase
         if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug(
-                "[LineUp] {Callsign}: Rollout tick (rolling={Rolling}, ias={Ias:F2}kt, targetIn={TargetIn}, distToStop={D:F1}ft, len={Len:F1}ft, limit={Limit})",
+                "[LineUp] {Callsign}: Rollout tick (rolling={Rolling}, ias={Ias:F2}kt, targetIn={TargetIn}, distToStop={D:F1}ft, len={Len:F1}ft, "
+                    + "limit={Limit})",
                 ctx.Aircraft.Callsign,
                 RollingMode,
                 ctx.Aircraft.IndicatedAirspeed,
@@ -793,12 +852,15 @@ public sealed class LineUpPhase : Phase
                 GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt >= plan.RolloutLengthFt - RolloutArrivalFt)
             {
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: Rollout complete (rolling, distFromStart={D:F2}ft, gs={Gs:F2}kt)",
-                    ctx.Aircraft.Callsign,
-                    distFromStartFt,
-                    ctx.Aircraft.IndicatedAirspeed
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[LineUp] {Callsign}: Rollout complete (rolling, distFromStart={D:F2}ft, gs={Gs:F2}kt)",
+                        ctx.Aircraft.Callsign,
+                        distFromStartFt,
+                        ctx.Aircraft.IndicatedAirspeed
+                    );
+                }
                 return true;
             }
             return false;
@@ -819,13 +881,16 @@ public sealed class LineUpPhase : Phase
         if ((distToStopFt < RolloutArrivalFt) || (distCoveredFt >= plan.RolloutLengthFt - RolloutArrivalFt))
         {
             CurrentState = State.Stop;
-            Log.LogDebug(
-                "[LineUp] {Callsign}: Rollout -> Stop (distToStop={D:F2}ft, distCovered={S:F2}ft, gs={Gs:F2}kt)",
-                ctx.Aircraft.Callsign,
-                distToStopFt,
-                distCoveredFt,
-                ctx.Aircraft.IndicatedAirspeed
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: Rollout -> Stop (distToStop={D:F2}ft, distCovered={S:F2}ft, gs={Gs:F2}kt)",
+                    ctx.Aircraft.Callsign,
+                    distToStopFt,
+                    distCoveredFt,
+                    ctx.Aircraft.IndicatedAirspeed
+                );
+            }
         }
 
         return false;
@@ -839,7 +904,10 @@ public sealed class LineUpPhase : Phase
         if (ctx.Aircraft.IndicatedAirspeed < StopSpeedFloorKts)
         {
             ctx.Aircraft.IndicatedAirspeed = 0;
-            Log.LogDebug("[LineUp] {Callsign}: Stop complete, phase done", ctx.Aircraft.Callsign);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[LineUp] {Callsign}: Stop complete, phase done", ctx.Aircraft.Callsign);
+            }
             return true;
         }
 
@@ -969,11 +1037,14 @@ public sealed class LineUpPhase : Phase
         }
         if (!IsAircraftEligibleForRollingTakeoff(ctx.Aircraft.AircraftType))
         {
-            Log.LogDebug(
-                "[LineUp] {Callsign}: rolling upgrade rejected — type {Type} is Super/Heavy (7110.65 §3-9-6c)",
-                ctx.Aircraft.Callsign,
-                ctx.Aircraft.AircraftType
-            );
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "[LineUp] {Callsign}: rolling upgrade rejected — type {Type} is Super/Heavy (7110.65 §3-9-6c)",
+                    ctx.Aircraft.Callsign,
+                    ctx.Aircraft.AircraftType
+                );
+            }
             return false;
         }
         if (CurrentState == State.Rollout && PathPlan is { } plan)
@@ -982,12 +1053,15 @@ public sealed class LineUpPhase : Phase
                 GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(plan.RolloutFromLat, plan.RolloutFromLon)) * GeoMath.FeetPerNm;
             if (distFromStartFt > RollingUpgradeMaxRolloutFraction * plan.RolloutLengthFt)
             {
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: rolling upgrade rejected — past rollout fraction cap ({D:F1}ft / {L:F1}ft)",
-                    ctx.Aircraft.Callsign,
-                    distFromStartFt,
-                    plan.RolloutLengthFt
-                );
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug(
+                        "[LineUp] {Callsign}: rolling upgrade rejected — past rollout fraction cap ({D:F1}ft / {L:F1}ft)",
+                        ctx.Aircraft.Callsign,
+                        distFromStartFt,
+                        plan.RolloutLengthFt
+                    );
+                }
                 return false;
             }
         }
@@ -1005,12 +1079,15 @@ public sealed class LineUpPhase : Phase
             _navigator.MinSpeedKts = _graphFlowSpeedKts;
         }
 
-        Log.LogDebug(
-            "[LineUp] {Callsign}: upgraded to rolling mode mid-phase (state={State}, ias={Ias:F1}kt)",
-            ctx.Aircraft.Callsign,
-            CurrentState,
-            ctx.Aircraft.IndicatedAirspeed
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: upgraded to rolling mode mid-phase (state={State}, ias={Ias:F1}kt)",
+                ctx.Aircraft.Callsign,
+                CurrentState,
+                ctx.Aircraft.IndicatedAirspeed
+            );
+        }
         return true;
     }
 
@@ -1091,13 +1168,7 @@ public sealed class LineUpPhase : Phase
         {
             if (headingOffDeg < LineUpGeometry.AlignedMaxTurnDeg)
             {
-                Log.LogDebug(
-                    "[LineUp] {Callsign}: restored already lined up on {Rwy} — completing (cross={Cross:F1}ft, rolling={Rolling})",
-                    ctx.Aircraft.Callsign,
-                    rwy.Designator,
-                    crossFt,
-                    RollingMode
-                );
+                LogRestoredAlreadyLinedUp(ctx, rwy, crossFt);
                 return true;
             }
 
@@ -1111,6 +1182,21 @@ public sealed class LineUpPhase : Phase
         }
 
         return false;
+    }
+
+    /// <summary>Logs at Debug that the restored aircraft is already lined up and the phase completes.</summary>
+    private void LogRestoredAlreadyLinedUp(PhaseContext ctx, RunwayInfo rwy, double crossFt)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: restored already lined up on {Rwy} — completing (cross={Cross:F1}ft, rolling={Rolling})",
+                ctx.Aircraft.Callsign,
+                rwy.Designator,
+                crossFt,
+                RollingMode
+            );
+        }
     }
 
     /// <summary>
@@ -1157,13 +1243,16 @@ public sealed class LineUpPhase : Phase
         }
 
         _planStartPose = (saved.StartPosition, saved.StartHeading);
-        Log.LogDebug(
-            "[LineUp] {Callsign}: restored maneuver resumed in {State} (planned from {Position} hdg {Heading:F1})",
-            ctx.Aircraft.Callsign,
-            CurrentState,
-            saved.StartPosition,
-            saved.StartHeading.Degrees
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: restored maneuver resumed in {State} (planned from {Position} hdg {Heading:F1})",
+                ctx.Aircraft.Callsign,
+                CurrentState,
+                saved.StartPosition,
+                saved.StartHeading.Degrees
+            );
+        }
         return true;
     }
 
@@ -1289,19 +1378,22 @@ public sealed class LineUpPhase : Phase
         ctx.Targets.TurnRateOverride = swingRateDegPerSec;
         ctx.Targets.TargetSpeed = PathPlan.ArcSpeedKts;
 
-        Log.LogDebug(
-            "[LineUp] {Callsign}: restored mid-turn — rolling out to finish the swing "
-                + "(cross={Cross:F1}ft, hdgOff={Hdg:F1}°, rollout={Len:F1}ft of {Swing:F1}ft wanted, yaw={Yaw:F1}°/s, "
-                + "rolling={Rolling}, reason={Reason})",
-            ctx.Aircraft.Callsign,
-            crossFt,
-            headingOffDeg,
-            rolloutLengthFt,
-            swingLengthFt,
-            swingRateDegPerSec,
-            RollingMode,
-            reason
-        );
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[LineUp] {Callsign}: restored mid-turn — rolling out to finish the swing "
+                    + "(cross={Cross:F1}ft, hdgOff={Hdg:F1}°, rollout={Len:F1}ft of {Swing:F1}ft wanted, yaw={Yaw:F1}°/s, "
+                    + "rolling={Rolling}, reason={Reason})",
+                ctx.Aircraft.Callsign,
+                crossFt,
+                headingOffDeg,
+                rolloutLengthFt,
+                swingLengthFt,
+                swingRateDegPerSec,
+                RollingMode,
+                reason
+            );
+        }
     }
 
     /// <summary>
