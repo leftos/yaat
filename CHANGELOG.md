@@ -4,18 +4,26 @@
 
 ### Added
 
+- `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
+
+### Fixed
+
+- AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
+- Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
+- Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.
+- `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
+
+## v0.19.1-beta [2026/11/21]
+
+### Added
+
 - Settings › Radar › STARS field menus (off by default, as in CRC) lets a STARS datablock field click open a menu, in the ERAM field-menus style.
 - Settings › Radar › ERAM field menus picks CRC-style compact menus, a tabbed ERAM | PILOT popup (default, opening on your last tab) or side by side.
-- `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 
 ### Fixed
 
 - The Radar's VECTOR and `.scope vector` take half-minute lengths again (0.5 to 3, then 4 and 8), and an old Radar's PTL setting carries over.
 - EuroScope datablocks on the Radar open their compact flyouts again, sized by the restored Radar Tag Flyouts font setting; Shift-click stages a row.
-- AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
-- Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
-- Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.
-- `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 
 ## v0.19.0-beta [2026/11/20]
 
