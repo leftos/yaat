@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.19.0-beta [2026/11/20]
+
+### Highlights
+
+- A new Radar replaces the old one, with STARS, ERAM or EuroScope datablocks, a CRC STARS-style toolbar, and pop-out and extra windows.
+- Radar conflict alerts draw CA rings, flash ERAM blocks and label list rows CA, MCI or ERAM, following the facility's and sector's settings.
+- PILOT LENS shows each track's intent path, queued commands and check-in state, and the RPO QUEUE view lists pending calls.
+- `OC` puts an airborne aircraft back on course, `REPORT REACHING` / `REPORT LEAVING` add altitude reports, and aircraft now roll into turns.
 
 ### Added
 
@@ -39,11 +46,11 @@
 
 ### Changed
 
-- In a new session, aircraft roll into and out of turns over a few seconds, so small heading changes no longer snap; recordings made before keep instant turns.
+- In a new session, airborne aircraft roll into and out of turns over a few seconds, so small heading changes no longer snap; recordings made before keep instant turns.
 - Settings > Radar "Show conflict alerts" is now on by default.
 - A departure with no assigned altitude climbs to its filed altitude, even one filed after takeoff clearance; later STARS or ERAM amendments change only the plan.
 - New favorite buttons go to the set showing in the bar, asking which when several show, and no longer turn a hidden Global back on.
-- An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows, asks for further clearance and holds over the airport.
+- An IFR arrival whose route ends at its destination, or that was sent `DCT` to the field, now slows to holding speed and holds over the airport; in solo training it also asks for further clearance.
 - A VFR follower losing spacing behind traffic on base or final within 5 NM turns out to the downwind heading and requests a base turn.
 - A VFR follower lined up on a long final whose traffic disappears keeps flying the final instead of entering the downwind.
 
