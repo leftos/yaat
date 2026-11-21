@@ -42,6 +42,18 @@ public class ScopePrefSetTests
     }
 
     [Fact]
+    public void PinVectorMin_HalfMinute_RoundTrips()
+    {
+        ScopePrefSet set = FullSet() with { PinVectorMin = 0.5 };
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions));
+        ScopePrefSet loaded = RoundTrip(set);
+
+        Assert.Equal(0.5, document.RootElement.GetProperty("pinVectorMin").GetDouble());
+        Assert.Equal(0.5, loaded.PinVectorMin);
+    }
+
+    [Fact]
     public void TheCaRing_IsSavedAsEramCaRing_AndRoundTrips()
     {
         ScopePrefSet set = FullSet() with { Db = new ScopePrefDb(true, false, true, true, true, EramCaRing: false, 14) };

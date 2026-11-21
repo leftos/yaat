@@ -115,7 +115,7 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// Steps the spinner with <paramref name="id"/> by <paramref name="steps"/> wheel steps, positive for wheel up: RANGE
     /// zooms in (<see cref="StepRange"/> by <c>-steps</c>); CHAR grows by one point a step (<see cref="StepCharSize"/>);
-    /// VECTOR lengthens along 0, 1, 2, 4 and 8 minutes (<see cref="StepVector"/>) and HIST adds a dot a step
+    /// VECTOR lengthens along 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 and 8 minutes (<see cref="StepVector"/>) and HIST adds a dot a step
     /// (<see cref="StepHist"/>), each pinning its value; a BRITE spinner moves its group by <c>steps</c> times its step,
     /// through <c>.scope brite</c>: a step past the group's limit stops at the limit, so a value typed off the step grid
     /// can be wheeled back, and a step at the limit runs no command.

@@ -1529,6 +1529,18 @@ public sealed class AppToolsTests : AutomationHostFixture
     }
 
     [AvaloniaFact]
+    public async Task SetPtl_HalfMinuteLength_IsAccepted()
+    {
+        MainViewModel viewModel = ScopeReady();
+
+        Result(await CallTool(ToolsOf(viewModel), "set_ptl", new { lengthMinutes = 0.5, all = true }));
+
+        Assert.Equal(0.5, viewModel.PrimaryScope.Pins.VectorMin);
+        Assert.Equal(0.5, viewModel.PrimaryScope.EffectiveBand.VectorMin);
+        Assert.Equal(ScopeVectorOwnership.All, viewModel.PrimaryScope.VectorOwnership);
+    }
+
+    [AvaloniaFact]
     public async Task SetPtl_UnsupportedLength_IsInvalidParamNamingTheAllowedValues()
     {
         MainViewModel viewModel = ScopeReady();
@@ -1537,8 +1549,7 @@ public sealed class AppToolsTests : AutomationHostFixture
 
         JsonElement[] responses = await SendAll(
             ToolsOf(viewModel),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 3, all = true } }),
-            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 0.5, all = true } }),
+            (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 5, all = true } }),
             (ProtocolMethods.CallAppTool, new { tool = "set_ptl", arguments = new { lengthMinutes = 16, all = true } })
         );
 
@@ -1548,10 +1559,13 @@ public sealed class AppToolsTests : AutomationHostFixture
             {
                 JsonElement error = Error(response, AutomationErrorCodes.InvalidParam);
                 Assert.Equal("lengthMinutes", ErrorParam(error));
-                Assert.Contains("0, 1, 2, 4 or 8", Message(error), StringComparison.Ordinal);
+                Assert.Contains("0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8", Message(error), StringComparison.Ordinal);
             }
         );
-        Assert.Equal("'lengthMinutes' must be 0, 1, 2, 4 or 8 minutes, not 3.", Message(Error(responses[0], AutomationErrorCodes.InvalidParam)));
+        Assert.Equal(
+            "'lengthMinutes' must be 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8 minutes, not 5.",
+            Message(Error(responses[0], AutomationErrorCodes.InvalidParam))
+        );
         Assert.Equal(pinsBefore, viewModel.PrimaryScope.Pins);
         Assert.Equal(ownershipBefore, viewModel.PrimaryScope.VectorOwnership);
     }

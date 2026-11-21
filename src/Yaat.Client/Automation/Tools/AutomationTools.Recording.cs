@@ -57,7 +57,7 @@ public sealed partial class AutomationTools
         [Description("The Radar range to show, in nm, from 0.125 to 256.")] double rangeNm,
         [Description("The STARS ids of the video maps to show, comma-separated (e.g. \"5,12\"); every other map is turned off. May be empty.")]
             string videoMaps,
-        [Description("The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.")] double ptlMinutes,
+        [Description("The vector length in minutes: 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8; 0 draws no vector line.")] double ptlMinutes,
         [Description("True to draw vectors on all tracks (ALL), false on the viewer's own tracks only (OWN).")] bool ptlAll,
         [Description(
             "The Radar's RBLs, ';'-separated 'from,to' pairs of callsigns, fixes or FRDs (e.g. \"UAL1,AAL9;OAK,SFO\"); they "
@@ -335,7 +335,7 @@ public sealed partial class AutomationTools
 /// <param name="CenterLon">The Scope centre's longitude in degrees.</param>
 /// <param name="RangeNm">The Scope range in nm.</param>
 /// <param name="VideoMaps">The STARS ids of the maps to show; every other map is turned off.</param>
-/// <param name="PtlMinutes">The vector length in minutes: 0, 1, 2, 4 or 8; 0 draws no vector line.</param>
+/// <param name="PtlMinutes">The vector length in minutes: 0, 0.5, 1, 1.5, 2, 2.5, 3, 4 or 8; 0 draws no vector line.</param>
 /// <param name="PtlAll">Whether vectors draw on all tracks (ALL) rather than the viewer's own (OWN).</param>
 /// <param name="Rbls">The RBLs that replace the Scope view's, each a pair of callsigns, fixes or FRDs.</param>
 public sealed record TakeFraming(
