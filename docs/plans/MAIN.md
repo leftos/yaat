@@ -4,8 +4,7 @@
 
 ## Hotfix
 
-- [/] YAAT-2680 Scope EuroScope datablock submenus cover too much of the screen · release vHotfix
-- [ ] YAAT-2681 Scope ERAM FDB menus: a setting to choose CRC-style, tabbed or side-by-side · release vHotfix
+- [/] YAAT-2681 Scope ERAM FDB menus: a setting to choose CRC-style, tabbed or side-by-side · release vHotfix
 - [ ] YAAT-2682 Scope STARS datablock field menus: a setting, off by default · release vHotfix
 
 ## YAATEdit in YAAT
