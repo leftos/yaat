@@ -76,6 +76,27 @@ internal sealed class FilletReportCollector
     /// <summary>Records that the executor joined the corner's tangent cuts with a straight chord.</summary>
     public void ChordDegraded(int junctionNodeId, int cornerId) => SetOutcome(junctionNodeId, cornerId, FilletCornerOutcome.ChordDegraded, null);
 
+    /// <summary>The arm pair's outcome as the report gives it, or null when the pass never visited it.</summary>
+    public FilletCornerOutcome? OutcomeOf(ResolvedCorner corner) => PairOf(corner) is { } row ? (row.Outcome ?? FilletCornerOutcome.Skipped) : null;
+
+    /// <summary>The corner id the planner gave the arm pair, or null when it planned no corner for it.</summary>
+    public int? CornerIdOf(ResolvedCorner corner) => PairOf(corner)?.CornerId;
+
+    /// <summary>True when the planner visited the arm pair of <paramref name="corner"/> (it has a row).</summary>
+    public bool Visited(ResolvedCorner corner) => PairOf(corner) is not null;
+
+    /// <summary>
+    /// Why the arm pair of <paramref name="corner"/> has no arc so far: the planner's skip, or the reason a later stage
+    /// dropped its corner; null while its corner is planned, built or straightened, and when the pass never visited it.
+    /// </summary>
+    public FilletSkipReason? SkipOf(ResolvedCorner corner) =>
+        PairOf(corner) switch
+        {
+            { CornerId: null } row => row.Skip,
+            { Outcome: FilletCornerOutcome.Skipped } row => row.Skip,
+            _ => null,
+        };
+
     /// <summary>
     /// The report: junctions by node id, each junction's own row first and then its arm pairs in planner order. A row with a
     /// corner id carries its junction's and its own warnings; a junction-level row its junction's; a pair the planner
@@ -139,6 +160,11 @@ internal sealed class FilletReportCollector
         row = null;
         return _junctions.TryGetValue(junctionNodeId, out JunctionRows? rows) && rows.ByCorner.TryGetValue(cornerId, out row);
     }
+
+    private PairRow? PairOf(ResolvedCorner corner) =>
+        _junctions.TryGetValue(corner.JunctionNodeId, out JunctionRows? rows)
+            ? rows.Pairs.FirstOrDefault(p => (p.ArmA.Id == corner.ArmIdA) && (p.ArmB.Id == corner.ArmIdB))
+            : null;
 
     private JunctionRows RowsOf(GroundNode node)
     {

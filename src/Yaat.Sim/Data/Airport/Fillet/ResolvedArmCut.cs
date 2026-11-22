@@ -1,5 +1,9 @@
 namespace Yaat.Sim.Data.Airport.Fillet;
 
+/// <summary>
+/// One tangent cut on a junction's arm. <see cref="ForcedOnly"/> marks a cut only corners planned because an override forces
+/// them own: it stays out of the shared-arm sizing between junctions, so the neighbours' cuts are as without the force.
+/// </summary>
 internal sealed record ResolvedArmCut(
     CutId CutId,
     int JunctionNodeId,
@@ -7,5 +11,6 @@ internal sealed record ResolvedArmCut(
     double DistanceAlongArmFt,
     LatLon Position,
     double BearingTowardJunctionDeg,
-    IReadOnlyList<int> OwningCornerIds
+    IReadOnlyList<int> OwningCornerIds,
+    bool ForcedOnly
 );

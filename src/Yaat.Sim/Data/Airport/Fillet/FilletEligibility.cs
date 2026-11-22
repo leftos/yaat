@@ -9,11 +9,18 @@ public static class FilletEligibility
 
     public static bool IsEligible(GroundNode node) => IsEligible(node, out _);
 
+    /// <summary>
+    /// True when a corner fillet override may force a corner at <paramref name="node"/> past <see cref="IsEligible(GroundNode)"/>:
+    /// a taxiway intersection with two or more edges that is not a runway centerline projection.
+    /// </summary>
+    public static bool IsForceable(GroundNode node) =>
+        (!IsCenterlineProjection(node)) && (node.Type == GroundNodeType.TaxiwayIntersection) && (node.Edges.Count >= 2);
+
     public static bool IsEligible(GroundNode node, out bool preserveNode)
     {
         preserveNode = false;
 
-        if (node.Origin?.StartsWith("RunwayCrossing:centerline-projection", StringComparison.Ordinal) == true)
+        if (IsCenterlineProjection(node))
         {
             return false;
         }
@@ -69,4 +76,7 @@ public static class FilletEligibility
 
         return true;
     }
+
+    private static bool IsCenterlineProjection(GroundNode node) =>
+        node.Origin?.StartsWith("RunwayCrossing:centerline-projection", StringComparison.Ordinal) == true;
 }
