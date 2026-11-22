@@ -1630,10 +1630,17 @@ public static class FlightPhysics
             // The constraint holds where the fix sequences, its sequencing threshold before the fix itself.
             double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
             CifpSpeedRestriction planned = CappedAtSkippedCeiling(restriction, skippedCeilingKts);
-            if (PlanConstraintSpeed(aircraft, cat, planned, sequencingDistNm, speedLimitWaived))
+            if (PlanConstraintSpeed(aircraft, cat, planned, sequencingDistNm, IsControllerSetSpeed(route[i])))
             {
-                break; // Step planning: only target the first speed-constrained fix
+                return; // Step planning: only target the first speed-constrained fix
             }
+        }
+
+        // No fix speed ahead to plan: on a STAR a published speed reached holds (AIM 5-4-1.a.2(a) NOTE 2); past a SID's last
+        // speed the climb schedule takes over (AIM 5-2-9)
+        if (aircraft.Procedure.ActiveStarId is not null)
+        {
+            HoldReachedPublishedSpeed(aircraft);
         }
     }
 
@@ -1652,7 +1659,7 @@ public static class FlightPhysics
             return;
         }
 
-        PlanConstraintSpeed(aircraft, cat, crossing.Restriction, crossing.SequencingDistNm, IsSpeedLimitWaived(aircraft));
+        PlanConstraintSpeed(aircraft, cat, crossing.Restriction, crossing.SequencingDistNm, controllerSet: true);
     }
 
     /// <summary>Whether 14 CFR 91.117's 250 KIAS limit is waived: for the type, or on a military route that waives it.</summary>
@@ -1663,16 +1670,18 @@ public static class FlightPhysics
     /// Plans a fix's speed <paramref name="restriction"/>, <paramref name="sequencingDistNm"/> before the point the fix
     /// sequences (<see cref="PlannedConstraintSpeed"/>, then under a Mach hold <see cref="PlanCrossingUnderMach"/>, else
     /// <see cref="PlanFixSpeed"/>). False when the planner skips the restriction (<see cref="IsPlannedSpeedFix"/>).
+    /// <paramref name="controllerSet"/> says a controller set the speed (<see cref="IsControllerSetSpeed"/>), an assignment
+    /// the aircraft speeds up to at once.
     /// </summary>
     private static bool PlanConstraintSpeed(
         AircraftState aircraft,
         AircraftCategory cat,
         CifpSpeedRestriction restriction,
         double sequencingDistNm,
-        bool speedLimitWaived
+        bool controllerSet
     )
     {
-        (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, speedLimitWaived);
+        (double constraintSpeed, bool floorGivesWay) = PlannedConstraintSpeed(aircraft, restriction, IsSpeedLimitWaived(aircraft));
         if (!IsPlannedSpeedFix(aircraft, restriction, constraintSpeed))
         {
             return false;
@@ -1684,7 +1693,12 @@ public static class FlightPhysics
         }
         else
         {
-            PlanFixSpeed(aircraft, cat, constraintSpeed, floorGivesWay, sequencingDistNm);
+            PlanFixSpeed(
+                aircraft,
+                cat,
+                new FixSpeedPlan(constraintSpeed, restriction.SpeedKts, floorGivesWay, restriction.Type, controllerSet),
+                sequencingDistNm
+            );
         }
 
         return true;
@@ -1786,41 +1800,172 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Plans the fix speed <paramref name="constraintSpeed"/>, <paramref name="sequencingDistNm"/> before the point the
-    /// fix sequences, with no Mach hold in force: an acceleration is targeted at once, a deceleration at its slowdown point.
+    /// A fix speed the planner plans: the speed (<see cref="PlannedConstraintSpeed"/>), whether a procedure floor gives way to
+    /// it, the restriction's type, and whether a controller set it (<see cref="IsControllerSetSpeed"/>).
     /// </summary>
-    private static void PlanFixSpeed(
-        AircraftState aircraft,
-        AircraftCategory cat,
-        double constraintSpeed,
-        bool floorGivesWay,
-        double sequencingDistNm
-    )
+    private readonly record struct FixSpeedPlan(
+        double Speed,
+        double PublishedKts,
+        bool FloorGivesWay,
+        CifpSpeedRestrictionType Type,
+        bool ControllerSet
+    );
+
+    /// <summary>
+    /// Plans the fix speed <paramref name="plan"/>, <paramref name="sequencingDistNm"/> before the point the fix sequences,
+    /// with no Mach hold in force: the change toward it, faster or slower, starts in its window
+    /// (<see cref="SpeedChangeStartsNow"/>), and a speed-up once started runs on to it. Short of the window a speed-up waits at
+    /// the present speed while level, pinned as the target so the auto speed schedule does not move it (AIM 5-4-1.a.2(a)
+    /// NOTE 2); climbing or descending the schedule flies until the window. A published "at or below" above the present speed
+    /// is a maximum only (7110.65 5-7-2), never a speed to fly toward (<see cref="CapTargetAtMaximum"/>). A speed-up to a
+    /// controller's crossing speed is an assignment and starts at once.
+    /// </summary>
+    private static void PlanFixSpeed(AircraftState aircraft, AircraftCategory cat, FixSpeedPlan plan, double sequencingDistNm)
     {
-        double speedDelta = Math.Abs(aircraft.IndicatedAirspeed - constraintSpeed);
-        if (speedDelta < SpeedSnapKts)
+        double constraintSpeed = plan.Speed;
+        if (IsMaximumAboveTheSpeed(aircraft, plan))
         {
-            // Pin TargetSpeed to the constraint so the auto speed schedule
-            // doesn't override it while the constrained fix is still ahead.
-            SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+            HoldReachedPublishedSpeed(aircraft);
+            CapTargetAtMaximum(aircraft, constraintSpeed);
             return;
         }
 
-        bool needsDecel = aircraft.IndicatedAirspeed > constraintSpeed;
-        double rate = needsDecel
-            ? AircraftPerformance.DecelRate(aircraft.AircraftType, cat)
-            : AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
-        double changeTimeSeconds = speedDelta / rate;
-        double timeToFixSeconds = sequencingDistNm / (aircraft.GroundSpeed / 3600.0);
+        bool speedUp = constraintSpeed > aircraft.IndicatedAirspeed;
+        bool started = speedUp && (aircraft.Targets.TargetSpeed is { } target) && (target >= constraintSpeed - SpeedSnapKts);
 
-        // Acceleration: set TargetSpeed immediately — there's no benefit to
-        // delaying, and starting early ensures the aircraft meets the constraint.
-        // Deceleration: wait until time-to-fix is within 10% of change time so the
-        // aircraft doesn't slow down prematurely.
-        if (!needsDecel || (timeToFixSeconds <= changeTimeSeconds * 1.1))
+        // Within the snap the target is pinned to the constraint, so the schedule does not override it before the fix.
+        if ((speedUp && (plan.ControllerSet || started)) || SpeedChangeStartsNow(aircraft, cat, constraintSpeed, sequencingDistNm))
         {
-            SetPlannedSpeed(aircraft, constraintSpeed, floorGivesWay);
+            SetPlannedSpeed(aircraft, constraintSpeed, plan.FloorGivesWay);
+            return;
         }
+
+        HoldSpeedOutsideWindow(aircraft, speedUp);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="plan"/> is a published "at or below" above the present speed, a maximum only (7110.65 5-7-2).
+    /// </summary>
+    private static bool IsMaximumAboveTheSpeed(AircraftState aircraft, FixSpeedPlan plan) =>
+        (plan.Type == CifpSpeedRestrictionType.AtOrBelow) && !plan.ControllerSet && (plan.PublishedKts >= aircraft.IndicatedAirspeed + SpeedSnapKts);
+
+    /// <summary>
+    /// The speed held short of a fix speed's change window: the present speed while a speed-up waits level (AIM 5-4-1.a.2(a)
+    /// NOTE 2), else a published speed the aircraft has reached (<see cref="HoldReachedPublishedSpeed"/>).
+    /// </summary>
+    private static void HoldSpeedOutsideWindow(AircraftState aircraft, bool speedUp)
+    {
+        if (speedUp && IsLevelForSpeed(aircraft))
+        {
+            PinTargetSpeed(aircraft, aircraft.IndicatedAirspeed);
+            return;
+        }
+
+        HoldReachedPublishedSpeed(aircraft);
+    }
+
+    /// <summary>
+    /// Holds the last crossed published speed (<see cref="AircraftProcedure.LastCrossedPublishedSpeedKts"/>) once the
+    /// aircraft flies it within <see cref="SpeedSnapKts"/>, climbing, level or descending, so the auto speed schedule does
+    /// not pull it off until the next restriction needs a change (AIM 5-4-1.a.2(a) NOTE 2). Nothing under an ATC speed or a
+    /// Mach hold, in an approach or in a phase that manages speed; every speed ceiling still caps the target in
+    /// <see cref="UpdateSpeed"/>. Below 10,000 ft the pin aims at the published speed, UpdateSpeed's 14 CFR 91.117 clamp
+    /// holds the aircraft at the limit, and the target held short there keeps the hold once the IAS is outside the snap.
+    /// </summary>
+    private static void HoldReachedPublishedSpeed(AircraftState aircraft)
+    {
+        if (
+            !aircraft.Targets.HasExplicitSpeedCommand
+            && (aircraft.Targets.TargetMach is null)
+            && (aircraft.Phases?.ActiveApproach is null)
+            && (aircraft.Phases?.CurrentPhase?.ManagesSpeed != true)
+            && (aircraft.Procedure.LastCrossedPublishedSpeedKts is { } publishedKts)
+            && (Math.Abs(aircraft.IndicatedAirspeed - publishedKts) <= SpeedSnapKts)
+        )
+        {
+            PinTargetSpeed(aircraft, publishedKts);
+        }
+    }
+
+    /// <summary>Pins the target to <paramref name="kts"/>, never under the speed floor in force.</summary>
+    private static void PinTargetSpeed(AircraftState aircraft, double kts) =>
+        aircraft.Targets.TargetSpeed = Math.Max(kts, aircraft.Targets.SpeedFloor ?? 0);
+
+    /// <summary>
+    /// Whether the aircraft is level: no target altitude, one within <see cref="AltitudeSnapFt"/>, or a top-of-descent
+    /// hold (<see cref="ControlTargets.PlannedVerticalRate"/> 0), which holds it level until its top of descent.
+    /// </summary>
+    private static bool IsLevelForSpeed(AircraftState aircraft) =>
+        (aircraft.Targets.TargetAltitude is not { } targetFt)
+        || (Math.Abs(targetFt - aircraft.Altitude) <= AltitudeSnapFt)
+        || (aircraft.Targets.PlannedVerticalRate == 0);
+
+    /// <summary>Holds a target above the maximum <paramref name="maximumKts"/> down to it; writes nothing otherwise.</summary>
+    private static void CapTargetAtMaximum(AircraftState aircraft, double maximumKts)
+    {
+        if ((aircraft.Targets.TargetSpeed is { } target) && (target > maximumKts))
+        {
+            aircraft.Targets.TargetSpeed = maximumKts;
+        }
+    }
+
+    /// <summary>
+    /// How much earlier than the change's own time at the type's rate a speed change toward a fix's speed starts.
+    /// </summary>
+    private const double SpeedChangeWindowMargin = 1.1;
+
+    /// <summary>
+    /// Whether the change from the present IAS to <paramref name="targetKts"/>, needed where a fix sequences
+    /// <paramref name="sequencingDistNm"/> ahead, starts now: the time to there is within <see cref="SpeedChangeWindowMargin"/>
+    /// times the change's time at the type's acceleration or deceleration rate, so the speed is met at the fix rather than
+    /// early (AIM 5-4-1.a.2(a) NOTE 2; 7110.65 5-7-1.g NOTE 3). A slowdown judges the time at the present ground speed, as
+    /// before; a speed-up at the mean ground speed over the change (the present one plus half the true airspeed it gains at
+    /// this altitude), so a large speed-up still crosses at its speed. True within the speed snap or with no ground speed.
+    /// The one judge the planner (<see cref="PlanFixSpeed"/>), the at-once fix speeds (<see cref="FixSpeedTargetNow"/>), an
+    /// "at or above" floor (<see cref="ApplyMinimumSpeedFloor"/>) and, by its margin, <see cref="PlanCrossingUnderMach"/>
+    /// share.
+    /// </summary>
+    private static bool SpeedChangeStartsNow(AircraftState aircraft, AircraftCategory cat, double targetKts, double sequencingDistNm)
+    {
+        double deltaKts = targetKts - aircraft.IndicatedAirspeed;
+        if ((Math.Abs(deltaKts) < SpeedSnapKts) || (aircraft.GroundSpeed <= 0))
+        {
+            return true;
+        }
+
+        bool speedUp = deltaKts > 0;
+        double rate = speedUp ? AircraftPerformance.AccelRate(aircraft.AircraftType, cat) : AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
+        double gainedTas =
+            WindInterpolator.IasToTas(targetKts, aircraft.Altitude) - WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
+        double groundSpeedKts = speedUp ? aircraft.GroundSpeed + (gainedTas / 2.0) : aircraft.GroundSpeed;
+        double timeToFixSeconds = sequencingDistNm / (groundSpeedKts / 3600.0);
+        return timeToFixSeconds <= (Math.Abs(deltaKts) / rate * SpeedChangeWindowMargin);
+    }
+
+    /// <summary>
+    /// <see cref="SpeedChangeStartsNow"/> for <paramref name="fix"/>: judged at its sequencing distance along the route, and
+    /// at once for a fix no longer on it.
+    /// </summary>
+    private static bool FixSpeedChangeStartsNow(AircraftState aircraft, NavigationTarget fix, double targetKts)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        double cumulativeDistNm = 0;
+        for (int i = 0; i < route.Count; i++)
+        {
+            cumulativeDistNm += GeoMath.DistanceNm((i == 0) ? aircraft.Position : route[i - 1].Position, route[i].Position);
+            if (ReferenceEquals(route[i], fix))
+            {
+                AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+                return SpeedChangeStartsNow(aircraft, cat, targetKts, SequencingDistanceNm(aircraft, route, i, cumulativeDistNm));
+            }
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: {Fix} is off the route; its {Speed:F0} kt applies at once", aircraft.Callsign, fix.Name, targetKts);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -1854,12 +1999,12 @@ public static class FlightPhysics
         if (constraintSpeed < startSpeed)
         {
             double decelSeconds = (startSpeed - constraintSpeed) / AircraftPerformance.DecelRate(aircraft.AircraftType, cat);
-            windowOpen = timeToFixSeconds <= decelSeconds * 1.1;
+            windowOpen = timeToFixSeconds <= decelSeconds * SpeedChangeWindowMargin;
         }
         else
         {
             double accelSeconds = (constraintSpeed - machIas) / AircraftPerformance.AccelRate(aircraft.AircraftType, cat);
-            windowOpen = (machIas >= constraintSpeed - SpeedSnapKts) || (timeToFixSeconds <= accelSeconds * 1.1);
+            windowOpen = (machIas >= constraintSpeed - SpeedSnapKts) || (timeToFixSeconds <= accelSeconds * SpeedChangeWindowMargin);
         }
 
         if (!windowOpen && (aircraft.Altitude > MachHandOverAltitudeFt))
@@ -2145,8 +2290,9 @@ public static class FlightPhysics
     /// <summary>
     /// As <see cref="ApplyFixConstraints(AircraftState, NavigationTarget)"/>, for the first constrained fix when a climb via
     /// or descend via is issued: the slowdown for a lower speed there is left to the planner's deceleration timing rather
-    /// than started at once (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). A higher speed or an "at or
-    /// above" minimum still applies at once, and the speed is still remembered as the last published one.
+    /// than started at once (7110.65 5-7-1.g NOTE 3; AIM 5-4-1.a.2(a) NOTE 2). A higher speed or an "at or above" minimum
+    /// above the present speed waits for its acceleration window (<see cref="SpeedChangeStartsNow"/>), and the speed is still
+    /// remembered as the last published one.
     /// </summary>
     internal static void ApplyViaClearanceFixConstraints(AircraftState aircraft, NavigationTarget target) =>
         ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: true);
@@ -2160,7 +2306,8 @@ public static class FlightPhysics
     /// applied at all (an assigned speed outranks it, AIM 5-4-1.a.1); under a Mach nobody assigned (live traffic) it is
     /// applied at once, but the Mach rewrites the target speed each tick while it is held, so of what it sets only the
     /// <see cref="ControlTargets.SpeedFloor"/> and <see cref="AircraftProcedure.LastProcedureSpeedKts"/> outlast the
-    /// Mach. An altitude, an acceleration and an "at or above" floor are left immediate by the flag itself.
+    /// Mach. An altitude is left immediate by the flag itself; an acceleration and an "at or above" floor above the present
+    /// speed wait for their acceleration window (<see cref="SpeedChangeStartsNow"/>) whatever the flag.
     /// </summary>
     internal static void ApplySequencedFixConstraints(AircraftState aircraft, NavigationTarget target) =>
         ApplyFixConstraints(aircraft, target, slowdownLeftToPlanner: (aircraft.Targets.TargetMach is null) || IsControllerSetSpeed(target));
@@ -2188,8 +2335,8 @@ public static class FlightPhysics
 
     /// <summary>
     /// Targets the speed on the first route fix that has one when reaching it means speeding up: a speed above the
-    /// present one, or an "at or above" minimum, which becomes the floor. A resume on a STAR then starts toward it at once
-    /// rather than waiting for the planner, which only times slowdowns. A lower speed is left to the planner's
+    /// present one, or an "at or above" minimum, which becomes the floor. Either waits for its acceleration window
+    /// (<see cref="SpeedChangeStartsNow"/>), which the planner then opens. A lower speed is left to the planner's
     /// deceleration timing, so the aircraft keeps its present speed until it has to slow (7110.65 5-7-1.g NOTE 3;
     /// AIM 4-4-12.f.3 NOTE). Nothing while the published speeds are deleted or an ATC speed is assigned.
     /// </summary>
@@ -2248,55 +2395,73 @@ public static class FlightPhysics
         {
             if (spd.Type == CifpSpeedRestrictionType.AtOrAbove)
             {
-                // Minimum crossing speed: establish a floor (the 91.117 cap is enforced against
-                // the floor in UpdateSpeed). Do not pull TargetSpeed down toward the minimum the
-                // way an at-or-below restriction does, and don't record it as a terminating
-                // ceiling memory.
-                aircraft.Targets.SpeedFloor = aircraft.Targets.SpeedFloor is { } existingFloor ? Math.Max(existingFloor, spd.SpeedKts) : spd.SpeedKts;
+                ApplyMinimumSpeedFloor(aircraft, target, spd.SpeedKts);
             }
             else
             {
-                double targetSpeed = ClampFixSpeedToApproachFloor(aircraft, spd.SpeedKts);
-
-                // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
-                if (!aircraft.IsOnGround && aircraft.Altitude < 10_000)
-                {
-                    targetSpeed = Math.Min(targetSpeed, 250);
-                }
-
-                // Clamp via-mode speed to active floor/ceiling
-                if (aircraft.Targets.SpeedFloor is { } floor)
-                {
-                    targetSpeed = Math.Max(targetSpeed, floor);
-                }
-
-                if (aircraft.Targets.SpeedCeiling is { } ceiling)
-                {
-                    targetSpeed = Math.Min(targetSpeed, ceiling);
-                }
-
-                if (FixSpeedTargetNow(aircraft, target, targetSpeed, slowdownLeftToPlanner) is { } now)
-                {
-                    aircraft.Targets.TargetSpeed = now;
-                }
-
-                // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
-                // procedure terminates without further ATC instruction the aircraft
-                // does not accelerate beyond it. Under a via clearance a crossing speed
-                // the controller set ends at its fix (7110.65 5-7-2.e), so it is not one.
-                if (!(aircraft.Procedure.ProcedureSpeedsInForce && IsControllerSetSpeed(target)))
-                {
-                    aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
-                }
+                ApplyFixTargetSpeed(aircraft, target, spd.SpeedKts, slowdownLeftToPlanner);
             }
+        }
+    }
+
+    /// <summary>
+    /// An "at or above" minimum <paramref name="minimumKts"/> on <paramref name="target"/>: the floor (the 91.117 cap is
+    /// enforced against it in UpdateSpeed), never a pull down toward the minimum and never a terminating ceiling memory.
+    /// Below the minimum and short of its acceleration window (<see cref="FixSpeedChangeStartsNow"/>) a published floor waits:
+    /// the planner speeds up to it in its window, and crossing the fix sets it. A controller's minimum is set at once.
+    /// </summary>
+    private static void ApplyMinimumSpeedFloor(AircraftState aircraft, NavigationTarget target, double minimumKts)
+    {
+        if (
+            (aircraft.IndicatedAirspeed >= minimumKts - SpeedSnapKts)
+            || IsControllerSetSpeed(target)
+            || FixSpeedChangeStartsNow(aircraft, target, minimumKts)
+        )
+        {
+            aircraft.Targets.SpeedFloor = aircraft.Targets.SpeedFloor is { } existingFloor ? Math.Max(existingFloor, minimumKts) : minimumKts;
+        }
+    }
+
+    /// <summary>
+    /// An "at" or "at or below" speed <paramref name="fixKts"/> on <paramref name="target"/>: capped at 250 below 10,000 ft
+    /// and clamped to the floor and ceiling in force, targeted when <see cref="FixSpeedTargetNow"/> says so, and remembered as
+    /// the last published speed.
+    /// </summary>
+    private static void ApplyFixTargetSpeed(AircraftState aircraft, NavigationTarget target, double fixKts, bool slowdownLeftToPlanner)
+    {
+        double targetSpeed = ClampFixSpeedToApproachFloor(aircraft, fixKts);
+
+        // 14 CFR 91.117: cap speed restrictions at 250 KIAS below 10,000 ft MSL.
+        if (!aircraft.IsOnGround && (aircraft.Altitude < 10_000))
+        {
+            targetSpeed = Math.Min(targetSpeed, 250);
+        }
+
+        // Clamp via-mode speed to active floor/ceiling
+        targetSpeed = Math.Min(Math.Max(targetSpeed, aircraft.Targets.SpeedFloor ?? 0), aircraft.Targets.SpeedCeiling ?? double.MaxValue);
+
+        if (FixSpeedTargetNow(aircraft, target, targetSpeed, slowdownLeftToPlanner) is { } now)
+        {
+            aircraft.Targets.TargetSpeed = now;
+        }
+
+        // AIM 5-4-1 NOTE 2: remember the last published speed so that if the
+        // procedure terminates without further ATC instruction the aircraft
+        // does not accelerate beyond it. Under a via clearance a crossing speed
+        // the controller set ends at its fix (7110.65 5-7-2.e), so it is not one.
+        if (!(aircraft.Procedure.ProcedureSpeedsInForce && IsControllerSetSpeed(target)))
+        {
+            aircraft.Procedure.LastProcedureSpeedKts = targetSpeed;
         }
     }
 
     /// <summary>
     /// The target <see cref="ApplyFixSpeedConstraint"/> sets at once for <paramref name="fix"/>'s speed
     /// <paramref name="fixSpeed"/>, or null to set none: a slowdown unless it is left to the planner; above the airspeed, the
-    /// fix speed, or for a ceiling only (<see cref="IsCeilingOnly"/>) the lower of the present target and the ceiling, which
-    /// pulls a higher target down at once and never pulls the aircraft up to it.
+    /// fix speed once its acceleration window is open (<see cref="FixSpeedChangeStartsNow"/>; before it the planner speeds up
+    /// in the window), or for a ceiling only (<see cref="IsCeilingOnly"/>) the lower of the present target and the ceiling,
+    /// which pulls a higher target down at once and never pulls the aircraft up to it. A published "at or below" above the
+    /// airspeed is a maximum only (7110.65 5-7-2): it pulls a higher target down to it and otherwise sets nothing.
     /// </summary>
     private static double? FixSpeedTargetNow(AircraftState aircraft, NavigationTarget fix, double fixSpeed, bool slowdownLeftToPlanner)
     {
@@ -2305,7 +2470,21 @@ public static class FlightPhysics
             return slowdownLeftToPlanner ? null : fixSpeed;
         }
 
-        return IsCeilingOnly(aircraft, fix) ? Math.Min(aircraft.Targets.TargetSpeed ?? aircraft.IndicatedAirspeed, fixSpeed) : fixSpeed;
+        if (IsCeilingOnly(aircraft, fix))
+        {
+            return Math.Min(aircraft.Targets.TargetSpeed ?? aircraft.IndicatedAirspeed, fixSpeed);
+        }
+
+        if (
+            (fix.SpeedRestriction is { Type: CifpSpeedRestrictionType.AtOrBelow } maximum)
+            && (maximum.SpeedKts > aircraft.IndicatedAirspeed)
+            && !IsControllerSetSpeed(fix)
+        )
+        {
+            return ((aircraft.Targets.TargetSpeed is { } target) && (target > fixSpeed)) ? fixSpeed : null;
+        }
+
+        return (IsControllerSetSpeed(fix) || FixSpeedChangeStartsNow(aircraft, fix, fixSpeed)) ? fixSpeed : null;
     }
 
     /// <summary>
@@ -4182,7 +4361,7 @@ public static class FlightPhysics
     /// <summary>
     /// The speed the auto schedule (<see cref="ApplyAutoSpeedSchedule"/>) flies the aircraft at here, or null when the
     /// schedule does not run: on the ground, under an explicit SPD command, in an approach or a phase that manages speed,
-    /// or level at its target altitude.
+    /// level at its target altitude, or level before its top of descent (<see cref="IsHoldingForTopOfDescent"/>).
     /// </summary>
     private static double? AutoScheduleSpeed(AircraftState aircraft, AircraftCategory cat, double envelopeLimit)
     {
@@ -4191,8 +4370,7 @@ public static class FlightPhysics
             || aircraft.Targets.HasExplicitSpeedCommand
             || aircraft.Phases?.ActiveApproach is not null
             || aircraft.Phases?.CurrentPhase?.ManagesSpeed == true
-            || aircraft.Targets.TargetAltitude is null
-            || Math.Abs(aircraft.Altitude - aircraft.Targets.TargetAltitude.Value) <= AltitudeSnapFt
+            || IsLevelForSchedule(aircraft)
         )
         {
             return null;
@@ -4210,6 +4388,25 @@ public static class FlightPhysics
         // Nor past what the type can fly here, so the schedule never sets a target the cap would then hold short of.
         return Math.Min(defaultSpeed, envelopeLimit);
     }
+
+    /// <summary>
+    /// Whether the aircraft is level for the auto speed schedule: no target altitude, one within
+    /// <see cref="AltitudeSnapFt"/>, or a level hold before its top of descent (<see cref="IsHoldingForTopOfDescent"/>).
+    /// </summary>
+    private static bool IsLevelForSchedule(AircraftState aircraft) =>
+        (aircraft.Targets.TargetAltitude is not { } targetFt)
+        || (Math.Abs(aircraft.Altitude - targetFt) <= AltitudeSnapFt)
+        || IsHoldingForTopOfDescent(aircraft);
+
+    /// <summary>
+    /// Whether the aircraft is held level for its top of descent: a planner's level hold
+    /// (<see cref="ControlTargets.PlannedVerticalRate"/> 0) toward a target altitude more than <see cref="AltitudeSnapFt"/>
+    /// below it, a descend via's or a controller crossing's. Level before the top of descent the present speed holds.
+    /// </summary>
+    private static bool IsHoldingForTopOfDescent(AircraftState aircraft) =>
+        (aircraft.Targets.PlannedVerticalRate == 0)
+        && (aircraft.Targets.TargetAltitude is { } targetFt)
+        && (targetFt < aircraft.Altitude - AltitudeSnapFt);
 
     /// <summary>
     /// The speed target that corrects a bound the aircraft is violating, or null when it is within all of them.

@@ -35,9 +35,9 @@ public class MultiBoundDescentScanTests
     /// What a descend via flies on the OAKES3 harness over <see cref="DescendViaTicks"/> seconds: each target change with
     /// the planned rate then, and the altitude crossed at each sequenced fix. The top-of-descent planner holds 16,000 (rate
     /// 0) until FFIST's top of descent, so FFIST is crossed inside its 9,000-7,000 window and 7,000 is reached past it. Each
-    /// "crossed KOAK" is the holding pattern at the clearance limit sequencing its fix: on the tick the hold starts it puts
-    /// KOAK back on the route, which sequences that tick or the next depending on where in the tick the aircraft arrives,
-    /// so the entry logs a crossing here and the lap 260 s later logs another.
+    /// "crossed KOAK" is the holding pattern at the clearance limit sequencing its fix: the entry logs a crossing only when
+    /// KOAK is put back on the route the tick after it sequences, so whether it shows depends on where in the tick the
+    /// aircraft arrives; the lap 260 s later always logs one.
     /// </summary>
     private static readonly string[] DescendViaBaseEvents =
     [
@@ -46,10 +46,9 @@ public class MultiBoundDescentScanTests
         "246 crossed GRUDG at 16000",
         "355 crossed BANND at 16000",
         "499 crossed TOOOL at 12614",
-        "724 crossed FFIST at 8959",
+        "723 crossed FFIST at 8995",
         "828 target null rate null",
-        "1148 crossed KOAK at 7000",
-        "1408 crossed KOAK at 7000",
+        "1407 crossed KOAK at 7000",
     ];
 
     private readonly ITestOutputHelper _output;

@@ -42,6 +42,9 @@ public class DescendViaTopOfDescentTests
     /// <summary>The shallowest average path a normal idle descent from cruise flies, in degrees.</summary>
     private const double MinNormalPathDeg = 2.5;
 
+    /// <summary>How far the IAS may drift from the speed it holds.</summary>
+    private const double HoldToleranceKts = 1.0;
+
     private readonly ITestOutputHelper _output;
 
     public DescendViaTopOfDescentTests(ITestOutputHelper output)
@@ -150,6 +153,42 @@ public class DescendViaTopOfDescentTests
         Assert.InRange(profile.DescentStartNm, todNm * 0.9, todNm * TodSlackFactor);
         Assert.InRange(gradient, 0.9 * TodFtPerNm, 1.1 * TodFtPerNm);
         Assert.InRange(flight.AltitudeAtSequencing(FirstFix), OakesTargetFt - FlightPhysics.AltitudeSnapFt, OakesTargetFt + 100);
+    }
+
+    /// <summary>
+    /// "Cross OAKES at FL240" 150 NM out, level at FL280 at 305 KIAS (above OAKES's 280, so no speed-up waits): level in the
+    /// crossing's top-of-descent hold the descent schedule does not move the speed (YAAT-2727), and no 250 kt lead fires
+    /// before the descent.
+    /// </summary>
+    [Fact]
+    public void CrossFixAt_LevelBeforeTopOfDescent_HoldsThePresentSpeed()
+    {
+        const double heldKts = 305;
+        (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150, descendVia: false, starAltitude: 28000);
+        aircraft.IndicatedAirspeed = heldKts;
+        aircraft.Targets.TargetSpeed = null;
+        SendOk(engine, aircraft, "CFIX OAKES 240");
+        engine.TickOneSecond();
+        Assert.Equal(OakesTargetFt, aircraft.Targets.TargetAltitude);
+        Assert.Equal(0, aircraft.Targets.PlannedVerticalRate);
+        AircraftCategory cat = AircraftCategorization.Categorize(aircraft.AircraftType);
+        double scheduleKts = AircraftPerformance.DefaultSpeed(aircraft.AircraftType, cat, aircraft.Altitude, aircraft.Targets.TargetAltitude);
+        Assert.True(Math.Abs(scheduleKts - heldKts) > 10, $"setup: the schedule's {scheduleKts:F1} is the held speed");
+        int level = 1;
+        for (int t = 2; (t <= 3600) && (level == t - 1); t++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.VerticalSpeed != 0)
+            {
+                break;
+            }
+
+            level = t;
+            Assert.InRange(aircraft.IndicatedAirspeed, heldKts - HoldToleranceKts, heldKts + HoldToleranceKts);
+            Assert.True(aircraft.Targets.TargetSpeed is null or heldKts, $"+{t} s: target {aircraft.Targets.TargetSpeed} while level");
+        }
+
+        Assert.True(level > 120, $"setup: level for {level} s");
     }
 
     /// <summary>

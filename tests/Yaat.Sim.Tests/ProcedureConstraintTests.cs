@@ -272,7 +272,7 @@ public class ProcedureConstraintTests
         aircraft.Procedure.SidViaMode = true;
         aircraft.Procedure.ActiveSidId = "PORTE3";
 
-        NavigationTarget target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.AtOrBelow));
+        NavigationTarget target = MakeTarget(spd: new CifpSpeedRestriction(280, CifpSpeedRestrictionType.Mandatory));
         FlightPhysics.ApplyFixConstraints(aircraft, target);
 
         // Above 10,000 ft — no cap

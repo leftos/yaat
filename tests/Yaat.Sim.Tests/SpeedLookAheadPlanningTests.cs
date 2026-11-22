@@ -263,7 +263,8 @@ public class SpeedLookAheadPlanningTests(ITestOutputHelper output)
         aircraft.Targets.SpeedCeiling = 240;
         // Fix 1nm ahead: 260kt constraint clamped to 240. Delta=40, accelRate=2 → 20s * 1.1 = 22s.
         // GS ≈ 238kt → 1nm = 15.1s < 22s → triggers.
-        NavigationTarget fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(260, CifpSpeedRestrictionType.AtOrBelow));
+        // An "at" speed: a higher "at or below" is a maximum only and is never flown toward.
+        NavigationTarget fix = MakeFix("CNSTR", 1.0, speed: new CifpSpeedRestriction(260, CifpSpeedRestrictionType.Mandatory));
         aircraft.Targets.NavigationRoute.Add(fix);
 
         FlightPhysics.Update(aircraft, 0.25);

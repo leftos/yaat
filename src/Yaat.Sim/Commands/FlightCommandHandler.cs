@@ -680,8 +680,8 @@ internal static class FlightCommandHandler
     /// On a STAR, a resumed speed goes back to the published one: "resume normal speed" does not cancel a procedure's
     /// published restrictions (AIM 4-4-12.f), so the last crossed published speed is the ceiling again
     /// (<see cref="RestoreCrossedPublishedCeiling"/>). A next published speed above the present one, or an "at or above"
-    /// minimum, is targeted at once; a lower one is left to the planner's deceleration timing
-    /// (<see cref="FlightPhysics.ApplyNextPublishedSpeed"/>). Nothing is held while the published speeds are deleted (DSR).
+    /// minimum, is targeted from its acceleration window, at once when already inside it; a lower one is left to the planner's
+    /// deceleration timing (<see cref="FlightPhysics.ApplyNextPublishedSpeed"/>). Nothing is held while the published speeds are deleted (DSR).
     /// </summary>
     private static void ResumePublishedStarSpeeds(AircraftState aircraft)
     {

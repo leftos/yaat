@@ -457,7 +457,7 @@ public class DescendViaSpeedResumeTests
         NavigationTarget fix = NextSpeedRestrictedFix(aircraft);
         CifpSpeedRestriction published = fix.SpeedRestriction!;
         (double crossingIas, _) = TickUntilPassed(harness, fix.Name);
-        AssertFliesPublished(fix.Name, published, crossingIas);
+        AssertUnderPublishedMaximum(fix.Name, published, crossingIas);
     }
 
     /// <summary>A climb via after "delete speed restrictions" puts the SID's published speeds back in force, as a descend via does.</summary>
@@ -476,7 +476,7 @@ public class DescendViaSpeedResumeTests
         NavigationTarget fix = NextSpeedRestrictedFix(aircraft);
         CifpSpeedRestriction published = fix.SpeedRestriction!;
         (double crossingIas, _) = TickUntilPassed(harness, fix.Name);
-        AssertFliesPublished(fix.Name, published, crossingIas);
+        AssertUnderPublishedMaximum(fix.Name, published, crossingIas);
     }
 
     /// <summary>A speed restated with the via clearance stands (7110.65 5-7-1.c).</summary>
@@ -1972,6 +1972,17 @@ public class DescendViaSpeedResumeTests
             $"Spawned {aircraft.Callsign} {aircraft.AircraftType} at {aircraft.Altitude:F0}, IAS {aircraft.IndicatedAirspeed:F0}, route {route}"
         );
         return new OakesHarness(engine, aircraft);
+    }
+
+    /// <summary>
+    /// A published "at or below" above the present speed is a maximum only (7110.65 5-7-2): the climb flies its schedule and
+    /// crosses the fix at or under it.
+    /// </summary>
+    private void AssertUnderPublishedMaximum(string fixName, CifpSpeedRestriction published, double crossingIas)
+    {
+        _output.WriteLine($"Crossed {fixName} at {crossingIas:F0} kt; published {published.Type} {published.SpeedKts}");
+        Assert.Equal(CifpSpeedRestrictionType.AtOrBelow, published.Type);
+        Assert.True(crossingIas <= published.SpeedKts + SnapKts, $"Crossed {fixName} at {crossingIas:F1}, over its {published.SpeedKts} maximum");
     }
 
     private void AssertFliesPublished(string fixName, CifpSpeedRestriction published, double crossingIas)
