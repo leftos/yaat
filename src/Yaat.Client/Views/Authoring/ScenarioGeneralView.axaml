@@ -1,0 +1,1064 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.ScenarioGeneralView"
+  x:Name="Root"
+  x:DataType="vm:ScenarioGeneralViewModel"
+>
+  <UserControl.Resources>
+    <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="#232323" />
+    <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="#2B2B2B" />
+    <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="#2B2B2B" />
+    <SolidColorBrush x:Key="ExpanderHeaderBorderBrush" Color="#3D3D3D" />
+    <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPointerOver" Color="#4A4A4A" />
+    <SolidColorBrush x:Key="ExpanderHeaderBorderBrushPressed" Color="#4A4A4A" />
+    <SolidColorBrush x:Key="ExpanderContentBackground" Color="#232323" />
+    <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="#3D3D3D" />
+    <x:Double x:Key="ExpanderMinHeight">34</x:Double>
+    <Thickness x:Key="ExpanderHeaderPadding">8,0,8,0</Thickness>
+    <Thickness x:Key="ExpanderContentPadding">10,8,10,10</Thickness>
+    <DataTemplate x:Key="GeneratorColumns" x:DataType="x:String">
+      <Border Classes="colhead">
+        <Grid Classes="cells" ColumnDefinitions="84,56,100,100,92,72,72,34,72,24">
+          <TextBlock Text="Kind" />
+          <TextBlock Grid.Column="1" Text="Runway" />
+          <TextBlock Grid.Column="2" Text="Engine" />
+          <TextBlock Grid.Column="3" Text="Weight" />
+          <TextBlock Grid.Column="4" Text="Distance nm" />
+          <TextBlock Grid.Column="5" Text="Start" />
+          <TextBlock Grid.Column="6" Text="Every" />
+          <TextBlock Grid.Column="7" Text="Rnd" />
+          <TextBlock Grid.Column="8" Text="Stop" />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+  <UserControl.Styles>
+    <Style Selector="Expander.section">
+      <Setter Property="Margin" Value="0,8,0,0" />
+      <Setter Property="Background" Value="#232323" />
+      <Setter Property="BorderBrush" Value="#3D3D3D" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="IsExpanded" Value="True" />
+    </Style>
+    <Style Selector="DockPanel#Sections > Expander">
+      <Setter Property="DockPanel.Dock" Value="Top" />
+    </Style>
+    <!-- The header row as the design draws it: the chevron at its left, the whole row one toggle. -->
+    <Style Selector="Expander.section /template/ ToggleButton#ExpanderHeader">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border
+            x:Name="ToggleButtonBackground"
+            CornerRadius="{TemplateBinding CornerRadius}"
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+          >
+            <DockPanel>
+              <Path
+                x:Name="SectionChevron"
+                DockPanel.Dock="Left"
+                Margin="10,0,0,0"
+                Width="10"
+                Height="10"
+                VerticalAlignment="Center"
+                Stretch="None"
+                Data="M 1,3 L 5,7 L 9,3"
+                Stroke="#B0B0B0"
+                StrokeThickness="1.5"
+                RenderTransformOrigin="50%,50%"
+                RenderTransform="rotate(-90deg)"
+              />
+              <ContentPresenter
+                x:Name="PART_ContentPresenter"
+                Content="{TemplateBinding Content}"
+                ContentTemplate="{TemplateBinding ContentTemplate}"
+                HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                Foreground="{TemplateBinding Foreground}"
+                Margin="{TemplateBinding Padding}"
+              />
+            </DockPanel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Expander.section:expanded /template/ ToggleButton#ExpanderHeader /template/ Path#SectionChevron">
+      <Setter Property="RenderTransform" Value="rotate(0deg)" />
+    </Style>
+    <Style Selector="Expander.yaat">
+      <Setter Property="Background" Value="#221E29" />
+      <Setter Property="BorderBrush" Value="#4B3D63" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.title.yaat">
+      <Setter Property="Foreground" Value="#D9B8FF" />
+    </Style>
+    <Style Selector="Border.count">
+      <Setter Property="Background" Value="#3A3A3A" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.count > TextBlock">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Foreground" Value="#8A8A8A" />
+    </Style>
+    <Style Selector="TextBlock.summary">
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="8,0,12,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="TextBlock.lbl">
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.sub">
+      <Setter Property="Foreground" Value="#B9A6D6" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
+    <Style Selector="TextBlock.none">
+      <Setter Property="Foreground" Value="#8A8A8A" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Margin" Value="4,6" />
+    </Style>
+    <Style Selector="Border.colhead">
+      <Setter Property="Background" Value="#2A2A2A" />
+      <Setter Property="BorderBrush" Value="#3D3D3D" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="4,3" />
+    </Style>
+    <Style Selector="Border.colhead TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+    </Style>
+    <Style Selector="Border.row">
+      <Setter Property="BorderBrush" Value="#2C2C2C" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="4,2" />
+    </Style>
+    <Style Selector="Grid.cells > :is(Control)">
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.err">
+      <Setter Property="Foreground" Value="#FF8A8A" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.problem">
+      <Setter Property="Foreground" Value="#E0A33A" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBox.mono">
+      <Setter Property="FontFamily" Value="Cascadia Mono,Consolas,Courier New" />
+      <Setter Property="FontSize" Value="11.5" />
+    </Style>
+    <Style Selector="TextBox.error">
+      <Setter Property="BorderBrush" Value="#E06464" />
+      <Setter Property="Background" Value="#2A1A1A" />
+    </Style>
+    <Style Selector="TextBox.error /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="#E06464" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="6,0,0,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.add">
+      <Setter Property="Padding" Value="8,1" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.remove">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#9A9A9A" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="#2E2440" />
+      <Setter Property="BorderBrush" Value="#6B4F8F" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock">
+      <Setter Property="FontSize" Value="9" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="#D9B8FF" />
+    </Style>
+    <Style Selector="WrapPanel.kindline">
+      <Setter Property="Margin" Value="4,2,0,6" />
+      <Setter Property="LineSpacing" Value="4" />
+    </Style>
+    <!-- The gap between kind-line items is each item's own margin, so the line wraps on widths that include it. -->
+    <Style Selector="WrapPanel.kindline > :is(Control)">
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.errors">
+      <Setter Property="Margin" Value="4,0,0,4" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" Padding="14,4,18,12">
+    <!-- A DockPanel, not a StackPanel: it gives each section the viewport's width even when a field's text is wider. -->
+    <DockPanel x:Name="Sections" LastChildFill="False">
+      <!-- Settings -->
+      <Expander x:Name="SettingsSection" Classes="section">
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title" Text="Settings" />
+            <TextBlock Classes="summary" Text="{Binding SettingsSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="7">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="110" />
+            <ColumnDefinition Width="3*" MinWidth="180" />
+            <ColumnDefinition Width="110" />
+            <ColumnDefinition Width="2*" MinWidth="180" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Classes="lbl" Text="Name" />
+          <TextBox
+            x:Name="NameBox"
+            Grid.Column="1"
+            Text="{Binding Name}"
+            Tag="{Binding CommitNameCommand}"
+            Classes.error="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Grid.Column="2" Classes="lbl" Text="Id" />
+          <SelectableTextBlock
+            Grid.Column="3"
+            Text="{Binding ScenarioId}"
+            FontFamily="Cascadia Mono,Consolas,Courier New"
+            FontSize="11"
+            Foreground="#8F8F8F"
+            VerticalAlignment="Center"
+          />
+          <TextBlock
+            Grid.Row="1"
+            Grid.Column="1"
+            Classes="err"
+            Text="{Binding NameError}"
+            IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Grid.Row="2" Classes="lbl" Text="ARTCC" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ArtccId}" Foreground="#E6E6E6" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="2" Grid.Column="2" Classes="lbl" Text="Minimum rating" />
+          <ComboBox
+            x:Name="RatingPicker"
+            Grid.Row="2"
+            Grid.Column="3"
+            ItemsSource="{Binding RatingOptions}"
+            DisplayMemberBinding="{Binding Label}"
+            SelectedItem="{Binding MinimumRatingSelection}"
+          />
+          <TextBlock Grid.Row="3" Classes="lbl" Text="Student position" />
+          <ComboBox
+            x:Name="StudentPositionPicker"
+            Grid.Row="3"
+            Grid.Column="1"
+            IsVisible="{Binding !IsStudentPositionFreeText}"
+            ItemsSource="{Binding StudentPositionOptions}"
+            DisplayMemberBinding="{Binding Label}"
+            SelectedItem="{Binding StudentPositionSelection}"
+          />
+          <TextBox
+            Grid.Row="3"
+            Grid.Column="1"
+            IsVisible="{Binding IsStudentPositionFreeText}"
+            Text="{Binding StudentPositionId}"
+            Tag="{Binding CommitStudentPositionCommand}"
+          />
+          <TextBlock Grid.Row="3" Grid.Column="2" Classes="lbl" Text="Auto-delete" />
+          <ComboBox
+            x:Name="AutoDeletePicker"
+            Grid.Row="3"
+            Grid.Column="3"
+            ItemsSource="{Binding AutoDeleteOptions}"
+            DisplayMemberBinding="{Binding Label}"
+            SelectedItem="{Binding AutoDeleteSelection}"
+          />
+          <TextBlock Grid.Row="4" Classes="lbl" Text="Primary airport" />
+          <ComboBox
+            x:Name="AirportPicker"
+            Grid.Row="4"
+            Grid.Column="1"
+            Width="90"
+            HorizontalAlignment="Left"
+            IsVisible="{Binding !IsPrimaryAirportFreeText}"
+            ItemsSource="{Binding AirportOptions}"
+            SelectedItem="{Binding PrimaryAirportPick}"
+          />
+          <TextBox
+            Grid.Row="4"
+            Grid.Column="1"
+            Width="90"
+            HorizontalAlignment="Left"
+            IsVisible="{Binding IsPrimaryAirportFreeText}"
+            Text="{Binding PrimaryAirportId}"
+            Tag="{Binding CommitPrimaryAirportCommand}"
+          />
+          <TextBlock Grid.Row="4" Grid.Column="2" Classes="lbl" Text="Primary approach" />
+          <TextBox Grid.Row="4" Grid.Column="3" Text="{Binding PrimaryApproach}" Tag="{Binding CommitPrimaryApproachCommand}" />
+          <TextBlock
+            Grid.Row="5"
+            Grid.ColumnSpan="4"
+            Classes="problem"
+            Text="{Binding ConfigProblem}"
+            IsVisible="{Binding ConfigProblem, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </Grid>
+      </Expander>
+
+      <!-- ATC positions -->
+      <Expander x:Name="AtcSection" Classes="section">
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title" Text="ATC positions" />
+            <Border DockPanel.Dock="Left" Classes="count">
+              <TextBlock Text="{Binding AtcPositions.Count}" />
+            </Border>
+            <Button DockPanel.Dock="Right" Classes="add" Content="+ Add" Command="{Binding AddAtcPositionCommand}" />
+            <TextBlock Classes="summary" Text="{Binding AtcSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <StackPanel>
+          <Border Classes="colhead">
+            <Grid Classes="cells" ColumnDefinitions="*,90,120,24">
+              <TextBlock Text="Position" />
+              <TextBlock Grid.Column="1" Text="Auto-connect" />
+              <TextBlock Grid.Column="2" Text="Auto-track airports" />
+            </Grid>
+          </Border>
+          <ItemsControl x:Name="AtcList" ItemsSource="{Binding AtcPositions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScenarioAtcRowViewModel">
+                <Border Classes="row">
+                  <Grid Classes="cells" ColumnDefinitions="*,90,120,24">
+                    <ComboBox
+                      ItemsSource="{Binding PositionOptions}"
+                      DisplayMemberBinding="{Binding Label}"
+                      SelectedItem="{Binding PositionSelection}"
+                    />
+                    <CheckBox Grid.Column="1" IsChecked="{Binding AutoConnect}" HorizontalAlignment="Center" />
+                    <TextBox Grid.Column="2" Text="{Binding AutoTrackAirportsText}" Tag="{Binding CommitAutoTrackAirportsCommand}" />
+                    <Button
+                      Grid.Column="3"
+                      Classes="remove"
+                      Content="✕"
+                      ToolTip.Tip="Remove"
+                      Command="{Binding $parent[local:ScenarioGeneralView].((vm:ScenarioGeneralViewModel)DataContext).RemoveAtcPositionCommand}"
+                      CommandParameter="{Binding}"
+                    />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !AtcPositions.Count}" />
+        </StackPanel>
+      </Expander>
+
+      <!-- Initialization triggers -->
+      <Expander x:Name="TriggersSection" Classes="section">
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title" Text="Initialization triggers" />
+            <Border DockPanel.Dock="Left" Classes="count">
+              <TextBlock Text="{Binding Triggers.Count}" />
+            </Border>
+            <Button DockPanel.Dock="Right" Classes="add" Content="+ Add" Command="{Binding AddTriggerCommand}" />
+            <TextBlock Classes="summary" Text="{Binding TriggersSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <StackPanel>
+          <Border Classes="colhead">
+            <Grid Classes="cells" ColumnDefinitions="110,*,24">
+              <TextBlock Text="Time" />
+              <TextBlock Grid.Column="1" Text="Command" />
+            </Grid>
+          </Border>
+          <ItemsControl x:Name="TriggerList" ItemsSource="{Binding Triggers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:InitializationTriggerRowViewModel">
+                <Border Classes="row">
+                  <StackPanel>
+                    <Grid Classes="cells" ColumnDefinitions="110,*,24">
+                      <TextBox
+                        Classes="mono"
+                        Width="96"
+                        HorizontalAlignment="Left"
+                        Text="{Binding TimeText}"
+                        Tag="{Binding CommitTimeCommand}"
+                        Classes.error="{Binding TimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBox Grid.Column="1" Classes="mono" Text="{Binding Command}" Tag="{Binding CommitCommandCommand}" />
+                      <Button
+                        Grid.Column="2"
+                        Classes="remove"
+                        Content="✕"
+                        ToolTip.Tip="Remove"
+                        Command="{Binding $parent[local:ScenarioGeneralView].((vm:ScenarioGeneralViewModel)DataContext).RemoveTriggerCommand}"
+                        CommandParameter="{Binding}"
+                      />
+                    </Grid>
+                    <TextBlock
+                      Classes="err"
+                      Text="{Binding TimeError}"
+                      IsVisible="{Binding TimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !Triggers.Count}" />
+        </StackPanel>
+      </Expander>
+
+      <!-- Generators (the vNAS kind) -->
+      <Expander x:Name="GeneratorsSection" Classes="section">
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title" Text="Generators" />
+            <Border DockPanel.Dock="Left" Classes="count">
+              <TextBlock Text="{Binding ArrivalGenerators.Count}" />
+            </Border>
+            <Button DockPanel.Dock="Right" Classes="add" Content="+ Add" Command="{Binding AddArrivalGeneratorCommand}" />
+            <TextBlock Classes="summary" Text="{Binding GeneratorsSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <StackPanel>
+          <ContentControl Content="columns" ContentTemplate="{StaticResource GeneratorColumns}" IsVisible="{Binding !!ArrivalGenerators.Count}" />
+          <ItemsControl x:Name="ArrivalGeneratorList" ItemsSource="{Binding ArrivalGenerators}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScenarioArrivalGeneratorRowViewModel">
+                <Border Classes="row">
+                  <StackPanel>
+                    <Grid Classes="cells" ColumnDefinitions="84,56,100,100,92,72,72,34,72,24">
+                      <TextBlock Text="Arrival" Foreground="#DDDDDD" />
+                      <TextBox Grid.Column="1" Text="{Binding Runway}" Tag="{Binding CommitRunwayCommand}" />
+                      <ComboBox Grid.Column="2" ItemsSource="{Binding EngineTypeOptions}" SelectedItem="{Binding EngineTypePick}" />
+                      <ComboBox Grid.Column="3" ItemsSource="{Binding WeightCategoryOptions}" SelectedItem="{Binding WeightCategoryPick}" />
+                      <Grid Grid.Column="4" ColumnDefinitions="*,Auto,*">
+                        <TextBox
+                          Text="{Binding InitialDistanceText}"
+                          Tag="{Binding CommitInitialDistanceCommand}"
+                          Classes.error="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                        <TextBlock Grid.Column="1" Text="–" Foreground="#B0B0B0" Margin="2,0" VerticalAlignment="Center" />
+                        <TextBox
+                          Grid.Column="2"
+                          Text="{Binding MaxDistanceText}"
+                          Tag="{Binding CommitMaxDistanceCommand}"
+                          Classes.error="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                      </Grid>
+                      <TextBox
+                        Grid.Column="5"
+                        Classes="mono"
+                        Text="{Binding StartTimeOffsetText}"
+                        Tag="{Binding CommitStartTimeOffsetCommand}"
+                        Classes.error="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBox
+                        Grid.Column="6"
+                        Classes="mono"
+                        Text="{Binding IntervalTimeText}"
+                        Tag="{Binding CommitIntervalTimeCommand}"
+                        Classes.error="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox
+                        Grid.Column="7"
+                        IsChecked="{Binding RandomizeInterval}"
+                        HorizontalAlignment="Center"
+                        ToolTip.Tip="Randomize interval"
+                      />
+                      <TextBox
+                        Grid.Column="8"
+                        Classes="mono"
+                        PlaceholderText="—"
+                        Text="{Binding MaxTimeText}"
+                        Tag="{Binding CommitMaxTimeCommand}"
+                        Classes.error="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <Button
+                        Grid.Column="9"
+                        Classes="remove"
+                        Content="✕"
+                        ToolTip.Tip="Remove"
+                        Command="{Binding #Root.DataContext.RemoveArrivalGeneratorCommand}"
+                        CommandParameter="{Binding}"
+                      />
+                    </Grid>
+                    <WrapPanel x:Name="KindLine" Classes="kindline">
+                      <TextBlock Classes="lbl" Text="Spacing nm" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding IntervalDistanceText}"
+                        Tag="{Binding CommitIntervalDistanceCommand}"
+                        Classes.error="{Binding IntervalDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox Content="Randomize weight" FontSize="12" IsChecked="{Binding RandomizeWeightCategory}" />
+                      <TextBlock Classes="lbl" Text="Auto-track" />
+                      <ComboBox
+                        Width="260"
+                        ItemsSource="{Binding AutoTrackPositionOptions}"
+                        DisplayMemberBinding="{Binding Label}"
+                        SelectedItem="{Binding AutoTrackPositionSelection}"
+                      />
+                      <CheckBox
+                        IsThreeState="True"
+                        IsChecked="{Binding Enabled}"
+                        ToolTip.Tip="Unset follows the start and stop times; checked is always on, unchecked always off."
+                      >
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                          <TextBlock Text="Enabled" FontSize="12" VerticalAlignment="Center" />
+                          <Border Classes="badge" ToolTip.Tip="YAAT only: vNAS ignores this on upload.">
+                            <TextBlock Text="YAAT" />
+                          </Border>
+                        </StackPanel>
+                      </CheckBox>
+                    </WrapPanel>
+                    <StackPanel Classes="errors">
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding InitialDistanceError}"
+                        IsVisible="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxDistanceError}"
+                        IsVisible="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding StartTimeOffsetError}"
+                        IsVisible="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding IntervalTimeError}"
+                        IsVisible="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxTimeError}"
+                        IsVisible="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding IntervalDistanceError}"
+                        IsVisible="{Binding IntervalDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !ArrivalGenerators.Count}" />
+        </StackPanel>
+      </Expander>
+
+      <!-- YAAT extensions: the generator kinds vNAS does not have -->
+      <Expander x:Name="YaatSection" Classes="section yaat">
+        <Expander.Resources>
+          <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="#221E29" />
+          <SolidColorBrush x:Key="ExpanderHeaderBackgroundPointerOver" Color="#2A2433" />
+          <SolidColorBrush x:Key="ExpanderHeaderBackgroundPressed" Color="#2A2433" />
+          <SolidColorBrush x:Key="ExpanderHeaderBorderBrush" Color="#4B3D63" />
+          <SolidColorBrush x:Key="ExpanderContentBackground" Color="#221E29" />
+          <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="#4B3D63" />
+        </Expander.Resources>
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title yaat" Text="YAAT extensions" />
+            <TextBlock Classes="summary" Text="{Binding YaatExtensionsSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <StackPanel>
+          <TextBlock Classes="sub" Text="vNAS ignores everything in this section on upload; YAAT runs it." Margin="0,0,0,6" />
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,4,0,6">
+            <TextBlock Classes="title" Text="VFR arrival generators" />
+            <Border Grid.Column="1" Classes="count">
+              <TextBlock Text="{Binding VfrArrivalGenerators.Count}" />
+            </Border>
+            <Button Grid.Column="3" Classes="add" Content="+ Add" Command="{Binding AddVfrArrivalGeneratorCommand}" />
+          </Grid>
+          <ContentControl Content="columns" ContentTemplate="{StaticResource GeneratorColumns}" IsVisible="{Binding !!VfrArrivalGenerators.Count}" />
+          <ItemsControl x:Name="VfrArrivalGeneratorList" ItemsSource="{Binding VfrArrivalGenerators}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScenarioVfrArrivalGeneratorRowViewModel">
+                <Border Classes="row">
+                  <StackPanel>
+                    <Grid Classes="cells" ColumnDefinitions="84,56,100,100,92,72,72,34,72,24">
+                      <TextBlock Text="VFR arrival" Foreground="#DDDDDD" />
+                      <TextBlock Grid.Column="1" Text="—" Foreground="#6F6F6F" />
+                      <ComboBox Grid.Column="2" ItemsSource="{Binding EngineTypeOptions}" SelectedItem="{Binding EngineTypePick}" />
+                      <ComboBox Grid.Column="3" ItemsSource="{Binding WeightCategoryOptions}" SelectedItem="{Binding WeightCategoryPick}" />
+                      <Grid Grid.Column="4" ColumnDefinitions="*,Auto,*">
+                        <TextBox
+                          Text="{Binding InitialDistanceText}"
+                          Tag="{Binding CommitInitialDistanceCommand}"
+                          Classes.error="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                        <TextBlock Grid.Column="1" Text="–" Foreground="#B0B0B0" Margin="2,0" VerticalAlignment="Center" />
+                        <TextBox
+                          Grid.Column="2"
+                          Text="{Binding MaxDistanceText}"
+                          Tag="{Binding CommitMaxDistanceCommand}"
+                          Classes.error="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                      </Grid>
+                      <TextBox
+                        Grid.Column="5"
+                        Classes="mono"
+                        Text="{Binding StartTimeOffsetText}"
+                        Tag="{Binding CommitStartTimeOffsetCommand}"
+                        Classes.error="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBox
+                        Grid.Column="6"
+                        Classes="mono"
+                        Text="{Binding IntervalTimeText}"
+                        Tag="{Binding CommitIntervalTimeCommand}"
+                        Classes.error="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox
+                        Grid.Column="7"
+                        IsChecked="{Binding RandomizeInterval}"
+                        HorizontalAlignment="Center"
+                        ToolTip.Tip="Randomize interval"
+                      />
+                      <TextBox
+                        Grid.Column="8"
+                        Classes="mono"
+                        PlaceholderText="—"
+                        Text="{Binding MaxTimeText}"
+                        Tag="{Binding CommitMaxTimeCommand}"
+                        Classes.error="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <Button
+                        Grid.Column="9"
+                        Classes="remove"
+                        Content="✕"
+                        ToolTip.Tip="Remove"
+                        Command="{Binding #Root.DataContext.RemoveVfrArrivalGeneratorCommand}"
+                        CommandParameter="{Binding}"
+                      />
+                    </Grid>
+                    <WrapPanel Classes="kindline">
+                      <TextBlock Classes="lbl" Text="VFR arrival bearings" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding BearingFromText}"
+                        Tag="{Binding CommitBearingFromCommand}"
+                        Classes.error="{Binding BearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Text="–" Foreground="#B0B0B0" VerticalAlignment="Center" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding BearingToText}"
+                        Tag="{Binding CommitBearingToCommand}"
+                        Classes.error="{Binding BearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Altitude" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding AltitudeMinText}"
+                        Tag="{Binding CommitAltitudeMinCommand}"
+                        Classes.error="{Binding AltitudeMinError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Text="–" Foreground="#B0B0B0" VerticalAlignment="Center" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding AltitudeMaxText}"
+                        Tag="{Binding CommitAltitudeMaxCommand}"
+                        Classes.error="{Binding AltitudeMaxError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Direct to" />
+                      <TextBox Width="64" Text="{Binding DirectTo}" Tag="{Binding CommitDirectToCommand}" />
+                      <TextBlock Classes="lbl" Text="Initial VS fpm" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding InitialVsFpmText}"
+                        Tag="{Binding CommitInitialVsFpmCommand}"
+                        Classes.error="{Binding InitialVsFpmError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Descend to" />
+                      <TextBox
+                        Width="56"
+                        PlaceholderText="—"
+                        Text="{Binding DescendToAltitudeText}"
+                        Tag="{Binding CommitDescendToAltitudeCommand}"
+                        Classes.error="{Binding DescendToAltitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Auto-track" />
+                      <ComboBox
+                        Width="260"
+                        ItemsSource="{Binding AutoTrackPositionOptions}"
+                        DisplayMemberBinding="{Binding Label}"
+                        SelectedItem="{Binding AutoTrackPositionSelection}"
+                      />
+                      <CheckBox
+                        IsThreeState="True"
+                        Content="Enabled"
+                        FontSize="12"
+                        IsChecked="{Binding Enabled}"
+                        ToolTip.Tip="Unset follows the start and stop times; checked is always on, unchecked always off."
+                      />
+                    </WrapPanel>
+                    <StackPanel Classes="errors">
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding InitialDistanceError}"
+                        IsVisible="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxDistanceError}"
+                        IsVisible="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding StartTimeOffsetError}"
+                        IsVisible="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding IntervalTimeError}"
+                        IsVisible="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxTimeError}"
+                        IsVisible="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding BearingFromError}"
+                        IsVisible="{Binding BearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding BearingToError}"
+                        IsVisible="{Binding BearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding AltitudeMinError}"
+                        IsVisible="{Binding AltitudeMinError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding AltitudeMaxError}"
+                        IsVisible="{Binding AltitudeMaxError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding InitialVsFpmError}"
+                        IsVisible="{Binding InitialVsFpmError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding DescendToAltitudeError}"
+                        IsVisible="{Binding DescendToAltitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !VfrArrivalGenerators.Count}" />
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,10,0,6">
+            <TextBlock Classes="title" Text="Overflight generators" />
+            <Border Grid.Column="1" Classes="count">
+              <TextBlock Text="{Binding OverflightGenerators.Count}" />
+            </Border>
+            <Button Grid.Column="3" Classes="add" Content="+ Add" Command="{Binding AddOverflightGeneratorCommand}" />
+          </Grid>
+          <ContentControl Content="columns" ContentTemplate="{StaticResource GeneratorColumns}" IsVisible="{Binding !!OverflightGenerators.Count}" />
+          <ItemsControl x:Name="OverflightGeneratorList" ItemsSource="{Binding OverflightGenerators}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ScenarioOverflightGeneratorRowViewModel">
+                <Border Classes="row">
+                  <StackPanel>
+                    <Grid Classes="cells" ColumnDefinitions="84,56,100,100,92,72,72,34,72,24">
+                      <TextBlock Text="Overflight" Foreground="#DDDDDD" />
+                      <TextBlock Grid.Column="1" Text="—" Foreground="#6F6F6F" />
+                      <ComboBox Grid.Column="2" ItemsSource="{Binding EngineTypeOptions}" SelectedItem="{Binding EngineTypePick}" />
+                      <ComboBox Grid.Column="3" ItemsSource="{Binding WeightCategoryOptions}" SelectedItem="{Binding WeightCategoryPick}" />
+                      <Grid Grid.Column="4" ColumnDefinitions="*,Auto,*">
+                        <TextBox
+                          Text="{Binding InitialDistanceText}"
+                          Tag="{Binding CommitInitialDistanceCommand}"
+                          Classes.error="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                        <TextBlock Grid.Column="1" Text="–" Foreground="#B0B0B0" Margin="2,0" VerticalAlignment="Center" />
+                        <TextBox
+                          Grid.Column="2"
+                          Text="{Binding MaxDistanceText}"
+                          Tag="{Binding CommitMaxDistanceCommand}"
+                          Classes.error="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        />
+                      </Grid>
+                      <TextBox
+                        Grid.Column="5"
+                        Classes="mono"
+                        Text="{Binding StartTimeOffsetText}"
+                        Tag="{Binding CommitStartTimeOffsetCommand}"
+                        Classes.error="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBox
+                        Grid.Column="6"
+                        Classes="mono"
+                        Text="{Binding IntervalTimeText}"
+                        Tag="{Binding CommitIntervalTimeCommand}"
+                        Classes.error="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox
+                        Grid.Column="7"
+                        IsChecked="{Binding RandomizeInterval}"
+                        HorizontalAlignment="Center"
+                        ToolTip.Tip="Randomize interval"
+                      />
+                      <TextBox
+                        Grid.Column="8"
+                        Classes="mono"
+                        PlaceholderText="—"
+                        Text="{Binding MaxTimeText}"
+                        Tag="{Binding CommitMaxTimeCommand}"
+                        Classes.error="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <Button
+                        Grid.Column="9"
+                        Classes="remove"
+                        Content="✕"
+                        ToolTip.Tip="Remove"
+                        Command="{Binding #Root.DataContext.RemoveOverflightGeneratorCommand}"
+                        CommandParameter="{Binding}"
+                      />
+                    </Grid>
+                    <WrapPanel Classes="kindline">
+                      <TextBlock Classes="lbl" Text="Entry bearings" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding FromBearingFromText}"
+                        Tag="{Binding CommitFromBearingFromCommand}"
+                        Classes.error="{Binding FromBearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Text="–" Foreground="#B0B0B0" VerticalAlignment="Center" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding FromBearingToText}"
+                        Tag="{Binding CommitFromBearingToCommand}"
+                        Classes.error="{Binding FromBearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Exit bearings" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding ToBearingFromText}"
+                        Tag="{Binding CommitToBearingFromCommand}"
+                        Classes.error="{Binding ToBearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Text="–" Foreground="#B0B0B0" VerticalAlignment="Center" />
+                      <TextBox
+                        Width="48"
+                        Text="{Binding ToBearingToText}"
+                        Tag="{Binding CommitToBearingToCommand}"
+                        Classes.error="{Binding ToBearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Classes="lbl" Text="Altitude" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding AltitudeMinText}"
+                        Tag="{Binding CommitAltitudeMinCommand}"
+                        Classes.error="{Binding AltitudeMinError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock Text="–" Foreground="#B0B0B0" VerticalAlignment="Center" />
+                      <TextBox
+                        Width="56"
+                        Text="{Binding AltitudeMaxText}"
+                        Tag="{Binding CommitAltitudeMaxCommand}"
+                        Classes.error="{Binding AltitudeMaxError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox Content="Snap to hemispheric altitude" FontSize="12" IsChecked="{Binding SnapHemisphericAltitude}" />
+                      <TextBlock Classes="lbl" Text="Exit distance nm" />
+                      <TextBox
+                        Width="56"
+                        PlaceholderText="—"
+                        Text="{Binding ExitDistanceText}"
+                        Tag="{Binding CommitExitDistanceCommand}"
+                        Classes.error="{Binding ExitDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <CheckBox
+                        IsThreeState="True"
+                        Content="Enabled"
+                        FontSize="12"
+                        IsChecked="{Binding Enabled}"
+                        ToolTip.Tip="Unset follows the start and stop times; checked is always on, unchecked always off."
+                      />
+                    </WrapPanel>
+                    <StackPanel Classes="errors">
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding InitialDistanceError}"
+                        IsVisible="{Binding InitialDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxDistanceError}"
+                        IsVisible="{Binding MaxDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding StartTimeOffsetError}"
+                        IsVisible="{Binding StartTimeOffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding IntervalTimeError}"
+                        IsVisible="{Binding IntervalTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding MaxTimeError}"
+                        IsVisible="{Binding MaxTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding FromBearingFromError}"
+                        IsVisible="{Binding FromBearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding FromBearingToError}"
+                        IsVisible="{Binding FromBearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding ToBearingFromError}"
+                        IsVisible="{Binding ToBearingFromError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding ToBearingToError}"
+                        IsVisible="{Binding ToBearingToError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding AltitudeMinError}"
+                        IsVisible="{Binding AltitudeMinError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding AltitudeMaxError}"
+                        IsVisible="{Binding AltitudeMaxError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBlock
+                        Classes="err"
+                        Text="{Binding ExitDistanceError}"
+                        IsVisible="{Binding ExitDistanceError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                    </StackPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !OverflightGenerators.Count}" />
+        </StackPanel>
+      </Expander>
+
+      <!-- Strip bays -->
+      <Expander x:Name="StripsSection" Classes="section">
+        <Expander.Header>
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Left" Classes="title" Text="Strip bays" />
+            <Border DockPanel.Dock="Left" Classes="count">
+              <TextBlock Text="{Binding StripPlacements.Count}" />
+            </Border>
+            <Button DockPanel.Dock="Right" Classes="add" Content="+ Add" Command="{Binding AddStripPlacementCommand}" />
+            <TextBlock Classes="summary" Text="{Binding StripsSummary}" IsVisible="{Binding !$parent[Expander].IsExpanded}" />
+          </DockPanel>
+        </Expander.Header>
+        <StackPanel>
+          <Border Classes="colhead">
+            <Grid Classes="cells" ColumnDefinitions="190,60,*,24">
+              <TextBlock Text="Bay" />
+              <TextBlock Grid.Column="1" Text="Rack" />
+              <TextBlock Grid.Column="2" Text="Aircraft" />
+            </Grid>
+          </Border>
+          <ItemsControl x:Name="StripList" ItemsSource="{Binding StripPlacements}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StripPlacementRowViewModel">
+                <Border Classes="row">
+                  <StackPanel>
+                    <Grid Classes="cells" ColumnDefinitions="190,60,*,24">
+                      <ComboBox ItemsSource="{Binding BayOptions}" DisplayMemberBinding="{Binding Label}" SelectedItem="{Binding BaySelection}" />
+                      <TextBox
+                        Grid.Column="1"
+                        Text="{Binding RackText}"
+                        Tag="{Binding CommitRackCommand}"
+                        Classes.error="{Binding RackError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                      <TextBox Grid.Column="2" Text="{Binding AircraftText}" Tag="{Binding CommitAircraftCommand}" />
+                      <Button
+                        Grid.Column="3"
+                        Classes="remove"
+                        Content="✕"
+                        ToolTip.Tip="Remove"
+                        Command="{Binding $parent[local:ScenarioGeneralView].((vm:ScenarioGeneralViewModel)DataContext).RemoveStripPlacementCommand}"
+                        CommandParameter="{Binding}"
+                      />
+                    </Grid>
+                    <TextBlock
+                      Classes="err"
+                      Text="{Binding RackError}"
+                      IsVisible="{Binding RackError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="none" Text="None" IsVisible="{Binding !StripPlacements.Count}" />
+        </StackPanel>
+      </Expander>
+    </DockPanel>
+  </ScrollViewer>
+</UserControl>

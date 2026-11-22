@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,6 +27,7 @@ public sealed partial class StripPlacementRowViewModel : ObservableObject
     private readonly ScenarioEditApply _apply;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BayPick), nameof(BaySelection))]
     private string _bayValue;
 
     [ObservableProperty]
@@ -37,8 +39,7 @@ public sealed partial class StripPlacementRowViewModel : ObservableObject
     [ObservableProperty]
     private string _aircraftText;
 
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _bayOptions = [];
+    private readonly ObservableCollection<ScenarioPickOption> _bayOptions = [];
 
     /// <summary>Initializes a new instance of the <see cref="StripPlacementRowViewModel"/> class from the item at the index.</summary>
     /// <param name="session">The open working copy's session.</param>
@@ -72,7 +73,35 @@ public sealed partial class StripPlacementRowViewModel : ObservableObject
     /// <summary>Offers the config's bays, plus the row's own pair when the config does not list it.</summary>
     /// <param name="bays">The folder ARTCC's bays.</param>
     public void UpdateOptions(IReadOnlyList<ScenarioPickOption> bays) =>
-        BayOptions = ScenarioGeneralViewModel.WithCurrent(bays, BayValue, $"{BayValue} (not in the ARTCC config)");
+        ScenarioFieldText.SetOptions(
+            _bayOptions,
+            ScenarioGeneralViewModel.WithCurrent(bays, BayValue, $"{BayValue} (not in the ARTCC config)"),
+            () => OnPropertyChanged(nameof(BaySelection))
+        );
+
+    /// <summary>Gets the bay picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> BayOptions => _bayOptions;
+
+    /// <summary>
+    /// Gets or sets the picker's selected option, the one of <see cref="BayOptions"/> whose value the field holds. The
+    /// picker binds its SelectedItem here: a picker's SelectedValue binding does not survive its options being swapped.
+    /// Setting it goes through <see cref="BayPick"/>, so only the user's pick is committed.
+    /// </summary>
+    public ScenarioPickOption? BaySelection
+    {
+        get => ScenarioFieldText.Selected(BayOptions, BayValue);
+        set => BayPick = value?.Value;
+    }
+
+    /// <summary>
+    /// Gets or sets the bay picker's selection. Null (a picker clearing as its options are swapped) and the value already
+    /// held write nothing; any other value is the user's pick and is committed.
+    /// </summary>
+    public string? BayPick
+    {
+        get => BayValue;
+        set => ScenarioFieldText.Pick(value, BayValue, v => BayValue = v, CommitBay);
+    }
 
     /// <summary>Writes the picked bay's facility and bay ids; the empty value writes none of either.</summary>
     [RelayCommand]

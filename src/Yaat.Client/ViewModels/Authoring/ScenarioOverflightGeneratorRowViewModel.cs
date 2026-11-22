@@ -70,9 +70,11 @@ public sealed partial class ScenarioOverflightGeneratorRowViewModel : ScenarioGe
     private string? _exitDistanceError;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EngineTypePick))]
     private string _engineType;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeightCategoryPick))]
     private string _weightCategory;
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioOverflightGeneratorRowViewModel"/> class from the item at the index.</summary>
@@ -107,6 +109,20 @@ public sealed partial class ScenarioOverflightGeneratorRowViewModel : ScenarioGe
 
     /// <summary>Gets the weight categories offered, plus the document's when unlisted.</summary>
     public IReadOnlyList<string> WeightCategoryOptions { get; }
+
+    /// <summary>Gets or sets the engine picker's selection; only the user's pick is committed (see <see cref="Pick"/>).</summary>
+    public string? EngineTypePick
+    {
+        get => EngineType;
+        set => ScenarioFieldText.Pick(value, EngineType, v => EngineType = v, CommitEngineType);
+    }
+
+    /// <summary>Gets or sets the weight picker's selection; only the user's pick is committed (see <see cref="Pick"/>).</summary>
+    public string? WeightCategoryPick
+    {
+        get => WeightCategory;
+        set => ScenarioFieldText.Pick(value, WeightCategory, v => WeightCategory = v, CommitWeightCategory);
+    }
 
     /// <inheritdoc/>
     protected override void SetStartTimeOffset(OverflightGeneratorConfig generator, int seconds) => generator.StartTimeOffset = seconds;

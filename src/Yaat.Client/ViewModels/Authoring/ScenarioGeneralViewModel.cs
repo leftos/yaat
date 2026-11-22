@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -58,18 +59,22 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     private string? _nameError;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StudentPositionPick), nameof(StudentPositionSelection))]
     private string _studentPositionId = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MinimumRatingPick), nameof(MinimumRatingSelection))]
     private string _minimumRating = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PrimaryAirportPick))]
     private string _primaryAirportId = "";
 
     [ObservableProperty]
     private string _primaryApproach = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoDeletePick), nameof(AutoDeleteSelection))]
     private string _autoDeleteMode = "";
 
     [ObservableProperty]
@@ -81,17 +86,11 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     [ObservableProperty]
     private string? _configProblem;
 
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _studentPositionOptions = [];
-
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _ratingOptions = BaseRatingOptions;
-
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _autoDeleteOptions = BaseAutoDeleteOptions;
-
-    [ObservableProperty]
-    private IReadOnlyList<string> _airportOptions = [];
+    // Each picker's one options collection, its ItemsSource for the view model's lifetime: a rebuild updates it in place.
+    private readonly ObservableCollection<ScenarioPickOption> _studentPositionOptions = [];
+    private readonly ObservableCollection<ScenarioPickOption> _ratingOptions = [.. BaseRatingOptions];
+    private readonly ObservableCollection<ScenarioPickOption> _autoDeleteOptions = [.. BaseAutoDeleteOptions];
+    private readonly ObservableCollection<string> _airportOptions = [];
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioGeneralViewModel"/> class and starts loading its pickers.</summary>
     /// <param name="session">The open working copy's session.</param>
@@ -114,6 +113,18 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         private set => SetProperty(ref _artccId, value);
     }
 
+    /// <summary>Gets the student position picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> StudentPositionOptions => _studentPositionOptions;
+
+    /// <summary>Gets the minimum rating picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> RatingOptions => _ratingOptions;
+
+    /// <summary>Gets the auto-delete picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> AutoDeleteOptions => _autoDeleteOptions;
+
+    /// <summary>Gets the primary airport picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<string> AirportOptions => _airportOptions;
+
     /// <summary>Gets the pickers' first load: finished once the position and airport options are applied. Tests await it.</summary>
     public Task PickersLoaded { get; }
 
@@ -131,6 +142,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         AutoDeleteMode = scenario.AutoDeleteMode ?? "";
         RebuildRows();
         RebuildOptions();
+        RefreshSummaries();
     }
 
     /// <summary>Stops the pickers' load; nothing that completes afterwards changes the fields.</summary>
@@ -213,16 +225,34 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     {
         _session.Edit(description, change);
         RebuildOptions();
+        RefreshSummaries();
         Edited?.Invoke(this, EventArgs.Empty);
     }
 
-    // Each picker's options, plus the document's value when no option lists it, so the picker still shows it.
+    // Each picker's options, plus the document's value when no option lists it, so the picker still shows it; each list is
+    // updated in place, so its picker keeps the entries that stay and its selection binding.
     private void RebuildOptions()
     {
-        StudentPositionOptions = WithCurrent(_catalogOptions, StudentPositionId, $"{StudentPositionId} (not in the ARTCC config)");
-        RatingOptions = WithCurrent(BaseRatingOptions, MinimumRating, MinimumRating);
-        AutoDeleteOptions = WithCurrent(BaseAutoDeleteOptions, AutoDeleteMode, AutoDeleteMode);
-        AirportOptions = WithCurrentAirport(_configAirports, PrimaryAirportId);
+        ScenarioFieldText.SetOptions(
+            _studentPositionOptions,
+            WithCurrent(_catalogOptions, StudentPositionId, $"{StudentPositionId} (not in the ARTCC config)"),
+            () => OnPropertyChanged(nameof(StudentPositionSelection))
+        );
+        ScenarioFieldText.SetOptions(
+            _ratingOptions,
+            WithCurrent(BaseRatingOptions, MinimumRating, MinimumRating),
+            () => OnPropertyChanged(nameof(MinimumRatingSelection))
+        );
+        ScenarioFieldText.SetOptions(
+            _autoDeleteOptions,
+            WithCurrent(BaseAutoDeleteOptions, AutoDeleteMode, AutoDeleteMode),
+            () => OnPropertyChanged(nameof(AutoDeleteSelection))
+        );
+        ScenarioFieldText.SetOptions(
+            _airportOptions,
+            WithCurrentAirport(_configAirports, PrimaryAirportId),
+            () => OnPropertyChanged(nameof(PrimaryAirportPick))
+        );
         RebuildRowOptions();
     }
 
@@ -342,6 +372,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         _configAirports = data.Airports ?? [];
         ConfigProblem = data.Problem;
         RebuildOptions();
+        RefreshSummaries();
     }
 
     // Runs the action through the post seam and finishes when it has run.

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,7 @@ public sealed partial class ScenarioAtcRowViewModel : ObservableObject
     private readonly Func<string, ArtccPositionRow?> _findPosition;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PositionPick), nameof(PositionSelection))]
     private string _positionId;
 
     [ObservableProperty]
@@ -32,8 +34,7 @@ public sealed partial class ScenarioAtcRowViewModel : ObservableObject
     [ObservableProperty]
     private string _autoTrackAirportsText;
 
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _positionOptions = [];
+    private readonly ObservableCollection<ScenarioPickOption> _positionOptions = [];
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioAtcRowViewModel"/> class from the item at the index.</summary>
     /// <param name="session">The open working copy's session.</param>
@@ -62,7 +63,35 @@ public sealed partial class ScenarioAtcRowViewModel : ObservableObject
     /// <summary>Offers the catalog's positions, plus the row's own position when the catalog does not list it.</summary>
     /// <param name="catalog">The ARTCC's and its neighbours' positions.</param>
     public void UpdateOptions(IReadOnlyList<ScenarioPickOption> catalog) =>
-        PositionOptions = ScenarioGeneralViewModel.WithCurrent(catalog, PositionId, $"{PositionId} (not in the ARTCC config)");
+        ScenarioFieldText.SetOptions(
+            _positionOptions,
+            ScenarioGeneralViewModel.WithCurrent(catalog, PositionId, $"{PositionId} (not in the ARTCC config)"),
+            () => OnPropertyChanged(nameof(PositionSelection))
+        );
+
+    /// <summary>Gets the position picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> PositionOptions => _positionOptions;
+
+    /// <summary>
+    /// Gets or sets the picker's selected option, the one of <see cref="PositionOptions"/> whose value the field holds. The
+    /// picker binds its SelectedItem here: a picker's SelectedValue binding does not survive its options being swapped.
+    /// Setting it goes through <see cref="PositionPick"/>, so only the user's pick is committed.
+    /// </summary>
+    public ScenarioPickOption? PositionSelection
+    {
+        get => ScenarioFieldText.Selected(PositionOptions, PositionId);
+        set => PositionPick = value?.Value;
+    }
+
+    /// <summary>
+    /// Gets or sets the position picker's selection. Null (a picker clearing as its options are swapped) and the value
+    /// already held write nothing; any other value is the user's pick and is committed.
+    /// </summary>
+    public string? PositionPick
+    {
+        get => PositionId;
+        set => ScenarioFieldText.Pick(value, PositionId, v => PositionId = v, CommitPosition);
+    }
 
     /// <summary>
     /// Writes the position id, trimmed; a position the catalog lists also writes its facility and ARTCC, one undo step.

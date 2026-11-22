@@ -78,6 +78,10 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **The ARTCC list is what the signed-in user may edit.** `ArtccEditAccessSource` asks the hub while connected, else uses the list cached with the stored session, else the Settings ARTCC. The selector's last pick is `UserPreferences.ScenarioEditorLastArtcc` (`scenarioEditorLastArtcc`), separate from the Settings ARTCC and never carried in a settings bundle (it is in `UnbundledKeys` as session state).
 
+**The editor shows the General tab of the open copy.** Double-click, or Enter, on a browser row opens it (a single click only selects; the Open command does the same). The tab is one scrolling page of collapsible sections, each collapsing to a one-line summary. The toolbar holds Undo, Redo and Save with an unsaved-changes indicator, and a failed save shows its message in the status bar. A text field commits when it loses focus or on Enter; a picker commits on the user's pick.
+
+**Ctrl+S saves, and it commits the field being typed first.** Closing the window commits that field too, then asks Save, Discard or Cancel when the copy has unsaved edits. An application or OS shutdown closes the window without asking and logs a warning, dropping the unsaved edits. The layout fits the window's 1100 x 700 default.
+
 ## View menu and hotkeys
 
 **Three submenus.** View holds Windows (the pop-outs, _Radar among them, New ground window…, New Radar window…, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Notes…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).

@@ -46,6 +46,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private ScenarioEditSession? _replacedUnder;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsPlaceholder))]
     private string? _openError;
 
     [ObservableProperty]
@@ -76,6 +77,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
             if (SetProperty(ref _session, value))
             {
                 OnPropertyChanged(nameof(IsOpen));
+                OnPropertyChanged(nameof(ShowsPlaceholder));
                 NotifyState();
             }
         }
@@ -90,6 +92,9 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
 
     /// <summary>Gets a value indicating whether a working copy is open.</summary>
     public bool IsOpen => Session is not null;
+
+    /// <summary>Gets a value indicating whether the browser's placeholder texts show: no copy is open and no open failed.</summary>
+    public bool ShowsPlaceholder => (!IsOpen) && (OpenError is null);
 
     /// <summary>Gets a value indicating whether the open copy has edits not yet saved.</summary>
     public bool IsDirty => Session?.IsDirty ?? false;
