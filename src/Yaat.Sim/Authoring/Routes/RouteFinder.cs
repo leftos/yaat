@@ -7,7 +7,7 @@ namespace Yaat.Sim.Authoring.Routes;
 /// Asks every route source at once, merges the routes they return, and offers only the routes YAAT's navdata can fly.
 /// Two routes are the same when their tokens match after upper-casing, dropping "DCT" and dropping a leading departure
 /// and a trailing destination token; the merged route keeps the first-seen text, sums the counts, lists every source and
-/// keeps the published-route metadata of whichever duplicate carries it.
+/// keeps the published-route and preferred-route metadata of whichever duplicate carries each.
 /// A route is offered only when <see cref="RouteExpander"/> expands it to at least one fix and every fix it emits is
 /// known to the navdata (or is the departure or destination airport).
 /// </summary>
@@ -76,7 +76,13 @@ public sealed class RouteFinder(IReadOnlyList<IRouteSource> sources, NavigationD
 
             FoundRoute first = merged[index];
             List<string> sources = [.. first.Sources.Union(route.Sources, StringComparer.Ordinal)];
-            merged[index] = first with { Count = first.Count + route.Count, Sources = sources, Published = first.Published ?? route.Published };
+            merged[index] = first with
+            {
+                Count = first.Count + route.Count,
+                Sources = sources,
+                Published = first.Published ?? route.Published,
+                Preferred = first.Preferred ?? route.Preferred,
+            };
         }
 
         return merged;

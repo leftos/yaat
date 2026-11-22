@@ -636,7 +636,7 @@ internal static class NavdataRoutePairer
             candidate.Star.Runways,
             candidate.Sid.RunwaysNotCoded
         );
-        return new FoundRoute(candidate.RouteText, Count: 0, [sourceName], published);
+        return new FoundRoute(candidate.RouteText, Count: 0, [sourceName], published, Preferred: null);
     }
 
     /// <summary>

@@ -62,7 +62,7 @@ public class RouteFinderTests
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(CskoRouteSourceTests.FixtureJson()) });
     }
 
-    private static FoundRoute Route(string text, int count, string source) => new(text, count, [source], Published: null);
+    private static FoundRoute Route(string text, int count, string source) => new(text, count, [source], Published: null, Preferred: null);
 
     private static IEnumerable<string> UnresolvedTokens(string route)
     {
@@ -87,6 +87,23 @@ public class RouteFinderTests
         Assert.Equal(5, merged.Count);
         Assert.Equal(["a", "b"], merged.Sources);
         Assert.Empty(result.Failures);
+    }
+
+    [Fact]
+    public async Task CskoRow_AndPreferredRowWithTheSameText_MergeWithBothSources_AndThePreferredInfo()
+    {
+        var info = new PreferredRouteInfo("H", Area: null, Altitude: null, Aircraft: null, Hours: "1400-0000", Direction: null, Designator: null);
+        RouteFinder finder = Finder(
+            new StubSource("csko", Route(SstikIrnmn, 4, "csko")),
+            new StubSource("preferred", new FoundRoute(SstikIrnmn, 0, ["preferred"], Published: null, Preferred: info))
+        );
+
+        RouteFindResult result = await finder.FindAsync(SfoLax, CancellationToken.None);
+
+        FoundRoute merged = Assert.Single(result.Routes);
+        Assert.Equal(4, merged.Count);
+        Assert.Equal(["csko", "preferred"], merged.Sources);
+        Assert.Equal(info, merged.Preferred);
     }
 
     [Fact]

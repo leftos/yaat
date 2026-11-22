@@ -7,7 +7,14 @@ namespace Yaat.Sim.Authoring.Routes;
 /// <param name="Count">How many flights were observed filing it; 0 for a published route.</param>
 /// <param name="Sources">The names of the sources that offered it, in source order.</param>
 /// <param name="Published">What the navdata source knows about a published SID and STAR route; null for an observed route.</param>
-public sealed record FoundRoute(string RouteText, int Count, IReadOnlyList<string> Sources, PublishedRouteInfo? Published);
+/// <param name="Preferred">What the FAA publishes about a preferred route; null for a route that is not one.</param>
+public sealed record FoundRoute(
+    string RouteText,
+    int Count,
+    IReadOnlyList<string> Sources,
+    PublishedRouteInfo? Published,
+    PreferredRouteInfo? Preferred
+);
 
 /// <summary>
 /// A route source that failed or answered only from a stale cache.

@@ -210,8 +210,8 @@ Two Task Index rows land in `docs/architecture.md`, the first with M1.1 and the 
 
 | Part | Outcome | Main files |
 |---|---|---|
-| M3.1 Route sources: interface, csko, navdata | The editor can ask for real routes between two airports from csko and from navdata, each checked against YAAT's navdata. | `src/Yaat.Sim/Authoring/Routes/IRouteSource.cs`, `RouteFinder.cs`, `CskoRouteSource.cs`, `NavdataRouteSource.cs` |
-| M3.2 Preferred routes source | Published preferred routes join the results. | `src/Yaat.Sim/Authoring/Routes/PreferredRouteSource.cs` |
+| M3.1 Route sources: interface, csko, navdata | The editor can ask for real routes between two airports from csko and from navdata, each checked against YAAT's navdata. | `src/Yaat.Sim/Authoring/Routes/IRouteSource.cs`, `RouteQuery.cs`, `FoundRoute.cs`, `RouteFinder.cs`, `CskoRouteSource.cs`, `NavdataRouteSource.cs`, `NavdataRoutePairer.cs`, `PublishedRouteInfo.cs` |
+| M3.2 Preferred routes source | Published preferred routes join the results. | `src/Yaat.Sim/Authoring/Routes/PreferredRouteSource.cs`, `PreferredRouteParser.cs`, `PreferredRouteInfo.cs` |
 | M3.3 SWIM route history (yaat-server and yaat) | Routes, types and airline callsigns observed in live traffic join the results when connected to a YAAT server. | `src/Yaat.Sim/Authoring/Routes/RouteHistoryIndex.cs`, `RouteHistorySource.cs`; yaat-server `src/Yaat.Server/LiveTraffic/Swim/` and a read-only endpoint |
 | M3.4 Route Finder panel | In the aircraft editor, Find Route lists candidate routes from every source and applies the chosen route, cruise altitude and, optionally, a real callsign and type. | `src/Yaat.Client/ViewModels/Authoring/RouteFinderViewModel.cs`, `src/Yaat.Client/Views/Authoring/RouteFinderView.axaml` |
 | M3.5 Route composer | The author composes and saves named routes by clicking fixes, coordinates or fix-radial-distance points on a map with video maps. | `src/Yaat.Client/Views/Authoring/RouteComposerCanvas.cs`, `RouteComposerWindow.axaml`, `src/Yaat.Sim/Authoring/Routes/RouteLibrary.cs` |
