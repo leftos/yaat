@@ -264,7 +264,7 @@ public sealed partial class SimulationEngine
             // request follow-ups gate themselves on whether anyone (student or AI position) answers pilots.
             if (solo)
             {
-                Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickAirborneCheckIn(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
                 Pilot.PilotProactive.TickArrivalApproachRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickDescentRequest(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickFurtherClearanceRequest(ac, scenario);

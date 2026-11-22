@@ -467,6 +467,47 @@ public sealed class BoundaryHoldTriggerTests : IDisposable
     }
 
     [Fact]
+    public void AnOwedAdvisory_MeetsTheBravoCheckInInOneTick_BothGoOut_CheckInFirst_AndTheCheckInRequestIsKept()
+    {
+        // Not yet in contact: the orbit goes in front of the climb and its advisory is owed until the first call.
+        AircraftState ac = WestOfTheRing();
+        ac.HasMadeInitialContact = false;
+        ac.HasControllerAcknowledgedInitialContact = false;
+        ac.FlightPlan.Destination = "KMOD";
+        ac.Phases!.Add(Active(InitialClimb()));
+        SimScenarioState scenario = SoloScenario();
+        PhaseContext ctx = Context(ac, Oak28R());
+        Tick(ac, scenario, ctx);
+        Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases.CurrentPhase);
+        Assert.Equal(Sfo, ac.InPhaseOrbitAdvisoryOwed);
+        Assert.Empty(ac.PendingPilotTransmissions);
+
+        // One engine tick: the check-in, which asks for the Bravo and records its request, then the boundary step.
+        PilotProactive.TickAirborneCheckIn(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotPendingRequest checkIn = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
+        Assert.Equal(PilotPendingRequestKind.AirspaceEntry, checkIn.Kind);
+        Tick(ac, scenario, ctx);
+
+        Assert.Equal(2, ac.PendingPilotTransmissions.Count);
+        Assert.True(ac.PendingPilotTransmissions[0].IsInitialContact);
+        Assert.Equal(checkIn.LastPilotLine, ac.PendingPilotTransmissions[0].Text);
+        Assert.Contains(Advisory, ac.PendingPilotTransmissions[1].Text, StringComparison.Ordinal);
+        Assert.Same(checkIn, ac.PendingPilotRequest);
+    }
+
+    [Fact]
+    public void Below400FtAgl_AnOpenInitialContact_DoesNotHoldTheUnableBack()
+    {
+        (AircraftState ac, PhaseContext ctx) = LowOutsideTheSurfaceArea();
+        var checkIn = new PilotSpeechText("approach, N123AB, C172.", "approach, november one two three alpha bravo, skyhawk.");
+        PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.InitialContact, 0, checkIn, PilotRequestContext.Facility("approach"));
+
+        Tick(ac, SoloScenario(), ctx);
+
+        Assert.Equal(Unable, Assert.Single(ac.PendingPilotTransmissions).Text);
+    }
+
+    [Fact]
     public void AnOpenAirspaceEntryRequestForTheSameBravo_IsKept()
     {
         AircraftState ac = WestOfTheRing();

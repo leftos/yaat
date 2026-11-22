@@ -298,7 +298,7 @@ public sealed class HeldReaderTests : IDisposable
             StudentPositionType = "APP",
         };
 
-        PilotProactive.TickAirborneCheckIn(ac, scenario, _ => new LatLon(37.6934, -121.8204));
+        PilotProactive.TickAirborneCheckIn(ac, scenario, AirspaceDatabase.Default, _ => new LatLon(37.6934, -121.8204));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);

@@ -534,7 +534,7 @@ public sealed partial class SimulationEngine
         // A scripted clearance still answers whatever the pilot last asked for, so the pending
         // request closes and stops following up. Scripted commands emit no read-back and are not
         // scored — the student didn't issue them.
-        PilotRequestTracker.ApplyControllerResponse(aircraft, compound, Scenario!.ElapsedSeconds);
+        PilotRequestTracker.ApplyScriptedResponse(aircraft, compound, Scenario!.ElapsedSeconds);
 
         EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
         ReportPresetOutcome(aircraft, preset.Command, timedOutcome);

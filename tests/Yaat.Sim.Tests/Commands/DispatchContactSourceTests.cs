@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
@@ -223,7 +224,7 @@ public class DispatchContactSourceTests
         };
         var airportPos = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
 
-        PilotProactive.TickAirborneCheckIn(ac, scenario, _ => airportPos);
+        PilotProactive.TickAirborneCheckIn(ac, scenario, AirspaceDatabase.Default, _ => airportPos);
 
         Assert.NotEmpty(ac.PendingPilotTransmissions);
         Assert.True(ac.HasMadeInitialContact, "The airborne check-in marks contact once it has been spoken.");

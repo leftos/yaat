@@ -281,6 +281,8 @@ When an aircraft is first ticked airborne and `!HasMadeInitialContact`,
 `TWR`/`APP`/`CTR`/`GND`) × `aircraft.FlightPlan.IsVfr` × VFR intent (inbound /
 transit / no-destination).
 
+A VFR check-in is the full initial call: facility, callsign, type, position, altitude and request. The type is the ICAO designator in the terminal form and the first spoken name ("skyhawk") in the spoken one, dropped when the aircraft has no type. "one mile" is singular. The position is distance and direction from the primary airport, and the VFR columns of the table below differ in the request clause.
+
 **Direction** uses an 8-point compass quantizer (north / northeast / east / southeast
 / south / southwest / west / northwest) over the bearing **from the airport to the
 aircraft** — i.e. "five miles south" means the aircraft is south of the airport.
@@ -291,16 +293,16 @@ westbound) over the aircraft's true heading. **Altitude** renders via
 ("five miles") and digit-by-digit for ≥10 ("one zero miles", "one five miles").
 **Airport** in Center templates is NATO-spelled ("KOAK" → "kilo oscar alpha kilo").
 
-| Student position | IFR | VFR inbound (dest=primary) | VFR transit (dest≠primary) | VFR no-dest (overflight) |
+| Student position | IFR | VFR landing at the primary airport | VFR not landing there, track enters a Class B within 300 s | VFR not landing there, no Class B ahead |
 |---|---|---|---|---|
-| `TWR` | Direct-to-tower (rare): `"[callsign] tower, [spoken] runway [rwy], with information Alpha."` (drops " runway [rwy]" when destination runway unknown) | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], inbound for landing, with information Alpha."` | `"[callsign] tower, [spoken] [dist] miles [direction] at [altitude], request transition."` | `"[callsign] tower, [spoken] [dist] miles [direction] of the field, VFR [heading]bound at [altitude]."` |
-| `APP` | sub-FL180: `"[callsign] approach, [spoken] level [altitude], with information Alpha."` / FL180+: `"... [spoken] flight level [FL], with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request landing, with information Alpha."` | `"[callsign] approach, [spoken] [dist] miles [direction] at [altitude], request transition."` | `"[callsign] approach, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude]."` |
-| `CTR` | FL180+: `"[callsign] center, [spoken] flight level [FL]."` (no ATIS suffix — Class A enroute) / sub-FL180: `"... [spoken] level [altitude], with information Alpha."` | falls through to "request transition" — Center doesn't naturally handle landings | `"[callsign] center, [spoken] at [altitude], [dist] miles [direction] of [airport-spelled], request transition."` | `"[callsign] center, [spoken] [dist] miles [direction] of [airport-spelled], VFR [heading]bound at [altitude]."` |
+| `TWR` | Direct-to-tower (rare): `"[callsign] tower, [spoken] runway [rwy], with information Alpha."` (drops " runway [rwy]" when destination runway unknown) | `"[callsign] tower, [spoken], [type], [dist] miles [direction] at [altitude], inbound for landing, with information Alpha."` | `"[callsign] tower, [spoken], [type], [dist] miles [direction] at [altitude], request transition [heading]bound[ to [destination]]."` (never Bravo wording to a tower) | same as the Class B column |
+| `APP` | sub-FL180: `"[callsign] approach, [spoken] level [altitude], with information Alpha."` / FL180+: `"... [spoken] flight level [FL], with information Alpha."` | `"[callsign] approach, [spoken], [type], [dist] miles [direction] at [altitude], request landing, with information Alpha."` | `"[callsign] approach, [spoken], [type], [dist] miles [direction] of [airport-spelled] at [altitude], request Bravo transition [heading]bound[ to [destination]]."` | `"... request flight following to [destination]."`, or with no destination `"... request flight following, VFR [heading]bound."` |
+| `CTR` | FL180+: `"[callsign] center, [spoken] flight level [FL]."` (no ATIS suffix — Class A enroute) / sub-FL180: `"... [spoken] level [altitude], with information Alpha."` | Center does not handle landings: the request is the Class B or flight-following form of the columns to the right | `"[callsign] center, [spoken], [type] at [altitude], [dist] miles [direction] of [airport-spelled], request Bravo transition [heading]bound[ to [destination]]."` | `"... request flight following to [destination]."`, or `"... request flight following, VFR [heading]bound."` |
 | `GND` | skip | skip | skip | skip |
 
-The no-dest forms follow AIM 4-3-1's canonical phrase `"VFR [direction]bound at [altitude]"`
-and anchor position with `"of the field"` (Tower) or `"of [airport-spelled]"` (Approach/Center)
-so the position bearing is unambiguously separate from the direction-of-flight.
+To approach or center, a destination that is the Class B's own airport or inside its surface area makes the request flight following to that destination, not a Bravo transition (AIM 3-2-3.d.2). A Bravo check-in is recorded as that Class B's airspace-entry request, so the pilot does not ask for the same Class B a second time; any other VFR check-in is recorded as an `InitialContact` request. The direction of flight (`[heading]bound`) is the four-point quantizer over the aircraft's present heading. Position is anchored `"of [airport-spelled]"` for approach not landing and center, and bare for a tower, which the field itself anchors.
+
+**Unanswered check-in.** A VFR check-in no controller answers draws one re-call 45 s after the last asking: `"[facility], [callsign], how do you hear me?"` (AIM 4-2-3.a.3), not the whole call again. Any controller transmission to the aircraft answers it, `STBY` and `ROGER` included; a scripted timed preset does not. After the re-call the request closes silently. It never holds back the Class B request or "unable to hold".
 
 An ATC-assigned heading or speed that stands is stated too (AIM 4-4-12.l), heading first, after the
 altitude/runway clause and before the ATIS suffix (IFR) or the intent (VFR); nothing is added when none

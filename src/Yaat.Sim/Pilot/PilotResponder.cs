@@ -5,6 +5,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Pathfinding;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -2290,8 +2291,9 @@ public static partial class PilotResponder
         // Pilots state altitude to the nearest 100 ft — there is no phraseology for tens/units.
         int reportedAltitude = (int)(Math.Round(altitudeFt / 100.0) * 100);
         return new PilotSpeechText(
-            $"{facility}, {distMiles} miles {direction} at {PhraseologyVerbalizer.CompactAltitude(reportedAltitude)}, request closed traffic{info}.",
-            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} miles {direction} "
+            $"{facility}, {distMiles} {MilesWord(distMiles)} {direction} "
+                + $"at {PhraseologyVerbalizer.CompactAltitude(reportedAltitude)}, request closed traffic{info}.",
+            $"{facility}, {spoken}, {SpellDistanceDigits(distMiles)} {MilesWord(distMiles)} {direction} "
                 + $"at {AtcNumberParser.AltitudeToWords(reportedAltitude)}, request closed traffic{info}."
         );
     }
@@ -3969,29 +3971,24 @@ public static partial class PilotResponder
     /// yet spoken to ATC. Branches on <see cref="SimScenarioState.StudentPositionType"/>
     /// (TWR / APP / CTR) × <see cref="AircraftFlightPlan.IsVfr"/> × VFR intent
     /// (inbound / transit / no-destination). Returns <see langword="null"/> when the
-    /// student position is GND, null, or unrecognized.
+    /// student position is GND, null, or unrecognized. <paramref name="airspace"/> places the Class B ahead of a VFR
+    /// aircraft, which then asks for a Bravo transition (<see cref="CheckInBravoEntry"/>); <paramref name="airportLookup"/>
+    /// places its destination, which inside that Class B makes the request flight following instead.
     /// </summary>
-    public static PilotSpeechText? BuildAirborneCheckIn(AircraftState aircraft, SimScenarioState scenario, LatLon primaryAirportPosition)
+    public static PilotSpeechText? BuildAirborneCheckIn(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        LatLon primaryAirportPosition,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup
+    )
     {
         string? positionType = scenario.StudentPositionType;
-        if (string.IsNullOrEmpty(positionType))
+        if ((positionType is null) || (AirborneCheckInFacilityCallName(scenario) is not { } facilityCallName))
         {
             return null;
         }
 
-        string fallbackFacility = positionType switch
-        {
-            "TWR" => "tower",
-            "APP" => "approach",
-            "CTR" => "center",
-            _ => "",
-        };
-        if (fallbackFacility.Length == 0)
-        {
-            return null;
-        }
-
-        string facilityCallName = ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
         string spoken = SpokenOwnCallsign(aircraft);
         string? atisLetter = ResolvePrimaryFieldAtisLetter(scenario);
         // Pilots state altitudes to the nearest 100 ft — there is no phraseology for tens/units.
@@ -4000,10 +3997,49 @@ public static partial class PilotResponder
 
         if (aircraft.FlightPlan.IsVfr)
         {
-            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, positionType, facilityCallName, spoken, altitudeFt, atisLetter);
+            var voice = new VfrCheckInVoice(positionType, facilityCallName, spoken, altitudeFt, atisLetter);
+            return BuildVfrAirborne(aircraft, scenario, primaryAirportPosition, new VfrCheckInAirspace(airspace, airportLookup), voice);
         }
         return BuildIfrAirborne(aircraft, positionType, facilityCallName, spoken, altitudeFt, atisLetter);
     }
+
+    /// <summary>
+    /// How the airborne check-in addresses the student: the student position's radio name, else the generic facility word
+    /// for a TWR, APP or CTR student ("tower", "approach", "center"); null for any other position type (no check-in).
+    /// </summary>
+    internal static string? AirborneCheckInFacilityCallName(SimScenarioState scenario)
+    {
+        if (scenario.StudentPositionType is not { } positionType)
+        {
+            return null;
+        }
+
+        string? fallbackFacility = positionType switch
+        {
+            "TWR" => "tower",
+            "APP" => "approach",
+            "CTR" => "center",
+            _ => null,
+        };
+        return fallbackFacility is null ? null : ResolveStudentFacilityCallName(scenario, positionType, fallbackFacility);
+    }
+
+    /// <summary>
+    /// The pilot's re-call after its initial call went unanswered, "(facility), (callsign), how do you hear me?" (AIM 4-2-3.a.3:
+    /// keep the next contact short; Pilot/Controller Glossary "HOW DO YOU HEAR ME?"), in the airborne check-in's pairing:
+    /// the terminal form carries the callsign inline, the spoken form spells it.
+    /// </summary>
+    internal static PilotSpeechText BuildInitialContactRecall(AircraftState aircraft, string facilityCallName) =>
+        new(
+            $"{facilityCallName}, {TerminalOwnCallsign(aircraft)}, how do you hear me?",
+            $"{facilityCallName}, {SpokenOwnCallsign(aircraft)}, how do you hear me?"
+        );
+
+    /// <summary>The spoken parts of a VFR airborne check-in that <see cref="BuildAirborneCheckIn"/> resolves for the student.</summary>
+    private sealed record VfrCheckInVoice(string PositionType, string FacilityCallName, string Spoken, int AltitudeFt, string? AtisLetter);
+
+    /// <summary>What a VFR airborne check-in reads the Class B ahead and its destination from.</summary>
+    private readonly record struct VfrCheckInAirspace(AirspaceDatabase Airspace, Func<string, LatLon?> AirportLookup);
 
     // Climb/descent vs level deadband for the check-in vertical-state verb — below this the
     // aircraft is reported "level" rather than "leaving X climbing/descending".
@@ -4203,87 +4239,150 @@ public static partial class PilotResponder
         return ($" {term}", $" {tts}");
     }
 
+    /// <summary>
+    /// The VFR airborne check-in: facility, callsign, type, position from the primary airport, altitude and request (AIM
+    /// 4-1-18.a.5.c, 3-2-3.d.2.c). An aircraft landing at the primary airport calling tower or approach states its landing
+    /// intent and the ATIS; any other asks a tower for a transition (AIM 3-2-5.b.3), and approach or center for a Bravo
+    /// transition (<see cref="CheckInBravoEntry"/>) or flight following (<see cref="VfrTransitIntent"/>). A center check-in,
+    /// and an approach one not landing, anchor the position on the primary airport by name.
+    /// </summary>
     private static PilotSpeechText BuildVfrAirborne(
         AircraftState aircraft,
         SimScenarioState scenario,
         LatLon primaryAirportPosition,
-        string positionType,
-        string facilityCallName,
-        string spoken,
-        int altitudeFt,
-        string? atisLetter
+        VfrCheckInAirspace context,
+        VfrCheckInVoice voice
     )
     {
         string callsignTerm = TerminalOwnCallsign(aircraft);
-        double distNm = GeoMath.DistanceNm(primaryAirportPosition, aircraft.Position);
-        int distMiles = Math.Max(1, (int)Math.Round(distNm));
-        double bearingFromAirport = GeoMath.BearingTo(primaryAirportPosition, aircraft.Position);
-        string direction = BearingToCardinal8(bearingFromAirport);
-        string altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
-        string altitudeCompact = PhraseologyVerbalizer.CompactAltitude(altitudeFt);
+        int distMiles = Math.Max(1, (int)Math.Round(GeoMath.DistanceNm(primaryAirportPosition, aircraft.Position)));
+        string direction = BearingToCardinal8(GeoMath.BearingTo(primaryAirportPosition, aircraft.Position));
+        string miles = MilesWord(distMiles);
         string distWords = SpellDistanceDigits(distMiles);
         string distTerm = distMiles.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-        string dest = aircraft.FlightPlan.Destination;
-        string primary = scenario.PrimaryAirportId ?? "";
-        bool noDest = string.IsNullOrEmpty(dest);
-        // AirportIdsMatch canonicalizes both sides so "KOAK" matches "OAK". A plain
-        // case-insensitive Equals would route a real KOAK-bound VFR through the
-        // transit phrasing because the K-prefix never matches the bare FAA id.
-        bool inbound = !noDest && NavigationDatabase.AirportIdsMatch(dest, primary);
-
-        // Sub-100 ft altitudes render as empty — drop the "at {altitude}" clause rather
-        // than emit a dangling "at , ". Pilots who just lifted off a low-elevation field
-        // (or who otherwise read airborne while still in ground effect) shouldn't break the
-        // sentence shape.
-        string atAltTts = string.IsNullOrEmpty(altitudeWords) ? "" : " at " + altitudeWords;
-        string atAltTerm = string.IsNullOrEmpty(altitudeCompact) ? "" : " at " + altitudeCompact;
-
+        (string typeTerm, string typeTts) = CheckInTypeClause(aircraft.AircraftType);
+        (string atAltTerm, string atAltTts) = CheckInAtAltitudeClause(voice.AltitudeFt);
         (string assignedTermPart, string assignedTtsPart) = AssignedVectorClause(aircraft);
+        bool landing = IsVfrLandingCheckIn(aircraft, scenario);
+        string intent = landing
+            ? (voice.PositionType == "TWR" ? "inbound for landing" : "request landing")
+            : VfrTransitIntent(aircraft, scenario, context);
+        string facility = voice.FacilityCallName;
+        string anchor = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
 
-        if (noDest)
+        if (voice.PositionType == "CTR")
         {
-            // AIM 4-3-1 form: "VFR [Xbound] at [altitude]" is the canonical activity phrase. Stating
-            // position with an explicit "of the field"/"of [airport]" anchor avoids the bare-direction
-            // adjacency that would read as contradicting the heading-of-flight.
-            string heading = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
-            string positionAnchor = positionType == "TWR" ? "the field" : PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
             return new PilotSpeechText(
-                $"{facilityCallName}, {callsignTerm}, {distTerm} miles {direction} of {positionAnchor}, VFR {heading}{atAltTerm}{assignedTermPart}.",
-                $"{facilityCallName}, {spoken} {distWords} miles {direction} of {positionAnchor}, VFR {heading}{atAltTts}{assignedTtsPart}."
+                $"{facility}, {callsignTerm}{typeTerm}{atAltTerm}, {distTerm} {miles} {direction} of {anchor}{assignedTermPart}, {intent}.",
+                $"{facility}, {voice.Spoken}{typeTts}{atAltTts}, {distWords} {miles} {direction} of {anchor}{assignedTtsPart}, {intent}."
             );
         }
 
-        string intent;
-        if (inbound)
-        {
-            intent = positionType switch
-            {
-                "TWR" => "inbound for landing",
-                "APP" => "request landing",
-                // Center doesn't naturally handle landings — fall back to transit phrasing.
-                _ => "request transition",
-            };
-        }
-        else
-        {
-            intent = "request transition";
-        }
-
-        if (positionType == "CTR")
-        {
-            string airportSpoken = PhraseologyVerbalizer.SpellAirportName(scenario.PrimaryAirportId ?? "");
-            return new PilotSpeechText(
-                $"{facilityCallName}, {callsignTerm}{atAltTerm}, {distTerm} miles {direction} of {airportSpoken}{assignedTermPart}, {intent}.",
-                $"{facilityCallName}, {spoken}{atAltTts}, {distWords} miles {direction} of {airportSpoken}{assignedTtsPart}, {intent}."
-            );
-        }
-
-        string atisSuffix = inbound ? AtisInfoClause(atisLetter) : "";
+        string ofAnchor = (landing || (voice.PositionType == "TWR")) ? "" : $" of {anchor}";
+        string atisSuffix = landing ? AtisInfoClause(voice.AtisLetter) : "";
         return new PilotSpeechText(
-            $"{facilityCallName}, {callsignTerm} {distTerm} miles {direction}{atAltTerm}{assignedTermPart}, {intent}{atisSuffix}.",
-            $"{facilityCallName}, {spoken} {distWords} miles {direction}{atAltTts}{assignedTtsPart}, {intent}{atisSuffix}."
+            $"{facility}, {callsignTerm}{typeTerm}, {distTerm} {miles} {direction}{ofAnchor}{atAltTerm}{assignedTermPart}, {intent}{atisSuffix}.",
+            $"{facility}, {voice.Spoken}{typeTts}, {distWords} {miles} {direction}{ofAnchor}{atAltTts}{assignedTtsPart}, {intent}{atisSuffix}."
         );
+    }
+
+    /// <summary>"mile" for one, "miles" for any other distance.</summary>
+    private static string MilesWord(int miles) => miles == 1 ? "mile" : "miles";
+
+    /// <summary>
+    /// Whether the VFR check-in states a landing intent: the aircraft is bound for the primary airport and calls tower or
+    /// approach. A center does not handle landings, so a center check-in asks for a transition or flight following.
+    /// </summary>
+    private static bool IsVfrLandingCheckIn(AircraftState aircraft, SimScenarioState scenario)
+    {
+        string dest = aircraft.FlightPlan.Destination;
+        // AirportIdsMatch canonicalizes both sides so "KOAK" matches "OAK": a plain case-insensitive Equals would route a
+        // real KOAK-bound VFR through the transit phrasing because the K-prefix never matches the bare FAA id.
+        bool inbound = !string.IsNullOrEmpty(dest) && NavigationDatabase.AirportIdsMatch(dest, scenario.PrimaryAirportId ?? "");
+        return inbound && (scenario.StudentPositionType is "TWR" or "APP");
+    }
+
+    /// <summary>
+    /// The request of a VFR check-in that is not landing at the primary airport, the direction of flight its present
+    /// heading. To a tower: "request transition (northbound)[ to (destination)]" (AIM 3-2-5.b.3), never Bravo wording. To
+    /// approach or center: "request Bravo transition (northbound)[ to (destination)]" when the track enters a Class B the
+    /// pilot is not cleared into and the destination is not that Class B's own airport or inside its surface area (AIM
+    /// 3-2-3.d.2.a/c), else "request flight following to (destination)", or "request flight following, VFR (northbound)"
+    /// with no destination.
+    /// </summary>
+    private static string VfrTransitIntent(AircraftState aircraft, SimScenarioState scenario, VfrCheckInAirspace context)
+    {
+        string dest = aircraft.FlightPlan.Destination;
+        string toDest = string.IsNullOrEmpty(dest) ? "" : $" to {PhraseologyVerbalizer.SpellAirportName(dest)}";
+        string bound = HeadingToBoundCardinal(aircraft.TrueHeading.Degrees);
+        if (scenario.StudentPositionType == "TWR")
+        {
+            return $"request transition {bound}{toDest}";
+        }
+
+        if ((CheckInBravoEntry(aircraft, scenario, context.Airspace) is { } crossing) && !IsDestinationInBravo(dest, crossing, context))
+        {
+            return $"request Bravo transition {bound}{toDest}";
+        }
+
+        return toDest.Length == 0 ? $"request flight following, VFR {bound}" : $"request flight following{toDest}";
+    }
+
+    /// <summary>
+    /// Whether <paramref name="destination"/> is the primary airport of the Class B <paramref name="crossing"/> enters, or
+    /// lies inside that Class B's surface area: the pilot is going there, not through it.
+    /// </summary>
+    private static bool IsDestinationInBravo(string destination, AirspaceBoundaryCrossing crossing, VfrCheckInAirspace context)
+    {
+        if (string.IsNullOrEmpty(destination))
+        {
+            return false;
+        }
+
+        string area = ImplicitBravoClearance.AreaName(crossing.Volume);
+        return NavigationDatabase.AirportIdsMatch(destination, area)
+            || ImplicitBravoClearance.IsAirportInsideClassB(destination, context.Airspace, context.AirportLookup, area);
+    }
+
+    /// <summary>
+    /// The Class B a VFR check-in asks about, or null: <see cref="PilotProactive.FindRequestableBravoEntry"/> within
+    /// <see cref="ImplicitBravoClearance.WaitingEntryLookaheadSeconds"/>, further ahead than the Class B request's own
+    /// lookahead, since the check-in states the route. Null for an IFR aircraft and for one landing at the primary airport.
+    /// </summary>
+    internal static AirspaceBoundaryCrossing? CheckInBravoEntry(AircraftState aircraft, SimScenarioState scenario, AirspaceDatabase airspace) =>
+        (!aircraft.FlightPlan.IsVfr || IsVfrLandingCheckIn(aircraft, scenario))
+            ? null
+            : PilotProactive.FindRequestableBravoEntry(aircraft, airspace, ImplicitBravoClearance.WaitingEntryLookaheadSeconds);
+
+    /// <summary>
+    /// The check-in's type clause, its leading ", " included: the terminal form shows the ICAO designator, the spoken form
+    /// says the type's first spoken name (<see cref="AircraftTypeNames.GetSpokenNames"/>, "skyhawk") or, with none, spells
+    /// the designator. Empty when the aircraft has no type.
+    /// </summary>
+    private static (string Term, string Tts) CheckInTypeClause(string? aircraftType)
+    {
+        if (string.IsNullOrWhiteSpace(aircraftType))
+        {
+            return ("", "");
+        }
+
+        string designator = aircraftType.Trim().ToUpperInvariant();
+        IReadOnlyList<string> names = AircraftTypeNames.GetSpokenNames(designator);
+        string spoken = names.Count > 0 ? names[0] : string.Join(' ', designator.Select(NatoPhoneticAlphabet.SpellChar));
+        return ($", {designator}", $", {spoken}");
+    }
+
+    /// <summary>
+    /// The " at (altitude)" clause of a VFR check-in. Sub-100 ft altitudes render as empty, so the clause is dropped rather
+    /// than a dangling "at , ": a pilot who just lifted off a low-elevation field still keeps the sentence shape.
+    /// </summary>
+    private static (string Term, string Tts) CheckInAtAltitudeClause(int altitudeFt)
+    {
+        string altitudeWords = AtcNumberParser.AltitudeToWords(altitudeFt);
+        string altitudeCompact = PhraseologyVerbalizer.CompactAltitude(altitudeFt);
+        string term = string.IsNullOrEmpty(altitudeCompact) ? "" : " at " + altitudeCompact;
+        string tts = string.IsNullOrEmpty(altitudeWords) ? "" : " at " + altitudeWords;
+        return (term, tts);
     }
 
     public static string? ResolveStudentRadioName(SimScenarioState? scenario)

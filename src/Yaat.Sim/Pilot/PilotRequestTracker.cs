@@ -26,8 +26,19 @@ public static class PilotRequestTracker
     /// </summary>
     public const int MaxFollowUps = 2;
 
+    /// <summary>
+    /// How long an unanswered initial call waits before its one re-call, "how do you hear me?": shorter than a request's
+    /// re-ask, since a pilot not heard at all keeps the next contact short and soon (AIM 4-2-3.a.3).
+    /// </summary>
+    public const double InitialContactFollowUpDelaySeconds = 45.0;
+
     private static double FollowUpDelaySeconds(PilotPendingRequestKind kind) =>
-        kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : NormalFollowUpDelaySeconds;
+        kind switch
+        {
+            PilotPendingRequestKind.FurtherClearance => FurtherClearanceFollowUpDelaySeconds,
+            PilotPendingRequestKind.InitialContact => InitialContactFollowUpDelaySeconds,
+            _ => NormalFollowUpDelaySeconds,
+        };
 
     private static double StandbyDelaySeconds(PilotPendingRequestKind kind) =>
         kind == PilotPendingRequestKind.FurtherClearance ? FurtherClearanceFollowUpDelaySeconds : StandbyFollowUpDelaySeconds;
@@ -67,6 +78,20 @@ public static class PilotRequestTracker
         return request;
     }
 
+    /// <summary>
+    /// <see cref="ApplyControllerResponse"/> for a scripted command (a timed preset): it answers what the pilot asked for,
+    /// but never an initial call, which only a controller speaking to the pilot answers.
+    /// </summary>
+    public static void ApplyScriptedResponse(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
+    {
+        if (aircraft.PendingPilotRequest is { Kind: PilotPendingRequestKind.InitialContact })
+        {
+            return;
+        }
+
+        ApplyControllerResponse(aircraft, compound, nowSeconds);
+    }
+
     public static void ApplyControllerResponse(AircraftState aircraft, CompoundCommand compound, double nowSeconds)
     {
         PilotPendingRequest? pending = aircraft.PendingPilotRequest;
@@ -78,7 +103,7 @@ public static class PilotRequestTracker
         bool sawStandby = false;
         foreach (ParsedCommand? command in compound.Blocks.SelectMany(block => block.Commands))
         {
-            if (command is AcknowledgePilotContactCommand)
+            if (IsStandby(pending, command))
             {
                 sawStandby = true;
                 continue;
@@ -105,6 +130,13 @@ public static class PilotRequestTracker
             pending.NextFollowUpDueSeconds = nowSeconds + StandbyDelaySeconds(pending.Kind);
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="command"/> is a "standby" to the open <paramref name="pending"/> request. To an initial-contact
+    /// request it is the controller's answer instead: the pilot has been heard.
+    /// </summary>
+    private static bool IsStandby(PilotPendingRequest pending, ParsedCommand? command) =>
+        (command is AcknowledgePilotContactCommand) && (pending.Kind != PilotPendingRequestKind.InitialContact);
 
     /// <summary>
     /// Stamps <see cref="AircraftState.DescentClearedAtSeconds"/> when the compound carries a descent clearance, whether or
@@ -247,6 +279,7 @@ public static class PilotRequestTracker
 
         RefreshFurtherClearanceLine(pending, aircraft);
         RefreshBravoBoundaryLine(pending, aircraft);
+        RefreshInitialContactLine(pending, aircraft);
 
         // Re-queue both forms independently — the terminal (SAY) form is callsign-free (the SAY
         // column carries the callsign) and the spoken form spells it. RpoTerminal is null for every
@@ -276,7 +309,38 @@ public static class PilotRequestTracker
         double nowSeconds,
         TrackOwner? studentPosition,
         Func<string, LatLon?> airportLookup
-    ) => IsMoot(request, aircraft, studentPosition, airportLookup) || IsSpentRemainOutsideAsk(request, aircraft, nowSeconds);
+    ) =>
+        IsMoot(request, aircraft, studentPosition, airportLookup)
+        || IsSpentRemainOutsideAsk(request, aircraft, nowSeconds)
+        || IsSpentInitialContactRecall(request, nowSeconds);
+
+    /// <summary>
+    /// Whether an initial-contact request has voiced its one "how do you hear me?" re-call and its next follow-up is due: it
+    /// closes silently instead of calling a third time.
+    /// </summary>
+    private static bool IsSpentInitialContactRecall(PilotPendingRequest request, double nowSeconds) =>
+        (request.Kind == PilotPendingRequestKind.InitialContact) && (request.FollowUpsVoiced >= 1) && (nowSeconds >= request.NextFollowUpDueSeconds);
+
+    /// <summary>
+    /// Replaces the line an initial-contact request re-voices with the short re-call, "(facility), (callsign), how do you
+    /// hear me?" (AIM 4-2-3.a.3: keep the next contact short; Pilot/Controller Glossary "HOW DO YOU HEAR ME?"): the
+    /// pilot does not repeat the whole check-in.
+    /// </summary>
+    private static void RefreshInitialContactLine(PilotPendingRequest pending, AircraftState aircraft)
+    {
+        if (pending.Kind != PilotPendingRequestKind.InitialContact)
+        {
+            return;
+        }
+
+        PilotSpeechText line = PilotResponder.BuildInitialContactRecall(aircraft, pending.FacilityCallName ?? "");
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: check-in unanswered, re-calls: {Line}", aircraft.Callsign, line.Terminal);
+        }
+        pending.LastPilotLine = line.Terminal;
+        pending.LastPilotLineTts = line.Tts;
+    }
 
     /// <summary>
     /// Whether <paramref name="request"/> is the "any estimate on the bravo?" ask of a pilot told to remain outside that
@@ -620,6 +684,8 @@ public static class PilotRequestTracker
                 ContactCommand or FrequencyChangeApprovedCommand => PilotPendingRequestResponseState.Superseded,
                 _ => PilotPendingRequestResponseState.None,
             },
+            // Any controller transmission to the aircraft answers an initial call: the pilot has been heard.
+            PilotPendingRequestKind.InitialContact => PilotPendingRequestResponseState.Satisfied,
             _ => PilotPendingRequestResponseState.None,
         };
 }

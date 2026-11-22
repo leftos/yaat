@@ -447,6 +447,8 @@ public static class SnapshotSchemaMigrator
         //   PilotPendingRequestKind.FurtherClearance
         //   appended last. AircraftProcedureDto.SentPdcAltitudeKind and SentPdcAltitudeFt added, optional and written only
         //   when set; an older snapshot reads None/null, the facility default.
+        // V56 (no bump): PilotPendingRequestKind.InitialContact appended last, so every earlier kind keeps its number; an older
+        //   snapshot never holds it.
         if (snapshot.SchemaVersion < 53)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

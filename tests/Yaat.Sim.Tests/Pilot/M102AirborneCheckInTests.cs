@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Tower;
@@ -17,6 +18,12 @@ namespace Yaat.Sim.Tests.Pilot;
 /// </summary>
 public class M102AirborneCheckInTests
 {
+    /// <summary>An airport lookup that places nothing: these check-ins never ask about a Class B destination.</summary>
+    private static LatLon? NoAirports(string _) => null;
+
+    /// <summary>N123AB as the pilot speaks it.</summary>
+    private const string N123AB = "november one two three alpha bravo";
+
     public M102AirborneCheckInTests()
     {
         TestVnasData.EnsureInitialized();
@@ -24,6 +31,9 @@ public class M102AirborneCheckInTests
 
     // KOAK-ish reference; tests use ProjectPoint to place aircraft at exact bearings/distances.
     private static readonly LatLon AirportPos = new(37.7212, -122.2208);
+
+    /// <summary>The destination as the VFR check-in names it ("request flight following to ...").</summary>
+    private static string Spoken(string airport) => PhraseologyVerbalizer.SpellAirportName(airport);
 
     private static AircraftState MakeAircraft(
         string callsign = "AAL123",
@@ -117,7 +127,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 6000);
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, american one twenty three, level six thousand, with information Alpha.", line!.Tts);
     }
@@ -132,7 +142,7 @@ public class M102AirborneCheckInTests
         ac.AircraftType = "B763"; // CWT C -> Heavy
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.NotNull(line);
         Assert.Equal("approach, american one twenty three heavy, level six thousand, with information Alpha.", line!.Tts);
@@ -145,7 +155,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 23000);
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, american one twenty three, flight level two three zero, with information Alpha.", line!.Tts);
     }
@@ -156,7 +166,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 24000);
         SimScenarioState sc = MakeScenario("CTR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("center, american one twenty three, flight level two four zero.", line!.Tts);
     }
@@ -167,7 +177,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 12000);
         SimScenarioState sc = MakeScenario("CTR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("center, american one twenty three, level one two thousand, with information Alpha.", line!.Tts);
     }
@@ -178,7 +188,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 2500, destinationRunway: "28R");
         SimScenarioState sc = MakeScenario("TWR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("tower, american one twenty three, runway two eight right, with information Alpha.", line!.Tts);
     }
@@ -189,7 +199,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 2500);
         SimScenarioState sc = MakeScenario("TWR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("tower, american one twenty three, with information Alpha.", line!.Tts);
     }
@@ -200,7 +210,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 2500, destinationRunway: "28R");
         SimScenarioState sc = MakeScenarioWithStudentRadioName("TWR", "OAK_TWR", "Oakland Tower");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("Oakland Tower, american one twenty three, runway two eight right, with information Alpha.", line!.Tts);
     }
@@ -221,7 +231,7 @@ public class M102AirborneCheckInTests
         ac.Targets.TargetAltitude = 20000;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         (string? procTerm, string? procTts) = PhraseologyVerbalizer.ProcedureName("RAZRR5");
         Assert.Equal(
@@ -242,7 +252,7 @@ public class M102AirborneCheckInTests
         ac.Targets.TargetAltitude = 14000;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         (string _, string? procTts) = PhraseologyVerbalizer.ProcedureName("LAURA2");
         Assert.Equal($"approach, american one twenty three, leaving two thousand, climbing via the {procTts} departure.", line!.Tts);
@@ -255,7 +265,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedAltitude = 14000;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, american one twenty three, leaving eight thousand, climbing to one four thousand.", line!.Tts);
     }
@@ -267,7 +277,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedAltitude = 9000;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
             "approach, american one twenty three, leaving one five thousand, descending to nine thousand, with information Alpha.",
@@ -282,7 +292,7 @@ public class M102AirborneCheckInTests
         ac.Targets.TargetAltitude = 9000; // direction only; no discrete assigned altitude
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, american one twenty three, leaving one five thousand, descending, with information Alpha.", line!.Tts);
     }
@@ -293,7 +303,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 6000);
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, AAL123, level 6000, with information Alpha.", line!.Terminal);
     }
@@ -318,12 +328,13 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 2000, destination: "KOAK", bearingFromAirport: 180, distanceNm: 5);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "tower, november one two three alpha bravo five miles south at two thousand, inbound for landing, with information Alpha.",
+            "tower, november one two three alpha bravo, boeing, five miles south at two thousand, inbound for landing, with information Alpha.",
             line!.Tts
         );
+        Assert.Equal("tower, N123AB, B738, 5 miles south at 2000, inbound for landing, with information Alpha.", line.Terminal);
     }
 
     [Fact]
@@ -338,27 +349,31 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 2000, destination: "KOAK", bearingFromAirport: 180, distanceNm: 5);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "OAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "tower, november one two three alpha bravo five miles south at two thousand, inbound for landing, with information Alpha.",
+            "tower, november one two three alpha bravo, boeing, five miles south at two thousand, inbound for landing, with information Alpha.",
             line!.Tts
         );
     }
 
     [Fact]
-    public void Vfr_Tower_DestinationDifferent_RequestTransition()
+    public void Vfr_Tower_DestinationDifferent_RequestTransitionToDestination()
     {
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 2500, destination: "KSQL", bearingFromAirport: 90, distanceNm: 8);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.Equal("tower, november one two three alpha bravo eight miles east at two thousand five hundred, request transition.", line!.Tts);
+        Assert.Equal(
+            $"tower, {N123AB}, boeing, eight miles east at two thousand five hundred, request transition northbound to {Spoken("KSQL")}.",
+            line!.Tts
+        );
+        Assert.Equal($"tower, N123AB, B738, 8 miles east at 2500, request transition northbound to {Spoken("KSQL")}.", line.Terminal);
     }
 
     [Fact]
-    public void Vfr_Tower_NoDestination_HeadingSouthbound_VfrTransition()
+    public void Vfr_Tower_NoDestination_HeadingSouthbound_RequestTransition()
     {
         AircraftState ac = MakeAircraft(
             "N123AB",
@@ -371,12 +386,9 @@ public class M102AirborneCheckInTests
         );
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.Equal(
-            "tower, november one two three alpha bravo four miles north of the field, VFR southbound at one thousand five hundred.",
-            line!.Tts
-        );
+        Assert.Equal($"tower, {N123AB}, boeing, four miles north at one thousand five hundred, request transition southbound.", line!.Tts);
     }
 
     [Fact]
@@ -385,30 +397,31 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 3000, destination: "KOAK", bearingFromAirport: 270, distanceNm: 10);
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "approach, november one two three alpha bravo one zero miles west at three thousand, request landing, with information Alpha.",
+            "approach, november one two three alpha bravo, boeing, one zero miles west at three thousand, request landing, with information Alpha.",
             line!.Tts
         );
     }
 
     [Fact]
-    public void Vfr_Approach_DestinationDifferent_RequestTransition()
+    public void Vfr_Approach_DestinationDifferent_NoBravoAhead_RequestFlightFollowingToDestination()
     {
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 3500, destination: "KSFO", bearingFromAirport: 45, distanceNm: 7);
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "approach, november one two three alpha bravo seven miles northeast at three thousand five hundred, request transition.",
+            $"approach, {N123AB}, boeing, seven miles northeast of {Spoken("KOAK")} at three thousand five hundred, "
+                + $"request flight following to {Spoken("KSFO")}.",
             line!.Tts
         );
     }
 
     [Fact]
-    public void Vfr_Approach_NoDestination_HeadingNorthbound_VfrTransition()
+    public void Vfr_Approach_NoDestination_HeadingNorthbound_RequestFlightFollowing()
     {
         if (TestVnasData.NavigationDb is null)
         {
@@ -426,16 +439,17 @@ public class M102AirborneCheckInTests
         );
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "approach, november one two three alpha bravo six miles southeast of Oakland Airport, VFR northbound at four thousand five hundred.",
+            $"approach, {N123AB}, boeing, six miles southeast of Oakland Airport at four thousand five hundred, "
+                + "request flight following, VFR northbound.",
             line!.Tts
         );
     }
 
     [Fact]
-    public void Vfr_Center_DestinationDifferent_RequestTransition_AirportSpelled()
+    public void Vfr_Center_DestinationDifferent_RequestFlightFollowing_AirportSpelled()
     {
         if (TestVnasData.NavigationDb is null)
         {
@@ -445,16 +459,21 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 8500, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
         SimScenarioState sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "center, november one two three alpha bravo at eight thousand five hundred, one five miles north of Oakland Airport, request transition.",
+            $"center, {N123AB}, boeing at eight thousand five hundred, one five miles north of Oakland Airport, "
+                + $"request flight following to {Spoken("KLAX")}.",
             line!.Tts
+        );
+        Assert.Equal(
+            $"center, N123AB, B738 at 8500, 15 miles north of Oakland Airport, request flight following to {Spoken("KLAX")}.",
+            line.Terminal
         );
     }
 
     [Fact]
-    public void Vfr_Center_NoDestination_HeadingEastbound_VfrTransition()
+    public void Vfr_Center_NoDestination_HeadingEastbound_RequestFlightFollowing()
     {
         if (TestVnasData.NavigationDb is null)
         {
@@ -472,10 +491,11 @@ public class M102AirborneCheckInTests
         );
         SimScenarioState sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal(
-            "center, november one two three alpha bravo one two miles southwest of Oakland Airport, VFR eastbound at seven thousand five hundred.",
+            $"center, {N123AB}, boeing at seven thousand five hundred, one two miles southwest of Oakland Airport, "
+                + "request flight following, VFR eastbound.",
             line!.Tts
         );
     }
@@ -492,9 +512,9 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "KSQL", bearingFromAirport: 90, distanceNm: 1);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.Equal("tower, november one two three alpha bravo one miles east, request transition.", line!.Tts);
+        Assert.Equal($"tower, {N123AB}, boeing, one mile east, request transition northbound to {Spoken("KSQL")}.", line!.Tts);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -513,7 +533,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("level one two thousand, assigned two five zero knots", line!.Tts);
         Assert.Contains("level 12000, assigned 250 knots", line.Terminal);
@@ -526,7 +546,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("heading two seven zero", line!.Tts);
         Assert.Contains("heading 270", line.Terminal);
@@ -545,7 +565,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("heading two seven zero, assigned two five zero knots", line!.Tts);
         Assert.Contains("heading 270, assigned 250 knots", line.Terminal);
@@ -560,7 +580,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("assigned two one zero knots or greater", line!.Tts);
         Assert.Contains("assigned 210 knots or greater", line.Terminal);
@@ -575,7 +595,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("assigned two five zero knots or less", line!.Tts);
         Assert.Contains("assigned 250 knots or less", line.Terminal);
@@ -589,7 +609,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("CTR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("center, american one twenty three, flight level three five zero, assigned Mach point seven eight.", line!.Tts);
         Assert.Equal("center, AAL123, FL350, assigned Mach .78.", line.Terminal);
@@ -603,7 +623,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("CTR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("assigned maximum forward speed", line!.Tts);
         Assert.Contains("assigned maximum forward speed", line.Terminal);
@@ -620,7 +640,7 @@ public class M102AirborneCheckInTests
         ac.Targets.SpeedCommandIsControllerIssued = false;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("assigned two five zero knots", line!.Tts);
     }
@@ -632,7 +652,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedSpeed = 250;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.DoesNotContain("assigned", line!.Tts);
         Assert.DoesNotContain("assigned", line.Terminal);
@@ -645,7 +665,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
         SimScenarioState sc = MakeScenario("TWR");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("runway two eight right, heading two seven zero, with information Alpha", line!.Tts);
         Assert.Contains("runway 28R, heading 270, with information Alpha", line.Terminal);
@@ -658,7 +678,7 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("heading two seven zero, request landing", line!.Tts);
         Assert.Contains("heading 270, request landing", line.Terminal);
@@ -671,12 +691,13 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(90);
         SimScenarioState sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("heading zero nine zero", line!.Tts);
         Assert.Contains("heading 090", line.Terminal);
         Assert.True(
-            line.Tts.IndexOf("heading zero nine zero", StringComparison.Ordinal) < line.Tts.IndexOf("request transition", StringComparison.Ordinal)
+            line.Tts.IndexOf("heading zero nine zero", StringComparison.Ordinal)
+                < line.Tts.IndexOf("request flight following", StringComparison.Ordinal)
         );
     }
 
@@ -695,10 +716,10 @@ public class M102AirborneCheckInTests
         ac.Targets.AssignedMagneticHeading = new MagneticHeading(270);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.EndsWith("VFR southbound at one thousand five hundred, heading two seven zero.", line!.Tts);
-        Assert.EndsWith("VFR southbound at 1500, heading 270.", line.Terminal);
+        Assert.EndsWith("four miles north at one thousand five hundred, heading two seven zero, request transition southbound.", line!.Tts);
+        Assert.EndsWith("4 miles north at 1500, heading 270, request transition southbound.", line.Terminal);
     }
 
     [Fact]
@@ -709,7 +730,7 @@ public class M102AirborneCheckInTests
         ac.Targets.HasExplicitSpeedCommand = true;
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Contains("assigned two five zero knots", line!.Tts);
         Assert.True(
@@ -723,9 +744,9 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "", bearingFromAirport: 0, distanceNm: 1, headingDeg: 180);
         SimScenarioState sc = MakeScenario("TWR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.Equal("tower, november one two three alpha bravo one miles north of the field, VFR southbound.", line!.Tts);
+        Assert.Equal($"tower, {N123AB}, boeing, one mile north, request transition southbound.", line!.Tts);
     }
 
     [Fact]
@@ -739,9 +760,9 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("N123AB", isVfr: true, altitude: 50, destination: "KLAX", bearingFromAirport: 0, distanceNm: 15);
         SimScenarioState sc = MakeScenario("CTR", primaryAirport: "KOAK");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
-        Assert.Equal("center, november one two three alpha bravo, one five miles north of Oakland Airport, request transition.", line!.Tts);
+        Assert.Equal($"center, {N123AB}, boeing, one five miles north of Oakland Airport, request flight following to {Spoken("KLAX")}.", line!.Tts);
     }
 
     [Fact]
@@ -750,7 +771,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", isVfr: false, altitude: 50);
         SimScenarioState sc = MakeScenario("APP");
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports);
 
         Assert.Equal("approach, american one twenty three, with information Alpha.", line!.Tts);
     }
@@ -765,7 +786,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario("GND");
 
-        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos));
+        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports));
     }
 
     [Fact]
@@ -774,7 +795,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario(null);
 
-        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos));
+        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports));
     }
 
     [Fact]
@@ -783,7 +804,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario("FSS");
 
-        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos));
+        Assert.Null(PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports));
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -839,7 +860,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft("AAL123", altitude: 6000);
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("approach", PilotLineAt(ac, 0));
@@ -853,9 +874,9 @@ public class M102AirborneCheckInTests
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
         Func<string, LatLon?> lookup = AirportLookup("KOAK", AirportPos);
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, lookup);
-        PilotProactive.TickAirborneCheckIn(ac, sc, lookup);
-        PilotProactive.TickAirborneCheckIn(ac, sc, lookup);
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, lookup);
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, lookup);
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, lookup);
 
         Assert.Single(ac.PendingPilotTransmissions);
     }
@@ -867,7 +888,7 @@ public class M102AirborneCheckInTests
         ac.IsOnGround = true;
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
@@ -880,7 +901,7 @@ public class M102AirborneCheckInTests
         ac.HasMadeInitialContact = true;
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
     }
@@ -891,7 +912,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario("GND", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
@@ -903,7 +924,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario(null, primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
     }
@@ -914,7 +935,7 @@ public class M102AirborneCheckInTests
         AircraftState ac = MakeAircraft();
         SimScenarioState sc = MakeScenario("APP", soloMode: false, primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
     }
@@ -928,7 +949,7 @@ public class M102AirborneCheckInTests
         // Lookup returns null for unknown airport — VFR template needs the airport position,
         // and IFR Approach/Center don't strictly need it but the gate is uniform: no airport,
         // no fire.
-        PilotProactive.TickAirborneCheckIn(ac, sc, _ => null);
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, _ => null);
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
@@ -945,14 +966,14 @@ public class M102AirborneCheckInTests
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
         sc.StudentPosition = student;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
 
         ac.Track.Owner = student;
         ac.Track.HandoffPeer = null;
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(ac.HasMadeInitialContact);
@@ -968,7 +989,7 @@ public class M102AirborneCheckInTests
         ac.Phases.Add(new FinalApproachPhase());
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.False(ac.HasMadeInitialContact);
@@ -983,7 +1004,7 @@ public class M102AirborneCheckInTests
         ac.Phases.Add(new InitialClimbPhase());
         SimScenarioState sc = MakeScenario("APP", primaryAirport: "KOAK");
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(ac.HasMadeInitialContact);
@@ -1035,12 +1056,14 @@ public class M102AirborneCheckInTests
     {
         // The track has no owner, so the tuned Center position is not the aircraft's track owner.
         (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
-        string expected = "check-in held, tuned to ZOA_CTR: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+        string expected =
+            "check-in held, tuned to ZOA_CTR: "
+            + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports)!.Terminal;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
     }
 
@@ -1048,12 +1071,14 @@ public class M102AirborneCheckInTests
     public void TickAirborneCheckIn_TunedElsewhere_NoHandoff_HoldsAndWarnsOnce()
     {
         (AircraftState ac, SimScenarioState sc) = TunedSetup(TrackOwner.Elsewhere);
-        string expected = "check-in held, tuned to another frequency: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+        string expected =
+            "check-in held, tuned to another frequency: "
+            + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports)!.Terminal;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, TrackOwner.Elsewhere);
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, TrackOwner.Elsewhere);
     }
 
@@ -1062,12 +1087,14 @@ public class M102AirborneCheckInTests
     {
         (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
         ac.Track.Owner = ApproachStudent;
-        string expected = "check-in held, tuned to ZOA_CTR: " + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos)!.Terminal;
+        string expected =
+            "check-in held, tuned to ZOA_CTR: "
+            + PilotResponder.BuildAirborneCheckIn(ac, sc, AirportPos, AirspaceDatabase.Default, NoAirports)!.Terminal;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         AssertHeldWithOneWarning(ac, expected, UnstaffedCenter);
     }
 
@@ -1085,7 +1112,7 @@ public class M102AirborneCheckInTests
         ac.TunedPosition = UnstaffedCenter;
         ac.Track.HandoffPeer = tower;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("SFO", SfoPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("SFO", SfoPos));
 
         PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(call.IsInitialContact);
@@ -1107,7 +1134,7 @@ public class M102AirborneCheckInTests
         (AircraftState ac, SimScenarioState sc, _, TrackOwner approach) = SfoTowerSetup(zoa);
         ac.TunedPosition = approach;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("SFO", SfoPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("SFO", SfoPos));
 
         PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(call.IsInitialContact);
@@ -1120,12 +1147,12 @@ public class M102AirborneCheckInTests
     public void TickAirborneCheckIn_HeldThenAccepted_CallsTheStudent()
     {
         (AircraftState ac, SimScenarioState sc) = TunedSetup(UnstaffedCenter);
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
         Assert.Empty(ac.PendingPilotTransmissions);
 
         // The student accepts the handoff: TrackEngine.TuneToStudentOnAccept puts the pilot back on the student's side.
         ac.TunedPosition = null;
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         Assert.Single(ac.PendingPilotTransmissions);
         Assert.Single(ac.PendingWarnings);
@@ -1147,7 +1174,7 @@ public class M102AirborneCheckInTests
         Assert.NotNull(aiTower);
         ac.TunedPosition = aiTower;
 
-        PilotProactive.TickAirborneCheckIn(ac, sc, AirportLookup("KOAK", AirportPos));
+        PilotProactive.TickAirborneCheckIn(ac, sc, AirspaceDatabase.Default, AirportLookup("KOAK", AirportPos));
 
         PilotTransmission call = Assert.Single(ac.PendingPilotTransmissions);
         Assert.True(call.IsInitialContact);

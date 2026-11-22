@@ -40,8 +40,16 @@ public static class PilotProactive
     /// student's frequency (<see cref="AircraftState.TunedPosition"/> null). A pilot tuned to a position that is neither the
     /// student's, an AI-staffed one, nor its own track owner, with no handoff to the student pending, holds the call instead:
     /// the instructor is warned once (<see cref="AircraftState.AirborneCheckInHeldWarned"/>) and the check-in stays owed.
+    /// A VFR check-in is recorded as a pending request (<see cref="RecordVfrCheckIn"/>): the Class B request it carries, else
+    /// an initial-contact request the pilot re-calls once if the controller never answers. <paramref name="airspace"/>
+    /// places the Class B ahead.
     /// </summary>
-    public static void TickAirborneCheckIn(AircraftState aircraft, SimScenarioState scenario, Func<string, LatLon?> airportLookup)
+    public static void TickAirborneCheckIn(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup
+    )
     {
         if (!IsAirborneCheckInDue(aircraft, scenario))
         {
@@ -59,7 +67,7 @@ public static class PilotProactive
             return;
         }
 
-        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos);
+        PilotSpeechText? line = PilotResponder.BuildAirborneCheckIn(aircraft, scenario, airportPos, airspace, airportLookup);
         if (line is null)
         {
             return;
@@ -77,6 +85,47 @@ public static class PilotProactive
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: true);
         aircraft.HasMadeInitialContact = true;
         aircraft.TunedPosition = null;
+        if (aircraft.FlightPlan.IsVfr)
+        {
+            RecordVfrCheckIn(aircraft, scenario, airspace, airportLookup, line);
+        }
+    }
+
+    /// <summary>
+    /// Records the VFR check-in <paramref name="line"/> as the aircraft's open request. One that asked for a Class B
+    /// transition is that Class B's airspace-entry request, recorded as <see cref="TryRequestBravoClearance"/> records it, so
+    /// the pilot does not ask for the same Class B again and the request's own follow-ups re-ask it. Any other is an
+    /// initial-contact request (<see cref="PilotPendingRequestKind.InitialContact"/>) for the facility the pilot called.
+    /// </summary>
+    private static void RecordVfrCheckIn(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup,
+        PilotSpeechText line
+    )
+    {
+        if (PilotResponder.CheckInBravoEntry(aircraft, scenario, airspace) is { } crossing)
+        {
+            AirspaceVolume volume = crossing.Volume;
+            PilotPendingRequest request = PilotRequestTracker.RecordRequest(
+                aircraft,
+                PilotPendingRequestKind.AirspaceEntry,
+                scenario.ElapsedSeconds,
+                line,
+                PilotRequestContext.Airspace(AirspaceClass.Bravo, ImplicitBravoClearance.AreaName(volume), ResolveReference(crossing, airportLookup))
+            );
+            request.BravoWording = ImplicitBravoClearance.WordingFor(aircraft, volume.Ident, airspace, airportLookup);
+            return;
+        }
+
+        PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.InitialContact,
+            scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Facility(PilotResponder.AirborneCheckInFacilityCallName(scenario))
+        );
     }
 
     /// <summary>Logs at Debug that the airborne check-in is held because the pilot is tuned to <paramref name="tuned"/>.</summary>
@@ -1442,7 +1491,12 @@ public static class PilotProactive
         List<PilotTransmission> queue = aircraft.PendingPilotTransmissions;
         for (int i = 0; i < queue.Count; i++)
         {
-            if ((queue[i].Kind == PilotTransmissionKind.Proactive) && string.Equals(queue[i].Text, open.LastPilotLine, StringComparison.Ordinal))
+            // An initial call is never a repeat: a Class B check-in recorded as the open request keeps its place and goes first.
+            if (
+                (queue[i].Kind == PilotTransmissionKind.Proactive)
+                && !queue[i].IsInitialContact
+                && string.Equals(queue[i].Text, open.LastPilotLine, StringComparison.Ordinal)
+            )
             {
                 return i;
             }
@@ -1845,17 +1899,39 @@ public static class PilotProactive
 
     /// <summary>
     /// The pilot is free to call the student for a Class B clearance: in contact with the student and not sent to another
-    /// frequency, nothing queued to say, and no request open that holds its calls back. Whether it already holds the
-    /// clearance into the Class B ahead is asked of that Class B (<see cref="TryRequestBravoClearance"/>).
+    /// frequency, nothing queued to say, and no request open that holds its calls back. An unanswered initial call does not
+    /// hold it back: the Class B call replaces it (<see cref="PilotRequestTracker.RecordRequest"/>) and is itself a new call
+    /// to the student. Whether it already holds the clearance into the Class B ahead is asked of that Class B
+    /// (<see cref="TryRequestBravoClearance"/>).
     /// </summary>
     private static bool CanRequestBravoClearance(AircraftState aircraft, TrackOwner? studentPosition) =>
         aircraft.HasMadeInitialContact
         && !aircraft.IsTunedAwayFrom(studentPosition)
         && (aircraft.PendingPilotTransmissions.Count == 0)
-        && (aircraft.PendingPilotRequest is not { BlocksOtherCalls: true });
+        && (aircraft.PendingPilotRequest is not { BlocksOtherCalls: true, Kind: not PilotPendingRequestKind.InitialContact });
 
     private static LatLon ResolveReference(AirspaceBoundaryCrossing crossing, Func<string, LatLon?> airportLookup) =>
         airportLookup(crossing.Volume.Ident) ?? airportLookup(crossing.Volume.IcaoId) ?? crossing.Intersection;
+
+    /// <summary>
+    /// The Class B entry a VFR pilot asks for, or null: the first Class B entry projected along the present track within
+    /// <paramref name="lookaheadSeconds"/>, entered through its side (a climb into a shelf from beneath it is not asked
+    /// for), into a Class B the pilot is not cleared into. A pilot cleared into one Class B still asks for a different one
+    /// ahead; one told to remain outside a Class B does not ask for it again: its one ask is scheduled
+    /// (<see cref="TickRemainOutsideBravoAsk"/>). The Class B request (<see cref="TryRequestBravoClearance"/>) and the
+    /// airborne check-in (<see cref="PilotResponder.CheckInBravoEntry"/>) each pass their own lookahead.
+    /// </summary>
+    internal static AirspaceBoundaryCrossing? FindRequestableBravoEntry(AircraftState aircraft, AirspaceDatabase airspace, double lookaheadSeconds)
+    {
+        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds, AirspaceClass.Bravo);
+        if ((crossing is null) || crossing.Volume.ContainsLateral(aircraft.Position))
+        {
+            return null;
+        }
+
+        string area = ImplicitBravoClearance.AreaName(crossing.Volume);
+        return (aircraft.IsClearedIntoBravo(area) || aircraft.IsRemainOutsideBravo(area)) ? null : crossing;
+    }
 
     /// <summary>
     /// The pilot calls for a Class B clearance ahead of the boundary (7110.65 §7-9-2.a; AIM 3-2-3) when the track
@@ -1878,19 +1954,7 @@ public static class PilotProactive
             return;
         }
 
-        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(
-            aircraft,
-            ImplicitBravoClearance.EntryLookaheadSeconds,
-            AirspaceClass.Bravo
-        );
-        // A pilot cleared into one Class B still asks for a different one ahead. One told to remain outside a Class B does
-        // not ask for it again: its one ask is scheduled (TickRemainOutsideBravoAsk).
-        if (
-            (crossing is null)
-            || crossing.Volume.ContainsLateral(aircraft.Position)
-            || aircraft.IsClearedIntoBravo(ImplicitBravoClearance.AreaName(crossing.Volume))
-            || aircraft.IsRemainOutsideBravo(ImplicitBravoClearance.AreaName(crossing.Volume))
-        )
+        if (FindRequestableBravoEntry(aircraft, airspace, ImplicitBravoClearance.EntryLookaheadSeconds) is not { } crossing)
         {
             return;
         }

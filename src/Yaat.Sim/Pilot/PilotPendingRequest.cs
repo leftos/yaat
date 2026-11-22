@@ -34,6 +34,14 @@ public enum PilotPendingRequestKind
     /// clearance.
     /// </summary>
     FurtherClearance,
+
+    /// <summary>
+    /// A solo VFR pilot's airborne check-in to the student that asked for nothing the tracker answers otherwise (flight
+    /// following, or a landing intent). Any controller transmission to the aircraft answers it; unanswered, the pilot
+    /// re-calls once, "(facility), (callsign), how do you hear me?" (AIM 4-2-3.a.3: keep the next contact short;
+    /// Pilot/Controller Glossary "HOW DO YOU HEAR ME?"), and then waits.
+    /// </summary>
+    InitialContact,
 }
 
 /// <summary>

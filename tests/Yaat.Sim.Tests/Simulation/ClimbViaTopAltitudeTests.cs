@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -28,6 +29,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class ClimbViaTopAltitudeTests
 {
+    /// <summary>An airport lookup that places nothing: these check-ins never ask about a Class B destination.</summary>
+    private static LatLon? NoAirports(string _) => null;
+
     private const double LevelToleranceFt = 50.0;
     private const double WindowCeilingFt = 2000.0;
 
@@ -684,7 +688,9 @@ public class ClimbViaTopAltitudeTests
         Assert.NotNull(ac.Procedure.ClimbViaTargetFt);
         Assert.True(ac.Altitude < Cndel5ViaTopFt, $"setup: the check-in must come before the top, at {ac.Altitude:F0}");
 
-        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition, AirspaceDatabase.Default, NoAirports)
+        );
         _output.WriteLine(line.Terminal);
 
         string sidId = Assert.IsType<string>(ac.Procedure.ActiveSidId);
@@ -788,7 +794,9 @@ public class ClimbViaTopAltitudeTests
         DispatchLine(ac, "CM 080", ctx);
         DispatchLine(ac, command, ctx);
 
-        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition, AirspaceDatabase.Default, NoAirports)
+        );
         _output.WriteLine(line.Terminal);
 
         (string procTerm, string procTts) = PhraseologyVerbalizer.ProcedureName(sidId);
@@ -811,7 +819,9 @@ public class ClimbViaTopAltitudeTests
         Assert.True(ac.Procedure.SidViaMode, "setup: a SID departure flies its SID in via mode");
         Assert.Null(ac.Procedure.ClimbViaTargetFt);
 
-        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition, AirspaceDatabase.Default, NoAirports)
+        );
         _output.WriteLine(line.Terminal);
 
         Assert.Contains($"climbing to {PhraseologyVerbalizer.CompactAltitude(5000)}", line.Terminal);
@@ -840,7 +850,9 @@ public class ClimbViaTopAltitudeTests
         // 200 ft the check-in treats as level.
         ac.Targets.TargetAltitude = ac.Altitude + 100;
 
-        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition));
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), KoakPosition, AirspaceDatabase.Default, NoAirports)
+        );
         _output.WriteLine($"{ac.Altitude:F0} ft, target {ac.Targets.TargetAltitude:F0}: {line.Terminal}");
 
         Assert.Contains($"climbing to {PhraseologyVerbalizer.CompactAltitude(5000)}", line.Terminal);

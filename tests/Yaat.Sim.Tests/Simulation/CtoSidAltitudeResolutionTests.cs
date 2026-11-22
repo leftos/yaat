@@ -4,6 +4,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -23,6 +24,9 @@ namespace Yaat.Sim.Tests.Simulation;
 /// </summary>
 public class CtoSidAltitudeResolutionTests
 {
+    /// <summary>An airport lookup that places nothing: these check-ins never ask about a Class B destination.</summary>
+    private static LatLon? NoAirports(string _) => null;
+
     private const string ZhuRecordingPath = "TestData/issue187-star-dvia-recording.yaat-bug-report-bundle.zip";
     private const double LevelToleranceFt = 50.0;
 
@@ -110,7 +114,9 @@ public class CtoSidAltitudeResolutionTests
 
         PhaseContext phaseCtx = Airborne(ac);
         Fly(ac, phaseCtx, 30);
-        PilotSpeechText line = Assert.IsType<PilotSpeechText>(PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), ac.Position));
+        PilotSpeechText line = Assert.IsType<PilotSpeechText>(
+            PilotResponder.BuildAirborneCheckIn(ac, CheckInScenario(), ac.Position, AirspaceDatabase.Default, NoAirports)
+        );
         _output.WriteLine($"{ac.Altitude:F0} ft: {line.Terminal}");
         Assert.Contains($"for {PhraseologyVerbalizer.CompactAltitude(4000)}, climbing via the", line.Terminal);
 
