@@ -20,6 +20,9 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     private const string Zny = "ZNY";
     private const int Seed = 7;
 
+    // Every wait's backstop: it fires only on a hang, so it is minutes, far past any load delay (load-proof-tests).
+    private static readonly TimeSpan HangGuard = TimeSpan.FromMinutes(5);
+
     private static readonly DateTimeOffset Now = new(2026, 11, 21, 12, 0, 0, TimeSpan.Zero);
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "yaat-scenario-browser-tests", Guid.NewGuid().ToString("N"));
@@ -154,11 +157,15 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
         Task staleRun = vm.ResyncTask;
         Assert.Equal(["ZOA1"], vm.ServerRows.Select(r => r.Id));
 
+        // The download starts on a pool thread: switch only once the ZOA call is in flight, or the switch's cancel
+        // stops it before it is made.
+        Task zoaStarted = _downloads.Started(Zoa);
+        await WaitUntil(() => zoaStarted.IsCompleted);
         vm.SelectedArtcc = Zny;
         await _ui.Run(vm.ArtccSwitch);
         await _ui.Run(vm.ResyncTask);
 
-        Assert.True(_downloads.Calls[0].Ct.IsCancellationRequested);
+        Assert.True(_downloads.Calls.Single(c => c.Artcc == Zoa).Ct.IsCancellationRequested);
         zoaRun.SetResult(Online(Zoa) with { Downloaded = ["ZOA2"], Failed = [new DownloadFailure("ZOA3", "Stale", "timeout")] });
         await _ui.Run(staleRun);
 
@@ -811,10 +818,11 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
 
     private static async Task WaitUntil(Func<bool> condition)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
+        // A hang guard: a passing run never waits it out, so it is sized by the hang it rules out.
+        DateTime deadline = DateTime.UtcNow + HangGuard;
         while (!condition())
         {
-            Assert.True(DateTime.UtcNow < deadline, "The condition did not hold within 10 s.");
+            Assert.True(DateTime.UtcNow < deadline, "Hung: the condition never held.");
             await Task.Delay(10);
         }
     }
@@ -889,8 +897,12 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     private sealed class StubDownloads
     {
         private readonly ConcurrentQueue<(string Artcc, CancellationToken Ct)> _calls = new();
+        private readonly ConcurrentDictionary<string, TaskCompletionSource> _started = new(StringComparer.Ordinal);
 
         public (string Artcc, CancellationToken Ct)[] Calls => [.. _calls];
+
+        // Completes once a download for the ARTCC has been entered.
+        public Task Started(string artcc) => StartedSource(artcc).Task;
 
         public Func<string, Task<DownloadReport>> Next { get; set; } = artcc => Task.FromResult(Online(artcc));
 
@@ -899,9 +911,13 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
         public Task<DownloadReport> Download(string artcc, IProgress<DownloadProgress> progress, CancellationToken ct)
         {
             _calls.Enqueue((artcc, ct));
+            StartedSource(artcc).TrySetResult();
             Report?.Invoke(progress);
             return Next(artcc);
         }
+
+        private TaskCompletionSource StartedSource(string artcc) =>
+            _started.GetOrAdd(artcc, _ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
     }
 
     private sealed class FakePrompts : IScenarioBrowserPrompts
@@ -946,7 +962,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     // The UI thread as a queue: each test runs the posted actions when, and in the order, it chooses.
     private sealed class QueuedPost : IDisposable
     {
-        private static readonly TimeSpan Limit = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan Limit = HangGuard;
 
         private readonly Lock _gate = new();
         private readonly List<Action> _pending = [];
@@ -1005,7 +1021,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
                     break;
                 }
 
-                Assert.True(DateTime.UtcNow < deadline, "The task did not complete within 10 s.");
+                Assert.True(DateTime.UtcNow < deadline, "Hung: the task never completed.");
                 await Task.WhenAny(task, _posted.WaitAsync(50));
             }
 
@@ -1018,7 +1034,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             DateTime deadline = DateTime.UtcNow + Limit;
             while (Count < count)
             {
-                Assert.True(DateTime.UtcNow < deadline, $"{count} posted actions did not arrive within 10 s.");
+                Assert.True(DateTime.UtcNow < deadline, $"Hung: {count} posted actions never arrived.");
                 await _posted.WaitAsync(50);
             }
         }
