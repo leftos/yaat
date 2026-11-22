@@ -17,6 +17,45 @@ namespace Yaat.Sim.Phases;
 /// </summary>
 public sealed record DeferredPatternAltitude(double? AltitudeFt);
 
+/// <summary>How a phase held behind a boundary hold (<see cref="PhaseList.HeldPhase"/>) carries on when the hold ends.</summary>
+public enum HoldResumeKind
+{
+    /// <summary>The held phase becomes current again and goes on ticking from its own state, with no second <c>OnStart</c>.</summary>
+    InPlace,
+
+    /// <summary>The held phase ends Completed and a copy of it takes its place, started once.</summary>
+    RestartCopy,
+}
+
+/// <summary>
+/// The end of a boundary hold standing in front of a held phase (<see cref="PhaseList.EndHold"/>): resume the held phase in
+/// place, or replace it with <see cref="Copy"/>.
+/// </summary>
+public sealed record HoldResume
+{
+    private HoldResume(HoldResumeKind kind, Phase? copy)
+    {
+        Kind = kind;
+        Copy = copy;
+    }
+
+    /// <summary>Whether the held phase resumes where it stood or is replaced by <see cref="Copy"/>.</summary>
+    public HoldResumeKind Kind { get; }
+
+    /// <summary>The phase that replaces the held one; null for <see cref="HoldResumeKind.InPlace"/>, never null otherwise.</summary>
+    public Phase? Copy { get; }
+
+    /// <summary>Resume the held phase where it stood.</summary>
+    public static HoldResume InPlace { get; } = new(HoldResumeKind.InPlace, null);
+
+    /// <summary>End the held phase Completed and put <paramref name="copy"/>, not yet started, in its place.</summary>
+    public static HoldResume RestartWith(Phase copy)
+    {
+        ArgumentNullException.ThrowIfNull(copy);
+        return new(HoldResumeKind.RestartCopy, copy);
+    }
+}
+
 /// <summary>
 /// LAHSO hold-short point data: the location where the aircraft must stop
 /// before the intersecting runway, and the ID of that runway.
@@ -386,6 +425,25 @@ public sealed class PhaseList
     public bool IsComplete => CurrentIndex >= Phases.Count;
 
     /// <summary>
+    /// The phase a boundary hold stands in front of: the phase directly behind the current one when the current phase is an
+    /// <see cref="AirspaceBoundaryHoldPhase"/> and that phase is still Active (<see cref="InsertHoldInFront"/>). It is not
+    /// ticked while held. Null when no hold stands or the phase behind it has not started. Derived from the list alone, so a
+    /// snapshot round-trip keeps it.
+    /// </summary>
+    public Phase? HeldPhase =>
+        (CurrentPhase is AirspaceBoundaryHoldPhase)
+        && (CurrentIndex + 1 < Phases.Count)
+        && (Phases[CurrentIndex + 1] is { Status: PhaseStatus.Active } held)
+            ? held
+            : null;
+
+    /// <summary>
+    /// The phase the aircraft is flying for anyone asking what it is doing: <see cref="HeldPhase"/> while a boundary hold stands
+    /// in front of one, else <see cref="CurrentPhase"/>. Read-only; the phase that ticks is always <see cref="CurrentPhase"/>.
+    /// </summary>
+    public Phase? EffectivePhase => HeldPhase ?? CurrentPhase;
+
+    /// <summary>
     /// True when the aircraft is established on an approach procedure that is descending it
     /// (or will descend it) below the MVA — on final/glideslope, or cleared for a full
     /// approach (CAPP/JAPP/PTAC) and flying the procedure. A lateral-only localizer join
@@ -450,6 +508,107 @@ public sealed class PhaseList
         }
     }
 
+    /// <summary>
+    /// Puts an Orbit-mode <paramref name="hold"/> in front of the running phase: the hold goes in at <see cref="CurrentIndex"/>,
+    /// Pending, and is started on the next tick by the pending-start path; the running phase moves one place back and stays
+    /// Active as <see cref="HeldPhase"/>, neither ticked nor ended. Throws <see cref="InvalidOperationException"/> unless the
+    /// hold is in Orbit mode and Pending, the current phase is Active and no hold stands.
+    /// </summary>
+    public void InsertHoldInFront(AirspaceBoundaryHoldPhase hold)
+    {
+        if (hold.Mode != AirspaceHoldMode.Orbit)
+        {
+            throw new InvalidOperationException("Only an Orbit-mode boundary hold goes in front of a running phase");
+        }
+
+        if (hold.Status != PhaseStatus.Pending)
+        {
+            throw new InvalidOperationException($"A boundary hold goes in front of a running phase Pending, not {hold.Status}");
+        }
+
+        if (CurrentPhase is not { Status: PhaseStatus.Active } running)
+        {
+            throw new InvalidOperationException("A boundary hold goes in front of an Active current phase only");
+        }
+
+        if (running is AirspaceBoundaryHoldPhase)
+        {
+            throw new InvalidOperationException("A boundary hold already stands: a hold never holds a hold");
+        }
+
+        Phases.Insert(CurrentIndex, hold);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[PhaseList] {Hold} inserted in front of {Held} at index {Index}", hold.Name, running.Name, CurrentIndex);
+        }
+    }
+
+    /// <summary>
+    /// Ends the boundary hold standing in front of <see cref="HeldPhase"/>: a started hold ends Completed, a hold that never
+    /// started (still Pending) is taken out of the list with no <c>OnStart</c> and no <c>OnEnd</c>; either way the held phase
+    /// becomes current. <see cref="HoldResumeKind.InPlace"/> leaves it Active with no second <c>OnStart</c>;
+    /// <see cref="HoldResumeKind.RestartCopy"/> ends it Completed and puts <see cref="HoldResume.Copy"/> in its place, Pending,
+    /// for the pending-start path to start. Never <see cref="AdvanceToNext"/>, which would start the held phase again. Throws
+    /// <see cref="InvalidOperationException"/> when no phase is held, or when the copy is the held phase itself or not Pending;
+    /// nothing changes then.
+    /// </summary>
+    public void EndHold(PhaseContext ctx, HoldResume resume)
+    {
+        if ((HeldPhase is not { } held) || (CurrentPhase is not { } hold))
+        {
+            throw new InvalidOperationException("No boundary hold stands in front of a held phase");
+        }
+
+        Phase? copy = (resume.Kind == HoldResumeKind.RestartCopy) ? ValidRestartCopy(resume, held) : null;
+        EndOrDropHold(ctx, hold);
+
+        if (copy is not null)
+        {
+            held.Status = PhaseStatus.Completed;
+            held.OnEnd(ctx, PhaseStatus.Completed);
+            Phases[CurrentIndex] = copy;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[PhaseList] {Hold} ended, {Held} resumes {Kind}", hold.Name, held.Name, resume.Kind);
+        }
+    }
+
+    private static Phase ValidRestartCopy(HoldResume resume, Phase held)
+    {
+        // HoldResume.RestartWith refuses a null copy.
+        Phase copy = resume.Copy!;
+        if (ReferenceEquals(copy, held))
+        {
+            throw new InvalidOperationException("A restart copy must be a new phase, not the held phase itself");
+        }
+
+        if (copy.Status != PhaseStatus.Pending)
+        {
+            throw new InvalidOperationException($"A restart copy goes in Pending, not {copy.Status}");
+        }
+
+        return copy;
+    }
+
+    /// <summary>
+    /// A started hold ends Completed and the index moves onto the held phase; a hold that never started leaves the list, which
+    /// brings the held phase to the current index, and gets no <c>OnEnd</c> (it had no <c>OnStart</c>).
+    /// </summary>
+    private void EndOrDropHold(PhaseContext ctx, Phase hold)
+    {
+        if (hold.Status == PhaseStatus.Pending)
+        {
+            Phases.RemoveAt(CurrentIndex);
+            return;
+        }
+
+        hold.Status = PhaseStatus.Completed;
+        hold.OnEnd(ctx, PhaseStatus.Completed);
+        CurrentIndex++;
+    }
+
     public void InsertAfterCurrent(Phase phase)
     {
         int insertAt = CurrentIndex + 1;
@@ -511,7 +670,9 @@ public sealed class PhaseList
     }
 
     /// <summary>
-    /// End the active phase with Skipped status and mark list complete.
+    /// End the active phase with Skipped status and mark list complete. A phase held behind a boundary hold
+    /// (<see cref="HeldPhase"/>) is Active too, so it also ends Skipped, after the hold; the pending phases are marked Skipped
+    /// without an <c>OnEnd</c>, as they never started.
     /// </summary>
     public void Clear(PhaseContext ctx)
     {
@@ -524,7 +685,13 @@ public sealed class PhaseList
         // Skip all remaining phases
         for (int i = CurrentIndex + 1; i < Phases.Count; i++)
         {
-            Phases[i].Status = PhaseStatus.Skipped;
+            Phase phase = Phases[i];
+            bool started = phase.Status == PhaseStatus.Active;
+            phase.Status = PhaseStatus.Skipped;
+            if (started)
+            {
+                phase.OnEnd(ctx, PhaseStatus.Skipped);
+            }
         }
 
         CurrentIndex = Phases.Count;

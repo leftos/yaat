@@ -162,6 +162,17 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 | `ForceLanding` | CLANDF; cleared by a go-around, `CLC`, or `LandingPhase.OnEnd` on the ground | `FinalApproachPhase`, `LandingPhase` (forced descent and forced rollout) |
 | `ForcedRollout` | `LandingPhase.OnEnd` when a forced landing completes on the ground (not under LAHSO); cleared by any successful tower/ground command on the ground and by `RunwayExitPhase.OnEnd` | `RunwayExitPhase` backstop (backtrack to the exit behind) |
 
+### A boundary hold in front of a running phase
+
+`PhaseList.InsertHoldInFront` puts an Orbit-mode `AirspaceBoundaryHoldPhase` at the current index, Pending, and leaves the running phase directly behind it still Active: the **held phase**. It is not ticked and gets no `OnEnd` while held. `PhaseList.HeldPhase` reads it from the list's order and statuses alone, so a snapshot round-trip keeps the pair with no extra field, and `PhaseList.EffectivePhase` is the held phase when there is one, else the current phase.
+
+`PhaseRunner.EndHold` ends the hold with a `HoldResume`:
+
+- `InPlace` moves the current index onto the held phase without calling its `OnStart` again, so it ticks on from its own state.
+- `RestartWith(copy)` ends the held phase `Completed` once and starts the Pending copy in its place.
+
+A hold that never started is removed with neither `OnStart` nor `OnEnd`. At most one hold and one held phase stand at a time. Design: [plans/class-b-in-phase-hold.md](plans/class-b-in-phase-hold.md).
+
 ## Command interaction — `CommandDispatcher.cs`
 
 When a command lands on an in-phase aircraft:
@@ -185,7 +196,7 @@ A change of runway names no takeoff or line-up clearance when no departure clear
 
 `DepartureClearanceHandler.TryCancelTakeoff` re-arms the hold-shorts the stored `CTO` pre-cleared and judges the first one ahead with `TaxiingPhase.IsHoldShortUnmakeable`, as the dispatcher judges an `HS` armed under a moving aircraft. A bar it can stop for keeps the plain "Takeoff clearance cancelled, hold short" readback. An unmakeable bar is flagged `Unable`, the pilot answers "Takeoff clearance cancelled, unable to hold short of runway 28R, stopping", and the taxi brakes at the firm `ExpediteExitDecelRate` with no speed cap at the bar. The aircraft rests just past the hold line, the usual "holding position on E, not clear of runway 28R" report follows, and `TaxiingPhase.MarkCancelledTakeoffUnable` gives the instructor one amber warning: "{callsign} could not stop short of runway {rwy} after its takeoff clearance was cancelled: nose {d} ft past the hold line[, on the runway] (cancelled {c} ft out, needed {s} ft)". Nothing is scored. A `CTO` or `LUAW` re-clear while it brakes drops the pending warning.
 
-`Phases.Clear()` marks the active phase `Skipped`, all pending phases `Skipped`, calls each `OnEnd(ctx, Skipped)`, sets `aircraft.Phases = null`, clears `TurnRateOverride` and `PreferredTurnDirection` (so a torn-down turn phase can't bias the next lateral target — e.g. `L360` then `DCT`), and emits a phase-cancellation summary via `PhaseClearSummary`.
+`Phases.Clear()` marks the active phase `Skipped`, all pending phases `Skipped`, calls `OnEnd(ctx, Skipped)` on each phase that was Active (the current one, and a held phase behind a boundary hold, below), sets `aircraft.Phases = null`, clears `TurnRateOverride` and `PreferredTurnDirection` (so a torn-down turn phase can't bias the next lateral target — e.g. `L360` then `DCT`), and emits a phase-cancellation summary via `PhaseClearSummary`.
 
 Turn phases (`MakeTurnPhase`, `InitialClimbPhase`) also null `PreferredTurnDirection` in their own `OnEnd`, covering natural completion as well as force-clear.
 

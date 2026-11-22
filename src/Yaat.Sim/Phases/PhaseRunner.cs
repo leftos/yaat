@@ -65,6 +65,18 @@ public static class PhaseRunner
     }
 
     /// <summary>
+    /// Ends the boundary hold standing in front of the aircraft's held phase (<see cref="PhaseList.EndHold"/>), starts a restart
+    /// copy that took the held phase's place, and offers queued blocks to the phase now current, as an advance does.
+    /// </summary>
+    public static void EndHold(AircraftState aircraft, PhaseContext ctx, HoldResume resume)
+    {
+        PhaseList phases = aircraft.Phases ?? throw new InvalidOperationException("The aircraft has no phase list to end a hold in");
+        phases.EndHold(ctx, resume);
+        StartPendingPhase(ctx, phases);
+        FlightPhysics.NotifyPhaseAdvanced(aircraft);
+    }
+
+    /// <summary>
     /// A runway exit that stopped at a LAHSO point holds there before the exit chain's next phase starts: that phase would otherwise
     /// make its own call ("clear of the runway") for an aircraft still on it.
     /// </summary>
