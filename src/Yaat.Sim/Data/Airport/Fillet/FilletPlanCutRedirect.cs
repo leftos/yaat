@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Yaat.Sim.Data.Airport.Fillet;
 
 /// <summary>Union-find survivor map for <see cref="TangentMergeOp"/>; rewrites cut-id references across the plan.</summary>
@@ -21,7 +23,8 @@ internal static class FilletPlanCutRedirect
 
     /// <summary>
     /// After tangent merges, redirect each surviving cut that lands on a pre-fillet stable intersection to that node id
-    /// so the executor does not materialize a duplicate tangent.
+    /// so the executor does not materialize a duplicate tangent. A pinned cut (<see cref="ResolvedArmCut.Pinned"/>) is never
+    /// redirected.
     /// Returns the set of pre-existing node IDs that were actually used as redirect targets.
     /// The caller must pass this set to the executor so it can resolve these IDs via layout.Nodes
     /// rather than via the cut-node map.
@@ -39,6 +42,12 @@ internal static class FilletPlanCutRedirect
         {
             // Skip cuts that are already redirected away (they're merged into another cut).
             if (redirect.TryGetValue(cutId, out FilletEndpoint? existing) && (existing is FilletEndpoint.Cut c) && (c.Id != cutId))
+            {
+                continue;
+            }
+
+            // A pinned cut is a fixed point: it is never moved onto a stable node, however near.
+            if (cut.Pinned)
             {
                 continue;
             }
@@ -91,7 +100,9 @@ internal static class FilletPlanCutRedirect
     /// Each entry maps a child CutId to its surviving <see cref="FilletEndpoint.Cut"/> root.
     /// <see cref="ExtendWithStableAnchors"/> may later overwrite entries with <see cref="FilletEndpoint.Node"/>.
     /// </summary>
-    public static Dictionary<CutId, FilletEndpoint> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges)
+    /// <param name="merges">The planned tangent merges.</param>
+    /// <param name="pinned">The pinned cuts, which survive every unpinned cut they merge with; empty for a plain union-find.</param>
+    public static Dictionary<CutId, FilletEndpoint> BuildSurvivorMap(IReadOnlyList<TangentMergeOp> merges, IReadOnlySet<CutId> pinned)
     {
         var parent = new Dictionary<CutId, CutId>();
 
@@ -115,9 +126,23 @@ internal static class FilletPlanCutRedirect
         {
             CutId ra = Find(a);
             CutId rb = Find(b);
-            // Pick the lower integer value as survivor to match original Math.Min(ra, rb) semantics.
-            CutId survivor = ra.Value <= rb.Value ? ra : rb;
-            CutId child = ra.Value <= rb.Value ? rb : ra;
+            if (ra == rb)
+            {
+                return;
+            }
+
+            // A pinned root survives an unpinned one; otherwise pick the lower integer value as survivor to match original
+            // Math.Min(ra, rb) semantics. Two pinned roots never meet: FilletPlanBuilder refuses such a group's pins first.
+            bool raPinned = pinned.Contains(ra);
+            bool rbPinned = pinned.Contains(rb);
+            if (raPinned && rbPinned)
+            {
+                throw new UnreachableException("two pinned cuts in one merge group");
+            }
+
+            bool raSurvives = (raPinned != rbPinned) ? raPinned : (ra.Value <= rb.Value);
+            CutId survivor = raSurvives ? ra : rb;
+            CutId child = raSurvives ? rb : ra;
             parent[child] = survivor;
         }
 

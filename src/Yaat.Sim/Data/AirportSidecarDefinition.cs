@@ -413,8 +413,8 @@ public sealed class CornerFilletEntry
     public List<double>? Bearings { get; set; }
 
     /// <summary>
-    /// True to remove the corner's fillet; not allowed with <see cref="RadiusFt"/>, <see cref="Force"/> or
-    /// <see cref="TangentFt"/>.
+    /// True to remove the corner's fillet. It wins over <see cref="RadiusFt"/>, <see cref="Force"/> and
+    /// <see cref="TangentFt"/> on the same entry: the entry loads as a suppress, with a warning naming the edits ignored.
     /// </summary>
     [JsonPropertyName("suppress")]
     public bool? Suppress { get; set; }

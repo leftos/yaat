@@ -15,7 +15,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 
     /// <summary>
     /// Fillets every eligible corner of <paramref name="layout"/>, applying each of <paramref name="overrides"/> that matches
-    /// one pre-fillet corner (suppress, radius and force; pinned tangents are not applied), and reports each corner's
+    /// one pre-fillet corner (suppress, radius, force and pinned tangents), and reports each corner's
     /// outcome and each override's match and effect (<see cref="FilletStatistics.Report"/>).
     /// </summary>
     public FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides)
@@ -26,16 +26,13 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 
         layout.RebuildAdjacencyLists();
         IReadOnlyList<ResolvedOverride> resolved = FilletOverrideResolver.ResolveCorners(layout, manualArcNodes, overrides);
-        (PlannedPass pass, Dictionary<ResolvedCorner, ForceRefusal> rejected) = PlanHonouringForces(
-            layout,
-            manualArcNodes,
-            FilletCornerEdits.From(resolved),
-            maxNodeId
-        );
+        HonouredPass honoured = PlanHonouringEdits(layout, manualArcNodes, FilletCornerEdits.From(resolved), maxNodeId);
+        PlannedPass pass = honoured.Pass;
 
         FilletPlan plan = pass.Plan;
         FilletPlanExecutor.ExecuteResult exec = FilletPlanExecutor.Execute(layout, plan, pass.Junctions, idCounter, pass.Report);
         int structuralCleanups = FilletGraphNormalizer.Normalize(layout);
+        ReportDroppedPinnedArcs(layout, exec, pass.Report);
 
         var stats = new FilletStatistics(
             FilletedNodes: exec.FilletedNodes,
@@ -50,7 +47,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         )
         {
             Warnings = plan.Warnings,
-            Report = pass.Report.Build(plan.Warnings, [.. resolved.Select(r => WithEffect(r, pass.Report, rejected))]),
+            Report = pass.Report.Build(plan.Warnings, [.. resolved.Select(r => WithEffect(r, pass.Report, honoured))]),
         };
 
         if (Log.IsEnabled(LogLevel.Information))
@@ -68,57 +65,147 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         return stats;
     }
 
+    /// <summary>Reports each pinned corner's arc the normalizer removed (its sampled radius under the floor), so none goes silently.</summary>
+    private static void ReportDroppedPinnedArcs(AirportGroundLayout layout, FilletPlanExecutor.ExecuteResult exec, FilletReportCollector report)
+    {
+        var kept = layout.Arcs.ToHashSet();
+        foreach ((int junctionNodeId, int cornerId, GroundArc arc) in exec.PinnedArcs.Where(p => !kept.Contains(p.Arc)))
+        {
+            report.PinnedArcDropped(junctionNodeId, cornerId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Pinned corner J{Junction}/{Corner}: the normalizer dropped its arc", junctionNodeId, cornerId);
+            }
+        }
+    }
+
     /// <summary>One planned pass: the plan, the junctions it fillets and the report of what it decided.</summary>
     private sealed record PlannedPass(FilletPlan Plan, List<JunctionPlan> Junctions, FilletReportCollector Report);
 
+    /// <summary>The pass the generator builds, with the forces and the pins it refused on the way.</summary>
+    private sealed record HonouredPass(
+        PlannedPass Pass,
+        Dictionary<ResolvedCorner, ForceRefusal> RejectedForces,
+        Dictionary<ResolvedCorner, PinRefusal> RejectedPins
+    );
+
     /// <summary>
-    /// Plans the pass with <paramref name="edits"/>. A forced corner the plan refuses (<see cref="ForcedCornerCheck.Refusal"/>:
-    /// a check force never bypasses, or an arc too tight to steer) is rejected, with the reason, and the pass is planned
-    /// again without its force, so a rejected force leaves the layout as the unforced pass builds it. Each round withdraws at
-    /// least one force, so the loop ends. A refused force is not retried: one refused only because another forced corner
-    /// was planned stays refused after that other force is withdrawn too.
+    /// Plans the pass with <paramref name="edits"/>. A pin the plan itself refuses (the planner's bounds and node checks, and
+    /// the plan's <see cref="FilletSkipReason.PinOverlapsNeighbour"/> and <see cref="FilletSkipReason.PinConflict"/>) is
+    /// rejected first and the pass planned again without it, so forces are judged only on a plan with no such refusal. A
+    /// forced corner the plan refuses (<see cref="ForcedCornerCheck.Refusal"/>: a check force never bypasses, or an arc too
+    /// tight to steer) is then rejected, with the reason, and the pass is planned again without its force, so a rejected
+    /// force leaves the layout as the unforced pass builds it. Once every force left stands, a pinned corner whose built arc
+    /// the plan refuses (<see cref="PinnedCornerCheck.Refusal"/>) is rejected the same way and the pass planned again without
+    /// its pins. Each round withdraws at least one force or pin, so the loop ends. A refused force or pin is not retried.
     /// </summary>
-    private static (PlannedPass Pass, Dictionary<ResolvedCorner, ForceRefusal> Rejected) PlanHonouringForces(
-        AirportGroundLayout layout,
-        HashSet<int> manualArcNodes,
-        FilletCornerEdits edits,
-        int maxNodeId
-    )
+    private static HonouredPass PlanHonouringEdits(AirportGroundLayout layout, HashSet<int> manualArcNodes, FilletCornerEdits edits, int maxNodeId)
     {
-        var rejected = new Dictionary<ResolvedCorner, ForceRefusal>();
+        var rejectedForces = new Dictionary<ResolvedCorner, ForceRefusal>();
+        var rejectedPins = new Dictionary<ResolvedCorner, PinRefusal>();
         while (true)
         {
             PlannedPass pass = PlanPass(layout, manualArcNodes, edits, maxNodeId);
-            List<(ResolvedCorner Corner, ForceRefusal Refusal)> refused = [];
-            foreach (ResolvedCorner corner in edits.ForcedCorners)
+            Dictionary<ResolvedCorner, PinRefusal> planned = PlanTimePinRefusals(edits, pass.Report);
+            if (planned.Count > 0)
             {
-                if (ForcedCornerCheck.Refusal(layout, pass.Plan, pass.Junctions, pass.Report, corner) is { } refusal)
-                {
-                    refused.Add((corner, refusal));
-                }
+                Record(planned, rejectedPins, "Pinned corner", r => r.Reason);
+                edits = edits.WithoutPins(planned.Keys);
+                continue;
             }
 
-            if (refused.Count == 0)
+            Dictionary<ResolvedCorner, ForceRefusal> forces = ForceRefusals(layout, pass, edits);
+            if (forces.Count > 0)
             {
-                return (pass, rejected);
+                Record(forces, rejectedForces, "Forced corner", r => r.Reason);
+                edits = edits.WithoutForce(forces.Keys);
+                continue;
             }
 
-            foreach ((ResolvedCorner corner, ForceRefusal refusal) in refused)
+            Dictionary<ResolvedCorner, PinRefusal> pins = BuiltPinRefusals(layout, pass, edits);
+            if (pins.Count == 0)
             {
-                rejected[corner] = refusal;
-                if (Log.IsEnabled(LogLevel.Debug))
-                {
-                    Log.LogDebug(
-                        "Forced corner J{Junction} arms {A}/{B} rejected: {Reason}",
-                        corner.JunctionNodeId,
-                        corner.ArmIdA,
-                        corner.ArmIdB,
-                        refusal.Reason
-                    );
-                }
+                return new HonouredPass(pass, rejectedForces, rejectedPins);
             }
 
-            edits = edits.WithoutForce([.. refused.Select(r => r.Corner)]);
+            Record(pins, rejectedPins, "Pinned corner", r => r.Reason);
+            edits = edits.WithoutPins(pins.Keys);
+        }
+    }
+
+    /// <summary>
+    /// The pins of <paramref name="edits"/> the plan itself refused: the planner's (<see cref="FilletReportCollector.PinRefusalOf"/>)
+    /// and a later stage's (<see cref="FilletReportCollector.PlanPinRefusalOf"/>), by corner.
+    /// </summary>
+    private static Dictionary<ResolvedCorner, PinRefusal> PlanTimePinRefusals(FilletCornerEdits edits, FilletReportCollector report)
+    {
+        var refused = new Dictionary<ResolvedCorner, PinRefusal>();
+        foreach (ResolvedCorner corner in edits.PinnedCorners)
+        {
+            if (report.PinRefusalOf(corner) is { } planner)
+            {
+                refused[corner] = planner;
+            }
+            else if (report.PlanPinRefusalOf(corner) is { } reason)
+            {
+                refused[corner] = new PinRefusal(reason, null, null);
+            }
+        }
+
+        return refused;
+    }
+
+    /// <summary>The forces of <paramref name="edits"/> the planned <paramref name="pass"/> refuses, by corner.</summary>
+    private static Dictionary<ResolvedCorner, ForceRefusal> ForceRefusals(AirportGroundLayout layout, PlannedPass pass, FilletCornerEdits edits)
+    {
+        var forces = new Dictionary<ResolvedCorner, ForceRefusal>();
+        foreach (ResolvedCorner corner in edits.ForcedCorners)
+        {
+            if (ForcedCornerCheck.Refusal(layout, pass.Plan, pass.Junctions, pass.Report, corner) is { } refusal)
+            {
+                forces[corner] = refusal;
+            }
+        }
+
+        return forces;
+    }
+
+    /// <summary>The pins of <paramref name="edits"/> whose arc, built as the planned <paramref name="pass"/> builds it, is refused.</summary>
+    private static Dictionary<ResolvedCorner, PinRefusal> BuiltPinRefusals(AirportGroundLayout layout, PlannedPass pass, FilletCornerEdits edits)
+    {
+        var pins = new Dictionary<ResolvedCorner, PinRefusal>();
+        foreach (ResolvedCorner corner in edits.PinnedCorners)
+        {
+            if (PinnedCornerCheck.Refusal(layout, pass.Plan, pass.Junctions, pass.Report, corner) is { } refusal)
+            {
+                pins[corner] = refusal;
+            }
+        }
+
+        return pins;
+    }
+
+    private static void Record<T>(
+        Dictionary<ResolvedCorner, T> refused,
+        Dictionary<ResolvedCorner, T> rejected,
+        string what,
+        Func<T, FilletSkipReason> reasonOf
+    )
+    {
+        foreach ((ResolvedCorner corner, T refusal) in refused)
+        {
+            rejected[corner] = refusal;
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{What} J{Junction} arms {A}/{B} rejected: {Reason}",
+                    what,
+                    corner.JunctionNodeId,
+                    corner.ArmIdA,
+                    corner.ArmIdB,
+                    reasonOf(refusal)
+                );
+            }
         }
     }
 
@@ -192,45 +279,98 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
     }
 
     /// <summary><paramref name="resolved"/>'s report row with what applying its override did; unmatched rows unchanged.</summary>
-    private static FilletOverrideReport WithEffect(
-        ResolvedOverride resolved,
-        FilletReportCollector report,
-        Dictionary<ResolvedCorner, ForceRefusal> rejected
-    )
+    private static FilletOverrideReport WithEffect(ResolvedOverride resolved, FilletReportCollector report, HonouredPass honoured)
     {
         if (resolved.Corner is not { } corner)
         {
             return resolved.Row;
         }
 
-        CornerFilletOverride edit = resolved.Row.Override;
+        PinRefusal? pinRefusal = report.PinRefusalOf(corner) ?? honoured.RejectedPins.GetValueOrDefault(corner);
+        FilletOverrideReport row = resolved.Row with { Warnings = IgnoredEditWarnings(resolved.Row.Override, pinRefusal) };
+        CornerFilletOverride edit = resolved.Row.Override.AsApplied();
         if (IsEditFree(edit))
         {
-            return resolved.Row with { Effect = FilletOverrideEffect.Applied };
+            return row with { Effect = FilletOverrideEffect.Applied };
         }
 
-        if (rejected.TryGetValue(corner, out ForceRefusal refusal))
+        if (honoured.RejectedForces.TryGetValue(corner, out ForceRefusal refusal))
         {
-            return Rejected(resolved.Row, refusal);
+            return Rejected(row, refusal);
         }
 
         if (!report.Visited(corner))
         {
-            return resolved.Row with { Effect = FilletOverrideEffect.NotReachable };
+            return row with { Effect = FilletOverrideEffect.NotReachable };
         }
 
-        if ((edit.Force) && (report.OutcomeOf(corner) != FilletCornerOutcome.Built))
+        return (EditRefusal(edit, report, corner, pinRefusal) is { } edited)
+            ? Rejected(row, edited)
+            : row with
+            {
+                Effect = FilletOverrideEffect.Applied,
+            };
+    }
+
+    /// <summary>
+    /// Why the pass refused an edit of a visited corner, or null when it applied them: a force that built no arc, a pin alone
+    /// on a pair the pass skips (with the pair's skip reason), or a refused pin.
+    /// </summary>
+    private static ForceRefusal? EditRefusal(CornerFilletOverride edit, FilletReportCollector report, ResolvedCorner corner, PinRefusal? pinRefusal)
+    {
+        if ((edit.Force ? UnbuiltForceReason(report, corner) : PinAloneSkip(edit, report, corner)) is { } reason)
         {
-            FilletSkipReason reason =
-                report.SkipOf(corner)
-                ?? throw new UnreachableException($"Forced corner at J{corner.JunctionNodeId} was built with no arc and no reason");
-            return Rejected(resolved.Row, new ForceRefusal(reason, null));
+            return new ForceRefusal(reason, null);
         }
 
-        return resolved.Row with
+        return (pinRefusal is null) ? null : new ForceRefusal(pinRefusal.Reason, pinRefusal.RadiusFt);
+    }
+
+    /// <summary>The skip reason of the pair when <paramref name="edit"/> only pins tangents and the pass planned no corner for it.</summary>
+    private static FilletSkipReason? PinAloneSkip(CornerFilletOverride edit, FilletReportCollector report, ResolvedCorner corner)
+    {
+        bool pinOnly = ((edit.TangentAFt is not null) || (edit.TangentBFt is not null)) && (edit.RadiusFt is null) && (!edit.Force);
+        return (pinOnly && (report.CornerIdOf(corner) is null)) ? report.SkipOf(corner) : null;
+    }
+
+    /// <summary>Why the forced corner got no arc, or null when it was built.</summary>
+    private static FilletSkipReason? UnbuiltForceReason(FilletReportCollector report, ResolvedCorner corner)
+    {
+        if (report.OutcomeOf(corner) == FilletCornerOutcome.Built)
         {
-            Effect = FilletOverrideEffect.Applied,
-        };
+            return null;
+        }
+
+        return report.SkipOf(corner)
+            ?? throw new UnreachableException($"Forced corner at J{corner.JunctionNodeId} was built with no arc and no reason");
+    }
+
+    /// <summary>
+    /// The edits of <paramref name="edit"/> the pass ignores, and what a refused pin hit: those a suppress wins over; the
+    /// detail of <paramref name="pinRefusal"/>; or the radius when the pin is honoured (both tangents pinned, or one pinned
+    /// and mirrored onto the other arm).
+    /// </summary>
+    private static IReadOnlyList<string> IgnoredEditWarnings(CornerFilletOverride edit, PinRefusal? pinRefusal)
+    {
+        if (edit.SuppressIgnoredEditsWarning() is { } suppressWins)
+        {
+            return [suppressWins];
+        }
+
+        if (pinRefusal is not null)
+        {
+            return (pinRefusal.Detail is { } detail) ? [detail] : [];
+        }
+
+        bool anyPinned = (edit.TangentAFt is not null) || (edit.TangentBFt is not null);
+        if ((edit.RadiusFt is null) || (!anyPinned))
+        {
+            return [];
+        }
+
+        return (edit.TangentAFt, edit.TangentBFt) is ({ }, { })
+            ? ["both tangents pinned: radiusFt ignored"]
+            : ["one tangent pinned and mirrored: radiusFt ignored"];
     }
 
     private static FilletOverrideReport Rejected(FilletOverrideReport row, ForceRefusal refusal) =>
@@ -241,6 +381,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
             RejectedRadiusFt = refusal.RadiusFt,
         };
 
-    /// <summary>True when <paramref name="edit"/> asks for none of suppress, radius or force (pinned tangents are not applied).</summary>
-    private static bool IsEditFree(CornerFilletOverride edit) => (!edit.Suppress) && (edit.RadiusFt is null) && (!edit.Force);
+    /// <summary>True when <paramref name="edit"/> asks for none of suppress, radius, force or pinned tangents.</summary>
+    private static bool IsEditFree(CornerFilletOverride edit) =>
+        (!edit.Suppress) && (edit.RadiusFt is null) && (!edit.Force) && (edit.TangentAFt is null) && (edit.TangentBFt is null);
 }

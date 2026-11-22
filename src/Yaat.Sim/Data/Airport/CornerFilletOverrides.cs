@@ -12,7 +12,10 @@ namespace Yaat.Sim.Data.Airport;
 /// <param name="TaxiwayB">The second arm's taxiway name, trimmed and upper-cased.</param>
 /// <param name="BearingA">The first arm's true bearing from the apex, degrees in [0, 360).</param>
 /// <param name="BearingB">The second arm's true bearing from the apex, degrees in [0, 360).</param>
-/// <param name="Suppress">True to remove the corner's fillet; never set together with a radius, force or tangents.</param>
+/// <param name="Suppress">
+/// True to remove the corner's fillet; it wins over a radius, force or tangents on the same entry, which the pass ignores
+/// (<see cref="SuppressIgnoredEditsWarning"/>).
+/// </param>
 /// <param name="RadiusFt">The radius the corner's fillet asks for, feet, or null for the generator's own.</param>
 /// <param name="Force">True to fillet the corner where the generator would skip it.</param>
 /// <param name="TangentAFt">The first arm's pinned tangent distance from the apex, feet, or null when not pinned.</param>
@@ -50,6 +53,44 @@ public sealed record CornerFilletOverride(
             SameArms(other.TaxiwayA, other.BearingA, other.TaxiwayB, other.BearingB)
             || SameArms(other.TaxiwayB, other.BearingB, other.TaxiwayA, other.BearingA)
         );
+
+    /// <summary>
+    /// The warning for a suppress that wins over the entry's other edits, naming each one it ignores, or null when the entry
+    /// does not suppress or has no other edit.
+    /// </summary>
+    /// <returns>The warning, e.g. "suppress wins: radiusFt and tangentFt ignored".</returns>
+    public string? SuppressIgnoredEditsWarning()
+    {
+        if (!Suppress)
+        {
+            return null;
+        }
+
+        List<string> ignored = [];
+        if (RadiusFt is not null)
+        {
+            ignored.Add("radiusFt");
+        }
+
+        if (Force)
+        {
+            ignored.Add("force");
+        }
+
+        if ((TangentAFt is not null) || (TangentBFt is not null))
+        {
+            ignored.Add("tangentFt");
+        }
+
+        return (ignored.Count == 0) ? null : $"suppress wins: {JoinNames(ignored)} ignored";
+    }
+
+    /// <summary>This entry as the fillet pass applies it: a suppress drops the entry's radius, force and pinned tangents.</summary>
+    /// <returns>The entry, its other edits cleared when it suppresses.</returns>
+    public CornerFilletOverride AsApplied() => Suppress ? (this with { RadiusFt = null, Force = false, TangentAFt = null, TangentBFt = null }) : this;
+
+    private static string JoinNames(List<string> names) =>
+        (names.Count == 1) ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
 
     private bool SameApex(CornerFilletOverride other) =>
         (Math.Abs(ApexLat - other.ApexLat) <= ApexToleranceDeg) && (Math.Abs(ApexLon - other.ApexLon) <= ApexToleranceDeg);

@@ -420,6 +420,11 @@ public static class AirportSidecarLoader
             }
 
             CornerFilletOverride corner = ToCornerFilletOverride(entry!);
+            if (corner.SuppressIgnoredEditsWarning() is { } ignored)
+            {
+                result.Warnings.Add($"{location}: {ignored}");
+            }
+
             int existing = overrides.FindIndex(o => o.HasSameKey(corner));
             if (existing >= 0)
             {
@@ -505,9 +510,11 @@ public static class AirportSidecarLoader
         return null;
     }
 
-    /// <summary>A radius or tangent that is not a positive finite number, or a suppress combined with another edit.</summary>
-    private static string? CornerFilletEditProblem(CornerFilletEntry entry) =>
-        RadiusProblem(entry.RadiusFt) ?? TangentProblem(entry.TangentFt) ?? SuppressProblem(entry);
+    /// <summary>
+    /// A radius or tangent that is not a positive finite number. A suppress combined with another edit is no problem: it loads,
+    /// with a warning naming the edits the suppress wins over (<see cref="CornerFilletOverride.SuppressIgnoredEditsWarning"/>).
+    /// </summary>
+    private static string? CornerFilletEditProblem(CornerFilletEntry entry) => RadiusProblem(entry.RadiusFt) ?? TangentProblem(entry.TangentFt);
 
     /// <summary>A radius that is not a positive finite number.</summary>
     private static string? RadiusProblem(double? radiusFt)
@@ -534,13 +541,6 @@ public static class AirportSidecarLoader
         }
 
         return PairProblem(tangentFt, "tangentFt", "[a, b]") ?? (tangentFt.Any(t => t <= 0.0) ? "tangentFt must be above 0" : null);
-    }
-
-    /// <summary>A suppress combined with a radius, a force or tangents.</summary>
-    private static string? SuppressProblem(CornerFilletEntry entry)
-    {
-        bool otherEdit = (entry.RadiusFt is not null) || (entry.Force == true) || (entry.TangentFt is not null);
-        return ((entry.Suppress == true) && otherEdit) ? "suppress cannot be combined with radiusFt, force or tangentFt" : null;
     }
 
     /// <summary>A validated override from an entry <see cref="CornerFilletEntryProblem"/> passed.</summary>

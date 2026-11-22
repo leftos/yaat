@@ -91,18 +91,6 @@ public class CornerFilletSidecarTests
         """{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "tangentFt": ["-Infinity", 40] }""",
         "tangentFt has a non-finite number"
     )]
-    [InlineData(
-        """{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "suppress": true, "radiusFt": 120 }""",
-        "suppress cannot be combined with radiusFt, force or tangentFt"
-    )]
-    [InlineData(
-        """{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "suppress": true, "force": true }""",
-        "suppress cannot be combined with radiusFt, force or tangentFt"
-    )]
-    [InlineData(
-        """{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "suppress": true, "tangentFt": [40, 50] }""",
-        "suppress cannot be combined with radiusFt, force or tangentFt"
-    )]
     [InlineData("""{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "radius": 120 }""", "has unknown key 'radius'")]
     public void InvalidEntry_IsDroppedWithAWarning_AndTheRestLoad(string badEntry, string problem)
     {
@@ -110,6 +98,28 @@ public class CornerFilletSidecarTests
 
         Assert.Equal([$"{filePath}: KMIA cornerFillets[0]: {problem}, skipping"], result.Warnings);
         Assert.Equal(40, Assert.Single(Assert.Single(result.Airports).CornerFillets).TangentAFt);
+    }
+
+    [Theory]
+    [InlineData(""" "radiusFt": 120 """, "radiusFt", 120.0, false, null)]
+    [InlineData(""" "force": true """, "force", null, true, null)]
+    [InlineData(""" "tangentFt": [40, 50] """, "tangentFt", null, false, 40.0)]
+    [InlineData(""" "radiusFt": 120, "force": true, "tangentFt": [40, 50] """, "radiusFt, force and tangentFt", 120.0, true, 40.0)]
+    public void SuppressWithAnotherEdit_LoadsAsASuppress_WarningTheIgnoredEdits(
+        string edits,
+        string ignored,
+        double? radiusFt,
+        bool force,
+        double? tangentAFt
+    )
+    {
+        (AirportSidecarLoadResult result, string filePath) = Load(
+            $$"""{ "apex": [-122.2, 37.7], "taxiways": ["A", "B"], "bearings": [10, 100], "suppress": true, {{edits}} }"""
+        );
+
+        Assert.Equal([$"{filePath}: KMIA cornerFillets[0]: suppress wins: {ignored} ignored"], result.Warnings);
+        CornerFilletOverride corner = Assert.Single(Assert.Single(result.Airports).CornerFillets);
+        Assert.Equal((true, radiusFt, force, tangentAFt), (corner.Suppress, corner.RadiusFt, corner.Force, corner.TangentAFt));
     }
 
     [Fact]

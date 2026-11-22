@@ -135,6 +135,47 @@ public enum FilletSkipReason
     /// junction's cuts, so the force is refused.
     /// </summary>
     SharedArmClearGap,
+
+    /// <summary>
+    /// A pinned tangent distance is under <see cref="Fillet.CornerPlanner.MinPinnedTangentFt"/> from the apex, so the pin is
+    /// refused and the corner is built as if its override pinned nothing.
+    /// </summary>
+    PinTooClose,
+
+    /// <summary>
+    /// A pinned tangent distance reaches past <see cref="Fillet.CornerPlanner.PinnedTangentFarMarginFt"/> short of its arm's far
+    /// node, so the pin is refused and the corner is built as if its override pinned nothing.
+    /// </summary>
+    PinBeyondArm,
+
+    /// <summary>
+    /// Two pinned tangent cuts would merge into one: two corners pin tangent points on one arm within
+    /// <see cref="Fillet.FilletConstants.CoincidentNodeThresholdFt"/> of each other, or two pinned cuts (of one corner's two
+    /// arms, of one arm, or of two junctions) lie within that distance in a straight line. Both pins are refused and both
+    /// corners are built as if their overrides pinned nothing.
+    /// </summary>
+    PinConflict,
+
+    /// <summary>
+    /// A pinned tangent distance reaches past <see cref="Fillet.CornerPlanner.PinnedTangentFarMarginFt"/> short of the first
+    /// node along its arm that another taxiway joins, so the arc would cross that taxiway with no node: the pin is refused
+    /// and the corner is built as if its override pinned nothing.
+    /// </summary>
+    PinPastIntersection,
+
+    /// <summary>
+    /// A pinned tangent cut reaches more than <see cref="Fillet.FilletConstants.CoincidentNodeThresholdFt"/> past the
+    /// neighbouring junction's cut on their shared arm, which would fold the straight between them back on itself: the pin
+    /// is refused and the corner is built as if its override pinned nothing.
+    /// </summary>
+    PinOverlapsNeighbour,
+
+    /// <summary>
+    /// A pinned tangent distance lies within <see cref="Pathfinding.GeometricAdmissibility.NoOpEdgeThresholdNm"/> (about
+    /// 1.2 ft) of an existing node on its arm, which would leave a zero-length edge: the pin is refused (never snapped onto
+    /// the node) and the corner is built as if its override pinned nothing.
+    /// </summary>
+    PinOnNode,
 }
 
 /// <summary>How one per-corner override matched the pre-fillet layout.</summary>
@@ -146,7 +187,8 @@ public enum FilletSkipReason
 /// What applying the override did, or null when <paramref name="Match"/> is not <see cref="FilletOverrideMatch.Matched"/>.
 /// </param>
 /// <param name="RejectedReason">
-/// Why the pass refused a forced corner, set only when <paramref name="Effect"/> is <see cref="FilletOverrideEffect.Rejected"/>.
+/// Why the pass refused a forced corner or a pinned tangent, set only when <paramref name="Effect"/> is
+/// <see cref="FilletOverrideEffect.Rejected"/>.
 /// </param>
 /// <param name="RejectedRadiusFt">
 /// The refused forced arc's tightest radius, feet, set only when <paramref name="RejectedReason"/> is
@@ -160,7 +202,14 @@ public sealed record FilletOverrideReport(
     FilletOverrideEffect? Effect,
     FilletSkipReason? RejectedReason,
     double? RejectedRadiusFt
-);
+)
+{
+    /// <summary>
+    /// The edits of the override the pass ignored, each as one sentence: a suppress wins over the entry's radius, force and
+    /// pinned tangents, and two pinned tangents win over its radius.
+    /// </summary>
+    public IReadOnlyList<string> Warnings { get; init; } = [];
+}
 
 /// <summary>What applying a matched per-corner override did to its corner.</summary>
 public enum FilletOverrideEffect
@@ -180,8 +229,9 @@ public enum FilletOverrideEffect
 
     /// <summary>
     /// The override forces the corner but a check force never bypasses still gives it no arc, or would give it one no
-    /// aircraft can steer (<see cref="FilletOverrideReport.RejectedReason"/>); the corner is planned as if the override did
-    /// not force it.
+    /// aircraft can steer, or it pins a tangent the pass refuses (<see cref="FilletOverrideReport.RejectedReason"/>). A refused
+    /// force plans the corner as if the override did not force it, and a refused pin as if it did not pin it: a refused pin
+    /// leaves any force in place.
     /// </summary>
     Rejected,
 }

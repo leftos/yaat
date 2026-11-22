@@ -11,6 +11,12 @@ public sealed record PlanWarning(int? JunctionNodeId, int? CornerId, string Code
 
     /// <summary>A forced through pair is filleted, so its junction loses the preserved node it has without the force.</summary>
     public const string ForcedCornerUnpreserves = "FORCED_CORNER_UNPRESERVES";
+
+    /// <summary>
+    /// A pinned tangent cut leaves less than <see cref="FilletConstants.MinSharedArmClearGapFt"/> of straight to the
+    /// neighbouring junction's cuts on a shared arm; the pin is honoured.
+    /// </summary>
+    public const string PinnedShortStraight = "PINNED_SHORT_STRAIGHT";
     public const string SubThresholdCutSkipped = "SUB_THRESHOLD_CUT_SKIPPED";
     public const string UnconsumedIncidentEdge = "UNCONSUMED_INCIDENT_EDGE";
     public const string UnconsumedReconnectSafetyNet = "UNCONSUMED_RECONNECT_SAFETY_NET";

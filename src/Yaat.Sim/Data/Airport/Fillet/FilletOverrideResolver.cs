@@ -161,7 +161,8 @@ internal static class FilletOverrideResolver
         (ArmMatches(entry.TaxiwayA, entry.BearingA, first) && ArmMatches(entry.TaxiwayB, entry.BearingB, second))
         || (ArmMatches(entry.TaxiwayA, entry.BearingA, second) && ArmMatches(entry.TaxiwayB, entry.BearingB, first));
 
-    private static bool ArmMatches(string taxiway, double bearingDeg, TaxiwayArm arm) =>
+    /// <summary>True when <paramref name="arm"/> carries <paramref name="taxiway"/> at a bearing within the match tolerance.</summary>
+    internal static bool ArmMatches(string taxiway, double bearingDeg, TaxiwayArm arm) =>
         string.Equals(taxiway.Trim(), arm.TaxiwayName.Trim(), StringComparison.OrdinalIgnoreCase)
         && (BearingDifferenceDeg(bearingDeg, arm.BearingFromJunctionDeg) <= ArmBearingToleranceDeg);
 
@@ -196,7 +197,10 @@ internal sealed class FilletCornerEdits
     public IReadOnlyList<ResolvedCorner> ForcedCorners =>
         [.. _byCorner.Where(kv => kv.Value.Force).Select(kv => kv.Key).OrderBy(c => c.JunctionNodeId).ThenBy(c => c.ArmIdA).ThenBy(c => c.ArmIdB)];
 
-    /// <summary>The edits of every matched override in <paramref name="resolved"/>; each corner is named by one at most.</summary>
+    /// <summary>
+    /// The edits of every matched override in <paramref name="resolved"/>, as the pass applies them
+    /// (<see cref="CornerFilletOverride.AsApplied"/>: a suppress drops the entry's other edits); each corner is named by one at most.
+    /// </summary>
     public static FilletCornerEdits From(IReadOnlyList<ResolvedOverride> resolved)
     {
         var byCorner = new Dictionary<ResolvedCorner, CornerFilletOverride>();
@@ -204,7 +208,7 @@ internal sealed class FilletCornerEdits
         {
             if (entry.Corner is { } corner)
             {
-                byCorner.Add(corner, entry.Row.Override);
+                byCorner.Add(corner, entry.Row.Override.AsApplied());
             }
         }
 
@@ -217,6 +221,23 @@ internal sealed class FilletCornerEdits
     /// <summary>The override naming the arm pair of junction <paramref name="junctionNodeId"/>, or null.</summary>
     public CornerFilletOverride? At(int junctionNodeId, int armIdA, int armIdB) =>
         _byCorner.GetValueOrDefault(new ResolvedCorner(junctionNodeId, Math.Min(armIdA, armIdB), Math.Max(armIdA, armIdB)));
+
+    /// <summary>The corners an override pins a tangent of, by junction node id and then arm ids.</summary>
+    public IReadOnlyList<ResolvedCorner> PinnedCorners =>
+        [
+            .. _byCorner
+                .Where(kv => (kv.Value.TangentAFt is not null) || (kv.Value.TangentBFt is not null))
+                .Select(kv => kv.Key)
+                .OrderBy(c => c.JunctionNodeId)
+                .ThenBy(c => c.ArmIdA)
+                .ThenBy(c => c.ArmIdB),
+        ];
+
+    /// <summary>These edits with the pinned tangents of every corner in <paramref name="corners"/> withdrawn.</summary>
+    public FilletCornerEdits WithoutPins(IReadOnlyCollection<ResolvedCorner> corners) =>
+        new(
+            _byCorner.ToDictionary(kv => kv.Key, kv => corners.Contains(kv.Key) ? (kv.Value with { TangentAFt = null, TangentBFt = null }) : kv.Value)
+        );
 
     /// <summary>These edits with the force of every corner in <paramref name="corners"/> withdrawn.</summary>
     public FilletCornerEdits WithoutForce(IReadOnlyCollection<ResolvedCorner> corners) =>

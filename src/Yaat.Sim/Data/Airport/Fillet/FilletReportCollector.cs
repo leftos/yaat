@@ -9,6 +9,47 @@ namespace Yaat.Sim.Data.Airport.Fillet;
 internal sealed class FilletReportCollector
 {
     private readonly SortedDictionary<int, JunctionRows> _junctions = [];
+    private readonly Dictionary<ResolvedCorner, PinRefusal> _pinRefusals = [];
+    private readonly Dictionary<ResolvedCorner, FilletSkipReason> _planPinRefusals = [];
+
+    /// <summary>Records that the planner refused the pinned tangents of the arm pair, for <paramref name="refusal"/>.</summary>
+    public void PinRefused(ResolvedCorner corner, PinRefusal refusal) => _pinRefusals[corner] = refusal;
+
+    /// <summary>Why the planner refused the arm pair's pinned tangents, or null when it refused none.</summary>
+    public PinRefusal? PinRefusalOf(ResolvedCorner corner) => _pinRefusals.GetValueOrDefault(corner);
+
+    /// <summary>
+    /// Records that a later stage of the plan refused a pinned cut of the planned corner, for <paramref name="reason"/>; the
+    /// first reason recorded for the corner is kept. The pass is planned again without the corner's pins.
+    /// </summary>
+    public void PlanPinRefused(int junctionNodeId, int cornerId, FilletSkipReason reason)
+    {
+        if (TryCorner(junctionNodeId, cornerId, out PairRow? row))
+        {
+            _planPinRefusals.TryAdd(
+                new ResolvedCorner(junctionNodeId, Math.Min(row.ArmA.Id, row.ArmB.Id), Math.Max(row.ArmA.Id, row.ArmB.Id)),
+                reason
+            );
+        }
+    }
+
+    /// <summary>Why a later stage of the plan refused a pinned cut of the arm pair, or null when none did.</summary>
+    public FilletSkipReason? PlanPinRefusalOf(ResolvedCorner corner) =>
+        _planPinRefusals.TryGetValue(corner, out FilletSkipReason reason) ? reason : null;
+
+    /// <summary>
+    /// Records that the post-execute normalizer removed the built arc of a pinned corner (its sampled radius is under the
+    /// radius floor): the corner has no arc after all.
+    /// </summary>
+    public void PinnedArcDropped(int junctionNodeId, int cornerId)
+    {
+        if (TryCorner(junctionNodeId, cornerId, out PairRow? row))
+        {
+            row.Outcome = FilletCornerOutcome.Skipped;
+            row.Skip = FilletSkipReason.DegenerateRadius;
+            row.AchievedRadiusFt = null;
+        }
+    }
 
     /// <summary>
     /// Records that the pass skipped <paramref name="node"/> whole, for <paramref name="reason"/>, when it is a place an

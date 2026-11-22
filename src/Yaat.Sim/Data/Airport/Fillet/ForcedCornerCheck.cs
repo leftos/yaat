@@ -53,10 +53,10 @@ internal static class ForcedCornerCheck
     }
 
     /// <summary>
-    /// The junction plan, corner and planned arc of a forced corner the plan neither skipped nor dropped; the plan always holds
-    /// all three for such a corner.
+    /// The junction plan, corner and planned arc of a forced or pinned corner the plan neither skipped nor dropped; the plan
+    /// always holds all three for such a corner.
     /// </summary>
-    private static (JunctionPlan Junction, CornerSpec Spec, CornerArcOp Op) PlannedArc(
+    internal static (JunctionPlan Junction, CornerSpec Spec, CornerArcOp Op) PlannedArc(
         FilletPlan plan,
         IReadOnlyList<JunctionPlan> junctions,
         int junctionNodeId,
@@ -65,11 +65,11 @@ internal static class ForcedCornerCheck
     {
         JunctionPlan junction =
             junctions.FirstOrDefault(j => j.JunctionNodeId == junctionNodeId)
-            ?? throw new UnreachableException($"Forced corner J{junctionNodeId}/{cornerId} has no junction plan and no skip");
+            ?? throw new UnreachableException($"Corner J{junctionNodeId}/{cornerId} has no junction plan and no skip");
         CornerSpec spec = junction.Corners.First(c => c.CornerId == cornerId);
         CornerArcOp op =
             plan.CornerArcs.FirstOrDefault(o => (o.JunctionNodeId == junctionNodeId) && (o.CornerId == cornerId))
-            ?? throw new UnreachableException($"Forced corner J{junctionNodeId}/{cornerId} has no arc and no skip");
+            ?? throw new UnreachableException($"Corner J{junctionNodeId}/{cornerId} has no arc and no skip");
         return (junction, spec, op);
     }
 }

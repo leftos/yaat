@@ -1,7 +1,11 @@
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim.Data.Airport.Fillet;
 
 internal static class ArmCutResolver
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("ArmCutResolver");
+
     public sealed record JunctionCutResult(
         IReadOnlyDictionary<CutId, ResolvedArmCut> Cuts,
         IReadOnlyList<TangentMergeOp> TangentMerges,
@@ -9,7 +13,14 @@ internal static class ArmCutResolver
         IReadOnlyList<StraightConnectorOp> StraightConnectors,
         IReadOnlyList<PlanWarning> Warnings,
         IReadOnlyList<CornerSpec> SurvivingCorners
-    );
+    )
+    {
+        /// <summary>
+        /// The sized cuts only pinned corners took, which <see cref="PlacePinnedCuts"/> dropped: no corner uses them, but the
+        /// shared-arm sizing between junctions still counts their reach, so the neighbours are sized as without the pins.
+        /// </summary>
+        public IReadOnlyDictionary<CutId, ResolvedArmCut> SizingOnlyCuts { get; init; } = new Dictionary<CutId, ResolvedArmCut>();
+    }
 
     /// <summary>The next cut ids: <see cref="Next"/> for every cut, <see cref="NextForcedOnly"/> for a cut only forced corners own.</summary>
     /// <remarks>
@@ -60,21 +71,93 @@ internal static class ArmCutResolver
                 CornerToCutB[corner.CornerId] = cutId;
             }
         }
-    }
 
-    public static JunctionCutResult Resolve(JunctionPlan junction, CutIds cutIds, FilletReportCollector report)
-    {
-        var warnings = new List<PlanWarning>();
-        if (junction.Corners.Count == 0)
+        /// <summary>The cut the corner takes on arm <paramref name="armId"/>, or null when it has none yet.</summary>
+        public CutId? CutOf(CornerSpec corner, int armId)
         {
-            return new JunctionCutResult(new Dictionary<CutId, ResolvedArmCut>(), [], [], [], warnings, []);
+            Dictionary<int, CutId> side = (corner.ArmIdA == armId) ? CornerToCutA : CornerToCutB;
+            return side.TryGetValue(corner.CornerId, out CutId cutId) ? cutId : null;
         }
 
-        WarnWhenForceUnpreserves(junction, warnings);
-        var activeCorners = junction.Corners.ToList();
+        /// <summary>True when some corner takes cut <paramref name="cutId"/>.</summary>
+        public bool IsAssigned(CutId cutId) => CornerToCutA.ContainsValue(cutId) || CornerToCutB.ContainsValue(cutId);
+    }
+
+    /// <summary>
+    /// Gives each pinned arm of a corner a cut of its own at the pinned distance (<see cref="ResolvedArmCut.Pinned"/>), in place
+    /// of the cut the arm's sizing gave it. The sizing itself is left as without the pin, so the junction's other corners keep
+    /// their cuts; a sized cut only pinned corners took is dropped from the assignment and returned, so the shared-arm sizing
+    /// can still count it. Pinned cuts are numbered with the forced-only cuts, above every sized cut, so the sized cuts keep
+    /// the ids they have without the pin.
+    /// </summary>
+    private static Dictionary<CutId, ResolvedArmCut> PlacePinnedCuts(
+        JunctionPlan junction,
+        List<CornerSpec> corners,
+        CutIds cutIds,
+        CutAssignment assignment
+    )
+    {
+        var replaced = new HashSet<CutId>();
+        foreach (CornerSpec corner in corners.Where(c => c.IsPinned))
+        {
+            foreach (TaxiwayArm arm in junction.Arms)
+            {
+                if (corner.PinOn(arm.Id) is not { } pinFt)
+                {
+                    continue;
+                }
+
+                if (assignment.CutOf(corner, arm.Id) is { } sized)
+                {
+                    replaced.Add(sized);
+                    ResolvedArmCut cut = assignment.Cuts[sized];
+                    assignment.Cuts[sized] = cut with { OwningCornerIds = [.. cut.OwningCornerIds.Where(id => id != corner.CornerId)] };
+                }
+
+                CutId cutId = cutIds.Take(forcedOnly: true);
+                (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, pinFt);
+                assignment.Cuts[cutId] = new ResolvedArmCut(
+                    cutId,
+                    junction.JunctionNodeId,
+                    arm.Id,
+                    pinFt,
+                    pos,
+                    brg,
+                    [corner.CornerId],
+                    false,
+                    Pinned: true
+                );
+                assignment.Assign(corner, arm.Id, cutId);
+                if (Log.IsEnabled(LogLevel.Debug))
+                {
+                    Log.LogDebug("Pinned cut {Cut} at J{Junction} arm {Arm}: {Pin:F2} ft", cutId.Value, junction.JunctionNodeId, arm.Id, pinFt);
+                }
+            }
+        }
+
+        var sizingOnly = new Dictionary<CutId, ResolvedArmCut>();
+        foreach (CutId unused in replaced.Where(id => !assignment.IsAssigned(id)).OrderBy(id => id.Value))
+        {
+            sizingOnly[unused] = assignment.Cuts[unused];
+            assignment.Cuts.Remove(unused);
+        }
+
+        return sizingOnly;
+    }
+
+    /// <summary>
+    /// Places every arm's cuts for <paramref name="activeCorners"/> (one cut, or an ordered multi-cut on a distorted arm),
+    /// then the pinned cuts; returns the assignment and the sized cuts the pins left to no corner.
+    /// </summary>
+    private static (CutAssignment Assignment, Dictionary<CutId, ResolvedArmCut> SizingOnly) PlaceCuts(
+        JunctionPlan junction,
+        List<CornerSpec> activeCorners,
+        CutIds cutIds,
+        List<PlanWarning> warnings
+    )
+    {
         Dictionary<int, double> candidateFt = CandidateCutsFt(junction, activeCorners);
         HashSet<int> distortedArms = DistortedArms(junction, activeCorners, candidateFt);
-
         var assignment = new CutAssignment();
         foreach (TaxiwayArm arm in junction.Arms)
         {
@@ -92,6 +175,21 @@ internal static class ArmCutResolver
 
             PlaceMultiCut(junction, arm, involved, (cutIds, assignment, warnings));
         }
+
+        return (assignment, PlacePinnedCuts(junction, activeCorners, cutIds, assignment));
+    }
+
+    public static JunctionCutResult Resolve(JunctionPlan junction, CutIds cutIds, FilletReportCollector report)
+    {
+        var warnings = new List<PlanWarning>();
+        if (junction.Corners.Count == 0)
+        {
+            return new JunctionCutResult(new Dictionary<CutId, ResolvedArmCut>(), [], [], [], warnings, []);
+        }
+
+        WarnWhenForceUnpreserves(junction, warnings);
+        var activeCorners = junction.Corners.ToList();
+        (CutAssignment assignment, Dictionary<CutId, ResolvedArmCut> sizingOnly) = PlaceCuts(junction, activeCorners, cutIds, warnings);
 
         var surviving = new List<CornerSpec>();
         var cornerArcs = new List<CornerArcOp>();
@@ -153,6 +251,21 @@ internal static class ArmCutResolver
         var merges = SharedArmTangentPass.ApplyIntraArmCoalesce(junction, cuts, warnings).ToList();
         merges.AddRange(SharedArmTangentPass.ApplyCrossArmCoalesce(junction, cuts, warnings));
 
+        List<StraightConnectorOp> straightConnectors = StraightConnectors(junction, activeCorners, assignment, cornerArcs);
+        return new JunctionCutResult(cuts, merges, cornerArcs, straightConnectors, warnings, surviving) { SizingOnlyCuts = sizingOnly };
+    }
+
+    /// <summary>
+    /// A straight connector between the two cuts of every corner of <paramref name="activeCorners"/> that got no arc
+    /// (<paramref name="cornerArcs"/>) but has a cut on each arm, two distinct cuts.
+    /// </summary>
+    private static List<StraightConnectorOp> StraightConnectors(
+        JunctionPlan junction,
+        List<CornerSpec> activeCorners,
+        CutAssignment assignment,
+        List<CornerArcOp> cornerArcs
+    )
+    {
         var arcCornerIds = cornerArcs.Select(a => a.CornerId).ToHashSet();
         var straightConnectors = new List<StraightConnectorOp>();
         foreach (CornerSpec? corner in activeCorners)
@@ -181,7 +294,7 @@ internal static class ArmCutResolver
             );
         }
 
-        return new JunctionCutResult(cuts, merges, cornerArcs, straightConnectors, warnings, surviving);
+        return straightConnectors;
     }
 
     /// <summary>
@@ -267,7 +380,7 @@ internal static class ArmCutResolver
         CutId cutId = into.Ids.Take(forcedOnly);
         (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, dist);
         List<int> owners = [.. involved.Select(c => c.CornerId)];
-        into.Assignment.Cuts[cutId] = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, owners, forcedOnly);
+        into.Assignment.Cuts[cutId] = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, dist, pos, brg, owners, forcedOnly, Pinned: false);
         foreach (CornerSpec c in involved)
         {
             into.Assignment.Assign(c, arm.Id, cutId);
@@ -312,7 +425,17 @@ internal static class ArmCutResolver
             (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, capped);
             List<CornerSpec> owners = [.. sizing.Where(c => Math.Abs(c.IdealTangentFt - dist) <= FilletConstants.CoincidentNodeThresholdFt)];
             List<int> ownerIds = [.. owners.Select(c => c.CornerId)];
-            into.Assignment.Cuts[cutId] = new ResolvedArmCut(cutId, junction.JunctionNodeId, arm.Id, capped, pos, brg, ownerIds, false);
+            into.Assignment.Cuts[cutId] = new ResolvedArmCut(
+                cutId,
+                junction.JunctionNodeId,
+                arm.Id,
+                capped,
+                pos,
+                brg,
+                ownerIds,
+                false,
+                Pinned: false
+            );
             placed.Add((cutId, capped));
             foreach (CornerSpec c in owners)
             {

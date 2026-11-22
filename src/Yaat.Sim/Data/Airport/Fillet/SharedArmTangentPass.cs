@@ -1,8 +1,53 @@
+using Microsoft.Extensions.Logging;
+
 namespace Yaat.Sim.Data.Airport.Fillet;
 
-/// <summary>Plan-time intra-arm coalesce and cross-junction shared-arm scaling/merge.</summary>
+/// <summary>
+/// Plan-time intra-arm coalesce and cross-junction shared-arm scaling/merge. A pinned cut (<see cref="ResolvedArmCut.Pinned"/>)
+/// is a fixed point of every pass: it is never scaled, stays out of the shared-arm sizing, and survives any unpinned cut it
+/// coalesces with.
+/// </summary>
 internal static class SharedArmTangentPass
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("SharedArmTangentPass");
+
+    /// <summary>The cuts <see cref="ApplyCrossJunction"/> refuses: forced-only cuts, and pinned cuts that overlap a neighbour's.</summary>
+    internal sealed class CutRefusals
+    {
+        /// <summary>The forced-only cuts that would leave too short a straight to a neighbour; the forces owning them are refused.</summary>
+        public HashSet<CutId> Forced { get; } = [];
+
+        /// <summary>
+        /// The pinned cuts that reach more than <see cref="FilletConstants.CoincidentNodeThresholdFt"/> past the neighbouring
+        /// junction's cut on their shared arm; the pins owning them are refused (<see cref="FilletSkipReason.PinOverlapsNeighbour"/>).
+        /// </summary>
+        public HashSet<CutId> PinnedOverlapping { get; } = [];
+    }
+
+    /// <summary>
+    /// The merge of two coincident cuts: a pinned cut survives an unpinned one; otherwise the lower <see cref="CutId.Value"/>
+    /// survives (mirrors the old Math.Min behavior). The survivor is first. A merge of two pinned cuts is planned like any
+    /// other; <see cref="FilletPlanBuilder"/> then refuses both pins (<see cref="FilletSkipReason.PinConflict"/>) and drops it.
+    /// </summary>
+    private static TangentMergeOp MergeOf(ResolvedArmCut a, ResolvedArmCut b)
+    {
+        bool aSurvives = (a.Pinned != b.Pinned) ? a.Pinned : (a.CutId.Value <= b.CutId.Value);
+        (ResolvedArmCut survivor, ResolvedArmCut child) = aSurvives ? (a, b) : (b, a);
+        if ((survivor.Pinned) && Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "Pinned cut {Survivor} at J{Junction} coalesces cut {Child} of J{ChildJunction} ({ChildPinned})",
+                survivor.CutId.Value,
+                survivor.JunctionNodeId,
+                child.CutId.Value,
+                child.JunctionNodeId,
+                child.Pinned ? "pinned" : "unpinned"
+            );
+        }
+
+        return new TangentMergeOp(survivor.CutId, child.CutId);
+    }
+
     /// <summary>Merge ordered cuts on one arm that land within <see cref="FilletConstants.CoincidentNodeThresholdFt"/>.</summary>
     public static IReadOnlyList<TangentMergeOp> ApplyIntraArmCoalesce(
         JunctionPlan junction,
@@ -30,10 +75,7 @@ internal static class SharedArmTangentPass
                 double gapFt = GeoMath.DistanceNm(prev.Position, curr.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
-                    // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
-                    CutId survivor = prev.CutId.Value <= curr.CutId.Value ? prev.CutId : curr.CutId;
-                    CutId child = prev.CutId.Value <= curr.CutId.Value ? curr.CutId : prev.CutId;
-                    merges.Add(new TangentMergeOp(survivor, child));
+                    merges.Add(MergeOf(prev, curr));
                 }
             }
         }
@@ -80,10 +122,7 @@ internal static class SharedArmTangentPass
                 double gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
-                    // Lower integer value survives (mirrors the intra-arm / cross-junction convention).
-                    CutId survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
-                    CutId child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
-                    merges.Add(new TangentMergeOp(survivor, child));
+                    merges.Add(MergeOf(a, b));
                 }
             }
         }
@@ -105,9 +144,10 @@ internal static class SharedArmTangentPass
     /// moved earlier and applied to cuts. It catches cross-junction coincidences that
     /// <see cref="ApplyCrossJunction"/>'s farthest-pair-only merge does not reach — e.g. adjacent
     /// junctions whose tangent cuts on a shared taxiway land 1-4 ft apart. Run AFTER
-    /// <see cref="ApplyCrossJunction"/> so cut positions reflect any shared-arm scaling. Survivor =
-    /// lower <see cref="CutId.Value"/>; the union-find in <c>BuildSurvivorMap</c> absorbs the overlap
-    /// with the intra-arm/cross-arm/cross-junction passes.
+    /// <see cref="ApplyCrossJunction"/> so cut positions reflect any shared-arm scaling. Survivor
+    /// (<see cref="MergeOf"/>): a pinned cut over an unpinned one, otherwise the lower <see cref="CutId.Value"/>; a merge of
+    /// two pinned cuts has both pins refused by <see cref="FilletPlanBuilder"/>. The union-find in <c>BuildSurvivorMap</c>
+    /// absorbs the overlap with the intra-arm/cross-arm/cross-junction passes.
     /// </summary>
     public static IReadOnlyList<TangentMergeOp> ApplyGlobalCoincidentCutCoalesce(
         IReadOnlyDictionary<CutId, ResolvedArmCut> cuts,
@@ -126,9 +166,7 @@ internal static class SharedArmTangentPass
                 double gapFt = GeoMath.DistanceNm(a.Position, b.Position) * GeoMath.FeetPerNm;
                 if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
                 {
-                    CutId survivor = a.CutId.Value <= b.CutId.Value ? a.CutId : b.CutId;
-                    CutId child = a.CutId.Value <= b.CutId.Value ? b.CutId : a.CutId;
-                    merges.Add(new TangentMergeOp(survivor, child));
+                    merges.Add(MergeOf(a, b));
                 }
             }
         }
@@ -153,17 +191,30 @@ internal static class SharedArmTangentPass
     /// A forced-only cut (<see cref="ResolvedArmCut.ForcedOnly"/>) takes no part in the sizing, the pairing or the scaling,
     /// so its neighbours' cuts are as without the force. A forced-only cut that reaches past the other cuts of its arm and
     /// leaves less than <see cref="FilletConstants.MinSharedArmClearGapFt"/> of straight to the neighbour's cuts is added to
-    /// <paramref name="refusedForcedCuts"/> instead: the force that owns it is refused.
+    /// <paramref name="refusals"/> instead: the force that owns it is refused. A pinned cut is never moved; one that reaches
+    /// past the neighbour's cut is added to <paramref name="refusals"/>, so the pin that owns it is refused.
+    /// </para>
+    /// <para>
+    /// <paramref name="sizingOnlyCuts"/>, the sized cuts pins left to no corner, take part in the sizing, the pairing and the
+    /// scaling for this pass only, so a pinned corner's neighbours are sized as without the pin; no merge names them and they
+    /// are gone from <paramref name="allCuts"/> when it returns.
     /// </para>
     /// </summary>
     public static IReadOnlyList<TangentMergeOp> ApplyCrossJunction(
         IReadOnlyList<JunctionPlan> junctionPlans,
         Dictionary<CutId, ResolvedArmCut> allCuts,
+        IReadOnlyDictionary<CutId, ResolvedArmCut> sizingOnlyCuts,
         List<PlanWarning> warnings,
-        HashSet<CutId> refusedForcedCuts
+        CutRefusals refusals
     )
     {
-        var context = new ReconcileContext([], allCuts, warnings, [], refusedForcedCuts, CheckForcedOnly: false);
+        foreach ((CutId id, ResolvedArmCut cut) in sizingOnlyCuts)
+        {
+            allCuts[id] = cut;
+        }
+
+        HashSet<CutId> sizingOnly = [.. sizingOnlyCuts.Keys];
+        var context = new ReconcileContext([], allCuts, sizingOnly, warnings, [], refusals, CheckForcedOnly: false);
         var planById = junctionPlans.ToDictionary(p => p.JunctionNodeId);
 
         foreach (JunctionPlan jp1 in junctionPlans)
@@ -187,28 +238,36 @@ internal static class SharedArmTangentPass
 
         ReconcileEdgeGroups(planById, includeForcedOnly: false, context);
         ReconcileEdgeGroups(planById, includeForcedOnly: true, context with { CheckForcedOnly = true });
+        foreach (CutId id in sizingOnly)
+        {
+            allCuts.Remove(id);
+        }
+
         return context.Merges;
     }
 
     /// <summary>The shared state of one <see cref="ApplyCrossJunction"/> run.</summary>
     /// <param name="Processed">The junction pairs and taxiway already reconciled.</param>
-    /// <param name="AllCuts">Every cut of the plan, updated as cut sets are scaled.</param>
+    /// <param name="AllCuts">Every cut of the plan, and the sizing-only cuts, updated as cut sets are scaled.</param>
+    /// <param name="SizingOnly">The ids of the sizing-only cuts in <paramref name="AllCuts"/>, which no corner uses.</param>
     /// <param name="Warnings">The plan's warnings.</param>
     /// <param name="Merges">The tangent merges planned.</param>
-    /// <param name="RefusedForcedCuts">The forced-only cuts that would leave too short a straight to a neighbour.</param>
+    /// <param name="Refusals">The forced-only and pinned cuts refused.</param>
     /// <param name="CheckForcedOnly">True to check forced-only cuts alone, for arm pairs only they bring together.</param>
     private sealed record ReconcileContext(
         HashSet<(int, int, string)> Processed,
         Dictionary<CutId, ResolvedArmCut> AllCuts,
+        HashSet<CutId> SizingOnly,
         List<PlanWarning> Warnings,
         List<TangentMergeOp> Merges,
-        HashSet<CutId> RefusedForcedCuts,
+        CutRefusals Refusals,
         bool CheckForcedOnly
     );
 
     private static void ReconcileEdgeGroups(Dictionary<int, JunctionPlan> planById, bool includeForcedOnly, ReconcileContext context)
     {
-        IEnumerable<ResolvedArmCut> cuts = context.AllCuts.Values.Where(c => includeForcedOnly || (!c.ForcedOnly));
+        // Pinned cuts pair arms only in the second, checking pass, so they never bring a pair into the sizing.
+        IEnumerable<ResolvedArmCut> cuts = context.AllCuts.Values.Where(c => includeForcedOnly || ((!c.ForcedOnly) && (!c.Pinned)));
         foreach (List<(JunctionPlan Plan, TaxiwayArm Arm)> edgeArms in GroupArmsByLocatedCutEdge(planById, [.. cuts]))
         {
             for (int i = 0; i < edgeArms.Count; i++)
@@ -297,6 +356,73 @@ internal static class SharedArmTangentPass
         }
 
         RefuseForcedCutsInGap((jp1, arm1), (jp2, arm2), context);
+        CheckPinnedCutsInGap((jp1, arm1), (jp2, arm2), context);
+    }
+
+    /// <summary>
+    /// Refuses every pinned cut of the shared arm whose clear gap to the other side's farthest cut is below
+    /// −<see cref="FilletConstants.CoincidentNodeThresholdFt"/> (the cut order would fold back); when none is, warns on every
+    /// corner owning a pinned cut there when, with every cut counted, less than
+    /// <see cref="FilletConstants.MinSharedArmClearGapFt"/> of straight is left between the pair: the pins are honoured.
+    /// </summary>
+    private static void CheckPinnedCutsInGap(
+        (JunctionPlan Plan, TaxiwayArm Arm) side1,
+        (JunctionPlan Plan, TaxiwayArm Arm) side2,
+        ReconcileContext context
+    )
+    {
+        List<ResolvedArmCut> all1 = CutsOn(side1.Plan, side1.Arm, context);
+        List<ResolvedArmCut> all2 = CutsOn(side2.Plan, side2.Arm, context);
+        if (!all1.Concat(all2).Any(c => c.Pinned))
+        {
+            return;
+        }
+
+        double reach1 = all1.Select(c => c.DistanceAlongArmFt).DefaultIfEmpty(0).Max();
+        double reach2 = all2.Select(c => c.DistanceAlongArmFt).DefaultIfEmpty(0).Max();
+        double sharedLengthFt = SharedLengthFt(side1, side2);
+        List<ResolvedArmCut> overlapping =
+        [
+            .. all1.Where(c => (c.Pinned) && ((sharedLengthFt - (c.DistanceAlongArmFt + reach2)) < -FilletConstants.CoincidentNodeThresholdFt)),
+            .. all2.Where(c => (c.Pinned) && ((sharedLengthFt - (c.DistanceAlongArmFt + reach1)) < -FilletConstants.CoincidentNodeThresholdFt)),
+        ];
+        foreach (ResolvedArmCut cut in overlapping)
+        {
+            context.Refusals.PinnedOverlapping.Add(cut.CutId);
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Pinned cut {Cut} at J{Junction} overlaps the neighbour's cut: refused", cut.CutId.Value, cut.JunctionNodeId);
+            }
+        }
+
+        double clearGapFt = sharedLengthFt - (reach1 + reach2);
+        if ((overlapping.Count == 0) && (clearGapFt < FilletConstants.MinSharedArmClearGapFt))
+        {
+            WarnPinnedShortStraight(side1, side2, [.. all1.Concat(all2).Where(c => c.Pinned)], (clearGapFt, context.Warnings));
+        }
+    }
+
+    /// <summary>Warns on every corner owning one of <paramref name="pinned"/> that it leaves a straight under the clear gap.</summary>
+    private static void WarnPinnedShortStraight(
+        (JunctionPlan Plan, TaxiwayArm Arm) side1,
+        (JunctionPlan Plan, TaxiwayArm Arm) side2,
+        List<ResolvedArmCut> pinned,
+        (double ClearGapFt, List<PlanWarning> Warnings) into
+    )
+    {
+        double clearGapFt = into.ClearGapFt;
+
+        string between = $"J{side1.Plan.JunctionNodeId}/J{side2.Plan.JunctionNodeId}";
+        foreach (ResolvedArmCut cut in pinned)
+        {
+            string message =
+                $"Pinned cut {cut.DistanceAlongArmFt:F1} ft along {side1.Arm.TaxiwayName} leaves a {clearGapFt:F1} ft straight between {between}, "
+                + $"under {FilletConstants.MinSharedArmClearGapFt:F0} ft";
+            foreach (int cornerId in cut.OwningCornerIds)
+            {
+                into.Warnings.Add(new PlanWarning(cut.JunctionNodeId, cornerId, PlanWarning.PinnedShortStraight, message));
+            }
+        }
     }
 
     /// <summary>
@@ -366,17 +492,14 @@ internal static class SharedArmTangentPass
             )
         );
 
-        ResolvedArmCut? far1 = UnforcedCutsOn(jp1, arm1, context.AllCuts).OrderByDescending(c => c.DistanceAlongArmFt).FirstOrDefault();
-        ResolvedArmCut? far2 = UnforcedCutsOn(jp2, arm2, context.AllCuts).OrderByDescending(c => c.DistanceAlongArmFt).FirstOrDefault();
+        ResolvedArmCut? far1 = UsedUnforcedCutsOn(jp1, arm1, context).OrderByDescending(c => c.DistanceAlongArmFt).FirstOrDefault();
+        ResolvedArmCut? far2 = UsedUnforcedCutsOn(jp2, arm2, context).OrderByDescending(c => c.DistanceAlongArmFt).FirstOrDefault();
         if ((far1 is not null) && (far2 is not null))
         {
             double gapFt = GeoMath.DistanceNm(far1.Position, far2.Position) * GeoMath.FeetPerNm;
             if (gapFt <= FilletConstants.CoincidentNodeThresholdFt)
             {
-                // Pick the lower integer value as the survivor (mirrors the old Math.Min behavior).
-                CutId survivor = far1.CutId.Value <= far2.CutId.Value ? far1.CutId : far2.CutId;
-                CutId child = far1.CutId.Value <= far2.CutId.Value ? far2.CutId : far1.CutId;
-                context.Merges.Add(new TangentMergeOp(survivor, child));
+                context.Merges.Add(MergeOf(far1, far2));
             }
         }
     }
@@ -391,8 +514,8 @@ internal static class SharedArmTangentPass
         ReconcileContext context
     )
     {
-        List<ResolvedArmCut> all1 = CutsOn(side1.Plan, side1.Arm, context.AllCuts);
-        List<ResolvedArmCut> all2 = CutsOn(side2.Plan, side2.Arm, context.AllCuts);
+        List<ResolvedArmCut> all1 = CutsOn(side1.Plan, side1.Arm, context);
+        List<ResolvedArmCut> all2 = CutsOn(side2.Plan, side2.Arm, context);
         if (!all1.Concat(all2).Any(c => c.ForcedOnly))
         {
             return;
@@ -410,7 +533,7 @@ internal static class SharedArmTangentPass
             double unforcedReach = side.Where(c => !c.ForcedOnly).Select(c => c.DistanceAlongArmFt).DefaultIfEmpty(0).Max();
             foreach (ResolvedArmCut cut in side.Where(c => (c.ForcedOnly) && (c.DistanceAlongArmFt > unforcedReach)))
             {
-                context.RefusedForcedCuts.Add(cut.CutId);
+                context.Refusals.Forced.Add(cut.CutId);
             }
         }
     }
@@ -422,11 +545,24 @@ internal static class SharedArmTangentPass
         return (sharedLengthFt < 1.0) ? Math.Min(side1.Arm.LengthFt, side2.Arm.LengthFt) : sharedLengthFt;
     }
 
-    private static List<ResolvedArmCut> CutsOn(JunctionPlan junction, TaxiwayArm arm, Dictionary<CutId, ResolvedArmCut> allCuts) =>
-        [.. allCuts.Values.Where(c => (c.JunctionNodeId == junction.JunctionNodeId) && (c.ArmId == arm.Id))];
+    /// <summary>Every cut of the arm, the sizing-only cuts included.</summary>
+    private static IEnumerable<ResolvedArmCut> ArmCuts(JunctionPlan junction, TaxiwayArm arm, Dictionary<CutId, ResolvedArmCut> allCuts) =>
+        allCuts.Values.Where(c => (c.JunctionNodeId == junction.JunctionNodeId) && (c.ArmId == arm.Id));
 
+    /// <summary>The cuts of the arm some corner uses: every cut but the sizing-only ones.</summary>
+    private static List<ResolvedArmCut> CutsOn(JunctionPlan junction, TaxiwayArm arm, ReconcileContext context) =>
+        [.. ArmCuts(junction, arm, context.AllCuts).Where(c => !context.SizingOnly.Contains(c.CutId))];
+
+    /// <summary>
+    /// The cuts of the arm the shared-arm sizing counts and may scale: neither forced-only nor pinned (a sizing-only cut
+    /// included, so the neighbours are sized as without the pin that dropped it).
+    /// </summary>
     private static List<ResolvedArmCut> UnforcedCutsOn(JunctionPlan junction, TaxiwayArm arm, Dictionary<CutId, ResolvedArmCut> allCuts) =>
-        [.. CutsOn(junction, arm, allCuts).Where(c => !c.ForcedOnly)];
+        [.. ArmCuts(junction, arm, allCuts).Where(c => (!c.ForcedOnly) && (!c.Pinned))];
+
+    /// <summary>The unforced cuts of the arm a merge may name: the sizing-only ones left out.</summary>
+    private static List<ResolvedArmCut> UsedUnforcedCutsOn(JunctionPlan junction, TaxiwayArm arm, ReconcileContext context) =>
+        [.. UnforcedCutsOn(junction, arm, context.AllCuts).Where(c => !context.SizingOnly.Contains(c.CutId))];
 
     private static void ScaleCutSet(
         JunctionPlan junction,
@@ -436,7 +572,7 @@ internal static class SharedArmTangentPass
         Dictionary<CutId, ResolvedArmCut> allCuts
     )
     {
-        foreach (ResolvedArmCut cut in cutsOnArm)
+        foreach (ResolvedArmCut cut in cutsOnArm.Where(c => !c.Pinned))
         {
             double newDist = cut.DistanceAlongArmFt * scale;
             (LatLon pos, double brg) = TaxiwayWalk.InterpolateAtDistanceFt(arm.Walk, junction.JunctionNode, newDist);
