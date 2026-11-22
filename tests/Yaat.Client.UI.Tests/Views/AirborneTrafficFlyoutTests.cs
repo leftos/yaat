@@ -397,6 +397,8 @@ public class AirborneTrafficFlyoutTests
 
     private static MenuAirborneTrafficRow Row(string callsign, double nm) => new(new MenuTrafficRow(callsign, "C172", nm, 12, 0), "eastbound", null);
 
+    // A VFR pilot; the tests that set HasReportedTrafficInSight on it by hand stand for what SituationFlagCalculator
+    // sends for a VFR aircraft that has reported its traffic in sight.
     private static FakeMenuAircraft Pilot() =>
         new()
         {

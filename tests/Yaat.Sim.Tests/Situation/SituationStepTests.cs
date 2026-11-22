@@ -388,6 +388,56 @@ public class SituationStepTests(ITestOutputHelper output)
         Assert.Equal(SituationFlags.HasReportedFieldInSight, ac.Situation.Flags);
     }
 
+    private const string VfrFollowAtOak = """
+        {
+          "id": "vfr-rtis",
+          "name": "VFR follower behind VFR traffic north of OAK",
+          "artccId": "ZOA",
+          "primaryAirportId": "OAK",
+          "aircraft": [
+            {
+              "id": "a1",
+              "aircraftId": "N342T",
+              "aircraftType": "DA42",
+              "transponderMode": "C",
+              "startingConditions": { "type": "FixOrFrd", "fix": "OAK360003", "altitude": 1000, "navigationPath": "OAK" },
+              "flightplan": { "rules": "VFR", "departure": "KOAK", "destination": "KOAK", "cruiseAltitude": 1500, "cruiseSpeed": 140, "route": "", "remarks": "", "aircraftType": "DA42" }
+            },
+            {
+              "id": "a2",
+              "aircraftId": "N805FM",
+              "aircraftType": "P28A",
+              "transponderMode": "C",
+              "startingConditions": { "type": "FixOrFrd", "fix": "OAK360002", "altitude": 1000, "navigationPath": "OAK" },
+              "flightplan": { "rules": "VFR", "departure": "KOAK", "destination": "KOAK", "cruiseAltitude": 1500, "cruiseSpeed": 100, "route": "", "remarks": "", "aircraftType": "P28A" }
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// A VFR aircraft that reports its traffic in sight carries the traffic bit, so the Follow traffic flyout shows the
+    /// traffic as in sight; the field bit stays IFR-only.
+    /// </summary>
+    [Fact]
+    public void TickSituation_VfrRtisAcquired_SetsTrafficInSight()
+    {
+        if (Engine(VfrFollowAtOak) is not { } engine)
+        {
+            return;
+        }
+
+        AircraftState follower = engine.FindAircraft("N342T") ?? throw new InvalidOperationException("N342T did not spawn");
+        CommandResult rtis = engine.SendCommand("N342T", "RTIS N805FM");
+        Assert.True(rtis.Success, rtis.Message);
+        Assert.True(follower.Approach.HasReportedTrafficInSight, "RTIS did not acquire N805FM");
+
+        engine.TickOneSecond();
+
+        Assert.True(follower.Situation.Flags.HasFlag(SituationFlags.HasReportedTrafficInSight));
+        Assert.False(follower.Situation.Flags.HasFlag(SituationFlags.HasReportedFieldInSight));
+    }
+
     /// <summary>
     /// The inside-FAF test measures against the assigned runway's own airport map, not the aircraft's ground layout:
     /// on KSJC 30L (landing threshold displaced 2,537 ft) with an OAK ground layout, at a point the displacement puts

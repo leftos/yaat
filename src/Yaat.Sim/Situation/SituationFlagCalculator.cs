@@ -469,15 +469,12 @@ public static class SituationFlagCalculator
         return rolledNm * GeoMath.FeetPerNm;
     }
 
-    /// <summary>The field and traffic in-sight reports, for an IFR aircraft only; mirrors its approach state exactly.</summary>
-    private static SituationFlags ReportedInSight(AircraftState ac)
-    {
-        if (ac.FlightPlan.IsVfr)
-        {
-            return SituationFlags.None;
-        }
-
-        return When(SituationFlags.HasReportedFieldInSight, ac.Approach.HasReportedFieldInSight)
-            | When(SituationFlags.HasReportedTrafficInSight, ac.Approach.HasReportedTrafficInSight);
-    }
+    /// <summary>
+    /// The field and traffic in-sight reports, mirroring the approach state exactly. The traffic report is carried for
+    /// every flight rule (the Follow traffic flyout reads it for a VFR follower too); the field report for an IFR aircraft
+    /// only, because <c>AircraftCommandApplicability.ShowsReportFieldInSight</c> relies on a VFR aircraft never carrying it.
+    /// </summary>
+    private static SituationFlags ReportedInSight(AircraftState ac) =>
+        When(SituationFlags.HasReportedTrafficInSight, ac.Approach.HasReportedTrafficInSight)
+        | When(SituationFlags.HasReportedFieldInSight, (!ac.FlightPlan.IsVfr) && ac.Approach.HasReportedFieldInSight);
 }

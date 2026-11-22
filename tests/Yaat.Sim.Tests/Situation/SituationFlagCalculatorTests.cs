@@ -622,7 +622,19 @@ public class SituationFlagCalculatorTests
         SituationFlags flags = SituationFlagCalculator.Compute(ac, AircraftSituation.Approach, SituationFlags.HasReportedFieldInSight, null, null);
 
         Assert.False(Has(flags, SituationFlags.HasReportedFieldInSight));
-        Assert.False(Has(flags, SituationFlags.HasReportedTrafficInSight));
+        Assert.True(Has(flags, SituationFlags.HasReportedTrafficInSight));
+    }
+
+    [Fact]
+    public void TrafficInSight_Vfr_MirrorsTheReport()
+    {
+        AircraftState ac = Reporting("VFR");
+        ac.Approach.HasReportedTrafficInSight = true;
+
+        SituationFlags flags = SituationFlagCalculator.Compute(ac, AircraftSituation.Approach, SituationFlags.None, null, null);
+
+        Assert.True(Has(flags, SituationFlags.HasReportedTrafficInSight));
+        Assert.False(Has(flags, SituationFlags.HasReportedFieldInSight));
     }
 
     [Fact]
