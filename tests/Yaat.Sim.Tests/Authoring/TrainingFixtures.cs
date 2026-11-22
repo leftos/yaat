@@ -37,6 +37,17 @@ internal static class TrainingFixtures
         return scenario.ToJsonString();
     }
 
+    /// <summary>
+    /// The scenario with its first aircraft's starting altitude spelled as <paramref name="numberText"/> (e.g. 250.0), a
+    /// number the typed model writes back in its own form.
+    /// </summary>
+    public static string WithAltitudeText(string id, string numberText)
+    {
+        JsonObject scenario = JsonNode.Parse(Read(id))!.AsObject();
+        scenario["aircraft"]![0]!["startingConditions"]!["altitude"] = JsonNode.Parse(numberText);
+        return scenario.ToJsonString();
+    }
+
     /// <summary>The scenario with its first two keys (id and name) swapped: semantically the same JSON.</summary>
     public static string Reordered(string id) => Reorder(Read(id));
 

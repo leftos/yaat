@@ -462,6 +462,39 @@ public class LocalScenarioStoreTests
         );
 
     [Theory]
+    [InlineData("250.0", "250")]
+    [InlineData("250.0", "2.5e2")]
+    [InlineData("250.0", "250.000")]
+    [InlineData("-0", "0")]
+    [InlineData("0", "-0.0")]
+    public void WorkingCopy_SameNumberSpelledOtherwise_IsNotModified(string serverText, string copyText) =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.WithAltitudeText(IdA, serverText));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithAltitudeText(IdA, copyText));
+
+                Assert.False(Assert.Single(store.Load(Zoa).WorkingCopies).Modified);
+            }
+        );
+
+    [Fact]
+    public void WorkingCopy_OtherNumberValue_IsModified() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.WithAltitudeText(IdA, "250.0"));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithAltitudeText(IdA, "250.5"));
+
+                Assert.True(Assert.Single(store.Load(Zoa).WorkingCopies).Modified);
+            }
+        );
+
+    [Theory]
     [InlineData("CON")]
     [InlineData("prn")]
     [InlineData("Aux")]

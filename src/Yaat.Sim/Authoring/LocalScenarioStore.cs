@@ -704,7 +704,8 @@ public sealed partial class LocalScenarioStore
 
     private static string TextOf(JsonObject obj, string key) => obj[key]!.GetValue<string>();
 
-    // The SHA-256 of the content with every object's keys sorted, so key order and whitespace do not count.
+    // The SHA-256 of the content with every object's keys sorted and every number in one form, so key order, whitespace
+    // and number spelling (250.0, 250, 2.5e2) do not count.
     private static string ComputeContentHash(JsonNode node) => ComputeVersion(Canonical(node)!.ToJsonString());
 
     private static JsonNode? Canonical(JsonNode? node) =>
@@ -714,9 +715,15 @@ public sealed partial class LocalScenarioStore
                 obj.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => KeyValuePair.Create(kv.Key, Canonical(kv.Value)))
             ),
             JsonArray array => new JsonArray([.. array.Select(Canonical)]),
+            JsonValue value when value.GetValueKind() == JsonValueKind.Number => CanonicalNumber(value),
             null => null,
             _ => node.DeepClone(),
         };
+
+    // A number as its double value, which the serializer writes in its shortest round-trip form (an integer with no
+    // fraction), with -0 as 0; a number a double cannot hold keeps its text.
+    private static JsonNode CanonicalNumber(JsonValue value) =>
+        (value.TryGetValue(out double number) && double.IsFinite(number)) ? JsonValue.Create((number == 0) ? 0d : number) : value.DeepClone();
 
     private static void LogArtccMismatch(string artccId, string id, JsonObject scenario)
     {
