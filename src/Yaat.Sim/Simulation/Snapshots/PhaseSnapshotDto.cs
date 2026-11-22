@@ -1866,6 +1866,13 @@ public sealed class TeardropReentryPhaseDto : PhaseDto
     public required double OutboundLon { get; init; }
     public required double LeadInLat { get; init; }
     public required double LeadInLon { get; init; }
+
+    /// <summary>
+    /// Set when a boundary hold ended with the aircraft past the abeam point: the next tick ends the re-entry if the abeam point
+    /// is the only fix left. Optional; null reads as false and is not written.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CompleteAtAbeamOnResume { get; init; }
 }
 
 public sealed class PatternEntryPhaseDto : PhaseDto
@@ -1920,6 +1927,17 @@ public sealed class CrosswindPhaseDto : PhaseDto
     /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
     /// Nullable for tolerance of recordings predating this field.</summary>
     public bool? FollowExtensionWarningIssued { get; init; }
+
+    /// <summary>The assigned altitude in force when the leg started (null for none). Optional; not written while null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SeenAssignedAltitudeFt { get; init; }
+
+    /// <summary>
+    /// True once the leg has recorded <see cref="SeenAssignedAltitudeFt"/>. Optional; null, as in a snapshot written before the
+    /// field existed, reads as not recorded, and a boundary-hold restart then carries no controller altitude.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AssignedAltitudeBaselineRecorded { get; init; }
 }
 
 public sealed class PatternExitPhaseDto : PhaseDto
@@ -2023,6 +2041,24 @@ public sealed class UpwindPhaseDto : PhaseDto
     public double? LateralOffsetTargetNm { get; init; }
     public int? LateralOffsetDirection { get; init; }
     public bool LateralOffsetAcquired { get; init; }
+
+    /// <summary>
+    /// The leg resumes after a Class B boundary hold and steers back onto the extended runway centerline. Optional: null, as
+    /// in a snapshot written before the field existed, reads as false. Not written while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RejoinCenterline { get; init; }
+
+    /// <summary>The assigned altitude in force when the leg started (null for none). Optional; not written while null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? SeenAssignedAltitudeFt { get; init; }
+
+    /// <summary>
+    /// True once the leg has recorded <see cref="SeenAssignedAltitudeFt"/>. Optional; null, as in a snapshot written before the
+    /// field existed, reads as not recorded, and a boundary-hold restart then carries no controller altitude.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? AssignedAltitudeBaselineRecorded { get; init; }
 
     /// <summary>One-shot: the follow-extension "unable to turn" advisory has been transmitted.
     /// Nullable for tolerance of recordings predating this field.</summary>

@@ -18,6 +18,13 @@ public sealed class PatternLateralOffsetState
     /// helper restores the leg heading so the aircraft holds parallel.
     /// </summary>
     public bool Acquired { get; set; }
+
+    /// <summary>
+    /// A new state for the same offset, not yet acquired, so a leg restarted from a new position flies the offset again from
+    /// there; null for no offset.
+    /// </summary>
+    internal static PatternLateralOffsetState? Reacquire(PatternLateralOffsetState? offset) =>
+        offset is null ? null : new PatternLateralOffsetState { TargetNm = offset.TargetNm, Direction = offset.Direction };
 }
 
 /// <summary>

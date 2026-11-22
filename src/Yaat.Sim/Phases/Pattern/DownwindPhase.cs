@@ -39,10 +39,8 @@ public sealed class DownwindPhase : Phase
     // can be left off the computed downwind line (e.g. dropped inside its own pattern); steer back onto
     // it rather than holding the wrong offset — which would make the base/final geometry (built for the
     // computed pattern width) turn early and overshoot onto the far side / a parallel runway. No-op once
-    // established on the line (cross-track ≈ 0), so a normally-established downwind is unaffected.
-    private const double DownwindTrackToleranceNm = 0.03;
-    private const double DownwindInterceptGainDegPerNm = 200.0;
-    private const double MaxDownwindInterceptDeg = 45.0;
+    // established on the line (cross-track ≈ 0), so a normally-established downwind is unaffected. The steering law is
+    // PatternTrackRejoin's.
 
     // Past-abeam descent planning: the shortest remaining downwind the line descent is spread over (a release right at
     // the base trigger), and the ground speed floor that keeps the planned rate finite for a slow or stationary aircraft.
@@ -73,6 +71,12 @@ public sealed class DownwindPhase : Phase
     private bool _assignedAltitudeBaselinePending;
     private bool _midfieldBroadcastIssued;
     private bool _followExtensionWarningIssued;
+
+    /// <summary>
+    /// Set on the copy that resumes this leg after a boundary hold: its start reads past abeam and past midfield from the
+    /// aircraft's position on the downwind line. Read in <see cref="OnStart"/> only, so it needs no snapshot field.
+    /// </summary>
+    private bool _resumeFromPosition;
 
     // This aircraft's along-track on the last tick its follow target flew an extended (EXT) downwind (null = never), and
     // that target's callsign: the mark counts only while the follow is still on that lead.
@@ -145,10 +149,7 @@ public sealed class DownwindPhase : Phase
         _pastAbeam = false;
         _holdLevelFt = null;
         _descentTargetFt = null;
-        _controllerAltitudeFt = null;
-        _seenAssignedAltitudeFt = ctx.Targets.AssignedAltitude;
-        _assignedAltitudeBaselinePending = false;
-        _midfieldBroadcastIssued = false;
+        ResetLegLatches(ctx);
 
         _abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
             Waypoints.DownwindAbeamLat,
@@ -169,6 +170,7 @@ public sealed class DownwindPhase : Phase
         _midfieldAlongTrack = PatternGeometry.MidfieldAlongTrackNm(Waypoints);
 
         double startAlongTrack = GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(_thresholdLat, _thresholdLon), _downwindHeading);
+        ApplyResumeLatches(startAlongTrack);
         ReportDownwindStart(ctx, Waypoints.Direction, startAlongTrack);
 
         // Short approach armed before activation — compress the past-abeam extension
@@ -188,32 +190,8 @@ public sealed class DownwindPhase : Phase
         }
         ctx.Targets.NavigationRoute.Clear();
 
-        if (ShortApproachArmed)
-        {
-            // Pilot aware of upcoming short approach — start descending immediately
-            // rather than waiting for abeam. Real pilots issued an SA earlier than
-            // the leg begin descent on crosswind/early-downwind so the GS-intercept
-            // altitude is reached by the (compressed) base-turn point. Mark _pastAbeam
-            // so OnTick's normal abeam-trigger doesn't re-overwrite the targets.
-            _pastAbeam = true;
-            ApplyPastAbeamDescentTargets(ctx, startAlongTrack);
-        }
-        else
-        {
-            // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
-            // continue descending at the pattern rate instead of using the slower default.
-            ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
-            ctx.Targets.DesiredVerticalRate =
-                (ctx.Aircraft.Altitude > Waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
-        }
-
-        // Downwind speed (per-type if available). A controller speed assignment outranks the leg
-        // baseline — per 7110.65 §5-7-4 only the controller terminates a speed adjustment, so reaching
-        // the next leg must not revert it.
-        if (!ctx.Targets.HasExplicitSpeedCommand)
-        {
-            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(Waypoints, ctx.AircraftType, ctx.Category);
-        }
+        ApplyStartAltitudeTargets(ctx, Waypoints, startAlongTrack);
+        StartLegSpeed(ctx, Waypoints);
 
         if (Log.IsEnabled(LogLevel.Debug))
         {
@@ -225,6 +203,80 @@ public sealed class DownwindPhase : Phase
                 IsExtended
             );
         }
+    }
+
+    /// <summary>
+    /// The controller altitude and the midfield reminder start clear on a new leg. A leg resumed after a boundary hold keeps
+    /// the ones the leg it replaces carried over, so a CM/DM issued on that leg still stands and its reminder is not repeated.
+    /// </summary>
+    private void ResetLegLatches(PhaseContext ctx)
+    {
+        if (_resumeFromPosition)
+        {
+            return;
+        }
+
+        _controllerAltitudeFt = null;
+        _seenAssignedAltitudeFt = ctx.Targets.AssignedAltitude;
+        _assignedAltitudeBaselinePending = false;
+        _midfieldBroadcastIssued = false;
+    }
+
+    /// <summary>
+    /// A leg resumed after a boundary hold at or past midfield owes no midfield reminder: the aircraft has flown past that
+    /// point. Past abeam is not latched here: the first tick's abeam check latches it and starts the descent.
+    /// </summary>
+    private void ApplyResumeLatches(double startAlongTrack)
+    {
+        if (_resumeFromPosition && (startAlongTrack >= _midfieldAlongTrack - MidfieldLeadNm))
+        {
+            _midfieldBroadcastIssued = true;
+        }
+    }
+
+    /// <summary>
+    /// Downwind speed (per-type if available). A controller speed assignment outranks the leg baseline — per 7110.65 §5-7-4
+    /// only the controller terminates a speed adjustment, so reaching the next leg must not revert it.
+    /// </summary>
+    private static void StartLegSpeed(PhaseContext ctx, PatternWaypoints waypoints)
+    {
+        if (!ctx.Targets.HasExplicitSpeedCommand)
+        {
+            ctx.Targets.TargetSpeed = PatternCompression.DownwindSpeed(waypoints, ctx.AircraftType, ctx.Category);
+        }
+    }
+
+    /// <summary>
+    /// The leg's opening altitude targets. A short approach armed before the leg descends at once; a leg resumed after a
+    /// boundary hold with a controller altitude from the leg it replaces holds that altitude (AIM 4-4-10.a); otherwise the leg
+    /// targets pattern altitude.
+    /// </summary>
+    private void ApplyStartAltitudeTargets(PhaseContext ctx, PatternWaypoints waypoints, double startAlongTrack)
+    {
+        if (_resumeFromPosition && (_controllerAltitudeFt is { } controllerAltitudeFt))
+        {
+            ctx.Targets.TargetAltitude = controllerAltitudeFt;
+            ctx.Targets.DesiredVerticalRate = null;
+            return;
+        }
+
+        if (ShortApproachArmed)
+        {
+            // Pilot aware of upcoming short approach — start descending immediately
+            // rather than waiting for abeam. Real pilots issued an SA earlier than
+            // the leg begin descent on crosswind/early-downwind so the GS-intercept
+            // altitude is reached by the (compressed) base-turn point. Mark _pastAbeam
+            // so OnTick's normal abeam-trigger doesn't re-overwrite the targets.
+            _pastAbeam = true;
+            ApplyPastAbeamDescentTargets(ctx, startAlongTrack);
+            return;
+        }
+
+        // Target pattern altitude. If still above TPA (e.g., from a high pattern entry),
+        // continue descending at the pattern rate instead of using the slower default.
+        ctx.Targets.TargetAltitude = waypoints.PatternAltitude;
+        ctx.Targets.DesiredVerticalRate =
+            (ctx.Aircraft.Altitude > waypoints.PatternAltitude + 100) ? -CategoryPerformance.PatternDescentRate(ctx.Category) : null;
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -312,26 +364,14 @@ public sealed class DownwindPhase : Phase
     /// <summary>
     /// Re-intercept the computed downwind line (through the abeam point, on the downwind heading) when the aircraft
     /// is off it — turn toward the line with a bounded intercept angle, decreasing to zero as it re-establishes.
-    /// See <see cref="DownwindTrackToleranceNm"/>.
+    /// See <see cref="PatternTrackRejoin.TrackToleranceNm"/>.
     /// </summary>
-    private void RejoinDownwindTrack(PhaseContext ctx, PatternWaypoints waypoints)
-    {
-        double xtk = GeoMath.SignedCrossTrackDistanceNm(
+    private void RejoinDownwindTrack(PhaseContext ctx, PatternWaypoints waypoints) =>
+        ctx.Targets.TargetTrueHeading = PatternTrackRejoin.HeadingToRejoin(
             ctx.Aircraft.Position,
             new LatLon(waypoints.DownwindAbeamLat, waypoints.DownwindAbeamLon),
             _downwindHeading
         );
-        if (Math.Abs(xtk) > DownwindTrackToleranceNm)
-        {
-            double intercept = Math.Min(MaxDownwindInterceptDeg, Math.Abs(xtk) * DownwindInterceptGainDegPerNm);
-            double corrected = _downwindHeading.Degrees + (xtk > 0 ? -intercept : intercept);
-            ctx.Targets.TargetTrueHeading = new TrueHeading(corrected);
-        }
-        else
-        {
-            ctx.Targets.TargetTrueHeading = _downwindHeading;
-        }
-    }
 
     /// <summary>The controller-armed midfield report fires whatever the landing clearance, and replaces this leg's reminder.</summary>
     private void ReportMidfieldIfDue(PhaseContext ctx, double aircraftAlongTrack)
@@ -524,7 +564,11 @@ public sealed class DownwindPhase : Phase
             return;
         }
 
-        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Downwind);
+        // A leg resumed after a boundary hold is not a turn onto the downwind: it makes no "turning downwind" call.
+        if (!_resumeFromPosition)
+        {
+            PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Downwind);
+        }
     }
 
     /// <summary>
@@ -631,6 +675,31 @@ public sealed class DownwindPhase : Phase
         };
         resume.CarryExtendedLeadMark(this);
         return resume;
+    }
+
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy built on <see cref="CloneForResume"/>, carrying the leg's offset (re-acquired from the new position),
+    /// short-approach and crossover settings, this lap's midfield reminder and a CM/DM issued on the leg, that re-intercepts
+    /// the downwind line (<see cref="RejoinTrack"/>) after the orbit and makes no "turning downwind" call. Past midfield is
+    /// re-derived from where the aircraft is on the downwind line when it starts, and past abeam on its first tick, never
+    /// reset: a copy that forgot it was past abeam would re-level at pattern altitude.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx)
+    {
+        DownwindPhase resume = CloneForResume();
+        resume.RejoinTrack = true;
+        resume.LateralOffset = PatternLateralOffsetState.Reacquire(LateralOffset);
+        resume.ShortApproachArmed = ShortApproachArmed;
+        resume.ExitAtMidfield = ExitAtMidfield;
+        resume._midfieldBroadcastIssued = _midfieldBroadcastIssued;
+        resume._controllerAltitudeFt = _controllerAltitudeFt;
+        resume._seenAssignedAltitudeFt = _seenAssignedAltitudeFt;
+        resume._assignedAltitudeBaselinePending = _assignedAltitudeBaselinePending;
+        resume._resumeFromPosition = true;
+        return HoldResume.RestartWith(resume);
     }
 
     /// <summary>Takes <paramref name="replaced"/>'s follow give-up restart mark, for a downwind that re-creates this lap's.</summary>

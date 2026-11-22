@@ -53,6 +53,28 @@ public abstract class Phase
     public virtual bool IsIdleAwaitingCommands => false;
 
     /// <summary>
+    /// Whether an uncleared VFR pilot about to enter Class B airspace may put an orbit hold in front of this phase
+    /// (<see cref="PhaseList.InsertHoldInFront"/>) and resume it afterwards. This is the phase's own answer; the gates on
+    /// height above the ground and on the final approach fix belong to the caller that inserts the hold. Default false: a
+    /// phase that cannot be suspended keeps flying under the altitude cap alone.
+    /// </summary>
+    /// <param name="ctx">The phase context of the aircraft flying this phase.</param>
+    /// <returns>True when this phase can be held behind a boundary hold.</returns>
+    public virtual bool CanSuspendForBoundaryHold(PhaseContext ctx) => false;
+
+    /// <summary>
+    /// How this phase carries on when the boundary hold in front of it ends (<see cref="PhaseList.EndHold"/>):
+    /// <see cref="HoldResume.InPlace"/> when its state is still valid from wherever the orbit left the aircraft, else
+    /// <see cref="HoldResume.RestartWith"/> a new, not yet started copy that re-plans the leg from the present position.
+    /// Only a phase whose <see cref="CanSuspendForBoundaryHold"/> answers true is ever held, so the default throws.
+    /// </summary>
+    /// <param name="ctx">The phase context of the aircraft, read where the orbit left it.</param>
+    /// <returns>The resume the hold's end applies.</returns>
+    /// <exception cref="InvalidOperationException">This phase cannot be suspended for a boundary hold.</exception>
+    public virtual HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        throw new InvalidOperationException($"{Name} cannot be suspended for a boundary hold, so it has no resume");
+
+    /// <summary>
     /// Speed-axis commands: a pure speed instruction that adjusts the speed target
     /// without touching the lateral or vertical path. Single source of truth for
     /// phases whose <see cref="CanAcceptCommand"/> treats speed changes as additive.

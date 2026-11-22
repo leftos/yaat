@@ -390,6 +390,26 @@ public sealed class FinalApproachPhase : Phase
 
     public override string Name => "FinalApproach";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy (<see cref="CloneForResume"/>) that makes no "turning final" call: the orbit breaks the glideslope
+    /// capture, so the copy re-runs the capture and the stabilised-approach gates from scratch, with the pilot's go-around roll
+    /// kept consumed so a resume never rolls it twice. It is given no lateral-gate grace, which would hide an approach left
+    /// unstable by the orbit. <see cref="SkipInterceptCheck"/> stays set as <see cref="CloneForResume"/> sets it: the
+    /// controller-intercept check exempts VFR aircraft, the only ones a boundary hold is for.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx)
+    {
+        FinalApproachPhase resume = CloneForResume();
+        resume._resumeFromPosition = true;
+        return HoldResume.RestartWith(resume);
+    }
+
+    /// <summary>Set on the copy that resumes this leg after a boundary hold. Read in OnStart only, so it needs no snapshot field.</summary>
+    private bool _resumeFromPosition;
+
     /// <summary>
     /// FinalApproach owns speed: it commands the FAS deceleration and (for followers)
     /// the spacing-adjusted target. Without this, <see cref="FlightPhysics.UpdateSpeed"/>'s
@@ -485,7 +505,10 @@ public sealed class FinalApproachPhase : Phase
             return;
         }
 
-        Pattern.PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Final);
+        if (!_resumeFromPosition)
+        {
+            Pattern.PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Final);
+        }
 
         if (StartWithLateralGateGrace)
         {

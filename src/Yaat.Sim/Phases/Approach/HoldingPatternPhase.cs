@@ -70,6 +70,39 @@ public sealed class HoldingPatternPhase : Phase
 
     public override string Name => "HoldingPattern";
 
+    /// <summary>
+    /// Set on the copy that resumes this hold after a boundary hold: the entry is picked from the course to the fix. Read in
+    /// OnStart only, so it needs no snapshot field.
+    /// </summary>
+    private bool _entryFromCourseToFix;
+
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy of the same hold with no entry given, so its start picks a new entry from the course to the fix, not
+    /// the heading the orbit happened to leave; the circuits still owed and the clearance-limit report carry over.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new HoldingPatternPhase
+            {
+                _entryFromCourseToFix = true,
+                FixName = FixName,
+                FixLat = FixLat,
+                FixLon = FixLon,
+                InboundCourse = InboundCourse,
+                LegLength = LegLength,
+                IsMinuteBased = IsMinuteBased,
+                Direction = Direction,
+                MaxCircuits = (MaxCircuits is { } max) ? Math.Max(1, max - _circuitsCompleted) : null,
+                IsHoldInLieu = IsHoldInLieu,
+                IsMissedApproachHold = IsMissedApproachHold,
+                IsClearanceLimitHold = IsClearanceLimitHold,
+                ClearanceLimitReported = ClearanceLimitReported,
+            }
+        );
+
     public override void OnStart(PhaseContext ctx)
     {
         _outboundHeading = new TrueHeading(InboundCourse + 180);
@@ -79,7 +112,10 @@ public sealed class HoldingPatternPhase : Phase
         ctx.Targets.NavigationRoute.Clear();
         ctx.Targets.NavigationRoute.Add(new NavigationTarget { Name = FixName, Position = new LatLon(FixLat, FixLon) });
 
-        _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(ctx.Aircraft.TrueHeading, InboundCourse, Direction);
+        TrueHeading entryHeading = _entryFromCourseToFix
+            ? new TrueHeading(GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(FixLat, FixLon)))
+            : ctx.Aircraft.TrueHeading;
+        _entry = Entry ?? HoldingEntryCalculator.ComputeEntry(entryHeading, InboundCourse, Direction);
 
         if (Log.IsEnabled(LogLevel.Debug))
         {

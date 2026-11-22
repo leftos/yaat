@@ -71,6 +71,12 @@ public sealed class DepartureProcedurePhase : Phase, IPendingDepartureRoute
 
     public override string Name => "DepartureProcedure";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>In place: the procedure is route-driven, and the hold puts the remaining route back.</summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     /// <summary>Index of the coded leg currently being flown — the first leg the overlay projects from.</summary>
     public int ActiveLegIndex => _legIndex;
 

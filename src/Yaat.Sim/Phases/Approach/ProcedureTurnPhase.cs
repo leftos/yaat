@@ -70,6 +70,28 @@ public sealed class ProcedureTurnPhase : Phase
 
     public override string Name => "ProcedureTurn";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy that starts over by navigating to the fix: an outbound timer or a half-flown 180 means nothing after a
+    /// circle.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new ProcedureTurnPhase
+            {
+                FixName = FixName,
+                FixLat = FixLat,
+                FixLon = FixLon,
+                InboundCourseDeg = InboundCourseDeg,
+                PtOutboundCourseDeg = PtOutboundCourseDeg,
+                MaxOutboundDistanceNm = MaxOutboundDistanceNm,
+                OneEightyTurnDirection = OneEightyTurnDirection,
+                MinAltitudeFt = MinAltitudeFt,
+            }
+        );
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();

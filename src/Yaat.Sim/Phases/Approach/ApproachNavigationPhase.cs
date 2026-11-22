@@ -51,6 +51,15 @@ public sealed class ApproachNavigationPhase : Phase
 
     public override string Name => "ApproachNav";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// In place, the missed approach too: the leg is driven by its fix index, which a second <see cref="OnStart"/> would
+    /// reset, and the hold puts the route to the current fix back.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     public override void OnStart(PhaseContext ctx)
     {
         _currentFixIndex = PostTurnJoin is { } join ? FirstFixAheadOnInbound(ctx.Aircraft.Position, join) : 0;

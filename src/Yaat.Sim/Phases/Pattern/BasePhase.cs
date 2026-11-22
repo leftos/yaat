@@ -115,6 +115,28 @@ public sealed class BasePhase : Phase
     public override string Name => "Base";
     public override bool ManagesSpeed => true;
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy carrying the leg's final distance and lateral offset (re-acquired from the new position): its start
+    /// re-plans the descent from the new position and altitude and makes no "turning base" call. An orbit that leaves the
+    /// aircraft inside the final-turn radius turns it to final at once.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new BasePhase
+            {
+                Waypoints = Waypoints,
+                FinalDistanceNm = FinalDistanceNm,
+                LateralOffset = PatternLateralOffsetState.Reacquire(LateralOffset),
+                _resumeFromPosition = true,
+            }
+        );
+
+    /// <summary>Set on the copy that resumes this leg after a boundary hold. Read in OnStart only, so it needs no snapshot field.</summary>
+    private bool _resumeFromPosition;
+
     public override void OnStart(PhaseContext ctx)
     {
         StartPoint = ctx.Aircraft.Position;
@@ -124,7 +146,10 @@ public sealed class BasePhase : Phase
             return;
         }
 
-        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Base);
+        if (!_resumeFromPosition)
+        {
+            PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Base);
+        }
 
         _finalHeading = Waypoints.FinalHeading;
 

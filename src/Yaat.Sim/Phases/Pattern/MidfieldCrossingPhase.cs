@@ -65,6 +65,12 @@ public sealed class MidfieldCrossingPhase : Phase
     public override string Name => "MidfieldCrossing";
     public override bool ManagesSpeed => true;
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>In place: the crossing re-steers to its fixed target from the present position every tick.</summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     public override void OnStart(PhaseContext ctx)
     {
         if (Waypoints is null)

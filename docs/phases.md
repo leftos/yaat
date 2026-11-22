@@ -171,7 +171,9 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 - `InPlace` moves the current index onto the held phase without calling its `OnStart` again, so it ticks on from its own state.
 - `RestartWith(copy)` ends the held phase `Completed` once and starts the Pending copy in its place.
 
-A hold that never started is removed with neither `OnStart` nor `OnEnd`. At most one hold and one held phase stand at a time. Design: [plans/class-b-in-phase-hold.md](plans/class-b-in-phase-hold.md).
+A hold that never started is removed with neither `OnStart` nor `OnEnd`.
+
+Each phase declares whether a hold may stand in front of it, `Phase.CanSuspendForBoundaryHold` (false by default), and how it resumes, `Phase.ResumeAfterBoundaryHold`. The pattern entry, midfield crossing, pattern exit, approach navigation, go-around, initial climb and departure procedure resume in place. The teardrop resumes in place too, and completes on the next tick when only its abeam fix is left past abeam, so the downwind rejoins its line. Upwind, crosswind, downwind, base, final, intercept course, procedure turn and holding pattern resume from a new copy that re-anchors on its leg from the present position, keeps a controller altitude and lateral offset given on the leg (the offset re-acquired), and voices no "turning {leg}" call; the holding copy picks its entry from the course to the fix. Every other phase cannot be held. `PhaseAcceptanceAuditTests` lists every concrete phase's answer. At most one hold and one held phase stand at a time. Design: [plans/class-b-in-phase-hold.md](plans/class-b-in-phase-hold.md).
 
 ## Command interaction — `CommandDispatcher.cs`
 

@@ -34,6 +34,12 @@ public sealed class PatternExitPhase : Phase
 
     public override string Name => "PatternExit";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>In place: the hold puts the exit heading back, and the exit rolls out on it from wherever it is.</summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();

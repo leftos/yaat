@@ -48,6 +48,12 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
 
     public override string Name => "InitialClimb";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>In place: the hold puts the departure heading back and the climb target stands through the orbit.</summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     public override PhaseDto ToSnapshot() =>
         new InitialClimbPhaseDto
         {

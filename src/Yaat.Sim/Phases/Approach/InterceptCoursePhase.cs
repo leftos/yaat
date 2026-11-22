@@ -113,6 +113,27 @@ public sealed class InterceptCoursePhase : Phase
 
     public override string Name => "InterceptCourse";
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy with the same course, threshold and intercept clearance: a fresh intercept from the new position, with no
+    /// cross-track history and the approach speed not yet set.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new InterceptCoursePhase
+            {
+                FinalApproachCourse = FinalApproachCourse,
+                ThresholdLat = ThresholdLat,
+                ThresholdLon = ThresholdLon,
+                ApproachId = ApproachId,
+                AssignedInterceptHeading = AssignedInterceptHeading,
+                ForcedIntercept = ForcedIntercept,
+                RelaxedJoin = RelaxedJoin,
+            }
+        );
+
     public override void OnStart(PhaseContext ctx)
     {
         // Aircraft continues on its current heading — no target change.

@@ -30,6 +30,20 @@ public sealed class UpwindPhase : Phase
     private double _minTurnAltitude;
     private bool _followExtensionWarningIssued;
 
+    /// <summary>
+    /// Set on the copy that resumes this leg after a boundary hold: the orbit left the aircraft off the extended centerline,
+    /// so the leg steers back onto it instead of holding the upwind heading parallel to it.
+    /// </summary>
+    private bool _rejoinCenterline;
+
+    /// <summary>The assigned altitude in force when the leg started, recorded so a CM/DM issued on the leg can be told apart.</summary>
+    private double? _seenAssignedAltitudeFt;
+
+    private bool _assignedAltitudeBaselineRecorded;
+
+    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps. Read in OnStart only.</summary>
+    private double? _resumeControllerAltitudeFt;
+
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
@@ -89,6 +103,7 @@ public sealed class UpwindPhase : Phase
         // climb toward the assigned/cruise altitude without leveling off.
         ctx.Targets.TargetAltitude = DepartureClimbTargetFt ?? Waypoints.PatternAltitude;
         ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
+        RecordOrKeepAltitudeBaseline(ctx);
 
         // Accelerate toward downwind speed
         // A controller speed assignment outranks the leg baseline (7110.65 §5-7-4).
@@ -142,6 +157,14 @@ public sealed class UpwindPhase : Phase
                 _upwindHeading,
                 new LatLon(Waypoints.DepartureEndLat, Waypoints.DepartureEndLon),
                 LateralOffset
+            );
+        }
+        else if (_rejoinCenterline && (Waypoints is { } centerlineWaypoints))
+        {
+            ctx.Targets.TargetTrueHeading = PatternTrackRejoin.HeadingToRejoin(
+                ctx.Aircraft.Position,
+                new LatLon(centerlineWaypoints.DepartureEndLat, centerlineWaypoints.DepartureEndLon),
+                _upwindHeading
             );
         }
 
@@ -247,6 +270,48 @@ public sealed class UpwindPhase : Phase
     internal static bool PastDepartureEnd(LatLon position, LatLon departureEnd, TrueHeading upwindHeading) =>
         Math.Abs(GeoMath.SignedBearingDifference(GeoMath.BearingTo(position, departureEnd), upwindHeading.Degrees)) > 90.0;
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy: the leg flies a fixed heading, and the orbit leaves the aircraft off the extended centerline, so the
+    /// copy steers back onto the centerline (AIM 4-3-2, the upwind "continues straight ahead along the extended runway
+    /// centerline"). It carries the leg's extension, the armed crosswind turn, the lateral offset (re-acquired from the new
+    /// position), the departure climb target, a CM/DM issued on the leg and the follow-extension advisory.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new UpwindPhase
+            {
+                Waypoints = Waypoints,
+                IsExtended = IsExtended,
+                TurnCrosswindArmed = TurnCrosswindArmed,
+                LateralOffset = PatternLateralOffsetState.Reacquire(LateralOffset),
+                DepartureClimbTargetFt = DepartureClimbTargetFt,
+                _followExtensionWarningIssued = _followExtensionWarningIssued,
+                _rejoinCenterline = true,
+                _seenAssignedAltitudeFt = _seenAssignedAltitudeFt,
+                _assignedAltitudeBaselineRecorded = _assignedAltitudeBaselineRecorded,
+                _resumeControllerAltitudeFt = ResumedLegAltitude.IssuedOnLeg(ctx.Targets, _assignedAltitudeBaselineRecorded, _seenAssignedAltitudeFt),
+            }
+        );
+
+    /// <summary>
+    /// A new leg records the assigned altitude in force as it starts; the restart copy keeps the baseline of the leg it
+    /// replaces and holds the CM/DM issued on that leg.
+    /// </summary>
+    private void RecordOrKeepAltitudeBaseline(PhaseContext ctx)
+    {
+        if (_rejoinCenterline)
+        {
+            ResumedLegAltitude.Apply(ctx, _resumeControllerAltitudeFt);
+            return;
+        }
+
+        _seenAssignedAltitudeFt = ctx.Targets.AssignedAltitude;
+        _assignedAltitudeBaselineRecorded = true;
+    }
+
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
     {
         // Speed and altitude adjustments are additive — they retarget without
@@ -289,6 +354,9 @@ public sealed class UpwindPhase : Phase
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
             FollowExtensionWarningIssued = _followExtensionWarningIssued,
+            RejoinCenterline = _rejoinCenterline ? true : null,
+            SeenAssignedAltitudeFt = _seenAssignedAltitudeFt,
+            AssignedAltitudeBaselineRecorded = _assignedAltitudeBaselineRecorded ? true : null,
         };
 
     public static UpwindPhase FromSnapshot(UpwindPhaseDto dto)
@@ -314,6 +382,9 @@ public sealed class UpwindPhase : Phase
             _upwindHeading = new TrueHeading(dto.UpwindHeadingDeg),
             _minTurnAltitude = dto.MinTurnAltitude,
             _followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false,
+            _rejoinCenterline = dto.RejoinCenterline ?? false,
+            _seenAssignedAltitudeFt = dto.SeenAssignedAltitudeFt,
+            _assignedAltitudeBaselineRecorded = dto.AssignedAltitudeBaselineRecorded ?? false,
         };
         return phase;
     }

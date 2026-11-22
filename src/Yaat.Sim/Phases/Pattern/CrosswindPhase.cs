@@ -21,6 +21,17 @@ public sealed class CrosswindPhase : Phase
     private TrueHeading _crosswindHeading;
     private bool _followExtensionWarningIssued;
 
+    /// <summary>Set on the copy that resumes this leg after a boundary hold. Read in OnStart only, so it needs no snapshot field.</summary>
+    private bool _resumeFromPosition;
+
+    /// <summary>The assigned altitude in force when the leg started, recorded so a CM/DM issued on the leg can be told apart.</summary>
+    private double? _seenAssignedAltitudeFt;
+
+    private bool _assignedAltitudeBaselineRecorded;
+
+    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps. Read in OnStart only.</summary>
+    private double? _resumeControllerAltitudeFt;
+
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
@@ -44,14 +55,53 @@ public sealed class CrosswindPhase : Phase
     public override string Name => "Crosswind";
     public override bool ManagesSpeed => true;
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// A restart copy: the leg flies a fixed heading judged on along-track distance, so it is re-flown from where the orbit
+    /// left the aircraft, with no "turning crosswind" call. It carries the leg's extension, the lateral offset (re-acquired
+    /// from the new position), the departure climb target, a CM/DM issued on the leg and the follow-extension advisory.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) =>
+        HoldResume.RestartWith(
+            new CrosswindPhase
+            {
+                Waypoints = Waypoints,
+                IsExtended = IsExtended,
+                LateralOffset = PatternLateralOffsetState.Reacquire(LateralOffset),
+                DepartureClimbTargetFt = DepartureClimbTargetFt,
+                _followExtensionWarningIssued = _followExtensionWarningIssued,
+                _resumeFromPosition = true,
+                _seenAssignedAltitudeFt = _seenAssignedAltitudeFt,
+                _assignedAltitudeBaselineRecorded = _assignedAltitudeBaselineRecorded,
+                _resumeControllerAltitudeFt = ResumedLegAltitude.IssuedOnLeg(ctx.Targets, _assignedAltitudeBaselineRecorded, _seenAssignedAltitudeFt),
+            }
+        );
+
+    /// <summary>
+    /// A new leg makes the armed "turning crosswind" call and records the assigned altitude in force as it starts; the restart
+    /// copy makes no call, keeps the baseline of the leg it replaces and holds the CM/DM issued on that leg.
+    /// </summary>
+    private void StartLegOrResume(PhaseContext ctx)
+    {
+        if (_resumeFromPosition)
+        {
+            ResumedLegAltitude.Apply(ctx, _resumeControllerAltitudeFt);
+            return;
+        }
+
+        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Crosswind);
+        _seenAssignedAltitudeFt = ctx.Targets.AssignedAltitude;
+        _assignedAltitudeBaselineRecorded = true;
+    }
+
     public override void OnStart(PhaseContext ctx)
     {
         if (Waypoints is null)
         {
             return;
         }
-
-        PatternReportHelper.EmitTurningLeg(ctx, ReportTrigger.Crosswind);
 
         _targetLat = Waypoints.DownwindStartLat;
         _targetLon = Waypoints.DownwindStartLon;
@@ -77,6 +127,8 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
+
+        StartLegOrResume(ctx);
 
         if (Log.IsEnabled(LogLevel.Debug))
         {
@@ -247,6 +299,8 @@ public sealed class CrosswindPhase : Phase
             LateralOffsetDirection = LateralOffset is not null ? (int)LateralOffset.Direction : null,
             LateralOffsetAcquired = LateralOffset?.Acquired ?? false,
             FollowExtensionWarningIssued = _followExtensionWarningIssued,
+            SeenAssignedAltitudeFt = _seenAssignedAltitudeFt,
+            AssignedAltitudeBaselineRecorded = _assignedAltitudeBaselineRecorded ? true : null,
         };
 
     public static CrosswindPhase FromSnapshot(CrosswindPhaseDto dto)
@@ -270,6 +324,8 @@ public sealed class CrosswindPhase : Phase
             _targetLon = dto.TargetLon,
             _crosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg),
             _followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false,
+            _seenAssignedAltitudeFt = dto.SeenAssignedAltitudeFt,
+            _assignedAltitudeBaselineRecorded = dto.AssignedAltitudeBaselineRecorded ?? false,
         };
         return phase;
     }

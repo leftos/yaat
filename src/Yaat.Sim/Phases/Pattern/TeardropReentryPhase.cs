@@ -38,6 +38,9 @@ public sealed class TeardropReentryPhase : Phase
     private double _leadInLat;
     private double _leadInLon;
 
+    /// <summary>Set when a boundary hold ended with the aircraft past the abeam point; read by the next tick.</summary>
+    private bool _completeAtAbeamOnResume;
+
     public override string Name => "TeardropReentry";
     public override bool ManagesSpeed => true;
 
@@ -195,6 +198,11 @@ public sealed class TeardropReentryPhase : Phase
             return false;
         }
 
+        if (TryCompleteAtAbeamOnResume(ctx))
+        {
+            return true;
+        }
+
         // A follow accepted during the re-entry engages free-flight spacing immediately
         // (mirrors PatternEntryPhase): wider free-flight desired distance, and only ever
         // SLOW below the re-entry baseline.
@@ -210,6 +218,59 @@ public sealed class TeardropReentryPhase : Phase
         }
 
         return ctx.Targets.NavigationRoute.Count == 0;
+    }
+
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// In place: the hold puts the remaining fixes back. When the orbit has left the aircraft past the abeam point, the next
+    /// tick ends the re-entry if the abeam point is the only fix left, rather than doubling back to it
+    /// (<see cref="TryCompleteAtAbeamOnResume"/>).
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx)
+    {
+        double pastAbeamNm = GeoMath.AlongTrackDistanceNm(
+            ctx.Aircraft.Position,
+            new LatLon(Waypoints.DownwindAbeamLat, Waypoints.DownwindAbeamLon),
+            Waypoints.DownwindHeading
+        );
+        _completeAtAbeamOnResume = pastAbeamNm > 0;
+        return HoldResume.InPlace;
+    }
+
+    /// <summary>
+    /// The first tick after a boundary hold that ended past the abeam point, with the abeam point the only fix left: the
+    /// teardrop is complete and the pattern continues on the downwind, which re-intercepts its line from where the aircraft is
+    /// (<see cref="DownwindPhase.RejoinTrack"/>) and starts its descent at its first abeam check.
+    /// </summary>
+    /// <returns>True when the re-entry ends this tick.</returns>
+    private bool TryCompleteAtAbeamOnResume(PhaseContext ctx)
+    {
+        if (!_completeAtAbeamOnResume)
+        {
+            return false;
+        }
+
+        _completeAtAbeamOnResume = false;
+        List<NavigationTarget> route = ctx.Targets.NavigationRoute;
+        if ((route.Count != 1) || (route[0].Name != AbeamTargetName))
+        {
+            return false;
+        }
+
+        route.Clear();
+        if (ctx.Aircraft.Phases?.Phases.Skip(ctx.Aircraft.Phases.CurrentIndex + 1).OfType<DownwindPhase>().FirstOrDefault() is { } downwind)
+        {
+            downwind.RejoinTrack = true;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[TeardropReentry] {Callsign}: past abeam after the boundary hold, teardrop complete", ctx.Aircraft.Callsign);
+        }
+
+        return true;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd)
@@ -253,6 +314,7 @@ public sealed class TeardropReentryPhase : Phase
             OutboundLon = _outboundLon,
             LeadInLat = _leadInLat,
             LeadInLon = _leadInLon,
+            CompleteAtAbeamOnResume = _completeAtAbeamOnResume ? true : null,
         };
 
     public static TeardropReentryPhase FromSnapshot(TeardropReentryPhaseDto dto)
@@ -266,6 +328,7 @@ public sealed class TeardropReentryPhase : Phase
             _outboundLon = dto.OutboundLon,
             _leadInLat = dto.LeadInLat,
             _leadInLon = dto.LeadInLon,
+            _completeAtAbeamOnResume = dto.CompleteAtAbeamOnResume ?? false,
         };
         return phase;
     }

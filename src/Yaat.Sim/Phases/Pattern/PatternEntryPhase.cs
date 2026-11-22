@@ -87,6 +87,15 @@ public sealed class PatternEntryPhase : Phase
     public override string Name => "Pattern Entry";
     public override bool ManagesSpeed => true;
 
+    /// <inheritdoc/>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+
+    /// <summary>
+    /// In place: the entry flies to fixed points, so it carries on from wherever the orbit left the aircraft. A second
+    /// <see cref="OnStart"/> would rebuild the route and repeat the initial call.
+    /// </summary>
+    public override HoldResume ResumeAfterBoundaryHold(PhaseContext ctx) => HoldResume.InPlace;
+
     public override void OnStart(PhaseContext ctx)
     {
         ctx.Targets.NavigationRoute.Clear();

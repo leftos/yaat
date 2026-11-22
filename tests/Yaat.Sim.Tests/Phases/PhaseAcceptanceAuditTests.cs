@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Xunit;
 using Yaat.Sim.Commands;
@@ -661,5 +662,97 @@ public class PhaseAcceptanceAuditTests
         CommandAcceptance refusal = phase.CanAcceptCommand(CanonicalCommandType.ClimbMaintain);
         Assert.Contains("CROSS/LUAW/CTO/HSC, FOLLOWG", refusal.Reason);
         Assert.DoesNotContain("RES", refusal.Reason);
+    }
+
+    /// <summary>
+    /// Which phases an uncleared VFR pilot may hold behind a Class B boundary orbit (<see cref="Phase.CanSuspendForBoundaryHold"/>).
+    /// Every concrete phase is listed, so a new phase must declare its answer here.
+    /// </summary>
+    private static readonly Dictionary<string, bool> SuspendableByPhase = new()
+    {
+        ["AtParkingPhase"] = false,
+        ["PushbackPhase"] = false,
+        ["TugReleasePhase"] = false,
+        ["HoldingInPositionPhase"] = false,
+        ["HoldingAfterExitPhase"] = false,
+        ["HoldingAfterPushbackPhase"] = false,
+        ["TaxiingPhase"] = false,
+        ["FollowingPhase"] = false,
+        ["AirTaxiPhase"] = false,
+        ["CrossingRunwayPhase"] = false,
+        ["HoldingShortPhase"] = false,
+        ["RunwayHoldingPhase"] = false,
+        ["LineUpPhase"] = false,
+        ["LinedUpAndWaitingPhase"] = false,
+        ["TakeoffPhase"] = false,
+        ["HelicopterTakeoffPhase"] = false,
+        ["InitialClimbPhase"] = true,
+        ["DepartureProcedurePhase"] = true,
+        ["FinalApproachPhase"] = true,
+        ["HelicopterApproachPhase"] = false,
+        ["HelicopterLandingPhase"] = false,
+        ["LandingPhase"] = false,
+        ["RunwayExitPhase"] = false,
+        ["ClearRunwayPhase"] = false,
+        ["RejectedTakeoffPhase"] = false,
+        ["GoAroundPhase"] = true,
+        ["LowApproachPhase"] = false,
+        ["ApproachNavigationPhase"] = true,
+        ["InterceptCoursePhase"] = true,
+        ["ProcedureTurnPhase"] = true,
+        ["HoldingPatternPhase"] = true,
+        ["VfrHoldPhase"] = false,
+        ["AirspaceBoundaryHoldPhase"] = false,
+        ["AerialRefuelingAnchorPhase"] = false,
+        ["UpwindPhase"] = true,
+        ["CrosswindPhase"] = true,
+        ["DownwindPhase"] = true,
+        ["BasePhase"] = true,
+        ["PatternEntryPhase"] = true,
+        ["MidfieldCrossingPhase"] = true,
+        ["TeardropReentryPhase"] = true,
+        ["VfrFollowPhase"] = false,
+        ["TouchAndGoPhase"] = false,
+        ["StopAndGoPhase"] = false,
+        ["PatternExitPhase"] = true,
+        ["MakeTurnPhase"] = false,
+        ["STurnPhase"] = false,
+        ["MilitaryRoutePhase"] = false,
+    };
+
+    [Fact]
+    public void CanSuspendForBoundaryHold_EveryConcretePhase_MatchesTheExpectedMap()
+    {
+        List<Type> phaseTypes = [.. typeof(Phase).Assembly.GetTypes().Where(t => t.IsSubclassOf(typeof(Phase)) && !t.IsAbstract)];
+        Assert.Equal(SuspendableByPhase.Keys.Order(), phaseTypes.Select(t => t.Name).Order());
+
+        var aircraft = new AircraftState { Callsign = "N123AB", AircraftType = "C172" };
+        PhaseContext ctx = CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty);
+        List<string> mismatches = [];
+        foreach (Type type in phaseTypes)
+        {
+            bool actual = ConstructWithDefaults(type).CanSuspendForBoundaryHold(ctx);
+            if (actual != SuspendableByPhase[type.Name])
+            {
+                mismatches.Add($"{type.Name}: expected {SuspendableByPhase[type.Name]}, got {actual}");
+            }
+
+            // A suspendable phase declares its own resume; every other phase keeps the default that throws.
+            bool declaresResume = type.GetMethod(nameof(Phase.ResumeAfterBoundaryHold))!.DeclaringType == type;
+            if (declaresResume != SuspendableByPhase[type.Name])
+            {
+                mismatches.Add($"{type.Name}: declares its own ResumeAfterBoundaryHold = {declaresResume}");
+            }
+        }
+
+        Assert.Empty(mismatches);
+    }
+
+    /// <summary>Builds a phase through its simplest public constructor, passing each parameter's default value.</summary>
+    internal static Phase ConstructWithDefaults(Type type)
+    {
+        ConstructorInfo ctor = type.GetConstructors().OrderBy(c => c.GetParameters().Length).First();
+        object?[] args = [.. ctor.GetParameters().Select(p => p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null)];
+        return (Phase)ctor.Invoke(args);
     }
 }
