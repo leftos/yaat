@@ -585,4 +585,50 @@ public class LocalScenarioStoreAuthoringTests
                 Assert.False(Directory.Exists(Path.Combine(root, Zoa)));
             }
         );
+
+    private static readonly DateTimeOffset ExportedAt = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void Duplicate_OfAnExportedCopy_StartsNeverExported() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.RecordExport(Zoa, IdA, ExportedAt);
+                Assert.Equal(ExportedAt, CopyOf(store, IdA).LastExport);
+
+                store.DuplicateWorkingCopy(Zoa, IdA, LocalId);
+
+                WorkingCopyEntry duplicate = CopyOf(store, LocalId);
+                Assert.Null(duplicate.LastExport);
+                Assert.True(duplicate.UnexportedChanges);
+                Assert.False(CopyOf(store, IdA).UnexportedChanges);
+            }
+        );
+
+    [Fact]
+    public void Import_KeepId_OverAMirror_ResetsTheExportRecord() =>
+        InRoot(
+            (root, store) =>
+            {
+                string mirror = TrainingFixtures.Read(IdA);
+                store.ApplyServerBody(Zoa, IdA, mirror);
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.RecordExport(Zoa, IdA, ExportedAt);
+                // The copy's file goes and its exported sidecar stays behind, an orphan the import must not inherit.
+                File.Delete(TrainingFixtures.LocalPath(root, IdA));
+
+                ImportResult result = store.ImportScenario(Zoa, TrainingFixtures.WithNameSuffix(IdA, " (mine)"), ImportIdChoice.KeepId, Ids(12));
+
+                Assert.Equal(ImportOutcome.Imported, result.Outcome);
+                Assert.False(result.Overwrote);
+                WorkingCopyEntry copy = CopyOf(store, IdA);
+                Assert.Null(copy.LastExport);
+                Assert.True(copy.UnexportedChanges);
+                JsonObject sidecar = JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, IdA)))!.AsObject();
+                Assert.Null(sidecar["lastExportHash"]);
+                Assert.Null(sidecar["lastExport"]);
+            }
+        );
 }

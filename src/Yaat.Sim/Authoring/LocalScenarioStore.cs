@@ -206,7 +206,7 @@ public sealed partial class LocalScenarioStore
 
             // The sidecar goes first: a crash between the two leaves an orphan sidecar, reported and overwritten by the
             // next attempt, rather than a copy that has lost its origin.
-            WriteSidecar(dir, serverId, new WorkingCopySidecar(serverId, ComputeVersion(text), ComputeContentHash(scenario!), null));
+            WriteSidecar(dir, serverId, new WorkingCopySidecar(serverId, ComputeVersion(text), ComputeContentHash(scenario!), null, null));
             StoreFiles.WriteAtomically(localPath, text);
         }
     }
@@ -227,7 +227,45 @@ public sealed partial class LocalScenarioStore
             StoreFiles.WriteAtomically(LocalPath(dir, id), json);
             if (!File.Exists(SidecarPath(dir, id)))
             {
-                WriteSidecar(dir, id, new WorkingCopySidecar(null, null, null, null));
+                WriteSidecar(dir, id, LocalOnlySidecar);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Records that a working copy was exported as it is on disk now: its sidecar keeps the time and the copy's content
+    /// hash, so the copy has unexported changes again once its content differs. Its origin and base are left as they were;
+    /// a copy with no sidecar gets a local-only one.
+    /// </summary>
+    /// <param name="artccId">The ARTCC.</param>
+    /// <param name="id">The working copy's id.</param>
+    /// <param name="at">When the export was written.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The working copy is missing or not a readable scenario, or its sidecar is corrupt; nothing is written.
+    /// </exception>
+    public void RecordExport(string artccId, string id, DateTimeOffset at)
+    {
+        string dir = ArtccDirectory(artccId);
+        RequireValidId(id);
+        lock (_gate)
+        {
+            string path = LocalPath(dir, id);
+            if (!File.Exists(path))
+            {
+                throw new InvalidOperationException($"There is no working copy {id} at {path}.");
+            }
+
+            string? reason = CheckScenario(File.ReadAllText(path), out JsonObject? scenario);
+            if (reason is not null)
+            {
+                throw new InvalidOperationException($"The working copy at {path} is corrupt ({reason}); no export was recorded.");
+            }
+
+            WorkingCopySidecar sidecar = ReadSidecarForUpdate(dir, id);
+            WriteSidecar(dir, id, sidecar with { LastExport = at, LastExportHash = ComputeContentHash(scenario!) });
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Recorded an export of working copy {Id} of {ArtccId}", id, artccId);
             }
         }
     }
@@ -523,8 +561,21 @@ public sealed partial class LocalScenarioStore
             problems.Add(new StoreProblem($"{LocalFolder}/{fileName}", reason));
         }
 
-        bool modified = (scenario is not null) && (sidecar.BaseContentHash is not null) && (ComputeContentHash(scenario) != sidecar.BaseContentHash);
-        return new WorkingCopyEntry(id, sidecar.OriginId, sidecar.BaseVersion, modified, IsServerChanged(sidecar, versions), reason is not null);
+        string? hash = (scenario is null) ? null : ComputeContentHash(scenario);
+        bool modified = (hash is not null) && (sidecar.BaseContentHash is not null) && (hash != sidecar.BaseContentHash);
+
+        // Against the last export, else the content it started from; a copy with neither exists nowhere on vNAS.
+        bool unexported = (hash is not null) && (hash != (sidecar.LastExportHash ?? sidecar.BaseContentHash));
+        return new WorkingCopyEntry(
+            id,
+            sidecar.OriginId,
+            sidecar.BaseVersion,
+            modified,
+            IsServerChanged(sidecar, versions),
+            reason is not null,
+            unexported,
+            sidecar.LastExport
+        );
     }
 
     private static bool IsServerChanged(WorkingCopySidecar sidecar, Dictionary<string, string> versions) =>
@@ -540,7 +591,7 @@ public sealed partial class LocalScenarioStore
         if (!File.Exists(path))
         {
             problems.Add(new StoreProblem(fileName, "missing; the working copy is treated as local-only"));
-            return new WorkingCopySidecar(null, null, null, null);
+            return LocalOnlySidecar;
         }
 
         try
@@ -551,8 +602,22 @@ public sealed partial class LocalScenarioStore
         catch (JsonException ex)
         {
             problems.Add(new StoreProblem(fileName, "corrupt (" + ex.Message + "); the working copy is treated as local-only"));
-            return new WorkingCopySidecar(null, null, null, null);
+            return LocalOnlySidecar;
         }
+    }
+
+    // The sidecar a change is written over: a missing one reads as local-only, a corrupt one is refused rather than
+    // overwritten, so the file stays for the author to look at.
+    private static WorkingCopySidecar ReadSidecarForUpdate(string dir, string id)
+    {
+        var problems = new List<StoreProblem>();
+        WorkingCopySidecar sidecar = ReadSidecar(dir, id, problems);
+        if ((problems.Count > 0) && File.Exists(SidecarPath(dir, id)))
+        {
+            throw new InvalidOperationException($"The sidecar {problems[0].FileName} is {problems[0].Reason}; no export was recorded.");
+        }
+
+        return sidecar;
     }
 
     private static void WriteSidecar(string dir, string id, WorkingCopySidecar sidecar) =>
@@ -806,7 +871,18 @@ public sealed partial class LocalScenarioStore
         public List<MirrorEntry> Mirrors { get; set; } = [];
     }
 
-    private sealed record WorkingCopySidecar(string? OriginId, string? BaseVersion, string? BaseContentHash, DateTimeOffset? LastExport);
+    // LastExport and LastExportHash are the export record: when the copy was last exported and its content hash then;
+    // both null when it never was.
+    private sealed record WorkingCopySidecar(
+        string? OriginId,
+        string? BaseVersion,
+        string? BaseContentHash,
+        DateTimeOffset? LastExport,
+        string? LastExportHash
+    );
+
+    // A local-only copy's sidecar: no origin, no base, never exported.
+    private static readonly WorkingCopySidecar LocalOnlySidecar = new(null, null, null, null, null);
 }
 
 /// <summary>What one server body did to the store.</summary>
@@ -864,7 +940,21 @@ public sealed record MirrorListing(MirrorEntry Mirror, bool Corrupt);
 /// <param name="Modified">Whether its content differs from the content it was started from.</param>
 /// <param name="ServerChanged">Whether the mirror of its origin has a version other than its base.</param>
 /// <param name="Corrupt">Whether its file is not a readable scenario; it is never rewritten or deleted for it.</param>
-public sealed record WorkingCopyEntry(string Id, string? OriginId, string? BaseVersion, bool Modified, bool ServerChanged, bool Corrupt);
+/// <param name="UnexportedChanges">
+/// Whether its content differs from the content last exported, or from the content it started from when it was never
+/// exported; always true for a never-exported local-only copy, false for a corrupt one.
+/// </param>
+/// <param name="LastExport">When it was last exported; null when it never was or its sidecar is missing or corrupt.</param>
+public sealed record WorkingCopyEntry(
+    string Id,
+    string? OriginId,
+    string? BaseVersion,
+    bool Modified,
+    bool ServerChanged,
+    bool Corrupt,
+    bool UnexportedChanges,
+    DateTimeOffset? LastExport
+);
 
 /// <summary>An ARTCC's mirror and working copies, as <see cref="LocalScenarioStore.Load"/> found them.</summary>
 /// <param name="ArtccId">The ARTCC.</param>

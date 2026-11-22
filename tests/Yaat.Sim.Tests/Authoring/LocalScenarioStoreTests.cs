@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Authoring;
 
@@ -685,4 +686,174 @@ public class LocalScenarioStoreTests
 
         Assert.Contains(Path.GetFullPath(underCache), ex.Message, StringComparison.Ordinal);
     }
+
+    private static readonly DateTimeOffset ExportedAt = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void RecordExport_ClearsUnexportedChanges_ALaterDifferentSaveSetsIt() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (my edit)"));
+                WorkingCopyEntry edited = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.True(edited.UnexportedChanges);
+                Assert.Null(edited.LastExport);
+
+                store.RecordExport(Zoa, IdA, ExportedAt);
+
+                WorkingCopyEntry exported = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.False(exported.UnexportedChanges);
+                Assert.Equal(ExportedAt, exported.LastExport);
+                Assert.True(exported.Modified);
+
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.Reorder(TrainingFixtures.WithNameSuffix(IdA, " (my edit)")));
+                Assert.False(Assert.Single(store.Load(Zoa).WorkingCopies).UnexportedChanges);
+
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (second edit)"));
+                WorkingCopyEntry again = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.True(again.UnexportedChanges);
+                Assert.Equal(ExportedAt, again.LastExport);
+            }
+        );
+
+    [Fact]
+    public void Load_NeverExportedLocalOnlyCopy_HasUnexportedChanges() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.SaveWorkingCopy(Zoa, IdB, TrainingFixtures.Read(IdB));
+
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+
+                Assert.Null(copy.OriginId);
+                Assert.False(copy.Modified);
+                Assert.True(copy.UnexportedChanges);
+                Assert.Null(copy.LastExport);
+            }
+        );
+
+    [Fact]
+    public void Load_UnmodifiedServerCopy_HasNoUnexportedChanges() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+
+                Assert.False(copy.UnexportedChanges);
+                Assert.Null(copy.LastExport);
+            }
+        );
+
+    [Fact]
+    public void Load_CorruptSidecar_ReadsAsNeverExported() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.RecordExport(Zoa, IdA, ExportedAt);
+                File.WriteAllText(TrainingFixtures.SidecarPath(root, IdA), "{ not json");
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                WorkingCopyEntry copy = Assert.Single(listing.WorkingCopies);
+                Assert.True(copy.UnexportedChanges);
+                Assert.Null(copy.LastExport);
+                Assert.Contains(listing.Problems, p => p.FileName == $"local/{IdA}.meta.json");
+            }
+        );
+
+    [Fact]
+    public void RecordExport_MissingCopy_Throws() =>
+        InRoot(
+            (root, store) =>
+            {
+                Assert.Throws<InvalidOperationException>(() => store.RecordExport(Zoa, IdA, ExportedAt));
+
+                Assert.False(File.Exists(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void RecordExport_CorruptCopy_Throws_LeavesTheSidecar() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.WriteAllText(TrainingFixtures.LocalPath(root, IdA), "{ not json");
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+
+                Assert.Throws<InvalidOperationException>(() => store.RecordExport(Zoa, IdA, ExportedAt));
+
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void RecordExport_CorruptSidecar_Throws_LeavesItByteForByte() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.WriteAllText(TrainingFixtures.SidecarPath(root, IdA), "{ not json");
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+
+                Assert.Throws<InvalidOperationException>(() => store.RecordExport(Zoa, IdA, ExportedAt));
+
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void RecordExport_MissingSidecar_WritesALocalOnlyOneWithTheExport() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.Delete(TrainingFixtures.SidecarPath(root, IdA));
+
+                store.RecordExport(Zoa, IdA, ExportedAt);
+
+                Assert.True(File.Exists(TrainingFixtures.SidecarPath(root, IdA)));
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.Null(copy.OriginId);
+                Assert.Null(copy.BaseVersion);
+                Assert.Equal(ExportedAt, copy.LastExport);
+                Assert.False(copy.UnexportedChanges);
+            }
+        );
+
+    [Fact]
+    public void RecordExport_LeavesOriginAndBaseUnchanged() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (my edit)"));
+                JsonObject before = JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, IdA)))!.AsObject();
+
+                store.RecordExport(Zoa, IdA, ExportedAt);
+
+                JsonObject after = JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, IdA)))!.AsObject();
+                Assert.True(JsonNode.DeepEquals(before["originId"], after["originId"]));
+                Assert.True(JsonNode.DeepEquals(before["baseVersion"], after["baseVersion"]));
+                Assert.True(JsonNode.DeepEquals(before["baseContentHash"], after["baseContentHash"]));
+
+                Assert.NotNull(after["lastExportHash"]);
+                Assert.NotNull(after["lastExport"]);
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.Equal(IdA, copy.OriginId);
+                Assert.True(copy.Modified);
+                Assert.False(copy.ServerChanged);
+            }
+        );
 }

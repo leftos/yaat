@@ -210,7 +210,7 @@ public sealed partial class LocalScenarioStore
                 StoreFiles.WriteAtomically(LocalPath(dir, copyId), TextWithId(scenario, json, fileId, copyId));
                 if (!File.Exists(SidecarPath(dir, copyId)))
                 {
-                    WriteSidecar(dir, copyId, new WorkingCopySidecar(null, null, null, null));
+                    WriteSidecar(dir, copyId, LocalOnlySidecar);
                 }
 
                 return new ImportResult(ImportOutcome.Imported, copyId, true, mismatch, null);
@@ -235,7 +235,7 @@ public sealed partial class LocalScenarioStore
             return ImportResult.Rejected($"the server copy {ServerFolder}/{mirrorId}.json can't be used ({reason}); import the file with a new id");
         }
 
-        WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText), ComputeContentHash(mirror), null));
+        WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText), ComputeContentHash(mirror), null, null));
         StoreFiles.WriteAtomically(LocalPath(dir, mirrorId), text);
         return new ImportResult(ImportOutcome.Imported, mirrorId, false, mismatch, null);
     }
@@ -298,7 +298,7 @@ public sealed partial class LocalScenarioStore
     // The sidecar goes first, as in CreateWorkingCopy, so a crash leaves an orphan sidecar rather than a copy without one.
     private static void WriteLocalOnly(string dir, string id, string text)
     {
-        WriteSidecar(dir, id, new WorkingCopySidecar(null, null, null, null));
+        WriteSidecar(dir, id, LocalOnlySidecar);
         StoreFiles.WriteAtomically(LocalPath(dir, id), text);
     }
 
