@@ -56,7 +56,7 @@ public sealed class STurnPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
         };
         phase.RestoreRequirements(dto.Requirements);
-        phase._finalHeading = new TrueHeading(dto.FinalHeadingDeg);
+        phase._finalHeading = TrueHeading.FromSnapshot(dto.FinalHeadingDeg);
         phase._turnsCompleted = dto.TurnsCompleted;
         phase._turningToFinal = dto.TurningToFinal;
         phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;

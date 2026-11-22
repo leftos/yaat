@@ -395,7 +395,7 @@ public sealed class ApproachNavigationPhase : Phase
     {
         ProcedureTurnInbound? postTurnJoin =
             (dto.PostTurnAnchorLat is { } lat) && (dto.PostTurnAnchorLon is { } lon) && (dto.PostTurnInboundCourseDeg is { } course)
-                ? new ProcedureTurnInbound(new LatLon(lat, lon), new TrueHeading(course))
+                ? new ProcedureTurnInbound(new LatLon(lat, lon), TrueHeading.FromSnapshot(course))
                 : null;
         var phase = new ApproachNavigationPhase
         {

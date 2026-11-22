@@ -59,7 +59,7 @@ public sealed class HelicopterTakeoffPhase : Phase
         var phase = new HelicopterTakeoffPhase { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         phase._departure = departure;
         phase.Departure = departure;
         phase._completionAgl = dto.CompletionAgl ?? DefaultCompletionAgl;

@@ -53,7 +53,7 @@ public sealed class TakeoffPhase : Phase, IGroundRollClock, IPendingPursuitClimb
         phase.RestoreRequirements(dto.Requirements);
         phase._airborne = dto.Airborne;
         phase._fieldElevation = dto.FieldElevation;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;
         phase._departure = departure;

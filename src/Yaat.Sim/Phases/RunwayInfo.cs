@@ -126,11 +126,11 @@ public sealed class RunwayInfo
             Lat1 = dto.Lat1,
             Lon1 = dto.Lon1,
             Elevation1Ft = dto.Elevation1Ft,
-            TrueHeading1 = new TrueHeading(dto.TrueHeading1Deg),
+            TrueHeading1 = TrueHeading.FromSnapshot(dto.TrueHeading1Deg),
             Lat2 = dto.Lat2,
             Lon2 = dto.Lon2,
             Elevation2Ft = dto.Elevation2Ft,
-            TrueHeading2 = new TrueHeading(dto.TrueHeading2Deg),
+            TrueHeading2 = TrueHeading.FromSnapshot(dto.TrueHeading2Deg),
             WidthFt = dto.WidthFt,
             AirportElevationFt = dto.AirportElevationFt ?? ((dto.Elevation1Ft + dto.Elevation2Ft) / 2.0),
         };

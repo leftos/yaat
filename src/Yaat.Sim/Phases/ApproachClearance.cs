@@ -142,7 +142,7 @@ public sealed class ApproachClearance
             ApproachId = dto.ApproachId,
             AirportCode = dto.AirportCode,
             RunwayId = dto.RunwayId,
-            FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            FinalApproachCourse = TrueHeading.FromSnapshot(dto.FinalApproachCourseDeg),
             TransitionName = dto.TransitionName,
             FinalApproachAnchorLat = dto.FinalApproachAnchorLat,
             FinalApproachAnchorLon = dto.FinalApproachAnchorLon,

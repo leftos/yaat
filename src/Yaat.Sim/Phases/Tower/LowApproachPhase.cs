@@ -123,12 +123,12 @@ public sealed class LowApproachPhase : Phase
         };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         phase._climbingOut = dto.ClimbingOut;
         phase._retargetToDifferentRunway = dto.RetargetToDifferentRunway;
         phase._retargetGateLat = dto.RetargetGateLat;
         phase._retargetGateLon = dto.RetargetGateLon;
-        phase._retargetRunwayHeadingB = new TrueHeading(dto.RetargetRunwayHeadingBDeg);
+        phase._retargetRunwayHeadingB = TrueHeading.FromSnapshot(dto.RetargetRunwayHeadingBDeg);
         phase._retargetGateNm = dto.RetargetGateNm;
         return phase;
     }

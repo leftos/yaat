@@ -107,12 +107,12 @@ public sealed class InitialClimbPhase : Phase, IPendingDepartureRoute
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
         phase._targetAltitude = dto.TargetAltitude;
-        phase._departureHeading = dto.DepartureHeadingDeg.HasValue ? new TrueHeading(dto.DepartureHeadingDeg.Value) : null;
+        phase._departureHeading = dto.DepartureHeadingDeg.HasValue ? TrueHeading.FromSnapshot(dto.DepartureHeadingDeg.Value) : null;
         phase._phaseCompletionAltitude = dto.PhaseCompletionAltitude;
         phase._selfClearAltitude = dto.SelfClearAltitude;
         phase._runwayDerLat = dto.RunwayDerLat;
         phase._runwayDerLon = dto.RunwayDerLon;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         phase._deferredTurnAltitude = dto.VfrTurnAltitude;
         phase._deferredTurnApplied = dto.VfrTurnApplied;
         phase._rvSidActive = dto.RvSidActive;

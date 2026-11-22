@@ -229,7 +229,7 @@ public class ControlTargets
 
     public static void RestoreFrom(ControlTargetsDto dto, ControlTargets targets)
     {
-        targets.TargetTrueHeading = dto.TargetTrueHeadingDeg.HasValue ? new TrueHeading(dto.TargetTrueHeadingDeg.Value) : null;
+        targets.TargetTrueHeading = dto.TargetTrueHeadingDeg.HasValue ? TrueHeading.FromSnapshot(dto.TargetTrueHeadingDeg.Value) : null;
         targets.PreferredTurnDirection = dto.PreferredTurnDirection.HasValue ? (TurnDirection)dto.PreferredTurnDirection.Value : null;
         targets.TurnRateOverride = dto.TurnRateOverride;
         targets.TargetAltitude = dto.TargetAltitude;

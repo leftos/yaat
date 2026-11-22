@@ -1119,7 +1119,7 @@ public sealed class DownwindPhase : Phase
             dto.MidfieldAlongTrack ?? (phase.Waypoints is not null ? PatternGeometry.MidfieldAlongTrackNm(phase.Waypoints) : 0.0);
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;
-        phase._downwindHeading = new TrueHeading(dto.DownwindHeadingDeg);
+        phase._downwindHeading = TrueHeading.FromSnapshot(dto.DownwindHeadingDeg);
         phase._pastAbeam = dto.PastAbeam;
         phase._holdLevelFt = dto.HoldLevelFt;
         phase._descentTargetFt = dto.DescentTargetFt;

@@ -60,7 +60,7 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
         };
         phase.RestoreRequirements(dto.Requirements);
         phase._fieldElevation = dto.FieldElevation;
-        phase._runwayTrueHeading = new TrueHeading(dto.RunwayTrueHeadingDeg);
+        phase._runwayTrueHeading = TrueHeading.FromSnapshot(dto.RunwayTrueHeadingDeg);
         phase._headingAssigned = dto.HeadingAssigned;
         phase.PursuesRunwaylessLeadAfterClimb = dto.PursuesRunwaylessLeadAfterClimb ?? false;
         return phase;

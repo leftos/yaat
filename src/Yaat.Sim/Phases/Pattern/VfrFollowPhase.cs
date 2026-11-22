@@ -1172,7 +1172,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             ClimbOutGate = dto.ClimbOutGate is { } climbOutGate
                 ? new FollowClimbOutGate(
                     new LatLon(climbOutGate.DepartureEndLat, climbOutGate.DepartureEndLon),
-                    new TrueHeading(climbOutGate.UpwindHeadingDeg),
+                    TrueHeading.FromSnapshot(climbOutGate.UpwindHeadingDeg),
                     climbOutGate.MinTurnAltitude,
                     climbOutGate.CompressedDownwindSpeedKts,
                     RestoreLateralOffset(climbOutGate)
@@ -1197,7 +1197,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
                 PatternWaypoints.FromSnapshot(leadBase.Waypoints),
                 new LatLon(leadBase.StartLat, leadBase.StartLon),
                 leadBase.FinalDistanceNm,
-                new TrueHeading(leadBase.LegTrackDeg)
+                TrueHeading.FromSnapshot(leadBase.LegTrackDeg)
             );
         }
         return phase;

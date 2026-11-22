@@ -322,7 +322,7 @@ public sealed class CrosswindPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             _targetLat = dto.TargetLat,
             _targetLon = dto.TargetLon,
-            _crosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg),
+            _crosswindHeading = TrueHeading.FromSnapshot(dto.CrosswindHeadingDeg),
             _followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false,
             _seenAssignedAltitudeFt = dto.SeenAssignedAltitudeFt,
             _assignedAltitudeBaselineRecorded = dto.AssignedAltitudeBaselineRecorded ?? false,

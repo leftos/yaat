@@ -2186,7 +2186,7 @@ public sealed class CrossingRunwayPhase(int approachNodeId, int targetNodeId, st
             _restoredSegmentIndex = dto.CrossingRouteSegmentIndex,
             _restoredSetupPose =
                 (dto.SegmentSetupLat is { } lat) && (dto.SegmentSetupLon is { } lon) && (dto.SegmentSetupHeadingDeg is { } heading)
-                    ? (new LatLon(lat, lon), new TrueHeading(heading))
+                    ? (new LatLon(lat, lon), TrueHeading.FromSnapshot(heading))
                     : null,
             _restoredNavigator = dto.Navigator,
             _notClearRestSeconds = dto.NotClearRestSeconds ?? 0.0,

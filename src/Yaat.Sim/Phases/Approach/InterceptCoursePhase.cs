@@ -606,7 +606,7 @@ public sealed class InterceptCoursePhase : Phase
     {
         var phase = new InterceptCoursePhase
         {
-            FinalApproachCourse = new TrueHeading(dto.FinalApproachCourseDeg),
+            FinalApproachCourse = TrueHeading.FromSnapshot(dto.FinalApproachCourseDeg),
             ThresholdLat = dto.ThresholdLat,
             ThresholdLon = dto.ThresholdLon,
             ApproachId = dto.ApproachId,

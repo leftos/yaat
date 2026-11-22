@@ -111,7 +111,7 @@ public sealed class PatternExitPhase : Phase
     {
         var phase = new PatternExitPhase
         {
-            ExitHeading = new TrueHeading(dto.ExitHeadingDeg),
+            ExitHeading = TrueHeading.FromSnapshot(dto.ExitHeadingDeg),
             Direction = (PatternDirection)dto.Direction,
             ClimbTargetFt = dto.ClimbTargetFt ?? 0,
             Status = (PhaseStatus)dto.Status,

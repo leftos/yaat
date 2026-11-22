@@ -66,9 +66,9 @@ public sealed class MakeTurnPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
         };
         phase.RestoreRequirements(dto.Requirements);
-        phase._startHeading = new TrueHeading(dto.StartHeadingDeg);
+        phase._startHeading = TrueHeading.FromSnapshot(dto.StartHeadingDeg);
         phase._cumulativeTurn = dto.CumulativeTurn;
-        phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        phase._lastHeading = TrueHeading.FromSnapshot(dto.LastHeadingDeg);
         phase._exiting = dto.Exiting;
         phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
         phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;

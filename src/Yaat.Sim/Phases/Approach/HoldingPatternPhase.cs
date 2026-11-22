@@ -531,8 +531,8 @@ public sealed class HoldingPatternPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             _state = (HoldState)dto.State,
             _entry = (HoldingEntry)dto.ResolvedEntry,
-            _outboundHeading = new TrueHeading(dto.OutboundHeadingDeg),
-            _correctedOutboundHeading = new TrueHeading(dto.CorrectedOutboundHeadingDeg),
+            _outboundHeading = TrueHeading.FromSnapshot(dto.OutboundHeadingDeg),
+            _correctedOutboundHeading = TrueHeading.FromSnapshot(dto.CorrectedOutboundHeadingDeg),
             _legTimerSeconds = dto.LegTimerSeconds,
             _circuitsCompleted = dto.CircuitsCompleted,
         };

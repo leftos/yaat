@@ -70,7 +70,7 @@ public sealed class RejectedTakeoffPhase(double rollElapsedSeconds) : Phase
         var phase = new RejectedTakeoffPhase(dto.RollElapsedSeconds) { Status = (PhaseStatus)dto.Status, ElapsedSeconds = dto.ElapsedSeconds };
         phase.RestoreRequirements(dto.Requirements);
         phase._reactionRemainingSeconds = dto.ReactionRemainingSeconds;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;
         phase._pavementLengthFt = dto.PavementLengthFt;

@@ -9,6 +9,19 @@ public readonly record struct TrueHeading(double Degrees)
     /// <summary>Normalized to [0, 360).</summary>
     public double Degrees { get; init; } = ((Degrees % 360.0) + 360.0) % 360.0;
 
+    /// <summary>
+    /// The heading a snapshot stored, given back bit for bit. A stored heading is already normalised to [0, 360), and
+    /// normalising it again is not idempotent for a value first made from a negative input: its last bit can move. A value
+    /// outside [0, 360), and negative zero, which the constructor never gives, are normalised as the constructor does.
+    /// </summary>
+    public static TrueHeading FromSnapshot(double degrees) =>
+        ((degrees >= 0.0) && (degrees < 360.0) && !double.IsNegative(degrees))
+            ? default(TrueHeading) with
+            {
+                Degrees = degrees,
+            }
+            : new TrueHeading(degrees);
+
     // --- Frame conversion ---
 
     public MagneticHeading ToMagnetic(double declination) => new(Degrees - declination);

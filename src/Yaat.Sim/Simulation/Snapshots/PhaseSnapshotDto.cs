@@ -714,6 +714,16 @@ public sealed class GroundNavigatorPlaybackDto
 
     public required double CumulativeTurnSinceAdvanceDeg { get; init; }
 
+    /// <summary>
+    /// The heading the navigator's previous tick ended on, from which its next tick adds the turn physics made between ticks
+    /// to <see cref="CumulativeTurnSinceAdvanceDeg"/>. Set only where physics steers on the ground (the ramp turn model, for
+    /// every category but a helicopter); null under the instant turn model, for a helicopter, before the first tick, and in
+    /// snapshots written before the field existed. Not written while null, so such a snapshot — every snapshot 0 —
+    /// serializes exactly as it did before the field existed (yaat-server pins snapshot 0's hash).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? HeadingAfterLastTickDeg { get; init; }
+
     /// <summary>The active entry-alignment turn is aimed at a route node rather than at a bearing.</summary>
     public required bool AimedAtRouteNode { get; init; }
 

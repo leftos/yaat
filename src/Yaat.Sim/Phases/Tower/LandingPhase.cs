@@ -514,7 +514,7 @@ public sealed class LandingPhase : Phase
             phase._plan = new LandingPlan
             {
                 FieldElevation = dto.FieldElevation,
-                RunwayHeading = new TrueHeading(dto.RunwayHeadingDeg),
+                RunwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg),
                 ThresholdLat = dto.ThresholdLat,
                 ThresholdLon = dto.ThresholdLon,
                 RunwayId = dto.RunwayId,
@@ -534,7 +534,7 @@ public sealed class LandingPhase : Phase
             // tick fill the constants in from the category table.
             phase._restoredGeometry = new LandingGeometry(
                 FieldElevation: dto.FieldElevation,
-                RunwayHeading: new TrueHeading(dto.RunwayHeadingDeg),
+                RunwayHeading: TrueHeading.FromSnapshot(dto.RunwayHeadingDeg),
                 ThresholdLat: dto.ThresholdLat,
                 ThresholdLon: dto.ThresholdLon
             );

@@ -466,9 +466,9 @@ public sealed class FinalApproachPhase : Phase
         phase._thresholdLat = dto.ThresholdLat;
         phase._thresholdLon = dto.ThresholdLon;
         phase._thresholdElevation = dto.ThresholdElevation;
-        phase._runwayHeading = new TrueHeading(dto.RunwayHeadingDeg);
+        phase._runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg);
         // Pre-FAC-extractor snapshots only have RunwayHeadingDeg; treat that as the FAC.
-        phase._finalApproachCourse = dto.FinalApproachCourseDeg is { } facDeg ? new TrueHeading(facDeg) : phase._runwayHeading;
+        phase._finalApproachCourse = dto.FinalApproachCourseDeg is { } facDeg ? TrueHeading.FromSnapshot(facDeg) : phase._runwayHeading;
         phase._anchorLat = dto.AnchorLat ?? phase._thresholdLat;
         phase._anchorLon = dto.AnchorLon ?? phase._thresholdLon;
         phase._gsAngleDeg = dto.GsAngleDeg;

@@ -379,7 +379,7 @@ public sealed class UpwindPhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             _targetLat = dto.TargetLat,
             _targetLon = dto.TargetLon,
-            _upwindHeading = new TrueHeading(dto.UpwindHeadingDeg),
+            _upwindHeading = TrueHeading.FromSnapshot(dto.UpwindHeadingDeg),
             _minTurnAltitude = dto.MinTurnAltitude,
             _followExtensionWarningIssued = dto.FollowExtensionWarningIssued ?? false,
             _rejoinCenterline = dto.RejoinCenterline ?? false,

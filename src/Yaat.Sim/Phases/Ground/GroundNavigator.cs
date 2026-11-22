@@ -197,6 +197,8 @@ public sealed class GroundNavigator
     /// Public because the fillet generator sizes its
     /// minimum navigable straight (<see cref="Data.Airport.Fillet.FilletConstants.MinSharedArmClearGapFt"/>)
     /// from it: a straight shorter than the look-ahead is an orbit trap.
+    /// Under <see cref="TurnModel.Ramp"/> (not a helicopter) the straight steer's look-ahead rises to at least the ramp
+    /// lag, the distance travelled while the nose-wheel ramps to full rate, and the cap with it (<see cref="StraightLookAheadFt"/>).
     /// </summary>
     public const double LookAheadCapFt = 50.0;
 
@@ -598,6 +600,20 @@ public sealed class GroundNavigator
     /// orbit). See the throw in <see cref="Tick"/>.
     /// </summary>
     private double _cumulativeTurnSinceAdvanceDeg;
+
+    /// <summary>
+    /// The heading at the end of the previous navigator tick, kept only where physics steers (<see cref="RampSteers"/>): there
+    /// physics turns the nose between navigator ticks, and <see cref="OrbitLimitReached"/> counts that turn from here. Null
+    /// after construction and wherever physics does not steer; a snapshot saves it with the playback, so a restore resumes
+    /// counting where the live run would.
+    /// </summary>
+    private double? _headingAfterLastTickDeg;
+
+    /// <summary>
+    /// Whether a nudge published the next segment's bearing as the target this tick (<see cref="Nudge"/>); cleared at the
+    /// start of each <see cref="Tick"/>. <see cref="ReleaseHeadingHold"/> leaves such a target for physics.
+    /// </summary>
+    private bool _nudgedThisTick;
 
     /// <summary>
     /// Hard ceiling on net turn within a single segment before the navigator is declared to be orbiting.
@@ -3891,12 +3907,171 @@ public sealed class GroundNavigator
     /// tangent, and the orbit guard (which sees only the navigator's half of the tug-of-war) declares a full
     /// circle on an aircraft that never turned.
     /// </summary>
-    private static void ReleaseHeadingHold(PhaseContext ctx, PathPrimitive primitive)
+    /// <remarks>
+    /// Where physics steers the straight (<see cref="RampSteers"/>), the target is not cleared, which would drop the yaw rate
+    /// for a tick. A next-segment bearing a nudge published this tick (<see cref="_nudgedThisTick"/>) is left for physics to
+    /// turn toward; any other target is set to the heading the aircraft has, so physics leaves the nose where it is and
+    /// bleeds the yaw rate it carries by one rate step. The straight's own steer replaces the target on its first tick.
+    /// </remarks>
+    private void ReleaseHeadingHold(PhaseContext ctx, PathPrimitive primitive)
     {
-        if (primitive is PathPrimitiveStraight)
+        if (primitive is not PathPrimitiveStraight)
+        {
+            return;
+        }
+
+        if (!RampSteers(ctx))
         {
             ctx.Targets.TargetTrueHeading = null;
+            return;
         }
+
+        if (!_nudgedThisTick)
+        {
+            ctx.Targets.TargetTrueHeading = new TrueHeading(ctx.Aircraft.TrueHeading.Degrees);
+        }
+    }
+
+    /// <summary>
+    /// An end-of-segment nudge toward the next segment's bearing (<see cref="SteerToward"/>); where physics steers it marks the
+    /// published target as this tick's (<see cref="_nudgedThisTick"/>), so the next straight's set-up keeps it.
+    /// </summary>
+    private void Nudge(PhaseContext ctx, double nextBrg, double maxTurnDeg)
+    {
+        SteerToward(ctx, nextBrg, maxTurnDeg);
+        _nudgedThisTick = RampSteers(ctx);
+    }
+
+    /// <summary>
+    /// Whether physics turns the nose on the navigator's free steering: under <see cref="TurnModel.Ramp"/>, for every
+    /// category but a helicopter (which pedal-turns on its wheels). There the navigator publishes its steer as the target
+    /// heading and physics ramps the yaw rate toward it; otherwise the navigator writes the heading itself at the instant
+    /// v/R rate.
+    /// </summary>
+    private static bool RampSteers(PhaseContext ctx) => (ctx.TurnModel == TurnModel.Ramp) && (ctx.Category != AircraftCategory.Helicopter);
+
+    /// <summary>
+    /// Steer toward <paramref name="bearingDeg"/>: publish it as the target heading where physics turns the nose
+    /// (<see cref="RampSteers"/>), clearing any preferred turn direction left over (a ground steer never goes the long way
+    /// round), otherwise turn the heading toward it by at most <paramref name="maxTurnDeg"/>.
+    /// </summary>
+    private static void SteerToward(PhaseContext ctx, double bearingDeg, double maxTurnDeg)
+    {
+        if (RampSteers(ctx))
+        {
+            ctx.Targets.TargetTrueHeading = new TrueHeading(bearingDeg);
+            ctx.Targets.PreferredTurnDirection = null;
+            return;
+        }
+
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingDeg, maxTurnDeg);
+    }
+
+    /// <summary>
+    /// The end-of-arc nudge of a slow turn toward <paramref name="nextBrg"/>. A completing turn-about reversal writes the
+    /// heading at the yaw its own tight radius gives (ω·r on that radius) under every turn model, since the comfortable-radius
+    /// ceiling physics steers at is far below it; where physics steers, the written heading is then its target, so the creep
+    /// turn does not pull the nose back toward the reversal's tangent. Every other slow turn nudges (<see cref="Nudge"/>) at
+    /// the comfortable main-gear rate.
+    /// </summary>
+    private void NudgeAtSlowTurnEnd(PhaseContext ctx, PathPrimitiveSlowTurn prim, double nextBrg)
+    {
+        if (!_turnAboutReversalPlaying)
+        {
+            Nudge(ctx, nextBrg, GroundYawRateNow(ctx) * ctx.DeltaSeconds);
+            return;
+        }
+
+        double reversalYaw = CategoryPerformance.GroundYawRateOnRadius(ctx.Category, ctx.Aircraft.GroundSpeed, prim.RadiusFt);
+        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, reversalYaw * ctx.DeltaSeconds);
+        if (RampSteers(ctx))
+        {
+            ctx.Targets.TargetTrueHeading = new TrueHeading(ctx.Aircraft.TrueHeading.Degrees);
+        }
+    }
+
+    /// <summary>
+    /// Where physics steers (<see cref="RampSteers"/>), record the yaw rate a closed-form pose write turned the nose at this
+    /// tick, so the straight after the arc starts from it rather than from a standstill nose-wheel. Not on the primitive's
+    /// entry tick (<paramref name="entryTick"/>), whose pose write also takes up the heading the aircraft brought in; and
+    /// never above the ground steer ceiling (<see cref="CategoryPerformance.GroundSteerRateCeilingDegPerSec"/>).
+    /// </summary>
+    private static void RecordClosedFormYawRate(PhaseContext ctx, double headingBeforeDeg, bool entryTick)
+    {
+        if (entryTick || !RampSteers(ctx) || (ctx.DeltaSeconds <= 0))
+        {
+            return;
+        }
+
+        double ceiling = CategoryPerformance.GroundSteerRateCeilingDegPerSec(
+            ctx.Category,
+            ctx.Aircraft.AircraftType,
+            ctx.Aircraft.GroundSpeed,
+            ctx.Targets.TurnRateOverride
+        );
+        double rate = GeoMath.SignedBearingDifference(headingBeforeDeg, ctx.Aircraft.TrueHeading.Degrees) / ctx.DeltaSeconds;
+        ctx.Aircraft.AppliedTurnRateDegPerSec = Math.Clamp(rate, -ceiling, ceiling);
+    }
+
+    /// <summary>
+    /// The straight steer's pure-pursuit look-ahead (ft) for a wanted <paramref name="reachFt"/>: <see cref="LookAheadFt"/>,
+    /// and where physics steers (<see cref="RampSteers"/>) at least <see cref="RampLagFt"/>. That is the same as clamping the
+    /// reach raised to the lag between the floor and the cap raised to the lag.
+    /// </summary>
+    private static double StraightLookAheadFt(PhaseContext ctx, double reachFt, double speedFtPerSec)
+    {
+        double lookAheadFt = LookAheadFt(ctx.Category, ctx.Aircraft.AircraftType, reachFt);
+        return RampSteers(ctx) ? Math.Max(lookAheadFt, RampLagFt(ctx.Category, speedFtPerSec)) : lookAheadFt;
+    }
+
+    /// <summary>
+    /// The distance (ft) the aircraft travels at <paramref name="speedFtPerSec"/> while the nose-wheel ramps to its full yaw
+    /// rate (<see cref="CategoryPerformance.GroundSteerRampSeconds"/>). The look-ahead must cover it: aimed at a nearer
+    /// point, pure pursuit commands each correction after the nose can follow it, and limit-cycles across the line.
+    /// </summary>
+    private static double RampLagFt(AircraftCategory category, double speedFtPerSec) =>
+        speedFtPerSec * CategoryPerformance.GroundSteerRampSeconds(category);
+
+    /// <summary>
+    /// The steer in a straight's last look-ahead window, where the look-ahead point is clamped onto the target node. Where
+    /// physics steers (<see cref="RampSteers"/>), a stop target holds the segment bearing, so the nose is not swung onto the
+    /// node in the last few feet, and a pass-through node the next segment carries straight on from is steered past
+    /// (<see cref="PastNodeSteerDeg"/>), <paramref name="leftoverNm"/> being the look-ahead's reach beyond the node;
+    /// otherwise the steer is the bearing to the node.
+    /// </summary>
+    private double FinalWindowSteerDeg(PhaseContext ctx, bool isStopTarget, double segBearingDeg, double leftoverNm)
+    {
+        LatLon node = new(TargetLat, TargetLon);
+        if (!RampSteers(ctx))
+        {
+            return GeoMath.BearingTo(ctx.Aircraft.Position, node);
+        }
+
+        if (isStopTarget)
+        {
+            return segBearingDeg;
+        }
+
+        return PastNodeSteerDeg(ctx, node, segBearingDeg, leftoverNm) ?? GeoMath.BearingTo(ctx.Aircraft.Position, node);
+    }
+
+    /// <summary>
+    /// The steer past a pass-through node on a near-straight run: the bearing to the point <paramref name="leftoverNm"/> (the
+    /// look-ahead's reach beyond <paramref name="node"/>) along the next segment, so the look-ahead keeps its full length
+    /// across the node instead of shrinking onto it. Aimed at the node itself, the steer of an aircraft off the line swings
+    /// toward 90 deg off it as the node comes abeam, which the ramped nose cannot take back in time, and it crosses the line.
+    /// Null when there is no next segment or it bends more than <see cref="ContinuationMaxBendDeg"/> from this one, where
+    /// entry alignment and the sharp-corner arrival keep the bearing to the node.
+    /// </summary>
+    private double? PastNodeSteerDeg(PhaseContext ctx, LatLon node, double segBearingDeg, double leftoverNm)
+    {
+        if ((_nextSegmentBearing is not { } nextBearingDeg) || (GeoMath.AbsBearingDifference(segBearingDeg, nextBearingDeg) > ContinuationMaxBendDeg))
+        {
+            return null;
+        }
+
+        LatLon aim = GeoMath.ProjectPointRaw(node, nextBearingDeg, leftoverNm);
+        return GeoMath.BearingTo(ctx.Aircraft.Position, aim);
     }
 
     /// <summary>
@@ -4100,6 +4275,7 @@ public sealed class GroundNavigator
         _restoredForReplan = false;
         double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
         _stopCurveBinds = false;
+        _nudgedThisTick = false;
 
         NavigatorResult result =
             (_turnAboutHold is { } hold) ? TickTurnAboutHold(ctx, hold)
@@ -4252,6 +4428,7 @@ public sealed class GroundNavigator
     private bool OrbitLimitReached(PhaseContext ctx, double headingBeforeDeg)
     {
         _cumulativeTurnSinceAdvanceDeg += GeoMath.SignedBearingDifference(ctx.Aircraft.TrueHeading.Degrees, headingBeforeDeg);
+        AccumulatePhysicsTurn(ctx, headingBeforeDeg);
         if (Math.Abs(_cumulativeTurnSinceAdvanceDeg) < OrbitTurnLimitDeg)
         {
             return false;
@@ -4276,6 +4453,28 @@ public sealed class GroundNavigator
     }
 
     /// <summary>
+    /// Where physics steers (<see cref="RampSteers"/>), add to the net turn the turn physics made between the end of the
+    /// previous navigator tick and the start of this one (<paramref name="headingBeforeDeg"/>), in the same sense as the
+    /// navigator's own; then remember the heading this tick ends on. Elsewhere remember none, so a snapshot taken where the
+    /// navigator writes the heading itself carries no remembered heading.
+    /// </summary>
+    private void AccumulatePhysicsTurn(PhaseContext ctx, double headingBeforeDeg)
+    {
+        if (!RampSteers(ctx))
+        {
+            _headingAfterLastTickDeg = null;
+            return;
+        }
+
+        if (_headingAfterLastTickDeg is { } lastDeg)
+        {
+            _cumulativeTurnSinceAdvanceDeg += GeoMath.SignedBearingDifference(headingBeforeDeg, lastDeg);
+        }
+
+        _headingAfterLastTickDeg = ctx.Aircraft.TrueHeading.Degrees;
+    }
+
+    /// <summary>
     /// The entry-alignment slow-turn has finished: retire the legs it was aimed past, or hand a fillet it was aimed
     /// at the end of over on the aimed line, or else engage the deferred segment primitive. Whichever it does, the offset
     /// line a turn about held (<see cref="_turnAboutRollOutOffsetFt"/>) ends with the turn it was kept for, before any
@@ -4283,6 +4482,9 @@ public sealed class GroundNavigator
     /// </summary>
     private void CompleteEntryAlignment(PhaseContext ctx, Func<int, bool> isHoldShortCleared)
     {
+        // The alignment arc's end-of-arc nudge aimed at the segment after the one set up here: drop it, so the straight
+        // taking over starts from the heading the arc left rather than turning toward a segment it does not fly.
+        _nudgedThisTick = false;
         _turnAboutRollOutOffsetFt = 0.0;
         if (TryRetireLegsTheArcAimedPast(ctx, isHoldShortCleared) || TryHandOverOnAimedLine(ctx, isHoldShortCleared))
         {
@@ -4742,7 +4944,7 @@ public sealed class GroundNavigator
             if (!sharpCornerAhead && _nextSegmentBearing is { } nextBrg)
             {
                 double maxTurn = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
-                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurn);
+                Nudge(ctx, nextBrg, maxTurn);
             }
             PrevDistToTarget = double.MaxValue;
             return NavigatorResult.ArrivedAtNode;
@@ -4778,21 +4980,18 @@ public sealed class GroundNavigator
             // converges asymptotically. No effect once on-line (offset ≈ 0).
             // The clamped-foot offset is kept here, not the line offset: short of
             // the segment's start it only stretches the look-ahead along the same
-            // line, and LookAheadCapFt (50 ft) bounds that.
+            // line, and LookAheadCapFt (50 ft) bounds that. Under the ramp the look-ahead
+            // rises to at least the ramp lag (RampLagFt), the cap with it.
             double speedFtPerSec = ctx.Aircraft.IndicatedAirspeed * GeoMath.FeetPerNm / 3600.0;
-            double lookAheadFt = LookAheadFt(
-                ctx.Category,
-                ctx.Aircraft.AircraftType,
-                Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt)
-            );
+            double lookAheadFt = StraightLookAheadFt(ctx, Math.Max(2.0 * speedFtPerSec * ctx.DeltaSeconds, 1.5 * crossTrackOffsetFt), speedFtPerSec);
             double lookAheadNm = lookAheadFt / GeoMath.FeetPerNm;
             double lookAheadAlongNm = Math.Min(edgeLengthNm, alongNm + lookAheadNm);
 
             // Look-ahead point = segment start projected forward by
             // lookAheadAlongNm along the segment bearing. Clamping to the
-            // target when we'd run past preserves arrival detection semantics
-            // and keeps bearingToSteerDeg identical to bearing-to-target in
-            // the last look-ahead window.
+            // target when we'd run past preserves arrival detection semantics;
+            // the last look-ahead window's steer is FinalWindowSteerDeg's (the
+            // bearing to the target unless physics steers).
             double segBearingDeg = GeoMath.BearingTo(new LatLon(_segmentFromLat, _segmentFromLon), new LatLon(TargetLat, TargetLon));
             if (_turnAboutSquareStopLine && isStopTarget && (lookAheadAlongNm >= edgeLengthNm - 1e-9))
             {
@@ -4805,7 +5004,7 @@ public sealed class GroundNavigator
             }
             else if (lookAheadAlongNm >= edgeLengthNm - 1e-9)
             {
-                bearingToSteerDeg = GeoMath.BearingTo(ctx.Aircraft.Position, new LatLon(TargetLat, TargetLon));
+                bearingToSteerDeg = FinalWindowSteerDeg(ctx, isStopTarget, segBearingDeg, alongNm + lookAheadNm - edgeLengthNm);
             }
             else
             {
@@ -4837,7 +5036,7 @@ public sealed class GroundNavigator
         }
 
         double maxTurnDeg = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
-        ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, bearingToSteerDeg, maxTurnDeg);
+        SteerToward(ctx, bearingToSteerDeg, maxTurnDeg);
 
         double lineOffsetFt = OffsetFromSegmentLineFt(ctx.Aircraft.Position, edgeLengthNm);
         double targetSpeed = StraightTargetSpeed(
@@ -5062,6 +5261,7 @@ public sealed class GroundNavigator
 
         // First tick of this primitive: resolve where along the curve the aircraft stands and capture the
         // entry offset from its live position — after the physics step the install could not see.
+        bool entryTick = _arcEntryPending;
         if (_arcEntryPending)
         {
             ResumeBezierFromPosition(ctx, prim);
@@ -5092,7 +5292,9 @@ public sealed class GroundNavigator
         (double lat, double lon, double tangentDeg) = BezierPlaybackPose(prim);
         double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
         ctx.Aircraft.Position = new LatLon(lat + (_arcEntryOffsetLatDeg * entryBlend), lon + (_arcEntryOffsetLonDeg * entryBlend));
+        double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
+        RecordClosedFormYawRate(ctx, headingBeforeDeg, entryTick);
         CheckNoTeleport(ctx.Aircraft.Callsign, positionBefore, ctx.Aircraft.Position, dsFt, prim.Kind);
 
         // Mirror into targets so physics does not fight the closed-form state.
@@ -5127,7 +5329,7 @@ public sealed class GroundNavigator
             if (_nextSegmentBearing is { } nextBrg)
             {
                 double maxTurnArc = GroundYawRateNow(ctx) * ctx.DeltaSeconds;
-                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
+                Nudge(ctx, nextBrg, maxTurnArc);
             }
             PrevDistToTarget = double.MaxValue;
             return NavigatorResult.ArrivedAtNode;
@@ -5202,6 +5404,7 @@ public sealed class GroundNavigator
         LatLon positionBefore = ctx.Aircraft.Position;
 
         // First tick of this primitive: capture the entry offset from the live position (see TickBezier).
+        bool entryTick = _arcEntryPending;
         if (_arcEntryPending)
         {
             CaptureSlowTurnEntry(ctx, prim);
@@ -5242,7 +5445,9 @@ public sealed class GroundNavigator
         double entryBlend = ArcEntryBlendFactor(_arcEntryTravelledFt);
         double tangentDeg = CurrentSlowTurnTangentDeg(prim);
         ctx.Aircraft.Position = new LatLon(lat + (_arcEntryOffsetLatDeg * entryBlend), lon + (_arcEntryOffsetLonDeg * entryBlend));
+        double headingBeforeDeg = ctx.Aircraft.TrueHeading.Degrees;
         ctx.Aircraft.TrueHeading = new TrueHeading(tangentDeg);
+        RecordClosedFormYawRate(ctx, headingBeforeDeg, entryTick);
         CheckNoTeleport(ctx.Aircraft.Callsign, positionBefore, ctx.Aircraft.Position, dsFt, prim.Kind);
 
         // Speed policy: cap to the primitive's own MaxSpeedKts — no
@@ -5264,11 +5469,7 @@ public sealed class GroundNavigator
             // the node turn laid from that offset line: it exits on the outgoing centreline, which the nudge would turn it off.
             if (TakesEndOfArcNudge() && (_nextSegmentBearing is { } nextBrg))
             {
-                double yawRateDegPerSec = _turnAboutReversalPlaying
-                    ? CategoryPerformance.GroundYawRateOnRadius(ctx.Category, ctx.Aircraft.GroundSpeed, prim.RadiusFt)
-                    : GroundYawRateNow(ctx);
-                double maxTurnArc = yawRateDegPerSec * ctx.DeltaSeconds;
-                ctx.Aircraft.TrueHeading = GeoMath.TurnHeadingToward(ctx.Aircraft.TrueHeading, nextBrg, maxTurnArc);
+                NudgeAtSlowTurnEnd(ctx, prim, nextBrg);
             }
             _turnAboutReversalPlaying = false;
             PrevDistToTarget = double.MaxValue;
@@ -6233,6 +6434,7 @@ public sealed class GroundNavigator
             ArcEntryBlendFt = _arcEntryBlendFt,
             ArcEntryPending = _arcEntryPending,
             CumulativeTurnSinceAdvanceDeg = _cumulativeTurnSinceAdvanceDeg,
+            HeadingAfterLastTickDeg = _headingAfterLastTickDeg,
             AimedAtRouteNode = _alignmentRoute is not null,
             NodeAimSegmentIndex = _nodeAimSegmentIndex,
             AimedPastThroughSegmentIndex = _aimedPastThroughSegmentIndex,
@@ -6280,6 +6482,7 @@ public sealed class GroundNavigator
         _arcEntryBlendFt = saved.ArcEntryBlendFt;
         _arcEntryPending = saved.ArcEntryPending;
         _cumulativeTurnSinceAdvanceDeg = saved.CumulativeTurnSinceAdvanceDeg;
+        _headingAfterLastTickDeg = saved.HeadingAfterLastTickDeg;
     }
 
     private static PathPrimitiveDto ToPrimitiveDto(PathPrimitive primitive) =>

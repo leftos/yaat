@@ -1474,7 +1474,7 @@ public sealed class LineUpPhase : Phase
         return new SavedManeuver(
             (State)state,
             new LatLon(lat, lon),
-            new TrueHeading(headingDeg),
+            TrueHeading.FromSnapshot(headingDeg),
             dto.Arc,
             dto.ArcTargetSpeedKts,
             dto.Navigator,

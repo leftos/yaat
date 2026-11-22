@@ -32,6 +32,8 @@ StateSnapshotDto
 
 `AircraftState.ToSnapshot()` and `FromSnapshot()` are hand-written constructors. Each sub-object owns its own `ToSnapshot/FromSnapshot` pair so changes localize.
 
+A stored heading or track is restored with `TrueHeading.FromSnapshot`, never `new TrueHeading(deg)`: the stored value is already in [0, 360), and normalising it a second time is not idempotent for a value first made from a negative input (its last bit can move), which would break byte-exact replay and the rewind-determinism checks. A value outside [0, 360) or negative zero is still normalised as the constructor does.
+
 ## Schema versions — `SnapshotSchemaMigrator.cs`
 
 | Version | Change |

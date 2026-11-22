@@ -512,7 +512,7 @@ public sealed class BasePhase : Phase
             ElapsedSeconds = dto.ElapsedSeconds,
             _thresholdLat = dto.ThresholdLat,
             _thresholdLon = dto.ThresholdLon,
-            _finalHeading = new TrueHeading(dto.FinalHeadingDeg),
+            _finalHeading = TrueHeading.FromSnapshot(dto.FinalHeadingDeg),
             StartPoint = (dto.StartLat is { } startLat) && (dto.StartLon is { } startLon) ? new LatLon(startLat, startLon) : null,
             FollowWidenActive = dto.FollowWidenActive ?? false,
         };

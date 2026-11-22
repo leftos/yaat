@@ -2938,7 +2938,7 @@ public sealed class RunwayExitPhase : Phase
         {
             _exitTaxiway = dto.ExitTaxiway,
             _runwayId = dto.RunwayId,
-            _runwayHeading = new TrueHeading(dto.RunwayHeadingDeg),
+            _runwayHeading = TrueHeading.FromSnapshot(dto.RunwayHeadingDeg),
             _state = (ExitState)dto.ExitStateValue,
             _lastResolvedPreference = dto.LastResolvedPreference.HasValue
                 ? new ExitPreference { Side = (ExitSide)dto.LastResolvedPreference.Value, Taxiway = dto.LastResolvedPreferenceTaxiway }

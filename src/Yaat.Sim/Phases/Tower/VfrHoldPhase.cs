@@ -87,7 +87,7 @@ public sealed class VfrHoldPhase : Phase
         phase.RestoreRequirements(dto.Requirements);
         phase._atFix = dto.AtFix;
         phase._cumulativeTurn = dto.CumulativeTurn;
-        phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        phase._lastHeading = TrueHeading.FromSnapshot(dto.LastHeadingDeg);
         phase._speed.PriorTargetSpeed = dto.PriorTargetSpeed;
         phase._speed.PriorHasExplicitSpeed = dto.PriorHasExplicitSpeed;
         phase._speed.SpeedReduced = dto.SpeedReduced;

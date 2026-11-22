@@ -246,11 +246,11 @@ public sealed class PatternWaypoints
             BaseTurnLon = dto.BaseTurnLon,
             ThresholdLat = dto.ThresholdLat,
             ThresholdLon = dto.ThresholdLon,
-            UpwindHeading = new TrueHeading(dto.UpwindHeadingDeg),
-            CrosswindHeading = new TrueHeading(dto.CrosswindHeadingDeg),
-            DownwindHeading = new TrueHeading(dto.DownwindHeadingDeg),
-            BaseHeading = new TrueHeading(dto.BaseHeadingDeg),
-            FinalHeading = new TrueHeading(dto.FinalHeadingDeg),
+            UpwindHeading = TrueHeading.FromSnapshot(dto.UpwindHeadingDeg),
+            CrosswindHeading = TrueHeading.FromSnapshot(dto.CrosswindHeadingDeg),
+            DownwindHeading = TrueHeading.FromSnapshot(dto.DownwindHeadingDeg),
+            BaseHeading = TrueHeading.FromSnapshot(dto.BaseHeadingDeg),
+            FinalHeading = TrueHeading.FromSnapshot(dto.FinalHeadingDeg),
             PatternAltitude = dto.PatternAltitudeFt ?? 0,
             // Older snapshots predate the explicit size: derive it from geometry — the perpendicular
             // offset of the downwind abeam point from the threshold along the landing heading.

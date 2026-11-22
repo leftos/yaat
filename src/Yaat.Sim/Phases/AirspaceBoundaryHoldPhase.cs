@@ -137,13 +137,13 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         {
             phase._originalRoute.AddRange(dto.OriginalRoute.Select(NavigationTarget.FromSnapshot));
         }
-        phase._originalTargetHeading = dto.OriginalTargetHeadingDeg.HasValue ? new TrueHeading(dto.OriginalTargetHeadingDeg.Value) : null;
+        phase._originalTargetHeading = dto.OriginalTargetHeadingDeg.HasValue ? TrueHeading.FromSnapshot(dto.OriginalTargetHeadingDeg.Value) : null;
         phase._originalTurnDirection = dto.OriginalTurnDirection.HasValue ? (TurnDirection)dto.OriginalTurnDirection.Value : null;
         phase._originalTargetSpeed = dto.OriginalTargetSpeed;
         phase._originalTargetAltitude = dto.OriginalTargetAltitude;
         phase._originalAltitudeCeiling = dto.OriginalAltitudeCeiling;
         phase._cumulativeTurn = dto.CumulativeTurn;
-        phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
+        phase._lastHeading = TrueHeading.FromSnapshot(dto.LastHeadingDeg);
         phase._started = dto.Started;
         phase._heldThroughVector = dto.HeldThroughVector;
         phase._stashedDirect = dto.StashedDirect;
