@@ -80,6 +80,46 @@
             <TextBlock Text="Refresh" />
           </StackPanel>
         </Button>
+        <StackPanel x:Name="EditorCommands" x:DataType="vm:ScenarioEditorViewModel" Orientation="Horizontal" Spacing="5">
+          <Border Classes="vsep" />
+          <Button x:Name="UndoButton" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoDescription}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Viewbox Width="13" Height="13">
+                <Path
+                  Classes="icon"
+                  Data="M5.5,3.5 L2.5,6.5 L5.5,9.5 M2.5,6.5 H10 A3.5,3.5 0 0 1 10,13.5 H7"
+                  Stroke="{Binding $parent[Button].Foreground}"
+                />
+              </Viewbox>
+              <TextBlock Text="Undo" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="RedoButton" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoDescription}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <Viewbox Width="13" Height="13">
+                <Path
+                  Classes="icon"
+                  Data="M10.5,3.5 L13.5,6.5 L10.5,9.5 M13.5,6.5 H6 A3.5,3.5 0 0 0 6,13.5 H9"
+                  Stroke="{Binding $parent[Button].Foreground}"
+                />
+              </Viewbox>
+              <TextBlock Text="Redo" />
+            </StackPanel>
+          </Button>
+          <Border Classes="vsep" />
+          <Button x:Name="SaveButton" Classes="accent" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
+          <StackPanel
+            x:Name="UnsavedIndicator"
+            Orientation="Horizontal"
+            Spacing="4"
+            IsVisible="{Binding IsDirty}"
+            VerticalAlignment="Center"
+            Margin="4,0,0,0"
+          >
+            <Ellipse Width="8" Height="8" Fill="#E0A33A" VerticalAlignment="Center" />
+            <TextBlock Text="Unsaved changes" Foreground="#E0A33A" FontSize="11.5" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
         <Button x:Name="NoticesButton" IsVisible="{Binding HasNotices}" Foreground="#E0A33A" FontWeight="SemiBold">
           <StackPanel Orientation="Horizontal" Spacing="4">
             <Viewbox Width="13" Height="13">
@@ -123,6 +163,15 @@
             <Path Classes="icon" Data="{x:Static local:ScenarioEditorIcons.Warning}" Stroke="{x:Static local:ScenarioEditorIcons.Amber}" />
           </Viewbox>
           <TextBlock x:Name="StatusText" Classes="status" Classes.offline="{Binding IsStatusOffline}" Text="{Binding StatusText}" />
+          <TextBlock
+            x:Name="SaveMessageText"
+            x:DataType="vm:ScenarioEditorViewModel"
+            Classes="status"
+            Foreground="#FF8A8A"
+            Margin="10,0,0,0"
+            Text="{Binding SaveMessage}"
+            IsVisible="{Binding SaveMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
         </StackPanel>
         <ProgressBar
           Grid.Column="1"
@@ -140,7 +189,25 @@
     <Grid ColumnDefinitions="300,4,*">
       <local:ScenarioBrowserView x:Name="BrowserView" Grid.Column="0" />
       <GridSplitter Grid.Column="1" Background="#1B1B1B" ResizeDirection="Columns" />
-      <Panel Grid.Column="2">
+      <Panel x:Name="EditorPane" Grid.Column="2" x:DataType="vm:ScenarioEditorViewModel">
+        <TextBlock
+          x:Name="OpenErrorText"
+          Text="{Binding OpenError}"
+          IsVisible="{Binding OpenError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          Foreground="#FF8A8A"
+          FontSize="13"
+          TextWrapping="Wrap"
+          Margin="20"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+        />
+        <TabControl x:Name="EditorTabs" IsVisible="{Binding IsOpen}" Padding="0">
+          <TabItem Header="General">
+            <local:ScenarioGeneralView x:Name="GeneralView" DataContext="{Binding General}" />
+          </TabItem>
+        </TabControl>
+      </Panel>
+      <Panel x:Name="PlaceholderPanel" Grid.Column="2">
         <TextBlock
           Text="Open a scenario from the list to edit it."
           IsVisible="{Binding HasArtcc}"

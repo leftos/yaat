@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Sim.Authoring;
@@ -65,16 +66,18 @@ public sealed partial class ScenarioVfrArrivalGeneratorRowViewModel : ScenarioGe
     private string? _descendToAltitudeError;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EngineTypePick))]
     private string _engineType;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WeightCategoryPick))]
     private string _weightCategory;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AutoTrackPositionPick), nameof(AutoTrackPositionSelection))]
     private string _autoTrackPositionId;
 
-    [ObservableProperty]
-    private IReadOnlyList<ScenarioPickOption> _autoTrackPositionOptions = [];
+    private readonly ObservableCollection<ScenarioPickOption> _autoTrackPositionOptions = [];
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioVfrArrivalGeneratorRowViewModel"/> class from the item at the index.</summary>
     /// <param name="session">The open working copy's session.</param>
@@ -112,7 +115,46 @@ public sealed partial class ScenarioVfrArrivalGeneratorRowViewModel : ScenarioGe
     /// <summary>Offers none, the catalog's positions, and the row's own position when the catalog does not list it.</summary>
     /// <param name="catalog">The ARTCC's and its neighbours' positions.</param>
     public void UpdateOptions(IReadOnlyList<ScenarioPickOption> catalog) =>
-        AutoTrackPositionOptions = ScenarioFieldText.AutoTrackOptions(catalog, AutoTrackPositionId);
+        ScenarioFieldText.SetOptions(
+            _autoTrackPositionOptions,
+            ScenarioFieldText.AutoTrackOptions(catalog, AutoTrackPositionId),
+            () => OnPropertyChanged(nameof(AutoTrackPositionSelection))
+        );
+
+    /// <summary>Gets the auto-track picker's options; one collection, updated in place.</summary>
+    public IReadOnlyList<ScenarioPickOption> AutoTrackPositionOptions => _autoTrackPositionOptions;
+
+    /// <summary>Gets or sets the engine picker's selection; only the user's pick is committed (see <see cref="Pick"/>).</summary>
+    public string? EngineTypePick
+    {
+        get => EngineType;
+        set => Pick(value, EngineType, v => EngineType = v, CommitEngineType);
+    }
+
+    /// <summary>Gets or sets the weight picker's selection; only the user's pick is committed (see <see cref="Pick"/>).</summary>
+    public string? WeightCategoryPick
+    {
+        get => WeightCategory;
+        set => Pick(value, WeightCategory, v => WeightCategory = v, CommitWeightCategory);
+    }
+
+    /// <summary>
+    /// Gets or sets the picker's selected option, the one of <see cref="AutoTrackPositionOptions"/> whose value the field holds. The
+    /// picker binds its SelectedItem here: a picker's SelectedValue binding does not survive its options being swapped.
+    /// Setting it goes through <see cref="AutoTrackPositionPick"/>, so only the user's pick is committed.
+    /// </summary>
+    public ScenarioPickOption? AutoTrackPositionSelection
+    {
+        get => ScenarioFieldText.Selected(AutoTrackPositionOptions, AutoTrackPositionId);
+        set => AutoTrackPositionPick = value?.Value;
+    }
+
+    /// <summary>Gets or sets the auto-track picker's selection; only the user's pick is committed (see <see cref="Pick"/>).</summary>
+    public string? AutoTrackPositionPick
+    {
+        get => AutoTrackPositionId;
+        set => Pick(value, AutoTrackPositionId, v => AutoTrackPositionId = v, CommitAutoTrackPosition);
+    }
 
     /// <inheritdoc/>
     protected override void SetStartTimeOffset(VfrArrivalGeneratorConfig generator, int seconds) => generator.StartTimeOffset = seconds;

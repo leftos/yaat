@@ -174,6 +174,23 @@ public abstract partial class ScenarioGeneratorRowViewModel<T> : ObservableObjec
         Write(g => set(g, (id.Length == 0) ? null : WithPosition(get(g), id)));
     }
 
+    /// <summary>
+    /// Takes a picker's selection: null (a picker clearing as its options are swapped) and the value already held write
+    /// nothing; any other value is the user's pick, set and committed.
+    /// </summary>
+    /// <param name="picked">The selection the picker wrote.</param>
+    /// <param name="current">The field's value.</param>
+    /// <param name="set">Sets the field.</param>
+    /// <param name="commit">Commits the field.</param>
+    private protected static void Pick(string? picked, string current, Action<string> set, Action commit)
+    {
+        if (ScenarioFieldText.IsUserPick(picked, current))
+        {
+            set(picked);
+            commit();
+        }
+    }
+
     /// <summary>Writes a change to the document's item when the row is current.</summary>
     /// <param name="change">Changes the item in place.</param>
     private protected void WriteIfCurrent(Action<T> change)
