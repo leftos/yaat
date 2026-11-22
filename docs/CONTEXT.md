@@ -1368,6 +1368,12 @@ _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC confi
 
 ## Facility data
 
+**ARTCC config**:
+One ARTCC's whole vNAS configuration (facility tree, positions, airports, maps) as data-api serves it at `/api/artccs/{ID}`, held on disk at `cache/artcc/{ID}.json` under `YaatPaths` and read by `ArtccConfigSource` and `ArtccAirportResolver`; not the `Data/ARTCCs/{ARTCC}/` sidecar folder.
+
+**Position id**:
+A vNAS position's own id inside its facility's config, the one a scenario stores for a controller position; a position is identified by ARTCC, facility and position id together, never by callsign (one callsign can sit under two facilities).
+
 **Sidecar**:
 A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](../ARTCC_CUSTOMIZATION.md)).
 
