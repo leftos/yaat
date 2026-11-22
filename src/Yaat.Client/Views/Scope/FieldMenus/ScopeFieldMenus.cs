@@ -91,7 +91,7 @@ internal static class ScopeFieldMenus
     /// </summary>
     private static string? HandoffIdFor(AircraftModel aircraft, MenuContext context)
     {
-        if (AircraftCommandApplicability.ShowsAcceptHandoff(aircraft, context))
+        if (AircraftCommandApplicability.IsHandoffToActing(aircraft, context))
         {
             return MenuIds.TrackAcceptHandoff;
         }

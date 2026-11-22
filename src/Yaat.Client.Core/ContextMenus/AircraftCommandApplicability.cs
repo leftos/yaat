@@ -927,11 +927,18 @@ public static class AircraftCommandApplicability
     public static bool IsUntracked(IMenuAircraft? ac) => !IsOwned(ac) && !HasHandoffInProgress(ac) && !HasPendingPointout(ac);
 
     /// <summary>
-    /// Accept handoff shows in the quick list for a handoff in progress to the position the client acts as (the peer, or
-    /// the position that redirected it: <see cref="TrackCoordinationView.IsHandoffToActing"/>); never while that position is
-    /// unknown. All Commands keeps <see cref="HasHandoffInProgress"/>.
+    /// Accept handoff shows in the quick list for every handoff in progress, the same rule as All Commands
+    /// (<see cref="HasHandoffInProgress"/>): to the position the client acts as, from it, or between two other positions,
+    /// and while that position is unknown. The menu context is not read (the discard keeps the quick list's rule signature).
     /// </summary>
-    public static bool ShowsAcceptHandoff(IMenuAircraft? ac, MenuContext context) =>
+    public static bool ShowsAcceptHandoff(IMenuAircraft? ac, MenuContext _) => (ac is not null) && HasHandoffInProgress(ac);
+
+    /// <summary>
+    /// True for a handoff in progress to the position the client acts as (the peer, or the position that redirected it:
+    /// <see cref="TrackCoordinationView.IsHandoffToActing"/>); never while that position is unknown. The Scope's handoff
+    /// field click uses it to open Accept rather than Cancel.
+    /// </summary>
+    public static bool IsHandoffToActing(IMenuAircraft? ac, MenuContext context) =>
         (ac is not null) && (context.Acting is { } acting) && TrackCoordinationView.IsHandoffToActing(HandoffPeerOf(ac), RedirectedByOf(ac), acting);
 
     /// <summary>
