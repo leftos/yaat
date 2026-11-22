@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- vStrips and vTDLS in CRC download a compressed copy of their program once and keep it, instead of the full 33 MB on every load.
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
 - Solo: uncleared VFR pilots now stay under a Class B shelf in the pattern, approaches, go-arounds and departures, saying unable once per altitude into it.
