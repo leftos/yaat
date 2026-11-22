@@ -35,8 +35,8 @@
 - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
 
-### M4 Airport editor (3/10 done)
-- [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas (sub-issue of YAAT-1989) · release vNext
+### M4 Airport editor (3/11 done)
+- [/] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext
@@ -66,7 +66,8 @@
   - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
   - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext
   - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext
-  - [ ] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas · release vNext
+  - [/] YAAT-2515 YAATEdit M4.3: Airport Editor window and canvas · release vNext
+    - [ ] YAAT-2742 YAATEdit M4.3b: satellite imagery under the Airport Editor · release vNext
   - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext
   - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext
   - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext
@@ -79,6 +80,10 @@
   - [ ] YAAT-2714 Scenario Editor: word the no-ARTCC state by its cause, and re-read the ARTCC list on Refresh
   - [ ] YAAT-2728 Fold AtomicTextFile into StoreFiles to close the Data.Vnas to Authoring.AirportMap edge
   - [ ] YAAT-2729 Scenario Editor: open and save working copies off the UI thread
+  - [ ] YAAT-2744 YAATEdit: pan the Airport Editor's map without a middle button (touchpads)
+  - [ ] YAAT-2747 Warn when a corner fillet override asks for a radius aircraft cannot steer
+  - [ ] YAAT-2749 Reject a map feature that repeats a property key in AirportMapDocument.Read
+  - [ ] YAAT-2753 Test the remaining fillet-override force paths and split the oversized fillet functions
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -508,6 +513,9 @@
 - [ ] YAAT-2101 Bring StraightArrivalThresholdNm and LineUpGeometry.Compute within the hard limits
 - [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
 - [/] YAAT-2411 Rate-limit nosewheel steering so taxiing aircraft turn gradually and recentre before reversing · release vNext
+- [ ] YAAT-2748 Rule out fillet arcs tighter than the aircraft category can steer in the ground pathfinder
+- [ ] YAAT-2750 End a taxiing aircraft's entry-alignment slow turn on the taxiway centreline
+- [ ] YAAT-2751 Walk the route for the ramped ground steer's look-ahead past a node (bends, fillets, 30-45 degree band) · release vNext
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -815,6 +823,8 @@
 ### No milestone
 - [ ] YAAT-2210 Check whether a rewinding room can stall the shared tick loop for every room
 - [ ] YAAT-2219 Measure live-checkpoint memory and capture cost in a long session and soak
+- [ ] YAAT-2745 Keep the ground navigator's heading memory across a restore that drops its playback
+- [ ] YAAT-2746 Restore pushback noses and magnetic headings bit for bit from a snapshot
 
 ## Command parser and queue
 
@@ -1218,7 +1228,7 @@
 - [ ] YAAT-1692 Preset-taxi call-up says 'at RAMP' while the aircraft holds on C · release vNext
 - [ ] YAAT-1788 Keep staged pilot lines in a snapshot taken between a command and the next tick · release vNext
 
-### 2 Refinements and rulings (9/24 done)
+### 2 Refinements and rulings (9/25 done)
 - [ ] YAAT-2287 Solo: an IFR arrival told to expect an approach but never cleared queries the clearance near final or the IAF
 - [ ] YAAT-2288 Solo: time the approach-assignment request to the approach gate and skip it in visual weather
 - [ ] YAAT-335 Untowered runway-spawn polish: VFR self-departure direction, HFR untowered note, release wording · release vNext
@@ -1234,6 +1244,7 @@
 - [ ] YAAT-2676 Solo Class B clearance survives pattern work just outside the boundary (exit timer resets on each projected re-entry)
 - [ ] YAAT-2687 RMOB refinements: 30 NM from the airport, the silent orbit after an unprompted RMOB, compound altitude, "remain clear" phrasing
 - [ ] YAAT-2709 Review the Class B shelf margin and the surface-area departure exemption with the aviation expert
+- [ ] YAAT-2741 Show the held phase beside a Class B boundary hold in the aircraft status
 
 ### 3 Hygiene and tests (0/2 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext
@@ -1248,6 +1259,7 @@
 - [ ] YAAT-1992 Score only the student's own commands in solo evaluation, by the recorded issuer flag · release vNext
 - [ ] YAAT-1998 Read a CRC session's secondary positions from PositionRegistry in StudentIssuer · release vNext
 - [ ] YAAT-2009 Route a solo VFR pattern aircraft's short-final reminder by its tuned position · release vNext
+- [ ] YAAT-2752 Drop a Class B hold's stashed direct when a later heading replaces it
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1722,6 +1734,7 @@
 - [ ] YAAT-2725 A 360 or S-turn resume in the pattern re-voices the "turning {leg}" report
 - [ ] YAAT-2726 A 360 or S-turn in the pattern drops a controller altitude given on the leg
 - [ ] YAAT-2731 Drop a sidecar entry with a wrong JSON type instead of failing the whole sidecar file
+- [ ] YAAT-2743 End a map canvas pan when its button is released outside the window
 
 ## Design files
 
