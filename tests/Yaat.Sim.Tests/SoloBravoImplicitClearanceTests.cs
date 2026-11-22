@@ -38,7 +38,7 @@ public sealed class SoloBravoImplicitClearanceTests
     {
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90, destination: "KMOD");
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         PhaseList holdList = ac.Phases!;
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(holdList.Phases));
         Assert.Equal(AirspaceClass.Bravo, hold.AirspaceClass);
@@ -52,7 +52,7 @@ public sealed class SoloBravoImplicitClearanceTests
         PhaseRunner.Tick(ac, ctx);
         Assert.True(holdList.IsComplete, "the vector ends the hold");
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Same(holdList, ac.Phases);
         Assert.True(ac.Phases!.IsComplete, "no fresh hold may re-arm and turn the aircraft away from the vector");
@@ -167,7 +167,7 @@ public sealed class SoloBravoImplicitClearanceTests
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90, destination: "KMOD");
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
         scenario.ArtccConfig = zoa;
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.Equal(PilotPendingRequestKind.AirspaceEntry, ac.PendingPilotRequest?.Kind);
         Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase);
 
@@ -186,13 +186,13 @@ public sealed class SoloBravoImplicitClearanceTests
         AircraftState ac = Airborne(FarWestRing, trueHeading: 90, destination: "KMOD");
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
         scenario.ArtccConfig = zoa;
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.Equal(PilotPendingRequestKind.AirspaceEntry, ac.PendingPilotRequest?.Kind);
         Assert.True(engine.SendCommand(Callsign, "CT OAK_TWR").Success);
         Assert.False(ac.PendingPilotRequest!.IsOpen);
         ac.PendingPilotTransmissions.Clear();
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         // Sent to another frequency, the pilot has not checked in with the student again, so it does not call the
         // student for the clearance.
@@ -211,8 +211,8 @@ public sealed class SoloBravoImplicitClearanceTests
         Assert.Equal(AirspaceClass.Bravo, crossing?.Volume.Class);
         Assert.Null(AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 60));
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         PilotTransmission request = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Equal(PilotTransmissionKind.Proactive, request.Kind);
@@ -228,7 +228,7 @@ public sealed class SoloBravoImplicitClearanceTests
         AircraftState ac = Airborne(FarWestRing, trueHeading: 90, destination: "KMOD");
         ac.HasMadeInitialContact = false;
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Null(ac.PendingPilotRequest);
@@ -241,7 +241,7 @@ public sealed class SoloBravoImplicitClearanceTests
         var closedTraffic = new PilotSpeechText("request closed traffic.", $"{SpokenCallsign}, request closed traffic.");
         PilotRequestTracker.RecordRequest(ac, PilotPendingRequestKind.Landing, nowSeconds: 0, closedTraffic, PilotRequestContext.None);
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Equal(PilotPendingRequestKind.Landing, ac.PendingPilotRequest?.Kind);
@@ -253,7 +253,7 @@ public sealed class SoloBravoImplicitClearanceTests
     {
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90, destination: "KMOD");
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase);
         ac.PendingPilotTransmissions.Clear();
 
@@ -413,7 +413,7 @@ public sealed class SoloBravoImplicitClearanceTests
         AirspaceBoundaryCrossing? first = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, lookaheadSeconds: 120);
         Assert.Equal(AirspaceClass.Charlie, first?.Volume.Class);
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         PilotTransmission request = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Equal("request clearance through the bravo.", request.Text);
@@ -430,7 +430,7 @@ public sealed class SoloBravoImplicitClearanceTests
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped()) { Scenario = scenario };
         engine.World.AddAircraft(ac);
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         CommandResult result = engine.SendCommand(Callsign, "FH 090");
 
         Assert.True(result.Success, result.Message);

@@ -3379,6 +3379,33 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// The pilot's advisory as it starts an orbit in front of its running phase at a Class B boundary: AIM 4-3-5 has a pilot
+    /// advise before a 360, and 7110.65 §7-9-2.a NOTE 1 expects a VFR pilot to tell ATC when compliance would take it into
+    /// Class B uncleared. With <paramref name="requestClearance"/> it asks for the clearance too; told to remain outside the
+    /// Class B, it asks nothing. Output: <c>"that'll take us into the bravo; we'll orbit left here, request bravo clearance."</c> /
+    /// <c>"november one two three alpha bravo, that'll take us into the bravo; we'll orbit right here."</c>
+    /// </summary>
+    public static PilotSpeechText BuildBravoOrbitAdvisory(AircraftState aircraft, TurnDirection orbitDirection, bool requestClearance)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        string direction = orbitDirection == TurnDirection.Left ? "left" : "right";
+        string request = requestClearance ? ", request bravo clearance" : "";
+        string advisory = $"that'll take us into the bravo; we'll orbit {direction} here{request}.";
+        return new PilotSpeechText(advisory, NormalizeForTts($"{spoken}, {advisory}"));
+    }
+
+    /// <summary>
+    /// The pilot's word that it will not orbit at a Class B boundary below 400 ft AGL and flies on beneath the Class B
+    /// (7110.65 §7-9-2.a NOTE 1). Output: <c>"unable to hold, continuing."</c> /
+    /// <c>"november one two three alpha bravo, unable to hold, continuing."</c>
+    /// </summary>
+    public static PilotSpeechText BuildUnableToHold(AircraftState aircraft)
+    {
+        const string Unable = "unable to hold, continuing.";
+        return new PilotSpeechText(Unable, NormalizeForTts($"{SpokenOwnCallsign(aircraft)}, {Unable}"));
+    }
+
+    /// <summary>
     /// The re-ask of a Class B request while the pilot waits at the boundary (<paramref name="hold"/>), saying where it
     /// waits: orbiting outside the Class B, or levelled below its shelf at the hold's level-off altitude. Output:
     /// <c>"orbiting outside the bravo, still request clearance through the bravo."</c> /

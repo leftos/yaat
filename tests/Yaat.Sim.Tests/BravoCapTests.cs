@@ -143,7 +143,7 @@ public sealed class BravoCapTests
         ac.Targets.AltitudeCeiling = null;
         Assert.NotNull(AirspaceDatabase.Default.FindFirstProjectedEntry(ac, 60, AirspaceClass.Bravo));
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Null(ac.Phases);
     }
@@ -156,7 +156,7 @@ public sealed class BravoCapTests
         ac.HasControllerAcknowledgedInitialContact = false;
         ac.StartBravoCap(new BravoCap("SFO", SfoVolumeId(), Cap, null, null));
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceClass.Charlie, hold.AirspaceClass);
@@ -170,7 +170,7 @@ public sealed class BravoCapTests
         ac.HasControllerAcknowledgedInitialContact = true;
         ac.StartBravoCap(new BravoCap("SFO", SfoVolumeId(), Cap, null, null));
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(solo: true), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceClass.Bravo, hold.AirspaceClass);

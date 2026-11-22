@@ -39,7 +39,7 @@ public sealed class Issue308AirspaceLevelOffTests
     {
         AircraftState ac = ClimbingDeparture();
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceHoldMode.LevelOff, phase.Mode);
@@ -52,7 +52,7 @@ public sealed class Issue308AirspaceLevelOffTests
         AircraftState ac = ClimbingDeparture();
         TrueHeading? originalHeading = ac.Targets.TargetTrueHeading;
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         phase.OnStart(Context(ac));
 
@@ -69,7 +69,7 @@ public sealed class Issue308AirspaceLevelOffTests
     public void LevelOff_HoldsWhileStillUnderTheShelf()
     {
         AircraftState ac = ClimbingDeparture();
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
@@ -87,7 +87,7 @@ public sealed class Issue308AirspaceLevelOffTests
     public void LevelOff_EndsOnBravoClearanceAndRestoresTheCruiseClimb()
     {
         AircraftState ac = ClimbingDeparture();
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
@@ -108,7 +108,7 @@ public sealed class Issue308AirspaceLevelOffTests
     public void LevelOff_EndsWhenTheControllerAssignsAnAltitude()
     {
         AircraftState ac = ClimbingDeparture();
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
@@ -128,7 +128,7 @@ public sealed class Issue308AirspaceLevelOffTests
         AircraftState ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceHoldMode.Orbit, phase.Mode);
@@ -143,7 +143,7 @@ public sealed class Issue308AirspaceLevelOffTests
         AircraftState ac = Airborne(new LatLon(37.7500, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         double bearingToBoundary = GeoMath.BearingTo(ac.Position, PhaseIntersection(ac));
@@ -157,7 +157,7 @@ public sealed class Issue308AirspaceLevelOffTests
     {
         AircraftState ac = Airborne(new LatLon(37.7213, -122.4200), trueHeading: 90, altitude: 2000, ias: 600);
         ac.HasMadeInitialContact = true;
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         var phase = (AirspaceBoundaryHoldPhase)ac.Phases!.Phases[0];
         PhaseContext ctx = Context(ac);
         phase.OnStart(ctx);
@@ -197,7 +197,7 @@ public sealed class Issue308AirspaceLevelOffTests
         // "CM 35" under a 2,100 ft shelf: a clearance the pilot cannot legally fly (AIM 5-5-6.a.3).
         ac.Targets.AssignedAltitude = 3500;
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         PilotTransmission transmission = Assert.Single(ac.PendingPilotTransmissions);
         Assert.Contains("unable 3500", transmission.Text);
@@ -215,7 +215,7 @@ public sealed class Issue308AirspaceLevelOffTests
         // clearance to refuse and nothing to say (issue #154).
         AircraftState ac = ClimbingDeparture();
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Empty(ac.PendingPilotTransmissions);
     }

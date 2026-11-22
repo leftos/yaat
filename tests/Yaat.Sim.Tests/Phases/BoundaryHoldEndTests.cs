@@ -58,7 +58,9 @@ public sealed class BoundaryHoldEndTests : IDisposable
     {
         (AircraftState ac, PhaseContext ctx, PatternEntryPhase entry) = AircraftOnPatternEntry();
         AirspaceBoundaryHoldPhase hold = StartedHoldInFront(ac, ctx);
-        // PatternEntryPhase.OnStart writes its pattern altitude here: a second start would overwrite this.
+        // PatternEntryPhase.OnStart writes its pattern altitude here: a second start would overwrite this. A controller
+        // altitude command, so the hold's end leaves it standing.
+        ac.NoteControllerAltitudeCommand();
         ac.Targets.TargetAltitude = 4500;
         ac.GrantBravoClearance(Sfo);
 

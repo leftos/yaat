@@ -528,6 +528,34 @@ public class AircraftState
     public void MarkAirspaceUnableAdvised() => AirspaceUnableAdvisedCommand = ControllerAltitudeCommandCount;
 
     /// <summary>
+    /// The Class B whose boundary the pilot, flying a running phase below 400 ft AGL, said it is unable to hold for: set
+    /// when it says so, null again when that boundary encounter ends (30 s with no projected entry into it, a change of the
+    /// current phase, a clearance into it, or out of the in-phase scope), so the line is said once per encounter
+    /// (<see cref="Pilot.PilotProactive.TickAirspaceBoundaryRespect"/>).
+    /// </summary>
+    public string? InPhaseHoldUnableArea { get; internal set; }
+
+    /// <summary>
+    /// The scenario second (<see cref="SimScenarioState.ElapsedSeconds"/>) the entry into <see cref="InPhaseHoldUnableArea"/>
+    /// was last projected; set and cleared with it.
+    /// </summary>
+    public double? InPhaseHoldUnableSeenAtSeconds { get; internal set; }
+
+    /// <summary>
+    /// The name of the phase the pilot flew when it said it is unable to hold; set and cleared with
+    /// <see cref="InPhaseHoldUnableArea"/>.
+    /// </summary>
+    public string? InPhaseHoldUnablePhase { get; internal set; }
+
+    /// <summary>
+    /// The Class B of an orbit put in front of a running phase whose advisory the pilot has not yet said, because the orbit
+    /// went in while it was not yet in contact or was tuned away from the student: set when the orbit goes in, said (and null
+    /// again) the first second the pilot can speak to the student, or null when that orbit ends first
+    /// (<see cref="Pilot.PilotProactive.TickAirspaceBoundaryRespect"/>).
+    /// </summary>
+    public string? InPhaseOrbitAdvisoryOwed { get; internal set; }
+
+    /// <summary>
     /// A controller altitude command was applied: counts it and ends the Class B cap. A ceiling the command wrote is left
     /// alone; while the cap's own ceiling still stands (the command wrote none) the prior ceiling is put back, so the cap
     /// never outlives its record as a controller bound. Call it before the command writes its ceiling. The next proactive
@@ -913,6 +941,10 @@ public class AircraftState
             BravoCap = RestoreBravoCap(dto),
             ControllerAltitudeCommandCount = dto.ControllerAltitudeCommandCount,
             AirspaceUnableAdvisedCommand = dto.AirspaceUnableAdvisedCommand,
+            InPhaseHoldUnableArea = dto.InPhaseHoldUnableArea,
+            InPhaseHoldUnableSeenAtSeconds = dto.InPhaseHoldUnableSeenAtSeconds,
+            InPhaseHoldUnablePhase = dto.InPhaseHoldUnablePhase,
+            InPhaseOrbitAdvisoryOwed = dto.InPhaseOrbitAdvisoryOwed,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
@@ -1051,6 +1083,10 @@ public class AircraftState
             BravoCapPriorTargetAltitude = BravoCap?.PriorTargetAltitude,
             ControllerAltitudeCommandCount = ControllerAltitudeCommandCount,
             AirspaceUnableAdvisedCommand = AirspaceUnableAdvisedCommand,
+            InPhaseHoldUnableArea = InPhaseHoldUnableArea,
+            InPhaseHoldUnableSeenAtSeconds = InPhaseHoldUnableSeenAtSeconds,
+            InPhaseHoldUnablePhase = InPhaseHoldUnablePhase,
+            InPhaseOrbitAdvisoryOwed = InPhaseOrbitAdvisoryOwed,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),

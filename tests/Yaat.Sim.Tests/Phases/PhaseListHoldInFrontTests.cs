@@ -142,7 +142,9 @@ public class PhaseListHoldInFrontTests
         AirspaceBoundaryHoldPhase hold = SfoBravoHold();
         ac.Phases!.InsertHoldInFront(hold);
         PhaseRunner.Tick(ac, ctx);
-        // PatternEntryPhase.OnStart writes its pattern altitude here: a second start would overwrite this.
+        // PatternEntryPhase.OnStart writes its pattern altitude here: a second start would overwrite this. A controller
+        // altitude command, so the hold's end leaves it standing.
+        ac.NoteControllerAltitudeCommand();
         ac.Targets.TargetAltitude = 4500;
 
         PhaseRunner.EndHold(ac, ctx, HoldResume.InPlace);

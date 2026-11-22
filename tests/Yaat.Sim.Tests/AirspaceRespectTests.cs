@@ -89,7 +89,7 @@ public sealed class AirspaceRespectTests
             StudentPositionType = "APP",
         };
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         AirspaceBoundaryHoldPhase phase = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(ac.Phases!.Phases));
         Assert.Equal(AirspaceClass.Charlie, phase.AirspaceClass);
@@ -112,7 +112,7 @@ public sealed class AirspaceRespectTests
             StudentPositionType = "APP",
         };
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Null(ac.Phases);
     }
@@ -134,7 +134,7 @@ public sealed class AirspaceRespectTests
             StudentPositionType = "APP",
         };
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Null(ac.Phases);
     }

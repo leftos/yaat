@@ -1456,6 +1456,20 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? HeadingStandingAtStartDeg { get; init; }
+
+    /// <summary>
+    /// The vertical rate, ft/min, standing when a hold in front of a held phase first started, put back with
+    /// <see cref="OriginalTargetAltitude"/> when it ends; null when none stood or for any other hold. Written only when set.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? OriginalDesiredVerticalRate { get; init; }
+
+    /// <summary>
+    /// The aircraft's controller altitude command count when a hold in front of a held phase first started; null for any
+    /// other hold. Written only when set.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AltitudeCommandCountAtStart { get; init; }
 }
 
 public sealed class MilitaryRoutePhaseDto : PhaseDto

@@ -54,6 +54,12 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     // judged in its turn.
     private MagneticHeading? _headingStandingAtStart;
 
+    // A hold in front of a held phase: the vertical rate standing when it first started, and the aircraft's controller
+    // altitude command count then. Its end puts the saved altitude target and this rate back unless a controller altitude
+    // command came during the hold (EndPairedVertical). Null for any other hold.
+    private double? _originalDesiredVerticalRate;
+    private int? _altitudeCommandCountAtStart;
+
     public AirspaceClass AirspaceClass { get; init; }
     public string Ident { get; init; } = "";
     public string NameText { get; init; } = "";
@@ -113,6 +119,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             HeldThroughVector = _heldThroughVector,
             StashedDirect = _stashedDirect,
             HeadingStandingAtStartDeg = _headingStandingAtStart?.Degrees,
+            OriginalDesiredVerticalRate = _originalDesiredVerticalRate,
+            AltitudeCommandCountAtStart = _altitudeCommandCountAtStart,
         };
 
     public static AirspaceBoundaryHoldPhase FromSnapshot(AirspaceBoundaryHoldPhaseDto dto)
@@ -148,6 +156,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         phase._heldThroughVector = dto.HeldThroughVector;
         phase._stashedDirect = dto.StashedDirect;
         phase._headingStandingAtStart = dto.HeadingStandingAtStartDeg is { } standingDeg ? new MagneticHeading(standingDeg) : null;
+        phase._originalDesiredVerticalRate = dto.OriginalDesiredVerticalRate;
+        phase._altitudeCommandCountAtStart = dto.AltitudeCommandCountAtStart;
         return phase;
     }
 
@@ -163,6 +173,12 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             _originalTargetAltitude = ctx.Targets.TargetAltitude;
             _originalAltitudeCeiling = ctx.Targets.AltitudeCeiling;
             _headingStandingAtStart = ctx.Targets.AssignedMagneticHeading;
+            if (ctx.Aircraft.Phases?.HeldPhase is not null)
+            {
+                _originalDesiredVerticalRate = ctx.Targets.DesiredVerticalRate;
+                _altitudeCommandCountAtStart = ctx.Aircraft.ControllerAltitudeCommandCount;
+            }
+
             _started = true;
         }
 
@@ -182,7 +198,25 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         }
 
         ctx.Targets.NavigationRoute.Clear();
+        LevelInFrontOfAHeldPhase(ctx);
         SetHoldingTargets(ctx);
+    }
+
+    /// <summary>
+    /// An orbit in front of a held phase never descends: a descent the phase left (a goal below the aircraft or a descent
+    /// rate) becomes a level-off at the present altitude, floored at <see cref="Tower.GoAroundPhase.NoTurnAgl"/> above the
+    /// field. A climb is left as it stands. The held phase sets its own targets again when it resumes.
+    /// </summary>
+    private static void LevelInFrontOfAHeldPhase(PhaseContext ctx)
+    {
+        bool descending = (ctx.Targets.TargetAltitude < ctx.Aircraft.Altitude) || (ctx.Targets.DesiredVerticalRate < 0);
+        if ((ctx.Aircraft.Phases?.HeldPhase is null) || !descending)
+        {
+            return;
+        }
+
+        ctx.Targets.TargetAltitude = Math.Max(ctx.Aircraft.Altitude, ctx.FieldElevation + Tower.GoAroundPhase.NoTurnAgl);
+        ctx.Targets.DesiredVerticalRate = null;
     }
 
     public override bool OnTick(PhaseContext ctx)
@@ -393,11 +427,30 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         }
 
         EndLateral(ctx);
+        EndPairedVertical(ctx);
 
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
             ctx.Targets.TargetSpeed = _originalTargetSpeed;
         }
+    }
+
+    /// <summary>
+    /// A hold in front of a held phase gives the phase back the altitude target and vertical rate it left when the hold first
+    /// started (<see cref="LevelInFrontOfAHeldPhase"/> may have levelled them): a phase that resumes in place and set its
+    /// descent only when it started (<see cref="Pattern.MidfieldCrossingPhase"/>) descends again. A controller altitude
+    /// command during the hold (<see cref="AircraftState.ControllerAltitudeCommandCount"/> moved) is left standing. A phase
+    /// resumed as a restart copy sets its own targets again when it starts. Nothing for any other hold.
+    /// </summary>
+    private void EndPairedVertical(PhaseContext ctx)
+    {
+        if ((_altitudeCommandCountAtStart is not { } count) || (ctx.Aircraft.ControllerAltitudeCommandCount != count))
+        {
+            return;
+        }
+
+        ctx.Targets.TargetAltitude = _originalTargetAltitude;
+        ctx.Targets.DesiredVerticalRate = _originalDesiredVerticalRate;
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.Allowed;
@@ -476,7 +529,12 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     private void SetHoldingTargets(PhaseContext ctx)
     {
         double maxHold = AircraftPerformance.HoldingSpeed(ctx.AircraftType, ctx.Aircraft.Altitude);
-        if (ctx.Targets.TargetSpeed is null || ctx.Targets.TargetSpeed > maxHold)
+        if (ctx.Targets.TargetSpeed is null)
+        {
+            // A hold in front of a running phase slows the aircraft to holding speed at most; it never speeds it up.
+            ctx.Targets.TargetSpeed = (ctx.Aircraft.Phases?.HeldPhase is not null) ? Math.Min(maxHold, ctx.Aircraft.IndicatedAirspeed) : maxHold;
+        }
+        else if (ctx.Targets.TargetSpeed > maxHold)
         {
             ctx.Targets.TargetSpeed = maxHold;
         }

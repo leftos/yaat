@@ -153,7 +153,7 @@ meet Class B/C entry requirements before crossing the boundary. It early-returns
 
 - `scenario.SoloTrainingMode` is on,
 - the aircraft is **airborne and VFR** (`!IsOnGround && FlightPlan.IsVfr`),
-- there is **no active phase** (`aircraft.Phases is { IsComplete: false }` returns).
+- there is **no active phase** (`aircraft.Phases is { IsComplete: false }` goes to the in-phase step, below).
 
 Then it calls `airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60)`. If a crossing is found and
 `EntryGateSatisfied` is **false** for that volume's class, it installs a fresh single-phase `PhaseList`
@@ -223,6 +223,8 @@ phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The featur
 (`docs/plans/pilot-ai-self-training/README.md`); its subplan is deleted, so git history holds the milestone record.
 
 **A paired hold** (an `Orbit` hold standing in front of a held pattern or approach phase, [phases.md](phases.md) "A boundary hold in front of a running phase") follows the free-flight vector rule, and `PhaseRunner.EndHold` ends it. A new heading or direct that keeps the aircraft outside the Bravo ends the orbit and is flown; one into the Bravo is held through (`HeldThroughVector`) and flown once cleared. A heading standing when the hold went in is not new (`HeadingStandingAtStartDeg`) until the first new heading, after which every heading is judged. At the end the held phase's route and heading come back only when no new heading or direct arrived: a held-through direct is put back (`StashedDirect`), and a new heading clears the orbit's turn direction. Only `InitialClimbPhase` and `DepartureProcedurePhase` accept a heading or direct while held without clearing themselves.
+
+**Putting a paired hold in** is the in-phase step of `TickAirspaceBoundaryRespect` (`TickInPhaseBoundaryHold`; the gates, the orbit-first rule, the owed advisory, the Class B request and the below-400 ft "unable to hold, continuing." are in [phases.md](phases.md) "What puts a hold in"). Unlike the free-flight hold it is not silent: the pilot says "that'll take us into the bravo; we'll orbit left here, request bravo clearance." the first second it can speak to the student, and that request is the one `CLBRV`, `RMOB` and the tracker's re-ask answer. A paired orbit levels at the present altitude, never descends, and gives the held phase its altitude target and rate back at its end unless a controller altitude command came during it ([phases.md](phases.md) "A paired orbit never descends").
 
 ### In-phase Class B cap
 

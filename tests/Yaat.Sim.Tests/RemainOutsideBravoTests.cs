@@ -131,7 +131,7 @@ public sealed class RemainOutsideBravoTests
         ac.Targets.TargetAltitude = 3500;
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
         RecordSfoRequest(ac);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase);
         Assert.Equal(AirspaceHoldMode.LevelOff, hold.Mode);
         PhaseContext ctx = Context(ac);
@@ -339,7 +339,7 @@ public sealed class RemainOutsideBravoTests
         }
 
         Assert.False(holdList.IsComplete, "the vector does not release the hold while the pilot must remain outside");
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.Same(holdList, ac.Phases);
         Assert.Equal(90, ac.Targets.AssignedMagneticHeading?.Degrees ?? double.NaN, 0.5);
 
@@ -426,8 +426,8 @@ public sealed class RemainOutsideBravoTests
         Assert.True(engine.SendCommand(Callsign, "RMOB").Success);
         ac.PendingPilotTransmissions.Clear();
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.Empty(ac.PendingPilotTransmissions);
         Assert.Null(ac.PendingPilotRequest);
@@ -598,7 +598,7 @@ public sealed class RemainOutsideBravoTests
     /// <summary>The boundary tick puts the aircraft in an orbit outside the SFO Class B with an open request, two ticks in.</summary>
     private static PhaseList OrbitWithOpenRequest(AircraftState ac, SimScenarioState scenario)
     {
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         PhaseList holdList = ac.Phases!;
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(Assert.Single(holdList.Phases));
         Assert.Equal(AirspaceHoldMode.Orbit, hold.Mode);

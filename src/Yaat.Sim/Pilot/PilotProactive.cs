@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -1157,19 +1158,25 @@ public static class PilotProactive
     /// Watches airborne VFR aircraft in solo training and inserts a self-clearing boundary
     /// hold when the projected track would enter Class B/C before the required gate is met.
     /// AIM §3-2-1.4 places responsibility on the pilot to meet Class B/C/D entry
-    /// requirements before entry; this models that responsibility for the student.
+    /// requirements before entry; this models that responsibility for the student. An aircraft flying a running phase that
+    /// can be suspended gets an orbit in front of that phase instead (<see cref="TickInPhaseBoundaryHold"/>);
+    /// <paramref name="phaseContextFor"/> builds the context its gates read, only once the cheap gates pass.
     /// </summary>
     public static void TickAirspaceBoundaryRespect(
         AircraftState aircraft,
         SimScenarioState scenario,
         AirspaceDatabase airspace,
-        Func<string, LatLon?> airportLookup
+        Func<string, LatLon?> airportLookup,
+        Func<AircraftState, PhaseContext> phaseContextFor
     )
     {
         if (!IsSoloFreeFlightVfr(aircraft, scenario))
         {
+            TickInPhaseBoundaryHold(aircraft, scenario, airspace, airportLookup, phaseContextFor);
             return;
         }
+
+        EndInPhaseLatches(aircraft);
 
         // The request looks further ahead than the hold, so any Bravo entry the hold is about to act on was already
         // seen here: the request goes out first, or with the hold on the same tick.
@@ -1200,7 +1207,24 @@ public static class PilotProactive
 
         AnnounceUnableAssignedAltitude(aircraft, volume, levelOffCeiling);
 
-        var phase = new AirspaceBoundaryHoldPhase
+        AirspaceBoundaryHoldPhase phase = BuildBoundaryHold(aircraft, crossing, reference, mode, levelOffCeiling);
+
+        var phases = new PhaseList();
+        phases.Add(phase);
+        aircraft.Phases = phases;
+    }
+
+    /// <summary>The boundary hold for <paramref name="crossing"/>, orbiting away from the entry point (free flight and in a phase alike).</summary>
+    private static AirspaceBoundaryHoldPhase BuildBoundaryHold(
+        AircraftState aircraft,
+        AirspaceBoundaryCrossing crossing,
+        LatLon reference,
+        AirspaceHoldMode mode,
+        int? levelOffCeiling
+    )
+    {
+        AirspaceVolume volume = crossing.Volume;
+        return new AirspaceBoundaryHoldPhase
         {
             AirspaceClass = volume.Class,
             Ident = string.IsNullOrWhiteSpace(volume.Ident) ? volume.IcaoId : volume.Ident,
@@ -1213,15 +1237,327 @@ public static class PilotProactive
             VolumeId = volume.Id,
             LevelOffCeilingFtMsl = levelOffCeiling,
         };
-
-        var phases = new PhaseList();
-        phases.Add(phase);
-        aircraft.Phases = phases;
     }
 
     /// <summary>Solo training, an airborne VFR aircraft, and no running phase: the free-flight boundary step's scope.</summary>
     private static bool IsSoloFreeFlightVfr(AircraftState aircraft, SimScenarioState scenario) =>
         scenario.SoloTrainingMode && !aircraft.IsOnGround && aircraft.FlightPlan.IsVfr && (aircraft.Phases is not { IsComplete: false });
+
+    /// <summary>Solo training, an airborne VFR aircraft, and a running phase: the in-phase boundary step's scope.</summary>
+    private static bool IsSoloInPhaseVfr(AircraftState aircraft, SimScenarioState scenario) =>
+        scenario.SoloTrainingMode && !aircraft.IsOnGround && aircraft.FlightPlan.IsVfr && (aircraft.Phases is { IsComplete: false });
+
+    /// <summary>
+    /// An uncleared VFR aircraft whose running phase would carry it laterally into a Class B within the 60 s straight ray
+    /// orbits in front of that phase (<see cref="PhaseList.InsertHoldInFront"/>) the second it is seen, and says so when it
+    /// can (<see cref="InsertInPhaseHold"/>): staying out of the Class B uncleared (AIM 3-2-3.b, 14 CFR 91.131, 7110.65
+    /// §7-9-2.a) comes before AIM 4-3-5's advisory before a 360. Only a current, Active phase that declares it can be
+    /// suspended (<see cref="Phase.CanSuspendForBoundaryHold"/>) is held; a Pending phase or a hold already standing is
+    /// judged again next second. A Charlie or Delta, a vertical entry (<see cref="TickBravoCap"/> owns it) and a cleared
+    /// Class B never hold a phase. Below <see cref="GoAroundPhase.NoTurnAgl"/> AGL the pilot does not orbit and says once per
+    /// encounter that it is unable to hold (<see cref="AdviseUnableToHold"/>). The cheap gates (the ray, the footprint, the
+    /// clearance) run before the phase context is built; an advisory still owed is serviced first, every second.
+    /// </summary>
+    private static void TickInPhaseBoundaryHold(
+        AircraftState aircraft,
+        SimScenarioState scenario,
+        AirspaceDatabase airspace,
+        Func<string, LatLon?> airportLookup,
+        Func<AircraftState, PhaseContext> phaseContextFor
+    )
+    {
+        if (!IsSoloInPhaseVfr(aircraft, scenario) || (aircraft.Phases is not { CurrentPhase: { } current } phases))
+        {
+            EndInPhaseLatches(aircraft);
+            return;
+        }
+
+        var speech = new InPhaseSpeech(scenario, airspace, airportLookup);
+        ServiceOwedOrbitAdvisory(aircraft, phases, speech);
+        if (!IsActiveUnheldPhase(current))
+        {
+            return;
+        }
+
+        AirspaceBoundaryCrossing? crossing = FindInPhaseBravoEntry(aircraft, airspace);
+        ExpireUnableToHoldEncounter(aircraft, scenario.ElapsedSeconds, current, crossing);
+        if (crossing is null)
+        {
+            return;
+        }
+
+        PhaseContext ctx = phaseContextFor(aircraft);
+        if (!current.CanSuspendForBoundaryHold(ctx))
+        {
+            return;
+        }
+
+        double agl = aircraft.Altitude - ctx.FieldElevation;
+        if (agl < GoAroundPhase.NoTurnAgl)
+        {
+            AdviseUnableToHold(aircraft, scenario, crossing.Volume, current, agl);
+            return;
+        }
+
+        EndUnableToHoldEncounter(aircraft);
+        InsertInPhaseHold(aircraft, new InPhaseEntry(phases, current, crossing), speech);
+    }
+
+    /// <summary>What the in-phase step words the orbit advisory and records its request with.</summary>
+    private readonly record struct InPhaseSpeech(SimScenarioState Scenario, AirspaceDatabase Airspace, Func<string, LatLon?> AirportLookup);
+
+    /// <summary>The running phase list, its current phase, and the Class B entry that holds that phase.</summary>
+    private readonly record struct InPhaseEntry(PhaseList Phases, Phase Current, AirspaceBoundaryCrossing Crossing);
+
+    /// <summary>How long a below-400 ft boundary encounter outlasts the last second its Class B entry was projected.</summary>
+    private const double UnableToHoldEncounterGapSeconds = 30.0;
+
+    private static bool IsActiveUnheldPhase(Phase phase) => phase is { Status: PhaseStatus.Active } and not AirspaceBoundaryHoldPhase;
+
+    /// <summary>
+    /// The Class B entry that would hold the running phase: the 60 s ray enters a Class B through its side (already inside
+    /// the footprint is a vertical entry), and the aircraft is not cleared into it. Whether the phase can be suspended is
+    /// asked after, of the phase context.
+    /// </summary>
+    private static AirspaceBoundaryCrossing? FindInPhaseBravoEntry(AircraftState aircraft, AirspaceDatabase airspace)
+    {
+        AirspaceBoundaryCrossing? crossing = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60, AirspaceClass.Bravo);
+        bool holds = (crossing is not null) && !EntryGateSatisfied(aircraft, crossing.Volume) && !crossing.Volume.ContainsLateral(aircraft.Position);
+        return holds ? crossing : null;
+    }
+
+    /// <summary>
+    /// Puts the orbit in front of the running phase at once, whether or not the pilot can speak. The advisory is owed
+    /// (<see cref="AircraftState.InPhaseOrbitAdvisoryOwed"/>) and said now when the pilot is in contact and on the student's
+    /// frequency (<see cref="ServiceOwedOrbitAdvisory"/>); tuned away it orbits silently and says it, with its request, the
+    /// first second it is back; not yet in contact, with its first call.
+    /// </summary>
+    private static void InsertInPhaseHold(AircraftState aircraft, InPhaseEntry entry, InPhaseSpeech speech)
+    {
+        LatLon reference = ResolveReference(entry.Crossing, speech.AirportLookup);
+        AirspaceBoundaryHoldPhase hold = BuildBoundaryHold(aircraft, entry.Crossing, reference, AirspaceHoldMode.Orbit, levelOffCeiling: null);
+        entry.Phases.InsertHoldInFront(hold);
+        bool tunedAway = aircraft.IsTunedAwayFrom(speech.Scenario.StudentPosition);
+        LogBoundaryHold(
+            aircraft,
+            "orbit {Direction} inserted in front of {Phase} for the {Area} Class B (tuned away: {TunedAway})",
+            hold.OrbitDirection,
+            entry.Current.Name,
+            hold.Ident,
+            tunedAway
+        );
+        aircraft.InPhaseOrbitAdvisoryOwed = hold.Ident;
+        ServiceOwedOrbitAdvisory(aircraft, entry.Phases, speech);
+    }
+
+    /// <summary>
+    /// Says an owed orbit advisory (<see cref="AircraftState.InPhaseOrbitAdvisoryOwed"/>) the first second the pilot is in
+    /// contact and on the student's frequency, whatever else is queued or open (<see cref="SayOrbitAdvisory"/>). Dropped
+    /// unsaid once the orbit in front of the phase is over.
+    /// </summary>
+    private static void ServiceOwedOrbitAdvisory(AircraftState aircraft, PhaseList phases, InPhaseSpeech speech)
+    {
+        if (aircraft.InPhaseOrbitAdvisoryOwed is not { } area)
+        {
+            return;
+        }
+
+        if ((phases.CurrentPhase is not AirspaceBoundaryHoldPhase hold) || (phases.HeldPhase is null))
+        {
+            aircraft.InPhaseOrbitAdvisoryOwed = null;
+            LogBoundaryHold(aircraft, "orbit advisory for the {Area} Class B dropped unsaid, the orbit is over", area);
+            return;
+        }
+
+        if (!aircraft.HasMadeInitialContact || aircraft.IsTunedAwayFrom(speech.Scenario.StudentPosition))
+        {
+            return;
+        }
+
+        aircraft.InPhaseOrbitAdvisoryOwed = null;
+        SayOrbitAdvisory(aircraft, hold, speech);
+    }
+
+    /// <summary>
+    /// Queues the orbit advisory: "that'll take us into the bravo; we'll orbit left here, request bravo clearance." It goes
+    /// behind whatever is queued. Not told to remain outside, a queued repeat of the open request gives up its place to it,
+    /// and the pilot's Class B request is recorded as <see cref="TryRequestBravoClearance"/> records it, so CLBRV or RMOB
+    /// answer it and the tracker repeats it; it replaces any other open request, and an open request for this same Class B
+    /// is kept as it stands. Under RMOB the advisory asks nothing, no request is recorded, and it replaces no queued line:
+    /// the open request stands, so its queued repeat or unspoken first call still goes out.
+    /// </summary>
+    private static void SayOrbitAdvisory(AircraftState aircraft, AirspaceBoundaryHoldPhase hold, InPhaseSpeech speech)
+    {
+        string area = hold.Ident;
+        bool remainOutside = aircraft.IsRemainOutsideBravo(area);
+        PilotSpeechText line = PilotResponder.BuildBravoOrbitAdvisory(aircraft, hold.OrbitDirection, requestClearance: !remainOutside);
+        if (remainOutside)
+        {
+            PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        }
+        else
+        {
+            QueueInPlaceOfARepeat(aircraft, line);
+        }
+
+        LogBoundaryHold(aircraft, "said the orbit advisory for the {Area} Class B (remain outside: {RemainOutside})", area, remainOutside);
+        if (remainOutside || IsOpenBravoRequestFor(aircraft, area))
+        {
+            return;
+        }
+
+        PilotPendingRequest request = PilotRequestTracker.RecordRequest(
+            aircraft,
+            PilotPendingRequestKind.AirspaceEntry,
+            speech.Scenario.ElapsedSeconds,
+            line,
+            PilotRequestContext.Airspace(AirspaceClass.Bravo, area, hold.ReferencePosition)
+        );
+        request.BravoWording = ImplicitBravoClearance.WordingFor(aircraft, area, speech.Airspace, speech.AirportLookup);
+    }
+
+    /// <summary>Queues <paramref name="line"/>, in the place of a queued repeat of the open request when there is one.</summary>
+    private static void QueueInPlaceOfARepeat(AircraftState aircraft, PilotSpeechText line)
+    {
+        int repeat = IndexOfQueuedRequestRepeat(aircraft);
+        PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        if (repeat < 0)
+        {
+            return;
+        }
+
+        List<PilotTransmission> queue = aircraft.PendingPilotTransmissions;
+        queue[repeat] = queue[^1];
+        queue.RemoveAt(queue.Count - 1);
+    }
+
+    /// <summary>The index of a queued line that repeats the open request's last line, or -1.</summary>
+    private static int IndexOfQueuedRequestRepeat(AircraftState aircraft)
+    {
+        if (aircraft.PendingPilotRequest is not { IsOpen: true } open)
+        {
+            return -1;
+        }
+
+        List<PilotTransmission> queue = aircraft.PendingPilotTransmissions;
+        for (int i = 0; i < queue.Count; i++)
+        {
+            if ((queue[i].Kind == PilotTransmissionKind.Proactive) && string.Equals(queue[i].Text, open.LastPilotLine, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>Whether the open request is the pilot's airspace-entry request for the Class B <paramref name="area"/>.</summary>
+    private static bool IsOpenBravoRequestFor(AircraftState aircraft, string area) =>
+        (aircraft.PendingPilotRequest is { IsOpen: true, Kind: PilotPendingRequestKind.AirspaceEntry } open)
+        && (open.AirspaceClass == nameof(AirspaceClass.Bravo))
+        && string.Equals(open.AirspaceIdent, area, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Below <see cref="GoAroundPhase.NoTurnAgl"/> AGL the pilot does not orbit: it says "unable to hold, continuing." once per
+    /// boundary encounter (<see cref="AircraftState.InPhaseHoldUnableArea"/>) and flies on under the altitude cap. A Class B
+    /// surface area starts at the surface, so near it below 400 ft the pilot flies into it uncleared: the owner's accepted
+    /// trade-off for not turning that low. When it cannot speak this second it says it the first second it can.
+    /// </summary>
+    private static void AdviseUnableToHold(AircraftState aircraft, SimScenarioState scenario, AirspaceVolume volume, Phase current, double agl)
+    {
+        string area = ImplicitBravoClearance.AreaName(volume);
+        if (string.Equals(aircraft.InPhaseHoldUnableArea, area, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        LogBoundaryHold(aircraft, "no orbit for the {Area} Class B at {Agl:F0} ft AGL", area, agl);
+        if (!CanRequestBravoClearance(aircraft, scenario.StudentPosition))
+        {
+            LogBoundaryHold(aircraft, "unable to hold waits, the pilot cannot speak this second");
+            return;
+        }
+
+        PilotResponder.QueueSoloPilotTransmission(
+            aircraft,
+            PilotResponder.BuildUnableToHold(aircraft),
+            PilotTransmissionKind.Proactive,
+            initialContact: false
+        );
+        aircraft.InPhaseHoldUnableArea = area;
+        aircraft.InPhaseHoldUnableSeenAtSeconds = scenario.ElapsedSeconds;
+        aircraft.InPhaseHoldUnablePhase = current.Name;
+        LogBoundaryHold(aircraft, "said unable to hold for the {Area} Class B", area);
+    }
+
+    /// <summary>
+    /// Ends the below-400 ft encounter the pilot said "unable to hold" for once it is over
+    /// (<see cref="IsUnableEncounterOver"/>); while the entry is projected, keeps its last-seen second.
+    /// </summary>
+    private static void ExpireUnableToHoldEncounter(AircraftState aircraft, double nowSeconds, Phase current, AirspaceBoundaryCrossing? crossing)
+    {
+        if (aircraft.InPhaseHoldUnableArea is not { } area)
+        {
+            return;
+        }
+
+        bool projected =
+            (crossing is not null) && string.Equals(ImplicitBravoClearance.AreaName(crossing.Volume), area, StringComparison.OrdinalIgnoreCase);
+        if (IsUnableEncounterOver(aircraft, area, current, projected, nowSeconds))
+        {
+            EndUnableToHoldEncounter(aircraft);
+            LogBoundaryHold(aircraft, "unable-to-hold encounter with the {Area} Class B over", area);
+        }
+        else if (projected)
+        {
+            aircraft.InPhaseHoldUnableSeenAtSeconds = nowSeconds;
+        }
+    }
+
+    /// <summary>
+    /// Whether the below-400 ft encounter with the Class B <paramref name="area"/> is over: a clearance into it is held, the
+    /// current phase is another, or <see cref="UnableToHoldEncounterGapSeconds"/> have passed with no projected entry into
+    /// it (<paramref name="projected"/>). A ray that drops out briefly does not end it.
+    /// </summary>
+    private static bool IsUnableEncounterOver(AircraftState aircraft, string area, Phase current, bool projected, double nowSeconds)
+    {
+        double seenAt = aircraft.InPhaseHoldUnableSeenAtSeconds ?? nowSeconds;
+        return aircraft.IsClearedIntoBravo(area)
+            || !string.Equals(aircraft.InPhaseHoldUnablePhase, current.Name, StringComparison.Ordinal)
+            || (!projected && ((nowSeconds - seenAt) >= UnableToHoldEncounterGapSeconds));
+    }
+
+    /// <summary>
+    /// A debug line of the in-phase boundary step: the aircraft's callsign, then <paramref name="template"/> with its
+    /// <paramref name="args"/> in the structured-logging form, built only when debug logging is on.
+    /// </summary>
+    [SuppressMessage(
+        "Usage",
+        "CA2254:Template should be a static expression",
+        Justification = "Every caller passes a constant template, so each call site's template stays fixed behind the constant prefix"
+    )]
+    private static void LogBoundaryHold(AircraftState aircraft, string template, params object?[] args)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[BoundaryHold] {Callsign}: " + template, [aircraft.Callsign, .. args]);
+        }
+    }
+
+    /// <summary>Ends a below-400 ft boundary encounter: the next one draws its own "unable to hold".</summary>
+    private static void EndUnableToHoldEncounter(AircraftState aircraft)
+    {
+        aircraft.InPhaseHoldUnableArea = null;
+        aircraft.InPhaseHoldUnableSeenAtSeconds = null;
+        aircraft.InPhaseHoldUnablePhase = null;
+    }
+
+    /// <summary>Out of the in-phase scope: the below-400 ft encounter is over and an owed orbit advisory is dropped.</summary>
+    private static void EndInPhaseLatches(AircraftState aircraft)
+    {
+        EndUnableToHoldEncounter(aircraft);
+        aircraft.InPhaseOrbitAdvisoryOwed = null;
+    }
 
     private static bool IsUnderOwnBravoCap(AircraftState aircraft, AirspaceVolume volume) =>
         (volume.Class == AirspaceClass.Bravo)

@@ -235,6 +235,31 @@ public sealed class AircraftSnapshotDto
     public int? AirspaceUnableAdvisedCommand { get; init; }
 
     /// <summary>
+    /// The Class B the pilot said it is unable to hold for while flying a running phase below 400 ft AGL
+    /// (<see cref="AircraftState.InPhaseHoldUnableArea"/>); left out of the JSON while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InPhaseHoldUnableArea { get; init; }
+
+    /// <summary>
+    /// The scenario second the unable-to-hold entry was last projected (<see cref="AircraftState.InPhaseHoldUnableSeenAtSeconds"/>);
+    /// left out while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? InPhaseHoldUnableSeenAtSeconds { get; init; }
+
+    /// <summary>The phase the unable-to-hold was said in (<see cref="AircraftState.InPhaseHoldUnablePhase"/>); left out while null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InPhaseHoldUnablePhase { get; init; }
+
+    /// <summary>
+    /// The Class B of an in-phase orbit whose advisory is still owed (<see cref="AircraftState.InPhaseOrbitAdvisoryOwed"/>);
+    /// left out of the JSON while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InPhaseOrbitAdvisoryOwed { get; init; }
+
+    /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
     /// Non-required so older snapshots deserialize cleanly with the default
     /// <see langword="false"/>.

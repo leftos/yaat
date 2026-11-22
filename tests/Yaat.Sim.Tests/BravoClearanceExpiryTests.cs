@@ -48,7 +48,7 @@ public sealed class BravoClearanceExpiryTests
     {
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90);
         (SimulationEngine engine, SimScenarioState scenario) = SoloEngine(ac);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         PhaseList holdList = ac.Phases!;
         Assert.IsType<AirspaceBoundaryHoldPhase>(holdList.CurrentPhase);
         PhaseContext ctx = Context(ac);
@@ -253,7 +253,7 @@ public sealed class BravoClearanceExpiryTests
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90);
         ac.GrantBravoClearance("LAX");
 
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
 
         Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase);
         PilotTransmission request = Assert.Single(ac.PendingPilotTransmissions);
@@ -325,7 +325,7 @@ public sealed class BravoClearanceExpiryTests
     public void OrbitHoldReask_SaysOrbitingOutsideTheBravo(string destination, string preposition)
     {
         AircraftState ac = Airborne(NearWestRing, trueHeading: 90, destination);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.Equal(AirspaceHoldMode.Orbit, Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase).Mode);
         ac.PendingPilotTransmissions.Clear();
 
@@ -348,7 +348,7 @@ public sealed class BravoClearanceExpiryTests
         ac.VerticalSpeed = 926;
         ac.Targets.TargetAltitude = 3500;
         RecordSfoRequest(ac, PilotResponder.BuildBravoClearanceRequest(ac, wording), wording);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         AirspaceBoundaryHoldPhase hold = Assert.IsType<AirspaceBoundaryHoldPhase>(ac.Phases?.CurrentPhase);
         Assert.Equal(AirspaceHoldMode.LevelOff, hold.Mode);
         Assert.Equal(2000, hold.LevelOffCeilingFtMsl);
@@ -366,7 +366,7 @@ public sealed class BravoClearanceExpiryTests
     public void OpenRequestWithNoHold_ReaskIsTheOriginalLine()
     {
         AircraftState ac = Airborne(FarWestRing, trueHeading: 90);
-        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport);
+        PilotProactive.TickAirspaceBoundaryRespect(ac, SoloScenario(), AirspaceDatabase.Default, LookupAirport, MinimalPhaseContext.For);
         Assert.Null(ac.Phases);
         ac.PendingPilotTransmissions.Clear();
 

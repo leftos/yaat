@@ -15,7 +15,11 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GoAroundPhase");
 
-    private const double NoTurnAgl = 400.0;
+    /// <summary>
+    /// The height above the field below which a pilot makes no turn of its own: a go-around holds runway heading beneath it,
+    /// and a Class B boundary orbit in front of a running phase is not flown beneath it (<see cref="Pilot.PilotProactive"/>).
+    /// </summary>
+    internal const double NoTurnAgl = 400.0;
     private const double SelfClearAgl = 2000.0;
 
     private double _fieldElevation;

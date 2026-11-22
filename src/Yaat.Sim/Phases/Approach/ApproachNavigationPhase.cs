@@ -51,8 +51,30 @@ public sealed class ApproachNavigationPhase : Phase
 
     public override string Name => "ApproachNav";
 
-    /// <inheritdoc/>
-    public override bool CanSuspendForBoundaryHold(PhaseContext ctx) => true;
+    /// <summary>
+    /// Outside the published final approach fix only (<see cref="FinalApproachFix.IsInsidePublishedFaf"/> on the context's
+    /// runway): this phase completes at the FAF, so a boundary met inside it is the final approach's to judge. With no
+    /// runway in the context it can be suspended, and so can a missed-approach leg, flown away from the runway.
+    /// </summary>
+    public override bool CanSuspendForBoundaryHold(PhaseContext ctx)
+    {
+        if (IsMissedApproach)
+        {
+            return true;
+        }
+
+        if ((ctx.Runway is not { } runway) || !FinalApproachFix.IsInsidePublishedFaf(ctx.Aircraft, runway, ctx.GroundLayout))
+        {
+            return true;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[ApproachNav] {Callsign}: inside the published FAF, no boundary hold", ctx.Aircraft.Callsign);
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// In place, the missed approach too: the leg is driven by its fix index, which a second <see cref="OnStart"/> would

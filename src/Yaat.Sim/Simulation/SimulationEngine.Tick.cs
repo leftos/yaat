@@ -36,6 +36,9 @@ public sealed partial class SimulationEngine
     // load and snapshot restore.
     private readonly HashSet<string> _loggedExitCapacityRefusals = [];
 
+    // The phase context the in-phase boundary step reads, as a delegate built once per engine (no per-aircraft closure).
+    private Func<AircraftState, PhaseContext>? _boundaryHoldContextFor;
+
     /// <summary>
     /// Pre-physics: process delayed spawns, generators, triggers, timed presets,
     /// and ensure ground layout. Returns a list of aircraft spawned this tick.
@@ -268,7 +271,13 @@ public sealed partial class SimulationEngine
                 Pilot.PilotProactive.TickBravoClearanceExpiry(ac, AirspaceDatabase.Default, scenario.ElapsedSeconds);
                 Pilot.PilotProactive.TickRemainOutsideBravoAsk(ac, scenario, LookupAirportPosition);
                 Pilot.PilotProactive.TickBravoCap(ac, scenario, AirspaceDatabase.Default);
-                Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
+                Pilot.PilotProactive.TickAirspaceBoundaryRespect(
+                    ac,
+                    scenario,
+                    AirspaceDatabase.Default,
+                    LookupAirportPosition,
+                    _boundaryHoldContextFor ??= BuildBoundaryHoldContext
+                );
             }
             else if (ac.BravoCap is not null)
             {
@@ -1826,6 +1835,9 @@ public sealed partial class SimulationEngine
 
         PhaseRunner.Tick(aircraft, BuildPhaseContext(aircraft, deltaSeconds));
     }
+
+    /// <summary>The context the in-phase boundary step reads: <see cref="BuildPhaseContext"/> outside the sub-tick loop.</summary>
+    private PhaseContext BuildBoundaryHoldContext(AircraftState aircraft) => BuildPhaseContext(aircraft, 0.0);
 
     /// <summary>
     /// Builds the full-fidelity <see cref="PhaseContext"/> the phase machinery runs under.
