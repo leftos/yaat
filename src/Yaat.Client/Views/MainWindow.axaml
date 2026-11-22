@@ -164,6 +164,7 @@
           <MenuItem Header="_Settings" x:Name="SettingsMenuItem" />
           <MenuItem Header="_Import / Export..." x:Name="ImportExportMenuItem" />
           <MenuItem Header="Scenario _Editor..." x:Name="ScenarioEditorMenuItem" />
+          <MenuItem Header="_Airport Editor..." x:Name="AirportEditorMenuItem" />
           <Separator />
           <MenuItem
             Header="Open Strips in _Browser"

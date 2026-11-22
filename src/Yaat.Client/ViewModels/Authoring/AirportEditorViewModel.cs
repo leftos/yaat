@@ -48,6 +48,12 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     [NotifyPropertyChangedFor(nameof(SelectedFeature))]
     private int? _selectedFeatureIndex;
 
+    /// <summary>
+    /// Raised on the UI thread after each successful open, once <see cref="Document"/> holds the new map, so the view fits
+    /// itself to it; a later change of the document that is not an open does not raise it.
+    /// </summary>
+    public event EventHandler? FitRequested;
+
     /// <summary>Gets the selected feature, or null when nothing is selected or the index is outside the open map.</summary>
     public MapFeature? SelectedFeature =>
         ((Document is { } document) && (SelectedFeatureIndex is int index) && (index >= 0) && (index < document.Features.Count))
@@ -156,5 +162,9 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         }
 
         StatusText = outcome.Message;
+        if (outcome is AirportMapOpenOutcome.Opened)
+        {
+            FitRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

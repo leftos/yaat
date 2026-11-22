@@ -1,0 +1,41 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.AirportEditorWindow"
+  x:DataType="vm:AirportEditorViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Airport Editor"
+  Background="#1F1F1F"
+  Width="1100"
+  Height="700"
+  MinWidth="700"
+  MinHeight="450"
+  CanResize="True"
+>
+  <Window.Styles>
+    <Style Selector="Border.toolbar Button">
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.status">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Window.Styles>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="toolbar" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5" MinHeight="36">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <Button x:Name="OpenFromCacheButton" Content="Open from vNAS cache…" Command="{Binding OpenFromCacheCommand}" />
+        <Button x:Name="OpenFileButton" Content="Open file…" Command="{Binding OpenFileCommand}" />
+        <Button x:Name="OpenFolderButton" Content="Open folder…" Command="{Binding OpenFolderCommand}" />
+      </StackPanel>
+    </Border>
+    <Border DockPanel.Dock="Bottom" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,1,0,0" Padding="10,4" MinHeight="24">
+      <TextBlock x:Name="StatusText" Classes="status" Text="{Binding StatusText}" />
+    </Border>
+    <local:AirportEditorCanvas x:Name="MapCanvas" />
+  </DockPanel>
+</Window>

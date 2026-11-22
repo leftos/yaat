@@ -126,6 +126,9 @@ public abstract record AirportMapOpenOutcome
 /// <param name="downloader">The vNAS airport-map downloader whose cache the editor opens from.</param>
 public sealed class AirportMapSourceLoader(AirportLayoutDownloader downloader)
 {
+    /// <summary>The reader message of a folder open given a file's path.</summary>
+    public const string NotAFolderMessage = "it is a file, not a folder";
+
     private readonly AirportLayoutDownloader _downloader = downloader ?? throw new ArgumentNullException(nameof(downloader));
 
     /// <summary>
@@ -168,6 +171,12 @@ public sealed class AirportMapSourceLoader(AirportLayoutDownloader downloader)
         return Task.Run(
             async () =>
             {
+                // Asked first, so a file reads alike everywhere: Unix reports one as a missing directory (ENOTDIR).
+                if (File.Exists(folder))
+                {
+                    return new AirportMapOpenOutcome.Unreadable(folder, NotAFolderMessage);
+                }
+
                 string[] maps;
                 try
                 {

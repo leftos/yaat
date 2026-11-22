@@ -262,7 +262,8 @@ public sealed class AirportMapSourceLoaderTests : IDisposable
 
         AirportMapOpenOutcome.Unreadable failed = Assert.IsType<AirportMapOpenOutcome.Unreadable>(outcome);
         Assert.Equal(notAFolder, failed.Path);
-        Assert.Equal($"Couldn't read {notAFolder}: {failed.ReaderMessage}", failed.Message);
+        Assert.Equal("it is a file, not a folder", failed.ReaderMessage);
+        Assert.Equal($"Couldn't read {notAFolder}: it is a file, not a folder", failed.Message);
     }
 
     [Fact]

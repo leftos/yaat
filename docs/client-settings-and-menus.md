@@ -82,6 +82,14 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **Ctrl+S saves, and it commits the field being typed first.** Closing the window commits that field too, then asks Save, Discard or Cancel when the copy has unsaved edits. An application or OS shutdown closes the window without asking and logs a warning, dropping the unsaved edits. The layout fits the window's 1100 x 700 default.
 
+## Tools menu: Airport Editor
+
+**One window, no connection needed.** Tools › Airport Editor… (`AirportEditorMenuItem`) opens `Views/Authoring/AirportEditorWindow` (geometry key `"AirportEditor"`). `MainWindow` keeps one instance (`OnAirportEditorClick`), so a second click brings the open one forward, and closing it clears the reference.
+
+**It opens a map three ways.** From the vNAS cache by FAA or ICAO id (a small prompt asks for it), from a file, or from a folder holding exactly one `.geojson`; the toolbar has a command for each, and the status line along the bottom reports the outcome or why an open failed. The title carries the open map's source. There is no editing yet: the map is drawn and can be panned and zoomed.
+
+**The canvas pans with the middle button, zooms with the wheel, and fits the map on each open.** The right button is kept for context menus.
+
 ## View menu and hotkeys
 
 **Three submenus.** View holds Windows (the pop-outs, _Radar among them, New ground window…, New Radar window…, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Notes…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).

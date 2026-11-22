@@ -46,6 +46,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
     private ActiveRunwaysWindow? _activeRunwaysWindow;
     private ScenarioEditorWindow? _scenarioEditorWindow;
+    private AirportEditorWindow? _airportEditorWindow;
 
     // Test hooks — read-only views of the subordinate windows the MainWindow creates
     // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsScopePoppedOut
@@ -191,6 +192,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // No IsEnabled binding: the Scenario Editor needs no connection and no scenario.
         this.FindControl<MenuItem>("ScenarioEditorMenuItem")?.Click += OnScenarioEditorClick;
+        this.FindControl<MenuItem>("AirportEditorMenuItem")?.Click += OnAirportEditorClick;
 
         MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
@@ -3560,6 +3562,25 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         );
         _scenarioEditorWindow.Closed += (_, _) => _scenarioEditorWindow = null;
         _scenarioEditorWindow.Show();
+    }
+
+    // One Airport Editor window: a second click brings the open one forward.
+    private void OnAirportEditorClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_airportEditorWindow is not null)
+        {
+            _airportEditorWindow.RestoreAndActivate();
+            return;
+        }
+
+        _airportEditorWindow = new AirportEditorWindow(vm.Preferences);
+        _airportEditorWindow.Closed += (_, _) => _airportEditorWindow = null;
+        _airportEditorWindow.Show();
     }
 
     private void OnActiveRunwaysClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
