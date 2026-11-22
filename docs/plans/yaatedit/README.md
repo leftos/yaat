@@ -98,7 +98,7 @@ One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same int
 | csko flight-plans API | native, cached, failures shown | `CskoRouteSource` | M3.1 |
 | FlightAware HTML scraping, AeroAPI gate observations | dropped (ruling) | SWIM history and sidecar gate tags instead | none |
 | Route Builder map (fixes, VORs, airports, video maps, custom fixes, nearest-fix menu, FRD input) | differently: a route composer canvas on YAAT's own navdata and video maps, without its own navdata download | `NavigationDatabase` (`FixesNear`, airways), `VideoMapService`, `CustomFixLoader`, `FrdResolver`, `MagneticDeclination`, `MapCanvasBase` | M3.5 |
-| Satellite and OSM tile underlay | open question Q10 | none | none |
+| Satellite and OSM tile underlay | native, Airport Editor only (Q10 settled; Esri World Imagery, source under review in YAAT-2742) | none | M4.3 |
 | Route profile library (routes with flat `Profile*` fields) | differently: route geometry and stamp profile are separate saved things | `StampProfile`, route library under `YaatPaths` | M3.5, M3.6 |
 | Apply Route (stamp, randomize from pools, callsign prefix, heavy-only, VFR registry pick) | differently: stamping is one pure, tested function; heavy means the type's wake category, not a prefix list | `RouteStamp`, `NNumberIndex`, AircraftSpecs wake category | M3.6, M3.7 |
 | STAR alias substitution | differently: token-aware on route tokens, never a substring replace | `RouteExpander` tokenisation | M3.6 |

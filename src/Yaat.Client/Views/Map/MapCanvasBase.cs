@@ -95,6 +95,13 @@ public abstract class MapCanvasBase : Control
     /// </summary>
     protected abstract void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot);
 
+    /// <summary>
+    /// The mouse button whose drag pans the map: right by default (the Scope and the Ground view); a canvas that keeps
+    /// the right button for its context menus pans on another one. A press of any other button never starts a pan, and
+    /// its release never ends one.
+    /// </summary>
+    protected virtual MouseButton PanButton => MouseButton.Right;
+
     /// <summary>Called when the viewport changes (pan/zoom). Override to react.</summary>
     protected virtual void OnViewportChanged() { }
 
@@ -124,7 +131,14 @@ public abstract class MapCanvasBase : Control
         base.OnPointerPressed(e);
         PointerPointProperties props = e.GetCurrentPoint(this).Properties;
 
-        if (props.IsRightButtonPressed && _isPanZoomEnabled)
+        if (_isPanning && !IsPanButtonHeld(props))
+        {
+            // A pan whose release never reached this canvas, seen before any move ended it.
+            _isPanning = false;
+        }
+
+        // The press's own button, not every button held: a second button pressed mid-drag does not restart the pan.
+        if ((props.PointerUpdateKind.GetMouseButton() == PanButton) && _isPanZoomEnabled)
         {
             _isPanning = true;
             _lastPanPoint = e.GetPosition(this);
@@ -134,6 +148,12 @@ public abstract class MapCanvasBase : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+
+        if (_isPanning && !IsPanButtonHeld(e.GetCurrentPoint(this).Properties))
+        {
+            // The pan button's release never reached this canvas (a subclass handled it, or it happened elsewhere).
+            _isPanning = false;
+        }
 
         if (_isPanning)
         {
@@ -152,12 +172,23 @@ public abstract class MapCanvasBase : Control
     {
         base.OnPointerReleased(e);
 
-        if (_isPanning)
+        if (_isPanning && (e.InitialPressMouseButton == PanButton))
         {
             _isPanning = false;
             e.Handled = true;
         }
     }
+
+    private bool IsPanButtonHeld(PointerPointProperties props) =>
+        PanButton switch
+        {
+            MouseButton.Left => props.IsLeftButtonPressed,
+            MouseButton.Middle => props.IsMiddleButtonPressed,
+            MouseButton.Right => props.IsRightButtonPressed,
+            MouseButton.XButton1 => props.IsXButton1Pressed,
+            MouseButton.XButton2 => props.IsXButton2Pressed,
+            _ => false,
+        };
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {

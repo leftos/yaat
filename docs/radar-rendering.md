@@ -17,7 +17,7 @@ All paths are under `src/Yaat.Client/`.
 | File | Role |
 |---|---|
 | `Views/NavRouteShapeLook.cs` | Internal `NavRouteShapeLook.For(kind)` → `(Dashed, Arrow)`: the one place the Scope's pilot-lens intent path takes a `NavRouteShapeKind`'s look from |
-| `Views/Map/MapCanvasBase.cs` | Abstract `ICustomDrawOperation` base: pan/zoom input handling, the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
+| `Views/Map/MapCanvasBase.cs` | Abstract `ICustomDrawOperation` base: pan/zoom input handling (`PanButton`, a protected virtual defaulting to Right: only that button's press starts a pan and only its release ends it, and a pan also ends on the first move or the next press where its button is no longer held; a canvas that keeps Right for context menus overrides it), the UI-thread→render-thread snapshot split, the 100 ms force-repaint timer |
 | `Views/Map/MapViewport.cs` | Equirectangular lat/lon ↔ screen projection shared by the map views: rotation, zoom |
 | `Yaat.Client.Core/ContextMenus/QuickCommandResolver.cs` / `QuickCommandDefaults.cs` / `QuickCommandStrip.cs` | Situation → the quick commands (icon strip, then text entries) at the top of the aircraft menu ([client-context-menus.md](client-context-menus.md)) |
 | `ViewModels/DrawRouteState.cs` | One view's draw-route mode, held by the Scope's view model: `IsDrawing`, `Callsign`, the placed waypoints (`DrawnWaypoint`) and each one's `WaypointCondition`, the FRD-or-`lat,lon` naming of a placed point, undo, remove, remove-after and cancel, and the `DCTF …;AT …` a confirm sends; `Changed` fires after every change |

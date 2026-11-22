@@ -23,9 +23,9 @@ Split files have `name` + `crs` top-level FeatureCollection properties. Combined
 
 **Raw features as source of truth, not parsed graph.** `GeoJsonParser` performs destructive one-way processing (snapping, intersection detection, edge splitting, RAMP edges). The editor preserves exact original coordinates and serializes back to the same format. The parsed `AirportGroundLayout` is used only for validation.
 
-**Copy `MapViewport` + `MapCanvasBase` into editor project.** Both depend on Avalonia types — can't go in Yaat.Sim. Only 318 lines total; a shared UI library would be over-engineering.
+**Subclass the client's `MapViewport` + `MapCanvasBase`, no copies.** Both depend on Avalonia types, so they stay in `Yaat.Client` (`Views/Map/`), not Yaat.Sim; the editor canvas lives in the same project.
 
-**Middle-mouse-button for pan.** Right-click is needed for context menus (QGIS convention too). Override `MapCanvasBase`'s right-drag pan to middle-drag.
+**Middle-mouse-button for pan.** Right-click is needed for context menus (QGIS convention too). The editor canvas overrides `MapCanvasBase.PanButton` (default Right) to `MouseButton.Middle`.
 
 **Property edits routed through undo stack.** `PropertyPanelViewModel` intercepts changes, packages old+new values, calls `MainViewModel.UpdateProperty` which pushes an `UndoableAction`.
 
@@ -56,8 +56,7 @@ src/Yaat.AirportEditor/
     # SnapEngine, MapEdits and AirportMapValidation live in Yaat.Sim (src/Yaat.Sim/Authoring/AirportMap/); LayoutValidator in src/Yaat.Sim/Data/Airport/
 
   Views/Map/
-    MapViewport.cs                  # Copy from Client (unchanged)
-    MapCanvasBase.cs                # Copy from Client, pan moved to middle-mouse
+    # MapViewport.cs and MapCanvasBase.cs stay the client's own; EditorCanvas sets PanButton = Middle
 
   Views/Editor/
     EditorCanvas.cs                 # Subclasses MapCanvasBase; mode state machine; hit-testing; snap
@@ -83,8 +82,8 @@ tests/Yaat.AirportEditor.Tests/
 
 | Source file | Reuse strategy |
 |---|---|
-| `Yaat.Client/Views/Map/MapViewport.cs` | Copy as-is (123 lines) |
-| `Yaat.Client/Views/Map/MapCanvasBase.cs` | Copy, change pan to middle-mouse (195 lines) |
+| `Yaat.Client/Views/Map/MapViewport.cs` | Used as-is |
+| `Yaat.Client/Views/Map/MapCanvasBase.cs` | Subclassed; `PanButton = Middle` |
 | `Yaat.Client/Views/Ground/GroundRenderer.cs` | Template for EditorRenderer — strip aircraft/route, add selection/ghost/snap/handles |
 | `Yaat.Client/Views/Ground/GroundCanvas.cs` | Template for EditorCanvas — same StyledProperty/snapshot/hit-test patterns |
 | `Yaat.Client/Views/Ground/GroundView.axaml.cs` | Template for context menu helpers (CreateMenuItem, ShowContextMenu) |
@@ -154,8 +153,7 @@ tests/Yaat.AirportEditor.Tests/
 - [ ] Verify: `dotnet build` 0W 0E, round-trip test passes on OAK files
 
 ### Chunk 2 — Map canvas + basic rendering
-- [ ] Copy `MapViewport.cs` (unchanged)
-- [ ] Copy `MapCanvasBase.cs` (pan → middle-mouse)
+- [ ] `MapCanvasBase.PanButton` (the editor canvas pans on middle-mouse; `MapViewport.cs` and `MapCanvasBase.cs` are not copied)
 - [ ] `EditorRenderer.cs` — runways, taxiways, points, labels with overlap culling
 - [ ] `EditorCanvas.cs` — StyledProperties (Document, Mode, SelectedFeature), CreateRenderSnapshot, FitToLayout
 - [ ] `EditorView.axaml/.cs` — UserControl wrapping canvas

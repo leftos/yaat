@@ -195,6 +195,9 @@ ViewModels/
   Authoring/ScenarioEditApply.cs # The ScenarioEditApply delegate (one edit as one undo step) and ScenarioIdListText (Split and Join of comma or whitespace separated id fields)
   Authoring/ScenarioListRow.cs # The stale-row check every General-tab row uses: an undo, redo or list move leaves a kept row writing nothing
   Authoring/IArtccAccessSource.cs # The ARTCC ids the signed-in user may edit, in listing order
+  Authoring/AirportMapSourceLoader.cs # Opens an airport map for the Airport Editor (not yet constructed by the app; the window is a later step): OpenFromCacheAsync reads the vNAS cache through AirportLayoutDownloader (the one writer of cache/airports/{FAA}.geojson; the editor never writes it), OpenFileAsync reads a file, OpenFolderAsync a folder holding exactly one .geojson; each returns an AirportMapOpenOutcome (Opened, or a Failed kind with a fixed status Message); an airport id that is not 3 or 4 letters or digits is refused, and so is a map that repeats a JSON key
+  Authoring/AirportEditorViewModel.cs # The Airport Editor's state: the open AirportMapDocument, SourceLabel, StatusText and SelectedFeatureIndex (SelectedFeature reads it); OpenAirportAsync, OpenFilePathAsync and OpenFolderPathAsync run a loader open that a newer open cancels
+  Authoring/IAirportEditorPrompts.cs # The editor's dialogs as an interface (ask for an airport id, pick a map file, pick a map folder) so tests answer them
   Authoring/ArtccEditAccessSource.cs # IArtccAccessSource over ArtccEditAccess: asks the hub (ServerConnection.GetMyEditableArtccsAsync) while connected, else the list cached with the stored session, else the Settings ARTCC
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay, TypeMismatchBrush for the Aircraft List's Filed column)
 
