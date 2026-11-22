@@ -111,7 +111,7 @@ public static class PilotProactive
         // Inside the tower's arrival-side jurisdiction (final, landing, pattern, go-around) the pilot is the tower's:
         // an aircraft on a three-mile final never makes an initial call to approach, even when a tower staffed by the
         // AI answered its on-final call and the human student is the radar position (AIM 5-4-3.a).
-        if (Phases.TowerCabPhases.IsArrivalSide(aircraft.Phases?.CurrentPhase))
+        if (Phases.TowerCabPhases.IsArrivalSide(aircraft.Phases?.EffectivePhase))
         {
             return false;
         }

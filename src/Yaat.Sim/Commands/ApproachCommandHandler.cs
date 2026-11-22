@@ -3107,7 +3107,7 @@ public static class ApproachCommandHandler
     /// </param>
     internal static bool IsOnFinal(AircraftState aircraft, RunwayInfo runway, AirportGroundLayout? layout)
     {
-        if (aircraft.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase or LowApproachPhase)
+        if (aircraft.Phases?.EffectivePhase is FinalApproachPhase or LandingPhase or LowApproachPhase)
         {
             return true;
         }
@@ -3133,12 +3133,12 @@ public static class ApproachCommandHandler
     internal static bool IsInboundToLand(AircraftState aircraft)
     {
         PhaseList? phases = aircraft.Phases;
-        if (phases is null || phases.CurrentPhase is GoAroundPhase)
+        if ((phases is null) || (phases.EffectivePhase is GoAroundPhase))
         {
             return false;
         }
 
-        return phases.LandingClearance is not null || phases.ActiveApproach is not null || IsArrivalApproachPhase(phases.CurrentPhase);
+        return (phases.LandingClearance is not null) || (phases.ActiveApproach is not null) || IsArrivalApproachPhase(phases.EffectivePhase);
     }
 
     /// <summary>

@@ -5394,9 +5394,10 @@ public static class FlightPhysics
     /// stop-and-go from firing during its stop on the runway, where the phase has ended for the
     /// roll but the aircraft has not gone anywhere yet.
     /// </summary>
-    private static bool IsAfterCycleTerminatorMet(AircraftState aircraft, CommandBlock block)
+    internal static bool IsAfterCycleTerminatorMet(AircraftState aircraft, CommandBlock block)
     {
-        Phase? phase = aircraft.Phases?.CurrentPhase;
+        // A terminator held behind a boundary hold is still the terminator: the climb-out after it has not begun.
+        Phase? phase = aircraft.Phases?.EffectivePhase;
         if (
             phase
             is Yaat.Sim.Phases.Tower.TouchAndGoPhase

@@ -642,9 +642,15 @@ An airborne aircraft on the final course of its expected approach by geometry al
 The 7110.65 §5-7-1.b.4 limit (`FlightCommandHandler.FinalGateNm`, 5 nm from the landing threshold) inside which an arrival on final takes no ATC speed assignment: `SPD`, a `CFIX` or constrained `DCTF` speed are refused, controller speeds are released and no speed revert is applied. A forced speed (`SPEEDF`/`SPEEDN`) overrides it.
 _Avoid_: 5 nm gate
 
+**Held phase**:
+The running phase directly behind an `AirspaceBoundaryHoldPhase` that `PhaseList.InsertHoldInFront` stood in front of it: still Active, not ticked, no `OnEnd` while held. `PhaseList.HeldPhase` finds it; `EffectivePhase` and `EffectiveIndex` read it for a reader that asks what the aircraft is flying (docs/phases.md, *A boundary hold in front of a running phase*).
+
 **Held until established**:
 A controller's altitude (CM, DM, forced altitude, `EXP <alt>`) given outside the published final approach fix to an aircraft cleared for an approach: the approach stays and the altitude is flown in place of the published altitudes until glideslope capture, until approach navigation sequences its next fix, or, when held above the glideslope, until the aircraft crosses the published FAF
 (`ApproachClearance.AltitudeHeldUntilEstablished`, docs/phases.md, *Commands on an aircraft cleared for an approach*).
+
+**Hold lift**:
+Taking the boundary hold out of the list (`PhaseList.LiftHold`) for the span of a controller command or the engine's visual-reference loss pass, so the held phase is `CurrentPhase` while it is judged; `PutBackHold` restores the hold only if the held phase survived (docs/phases.md, *A boundary hold in front of a running phase*).
 
 **Inside the FAF**:
 Established on the final and no further out than a limit measured to the landing threshold. For the speed gate and the FOLLOW refusal the limit is the published FAF capped at 5 NM (`FinalApproachFix.IsInside`); for the altitude hold and the bare-go-around refusal it is the published FAF uncapped (`FinalApproachFix.IsInsidePublishedFaf`, docs/approach-and-pattern-geometry.md).

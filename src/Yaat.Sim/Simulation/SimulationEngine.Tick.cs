@@ -606,7 +606,7 @@ public sealed partial class SimulationEngine
                     bool trafficStillHeld = (ac.Approach.FollowingCallsign is not null) && ac.Approach.HasReportedTrafficInSight;
                     if (!trafficStillHeld)
                     {
-                        VisualApproachHelper.EndVisualLostReference(BuildPhaseContext(ac, 0.0), true, false, null);
+                        RunWithHoldLifted(ac, ctx => VisualApproachHelper.EndVisualLostReference(ctx, true, false, null));
                     }
                 }
             }
@@ -678,7 +678,7 @@ public sealed partial class SimulationEngine
                             // nothing else is in sight) is owned by VisualApproachHelper — the
                             // same handler CheckLeadLifecycle routes to, so the loss event gets
                             // one outcome regardless of which detector saw it first.
-                            VisualApproachHelper.HandleTrafficContactLost(BuildPhaseContext(ac, 0.0), followCs, fieldLostThisTick);
+                            RunWithHoldLifted(ac, ctx => VisualApproachHelper.HandleTrafficContactLost(ctx, followCs, fieldLostThisTick));
                         }
                     }
                 }
@@ -705,7 +705,7 @@ public sealed partial class SimulationEngine
             if (
                 (ac.Phases?.ActiveApproach?.ApproachId.StartsWith("VIS", StringComparison.Ordinal) == true)
                 && (!ac.IsOnGround)
-                && (ac.Phases.CurrentPhase is not GoAroundPhase)
+                && (ac.Phases.EffectivePhase is not GoAroundPhase)
                 && (!ac.Approach.HasReportedFieldInSight)
                 && (!((ac.Approach.FollowingCallsign is not null) && ac.Approach.HasReportedTrafficInSight))
             )
@@ -716,8 +716,26 @@ public sealed partial class SimulationEngine
                     ac.Phases.ActiveApproach.ApproachId,
                     scenario.ElapsedSeconds
                 );
-                VisualApproachHelper.EndVisualLostReference(BuildPhaseContext(ac, 0.0), false, false, null);
+                RunWithHoldLifted(ac, ctx => VisualApproachHelper.EndVisualLostReference(ctx, false, false, null));
             }
+        }
+    }
+
+    /// <summary>
+    /// Runs a visual-reference loss consequence with a boundary hold standing in front of a held phase lifted out of the list
+    /// (<see cref="CommandDispatcher.BeginHoldLift"/>), so a held base or final is judged and ended as the current phase, the
+    /// way an unheld one is; the hold goes back only when the held phase survived (<see cref="CommandDispatcher.EndHoldLift"/>).
+    /// </summary>
+    private void RunWithHoldLifted(AircraftState ac, Action<PhaseContext> consequence)
+    {
+        HoldLift? lift = CommandDispatcher.BeginHoldLift(ac);
+        try
+        {
+            consequence(BuildPhaseContext(ac, 0.0));
+        }
+        finally
+        {
+            CommandDispatcher.EndHoldLift(ac, lift);
         }
     }
 

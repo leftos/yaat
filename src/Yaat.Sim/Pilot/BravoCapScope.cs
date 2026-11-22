@@ -25,7 +25,7 @@ public static class BravoCapScope
         !aircraft.IsOnGround
         && aircraft.FlightPlan.IsVfr
         && (aircraft.Phases is { IsComplete: false } phases)
-        && IsScopePhase(phases.CurrentPhase)
+        && IsScopePhase(phases.EffectivePhase)
         && !IsSurfaceAreaDeparture(aircraft, airspace);
 
     /// <summary>Whether <paramref name="phase"/> is one the cap runs in: any phase but the ones that own the ceiling themselves.</summary>

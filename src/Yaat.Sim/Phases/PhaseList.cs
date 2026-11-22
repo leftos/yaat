@@ -507,6 +507,13 @@ public sealed class PhaseList
     public Phase? EffectivePhase => HeldPhase ?? CurrentPhase;
 
     /// <summary>
+    /// The index of <see cref="EffectivePhase"/>: one past <see cref="CurrentIndex"/> while a boundary hold stands in front of
+    /// <see cref="HeldPhase"/>, else <see cref="CurrentIndex"/> (a lifted hold is out of the list, so a lift reads the current
+    /// index). Read-only, for a reader that scans the phases queued after the one the aircraft is flying.
+    /// </summary>
+    public int EffectiveIndex => (HeldPhase is null) ? CurrentIndex : CurrentIndex + 1;
+
+    /// <summary>
     /// Takes the boundary hold standing in front of <see cref="HeldPhase"/> out of the list, so the held phase is
     /// <see cref="CurrentPhase"/> while a controller command is judged, until <see cref="PutBackHold"/> or
     /// <see cref="HoldLift.Discard"/> ends the lift. No hook runs, and the hold keeps its status (Pending when it has not
@@ -555,7 +562,9 @@ public sealed class PhaseList
     /// </summary>
     public bool IsEstablishedOnApproach()
     {
-        if (CurrentPhase is null or GoAroundPhase)
+        // A phase held behind a boundary hold is still the one the aircraft is established on (or climbing out in).
+        Phase? phase = EffectivePhase;
+        if (phase is null or GoAroundPhase)
         {
             return false;
         }
@@ -566,7 +575,7 @@ public sealed class PhaseList
             return false;
         }
 
-        return CurrentPhase is FinalApproachPhase || (ActiveApproach is not null && ApproachCommandHandler.IsArrivalApproachPhase(CurrentPhase));
+        return (phase is FinalApproachPhase) || ((ActiveApproach is not null) && ApproachCommandHandler.IsArrivalApproachPhase(phase));
     }
 
     public void Add(Phase phase) => Phases.Add(phase);
@@ -591,8 +600,14 @@ public sealed class PhaseList
         }
     }
 
+    /// <summary>
+    /// Ends the current phase Completed and starts the next. Throws <see cref="InvalidOperationException"/> while a boundary
+    /// hold stands in front of <see cref="HeldPhase"/>: that pair ends through <see cref="EndHold"/>, and a command acts on the
+    /// held phase only with the hold lifted (<see cref="LiftHold"/>).
+    /// </summary>
     public void AdvanceToNext(PhaseContext ctx)
     {
+        ThrowIfHoldStands(nameof(AdvanceToNext));
         Phase? current = CurrentPhase;
         if (current is not null)
         {
@@ -710,8 +725,13 @@ public sealed class PhaseList
         CurrentIndex++;
     }
 
+    /// <summary>
+    /// Inserts <paramref name="phase"/> right after the current phase. Throws <see cref="InvalidOperationException"/> while a
+    /// boundary hold stands in front of <see cref="HeldPhase"/> (lift it first, <see cref="LiftHold"/>).
+    /// </summary>
     public void InsertAfterCurrent(Phase phase)
     {
+        ThrowIfHoldStands(nameof(InsertAfterCurrent));
         int insertAt = CurrentIndex + 1;
         if (insertAt > Phases.Count)
         {
@@ -722,10 +742,12 @@ public sealed class PhaseList
 
     /// <summary>
     /// Insert a sequence of phases immediately after the current phase,
-    /// preserving the order of the provided list.
+    /// preserving the order of the provided list. Throws <see cref="InvalidOperationException"/> while a boundary hold stands
+    /// in front of <see cref="HeldPhase"/> (lift it first, <see cref="LiftHold"/>).
     /// </summary>
     public void InsertAfterCurrent(IEnumerable<Phase> phases)
     {
+        ThrowIfHoldStands(nameof(InsertAfterCurrent));
         int insertAt = CurrentIndex + 1;
         if (insertAt > Phases.Count)
         {
@@ -736,16 +758,33 @@ public sealed class PhaseList
 
     /// <summary>
     /// Remove all pending phases after the current one and replace them.
-    /// The current (active) phase is not affected.
+    /// The current (active) phase is not affected. Throws <see cref="InvalidOperationException"/> while a boundary hold stands
+    /// in front of <see cref="HeldPhase"/>, which would remove the held phase with no <c>OnEnd</c> (lift it first,
+    /// <see cref="LiftHold"/>).
     /// </summary>
     public void ReplaceUpcoming(IEnumerable<Phase> phases)
     {
+        ThrowIfHoldStands(nameof(ReplaceUpcoming));
         int removeFrom = CurrentIndex + 1;
         if (removeFrom < Phases.Count)
         {
             Phases.RemoveRange(removeFrom, Phases.Count - removeFrom);
         }
         Phases.AddRange(phases);
+    }
+
+    /// <summary>
+    /// Refuses <paramref name="operation"/> on a list with a boundary hold standing in front of <see cref="HeldPhase"/>: the
+    /// operation is legal only on the lifted list, where the held phase is current.
+    /// </summary>
+    private void ThrowIfHoldStands(string operation)
+    {
+        if (HeldPhase is { } held)
+        {
+            throw new InvalidOperationException(
+                $"{operation} with a boundary hold standing in front of {held.Name}: lift the hold first, so the held phase is current"
+            );
+        }
     }
 
     /// <summary>

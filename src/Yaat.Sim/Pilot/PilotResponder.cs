@@ -1181,7 +1181,7 @@ public static partial class PilotResponder
     /// </summary>
     private static PilotSpeechText? BuildExtendPatternClause(AircraftState aircraft, ExtendPatternCommand ext, ClauseTrace trace)
     {
-        PatternEntryLeg? leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.CurrentPhase);
+        PatternEntryLeg? leg = ext.Leg ?? CurrentPatternLeg(aircraft.Phases?.EffectivePhase);
         if (leg is not { } resolved)
         {
             return VerbalizeDual(ext, aircraft.Callsign, PilotSpeechContext.Canonical, trace);

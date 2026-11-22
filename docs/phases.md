@@ -164,7 +164,11 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 
 ### A boundary hold in front of a running phase
 
-`PhaseList.InsertHoldInFront` puts an Orbit-mode `AirspaceBoundaryHoldPhase` at the current index, Pending, and leaves the running phase directly behind it still Active: the **held phase**. It is not ticked and gets no `OnEnd` while held. `PhaseList.HeldPhase` reads it from the list's order and statuses alone, so a snapshot round-trip keeps the pair with no extra field, and `PhaseList.EffectivePhase` is the held phase when there is one, else the current phase.
+`PhaseList.InsertHoldInFront` puts an Orbit-mode `AirspaceBoundaryHoldPhase` at the current index, Pending, and leaves the running phase directly behind it still Active: the **held phase**. It is not ticked and gets no `OnEnd` while held. `PhaseList.HeldPhase` reads it from the list's order and statuses alone, so a snapshot round-trip keeps the pair with no extra field, and `PhaseList.EffectivePhase` is the held phase when there is one, else the current phase. `PhaseList.EffectiveIndex` is its index (one past `CurrentIndex` while a hold stands), for a reader that scans the phases queued after the one flown.
+
+**Which reader sees which.** A reader that asks what the aircraft is flying, or established on, reads `EffectivePhase`: `PhaseList.IsEstablishedOnApproach`, `ApproachCommandHandler.IsOnFinal` and `IsInboundToLand`, the after-cycle terminator test (`FlightPhysics.IsAfterCycleTerminatorMet`), the arrival-side check-in test, the EXT readback leg and `BravoCapScope`. A reader that drives the list itself (the `PhaseRunner` tick, `PhaseList.AdvanceToNext`) reads `CurrentPhase`, the hold. The engine's visual-reference loss pass (`SimulationEngine.RunWithHoldLifted`) runs its consequence inside a hold lift (`CommandDispatcher.BeginHoldLift`/`EndHoldLift`, the same lift a controller command gets, below), so the held base or final is ended as the current phase.
+
+`PhaseList.AdvanceToNext`, `InsertAfterCurrent` and `ReplaceUpcoming` throw `InvalidOperationException` while a hold stands: lift it first (`LiftHold`), or end the pair through `PhaseRunner.EndHold`. Until a paired hold's end is routed to `EndHold`, the tick's `AdvanceToNext` below throws for a pair.
 
 `PhaseRunner.EndHold` ends the hold with a `HoldResume`:
 

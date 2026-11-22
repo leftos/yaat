@@ -448,7 +448,7 @@ public static class CommandDispatcher
     /// aircraft for the whole lift (<see cref="AircraftState.LiftedBoundaryHold"/>), whatever the command does to the list.
     /// Null when no held pair stands, or when a lift is already in progress (a nested dispatch, a block applied within one).
     /// </summary>
-    private static HoldLift? BeginHoldLift(AircraftState aircraft)
+    internal static HoldLift? BeginHoldLift(AircraftState aircraft)
     {
         if (aircraft.LiftedBoundaryHold is not null)
         {
@@ -466,7 +466,7 @@ public static class CommandDispatcher
     /// otherwise, or when the command replaced or dropped the list, it is discarded (<see cref="HoldLift.Discard"/>). Nothing
     /// for a null lift.
     /// </summary>
-    private static void EndHoldLift(AircraftState aircraft, HoldLift? lift)
+    internal static void EndHoldLift(AircraftState aircraft, HoldLift? lift)
     {
         if (lift is null)
         {
