@@ -3,6 +3,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
+using Yaat.Client.Services;
+using Yaat.Client.Views.Authoring;
+using Yaat.Sim;
 using Yaat.Sim.Authoring.AirportMap;
 
 namespace Yaat.Client.ViewModels.Authoring;
@@ -17,21 +22,55 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// </remarks>
 public sealed partial class AirportEditorViewModel : ObservableObject, IDisposable
 {
+    private static readonly ILogger Log = AppLog.CreateLogger("AirportEditorViewModel");
+
     private readonly AirportMapSourceLoader _loader;
     private readonly IAirportEditorPrompts _prompts;
+    private readonly IAirportImagerySource _imagery;
+    private readonly string? _preferredArtccId;
     private CancellationTokenSource? _openCts;
+    private CancellationTokenSource? _imageryCts;
+    private string? _imageryArtccId;
     private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="AirportEditorViewModel"/> class.</summary>
     /// <param name="loader">Opens maps from the vNAS cache, a file or a folder.</param>
     /// <param name="prompts">The dialogs that ask for the airport, the file or the folder.</param>
-    public AirportEditorViewModel(AirportMapSourceLoader loader, IAirportEditorPrompts prompts)
+    /// <param name="imagery">Gives the tower-cab image drawn under an open airport's map.</param>
+    /// <param name="preferredArtccId">The ARTCC asked when no ARTCC boundary holds the map's centre, or null for none.</param>
+    public AirportEditorViewModel(
+        AirportMapSourceLoader loader,
+        IAirportEditorPrompts prompts,
+        IAirportImagerySource imagery,
+        string? preferredArtccId
+    )
     {
         ArgumentNullException.ThrowIfNull(loader);
         ArgumentNullException.ThrowIfNull(prompts);
+        ArgumentNullException.ThrowIfNull(imagery);
         _loader = loader;
         _prompts = prompts;
+        _imagery = imagery;
+        _preferredArtccId = preferredArtccId;
     }
+
+    /// <summary>
+    /// The open map's airport (FAA id), from the vNAS cache or the file stem (<see cref="AirportEditorAirportId"/>), or
+    /// null when there is none and so no tower-cab image.
+    /// </summary>
+    [ObservableProperty]
+    private string? _airportId;
+
+    /// <summary>The open airport's tower-cab image, or null while none has arrived or there is none.</summary>
+    [ObservableProperty]
+    private TowerCabImage? _image;
+
+    /// <summary>Whether imagery is shown; while off, no image is asked for.</summary>
+    [ObservableProperty]
+    private bool _showImagery = true;
+
+    /// <summary>Gets the latest image request, completed once its image is applied or dropped. Test seam.</summary>
+    internal Task ImageryLoad { get; private set; } = Task.CompletedTask;
 
     /// <summary>The open map, or null before the first successful open: one immutable value, replaced whole.</summary>
     [ObservableProperty]
@@ -104,9 +143,25 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         _disposed = true;
         _openCts?.Cancel();
         _openCts = null;
+        _imageryCts?.Cancel();
+        _imageryCts = null;
     }
 
     partial void OnDocumentChanged(AirportMapDocument? value) => RebuildSelectionRows();
+
+    // Turned on, the open airport's image is asked for if it has not arrived; turned off, a request in flight is dropped.
+    partial void OnShowImageryChanged(bool value)
+    {
+        if (!value)
+        {
+            _imageryCts?.Cancel();
+            _imageryCts = null;
+        }
+        else if (Image is null)
+        {
+            StartImageryRequest();
+        }
+    }
 
     // Another feature's vertices are not this one's, so a change of feature drops the vertex.
     partial void OnSelectedFeatureIndexChanged(int? value)
@@ -197,12 +252,69 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
             SelectedFeatureIndex = null;
             Document = opened.Document;
             SourceLabel = opened.SourceLabel;
+            SetImageryTarget(opened);
         }
 
         StatusText = outcome.Message;
         if (outcome is AirportMapOpenOutcome.Opened)
         {
             FitRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // The new map's airport and ARTCC; the last map's image is another airport's, so it goes (not disposed: a render
+    // snapshot may still hold it) and the new one is asked for.
+    private void SetImageryTarget(AirportMapOpenOutcome.Opened opened)
+    {
+        var bounds = AirportEditorBounds.Of(opened.Document.Features.SelectMany(f => f.Coordinates));
+        LatLon? centre = bounds is null ? null : new LatLon((bounds.MinLat + bounds.MaxLat) / 2, (bounds.MinLon + bounds.MaxLon) / 2);
+        AirportId = AirportEditorAirportId.Infer(opened.FaaCode, opened.SourceLabel, centre);
+        _imageryArtccId = centre is { } at ? AirportEditorArtccResolver.Resolve(at, _preferredArtccId) : null;
+        Image = null;
+        StartImageryRequest();
+    }
+
+    // A newer request cancels the older one, whose late image is then dropped; nothing is asked while imagery is off or
+    // the map has no airport or ARTCC.
+    private void StartImageryRequest()
+    {
+        _imageryCts?.Cancel();
+        _imageryCts = null;
+        if ((_disposed) || (!ShowImagery) || (AirportId is not { } airportId) || (_imageryArtccId is not { } artccId))
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _imageryCts = cts;
+        ImageryLoad = LoadImageryAsync(artccId, airportId, cts);
+    }
+
+    private async Task LoadImageryAsync(string artccId, string airportId, CancellationTokenSource cts)
+    {
+        try
+        {
+            TowerCabImage? image = await _imagery.GetAsync(artccId, airportId, cts.Token);
+            if (!cts.IsCancellationRequested)
+            {
+                Image = image;
+            }
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // A newer open, the toggle or the window's close dropped it.
+        }
+        catch (Exception ex)
+        {
+            if (Log.IsEnabled(LogLevel.Warning))
+            {
+                Log.LogWarning(ex, "Failed to load the tower-cab image for {AirportId} ({ArtccId})", airportId, artccId);
+            }
+        }
+        finally
+        {
+            // Not disposed: a source with no timer holds nothing, and a later Cancel on a disposed one would throw.
+            Interlocked.CompareExchange(ref _imageryCts, null, cts);
         }
     }
 }

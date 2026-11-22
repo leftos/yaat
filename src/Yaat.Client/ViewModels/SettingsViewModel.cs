@@ -508,6 +508,12 @@ public partial class SettingsViewModel : ObservableObject
     private int _groundSatelliteImageBrightness = 50;
 
     [ObservableProperty]
+    private bool _airportEditorShowImagery = true;
+
+    [ObservableProperty]
+    private int _airportEditorImageryBrightness = 50;
+
+    [ObservableProperty]
     private int _groundVideoMapOverlayBrightness = 70;
 
     [ObservableProperty]
@@ -976,6 +982,8 @@ public partial class SettingsViewModel : ObservableObject
         _terminalTdlsColor = terminalColors.Tdls;
         _terminalStripColor = terminalColors.Strip;
         _groundSatelliteImageBrightness = _preferences.GroundSatelliteImageBrightness;
+        _airportEditorShowImagery = _preferences.AirportEditorShowImagery;
+        _airportEditorImageryBrightness = _preferences.AirportEditorImageryBrightness;
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
@@ -1292,6 +1300,8 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetStripsZoomPercent(StripsZoomPercent);
         _preferences.SetTdlsZoomPercent(TdlsZoomPercent);
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
+        _preferences.SetAirportEditorShowImagery(AirportEditorShowImagery);
+        _preferences.SetAirportEditorImageryBrightness(AirportEditorImageryBrightness);
         _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
         _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
     }
@@ -2114,6 +2124,8 @@ public partial class SettingsViewModel : ObservableObject
         GroundDatablockTextColor = colors.DatablockText;
         GroundBrightness = colors.Brightness;
         GroundSatelliteImageBrightness = defaults.GroundSatelliteImageBrightness;
+        AirportEditorShowImagery = defaults.AirportEditorShowImagery;
+        AirportEditorImageryBrightness = defaults.AirportEditorImageryBrightness;
         GroundVideoMapOverlayBrightness = defaults.GroundVideoMapOverlayBrightness;
         GroundYaatLayoutBrightness = defaults.GroundYaatLayoutBrightness;
         GroundHideDataBlocksByDefault = defaults.GroundHideDataBlocksByDefault;

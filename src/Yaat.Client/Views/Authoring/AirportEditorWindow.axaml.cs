@@ -11,7 +11,8 @@ namespace Yaat.Client.Views.Authoring;
 /// Tools › Airport Editor: a non-modal window over an <see cref="AirportEditorViewModel"/> with the commands that open a
 /// map from the vNAS cache, a file or a folder in a toolbar, the map on an <see cref="AirportEditorCanvas"/>, and the
 /// status line along the bottom. It answers the view model's questions itself: the app's file and folder pickers and a
-/// small prompt for the airport. Closing it cancels an open in flight.
+/// small prompt for the airport. The toolbar's Imagery toggle shows the airport's vNAS tower-cab image under the map.
+/// Closing it cancels an open and an image request in flight.
 /// </summary>
 public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 {
@@ -28,32 +29,53 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 
     private readonly WindowGeometryHelper _geometry;
     private readonly IFilePickerService _filePicker;
+    private readonly UserPreferences _preferences;
 
     // Parameterless ctor for the Avalonia designer / XamlLoader.
     public AirportEditorWindow()
-        : this(new UserPreferences()) { }
+        : this(
+            new UserPreferences(),
+            prompts => new AirportEditorViewModel(new AirportMapSourceLoader(SharedDownloader.Value), prompts, NoAirportImagery.Instance, null)
+        ) { }
 
-    /// <summary>Creates the window over the app's vNAS cache.</summary>
-    /// <param name="preferences">Keeps the window's position and size.</param>
-    public AirportEditorWindow(UserPreferences preferences)
-        : this(preferences, prompts => new AirportEditorViewModel(new AirportMapSourceLoader(SharedDownloader.Value), prompts)) { }
+    /// <summary>Creates the window over the app's vNAS cache, drawing each airport's vNAS tower-cab image under its map.</summary>
+    /// <param name="preferences">Keeps the window's position and size, the imagery toggle and its brightness.</param>
+    /// <param name="towerCabImages">The app's tower-cab image service (one HTTP client, one disk cache).</param>
+    /// <param name="vnasConfig">The app's vNAS config, which gives the tower-cab images' base URL.</param>
+    public AirportEditorWindow(UserPreferences preferences, TowerCabImageService towerCabImages, VnasConfigService vnasConfig)
+        : this(
+            preferences,
+            prompts => new AirportEditorViewModel(
+                new AirportMapSourceLoader(SharedDownloader.Value),
+                prompts,
+                new TowerCabAirportImagerySource(towerCabImages, vnasConfig),
+                preferences.ArtccId
+            )
+        ) { }
 
     /// <summary>Creates the window.</summary>
-    /// <param name="preferences">Keeps the window's position and size.</param>
+    /// <param name="preferences">Keeps the window's position and size, the imagery toggle and its brightness.</param>
     /// <param name="createViewModel">Builds the view model over the window's own prompts.</param>
     public AirportEditorWindow(UserPreferences preferences, Func<IAirportEditorPrompts, AirportEditorViewModel> createViewModel)
     {
+        ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(createViewModel);
         InitializeComponent();
+        _preferences = preferences;
         _filePicker = FilePickerFactory.Create(this);
         ViewModel = createViewModel(this);
+        ViewModel.ShowImagery = preferences.AirportEditorShowImagery;
         DataContext = ViewModel;
         _geometry = new WindowGeometryHelper(this, preferences, GeometryKey, 1100, 700);
         _geometry.Restore();
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.FitRequested += OnFitRequested;
         MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
+        Activated += OnActivated;
         Closed += OnClosed;
+        MapCanvas.ShowImagery = ViewModel.ShowImagery;
+        MapCanvas.ImageryBrightness = preferences.AirportEditorImageryBrightness;
+        MapCanvas.Image = ViewModel.Image;
 
         // A view model handed in with a map already open (createViewModel may open one) shows it, fitted once the canvas
         // has a size; a fresh one has none, so this does nothing.
@@ -121,6 +143,23 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         {
             _geometry.SetBaseTitle(ViewModel.SourceLabel.Length > 0 ? $"{BaseTitle} — {ViewModel.SourceLabel}" : BaseTitle);
         }
+        else if (e.PropertyName == nameof(AirportEditorViewModel.Image))
+        {
+            MapCanvas.Image = ViewModel.Image;
+        }
+        else if (e.PropertyName == nameof(AirportEditorViewModel.ShowImagery))
+        {
+            MapCanvas.ShowImagery = ViewModel.ShowImagery;
+            _preferences.SetAirportEditorShowImagery(ViewModel.ShowImagery);
+        }
+    }
+
+    // The toggle and the brightness are Settings fields: read again whenever the window comes forward, as it does after
+    // Settings closes.
+    private void OnActivated(object? sender, EventArgs e)
+    {
+        ViewModel.ShowImagery = _preferences.AirportEditorShowImagery;
+        MapCanvas.ImageryBrightness = _preferences.AirportEditorImageryBrightness;
     }
 
     private void OnFitRequested(object? sender, EventArgs e) => MapCanvas.FitToFeatures();
@@ -138,6 +177,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.FitRequested -= OnFitRequested;
         MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
+        Activated -= OnActivated;
         ViewModel.Dispose();
         MapCanvas.Dispose();
     }

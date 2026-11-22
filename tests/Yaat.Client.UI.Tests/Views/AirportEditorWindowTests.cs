@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -90,6 +91,42 @@ public class AirportEditorWindowTests
         finally
         {
             window.Close();
+        }
+    }
+
+    // A Settings change of the imagery toggle or its brightness reaches an open editor once it comes forward.
+    [AvaloniaFact]
+    public void ActivatingTheWindow_ReadsTheImageryToggleAndBrightnessFromThePreferences()
+    {
+        var preferences = new UserPreferences();
+        bool show = preferences.AirportEditorShowImagery;
+        int brightness = preferences.AirportEditorImageryBrightness;
+        using var downloader = new AirportLayoutDownloader();
+        var window = new AirportEditorWindow(
+            preferences,
+            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), NoAirportImagery.Instance, null)
+        );
+        try
+        {
+            window.Show();
+            MainWindowHost.Pump();
+            preferences.SetAirportEditorShowImagery(!show);
+            preferences.SetAirportEditorImageryBrightness(brightness == 30 ? 40 : 30);
+
+            window.Activate();
+            MainWindowHost.Pump();
+
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            Assert.Equal(!show, window.ViewModel.ShowImagery);
+            Assert.Equal(!show, window.FindControl<ToggleButton>("ImageryToggle")!.IsChecked);
+            Assert.Equal(!show, canvas.ShowImagery);
+            Assert.Equal(preferences.AirportEditorImageryBrightness, canvas.ImageryBrightness);
+        }
+        finally
+        {
+            window.Close();
+            preferences.SetAirportEditorShowImagery(show);
+            preferences.SetAirportEditorImageryBrightness(brightness);
         }
     }
 
@@ -550,7 +587,10 @@ public class AirportEditorWindowTests
     }
 
     private static AirportEditorWindow NewWindow(AirportLayoutDownloader downloader) =>
-        new(new UserPreferences(), _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts()));
+        new(
+            new UserPreferences(),
+            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), NoAirportImagery.Instance, null)
+        );
 
     private static async Task ShowAndOpenOakAsync(AirportEditorWindow window)
     {

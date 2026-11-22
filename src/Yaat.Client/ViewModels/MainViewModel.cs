@@ -591,6 +591,12 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     internal DateTime? SessionNowUtc => SessionStartUtc?.AddSeconds(ScenarioElapsedSeconds);
 
+    /// <summary>Gets the app's one tower-cab image service, shared by the Ground views and the Airport Editor.</summary>
+    internal TowerCabImageService TowerCabImages => _towerCabImageService;
+
+    /// <summary>Gets the app's vNAS config, shared by the Ground views and the Airport Editor.</summary>
+    internal VnasConfigService VnasConfig => _vnasConfigService;
+
     public string ElapsedTimeDisplay
     {
         get

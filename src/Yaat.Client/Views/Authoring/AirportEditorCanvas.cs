@@ -6,6 +6,7 @@ using Avalonia.Input.Platform;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
 using Yaat.Client.Logging;
+using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Authoring.AirportMap;
 
@@ -38,6 +39,9 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     private AirportEditorHit? _selection;
     private AirportEditorHit? _hover;
     private Point? _rightPressAt;
+    private TowerCabImage? _image;
+    private bool _showImagery = true;
+    private int _imageryBrightness = 50;
 
     // Where the pointer last moved over the canvas, or null once it has left.
     private Point? _pointerAt;
@@ -83,6 +87,52 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
 
             _selection = value;
             MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the tower-cab image drawn under the map, or null for none; set on the UI thread. The canvas never
+    /// disposes it: a frame on the render thread may still be drawing it.
+    /// </summary>
+    public TowerCabImage? Image
+    {
+        get => _image;
+        set
+        {
+            if (!ReferenceEquals(_image, value))
+            {
+                _image = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>Gets or sets a value indicating whether <see cref="Image"/> is drawn; set on the UI thread.</summary>
+    public bool ShowImagery
+    {
+        get => _showImagery;
+        set
+        {
+            if (_showImagery != value)
+            {
+                _showImagery = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>Gets or sets the image's opacity, 0 to 100; set on the UI thread.</summary>
+    public int ImageryBrightness
+    {
+        get => _imageryBrightness;
+        set
+        {
+            int clamped = Math.Clamp(value, 0, 100);
+            if (_imageryBrightness != clamped)
+            {
+                _imageryBrightness = clamped;
+                MarkDirty();
+            }
         }
     }
 
@@ -264,7 +314,14 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
 
     /// <inheritdoc />
     protected override object? CreateRenderSnapshot() =>
-        _disposed ? null : new AirportEditorRenderSnapshot(_scene, ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover);
+        _disposed
+            ? null
+            : new AirportEditorRenderSnapshot(_scene, ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
+            {
+                Image = _image,
+                ShowImagery = _showImagery,
+                ImageryBrightness = _imageryBrightness,
+            };
 
     /// <inheritdoc />
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot) => Draw(canvas, viewport, snapshot);

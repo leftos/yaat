@@ -1,5 +1,6 @@
 using System.Globalization;
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring.AirportMap;
 using Yaat.Sim.Data.Airport;
@@ -20,7 +21,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
     {
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
         string broken = _folder.WriteFile("broken.geojson", "this is not JSON");
-        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
         await vm.OpenFilePathAsync(oak);
         AirportMapDocument? document = vm.Document;
         Assert.Equal(AirportEditorTestFolder.OakFeatureCount, document?.Features.Count);
@@ -45,7 +46,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
         string other = _folder.WriteFile(Path.Combine("other", "oak.geojson"), AirportEditorTestFolder.OakText);
         var prompts = new FakeAirportEditorPrompts { File = oak, Folder = Path.GetDirectoryName(other) };
-        using var vm = new AirportEditorViewModel(_folder.Loader(), prompts);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), prompts, NoAirportImagery.Instance, null);
         await vm.OpenFileCommand.ExecuteAsync(null);
         Assert.Null(vm.SelectedFeature);
 
@@ -64,7 +65,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
     public async Task SelectionRows_AreEmpty_WithNothingSelected()
     {
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
-        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
         Assert.Empty(vm.SelectionRows);
 
         await vm.OpenFilePathAsync(oak);
@@ -76,7 +77,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
     public async Task SelectionRows_ForATaxiway_ListItsFeatureTypeGeometryAndPositions_ThenItsPropertiesInKeyOrder()
     {
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
-        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
         await vm.OpenFilePathAsync(oak);
         int index = FirstTaxiway(vm.Document!);
         MapFeature taxiway = vm.Document!.Features[index];
@@ -100,7 +101,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
     public async Task SelectionRows_ForASelectedVertex_AddItsNumberAndPosition_AfterThePositionsCount()
     {
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
-        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
         await vm.OpenFilePathAsync(oak);
         int index = FirstTaxiway(vm.Document!);
         MapFeature taxiway = vm.Document!.Features[index];
@@ -122,7 +123,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
         string other = _folder.WriteFile(Path.Combine("other", "oak.geojson"), AirportEditorTestFolder.OakText);
         var prompts = new FakeAirportEditorPrompts { File = oak, Folder = Path.GetDirectoryName(other) };
-        using var vm = new AirportEditorViewModel(_folder.Loader(), prompts);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), prompts, NoAirportImagery.Instance, null);
         await vm.OpenFileCommand.ExecuteAsync(null);
         int index = FirstTaxiway(vm.Document!);
         vm.SelectedFeatureIndex = index;
@@ -154,7 +155,12 @@ public sealed class AirportEditorViewModelTests : IDisposable
             return gate.Task;
         });
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
-        using var vm = new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new FakeAirportEditorPrompts());
+        using var vm = new AirportEditorViewModel(
+            new AirportMapSourceLoader(downloader),
+            new FakeAirportEditorPrompts(),
+            NoAirportImagery.Instance,
+            null
+        );
 
         Task first = vm.OpenAirportAsync("KOAK");
         await reached.Task;
@@ -178,7 +184,7 @@ public sealed class AirportEditorViewModelTests : IDisposable
             reached.TrySetResult();
             return gate.Task;
         });
-        var vm = new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new FakeAirportEditorPrompts());
+        var vm = new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
 
         Task open = vm.OpenAirportAsync("KOAK");
         await reached.Task;

@@ -144,8 +144,8 @@ public sealed record AirportEditorBounds(double MinLat, double MaxLat, double Mi
 }
 
 /// <summary>
-/// What the render thread draws one Airport Editor frame from: the scene, the mode shown in the HUD, the selection and
-/// what the pointer is over.
+/// What the render thread draws one Airport Editor frame from: the scene, the mode shown in the HUD, the selection,
+/// what the pointer is over, and the tower-cab image drawn under it all.
 /// </summary>
 /// <param name="Scene">The open map's scene.</param>
 /// <param name="ModeText">The canvas's mode, shown bottom-left.</param>
@@ -158,12 +158,22 @@ public sealed record AirportEditorRenderSnapshot(
     int? SelectedFeatureIndex,
     int? SelectedVertexIndex,
     AirportEditorHit? Hover
-);
+)
+{
+    /// <summary>Gets the open airport's tower-cab image, or null for none. Never disposed while a frame may draw it.</summary>
+    public required TowerCabImage? Image { get; init; }
+
+    /// <summary>Gets a value indicating whether the image is drawn.</summary>
+    public required bool ShowImagery { get; init; }
+
+    /// <summary>Gets the image's opacity, 0 to 100, as the Ground View applies its satellite image's.</summary>
+    public required int ImageryBrightness { get; init; }
+}
 
 /// <summary>
-/// Draws the Airport Editor's map on its dark background: runways, taxiways, parking, spots and helipads, then the
-/// hovered feature's and the selection's highlights and the selected line's vertex handles, then the taxiway and runway
-/// labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
+/// Draws the Airport Editor's map on its dark background, over the tower-cab image when the frame has one: runways,
+/// taxiways, parking, spots and helipads, then the hovered feature's and the selection's highlights and the selected
+/// line's vertex handles, then the taxiway and runway labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
 /// </summary>
 public sealed class AirportEditorRenderer : IDisposable
 {
@@ -218,6 +228,11 @@ public sealed class AirportEditorRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(viewport);
         ArgumentNullException.ThrowIfNull(snapshot);
         canvas.Clear(_background);
+        if ((snapshot.ShowImagery) && (snapshot.Image is { } image))
+        {
+            GeoImageDrawing.Draw(canvas, viewport, image, snapshot.ImageryBrightness);
+        }
+
         ImmutableArray<AirportEditorShape> shapes = snapshot.Scene.Shapes;
         DrawLines(canvas, viewport, shapes, AirportEditorFeatureKind.Runway, _runwayPaint);
         DrawLines(canvas, viewport, shapes, AirportEditorFeatureKind.Taxiway, _taxiwayPaint);

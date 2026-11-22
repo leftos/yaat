@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Data.Airport;
 
@@ -20,7 +21,7 @@ public sealed class AirportEditorNeverWritesVnasCacheTests : IDisposable
     {
         AirportLayoutDownloader downloader = _folder.Downloader(_ => StubMapHandler.Ok(AirportEditorTestFolder.OakText));
         var prompts = new FakeAirportEditorPrompts { AirportId = "KOAK" };
-        var vm = new AirportEditorViewModel(new AirportMapSourceLoader(downloader), prompts);
+        var vm = new AirportEditorViewModel(new AirportMapSourceLoader(downloader), prompts, NoAirportImagery.Instance, null);
         string cachePath = downloader.GetCachePath("KOAK");
 
         await vm.OpenFromCacheCommand.ExecuteAsync(null);

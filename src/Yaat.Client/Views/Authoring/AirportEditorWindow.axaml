@@ -31,6 +31,12 @@
         <Button x:Name="OpenFromCacheButton" Content="Open from vNAS cache…" Command="{Binding OpenFromCacheCommand}" />
         <Button x:Name="OpenFileButton" Content="Open file…" Command="{Binding OpenFileCommand}" />
         <Button x:Name="OpenFolderButton" Content="Open folder…" Command="{Binding OpenFolderCommand}" />
+        <ToggleButton
+          x:Name="ImageryToggle"
+          Content="Imagery"
+          IsChecked="{Binding ShowImagery}"
+          ToolTip.Tip="Show the airport's vNAS tower-cab image under the map"
+        />
       </StackPanel>
     </Border>
     <Border DockPanel.Dock="Bottom" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,1,0,0" Padding="10,4" MinHeight="24">

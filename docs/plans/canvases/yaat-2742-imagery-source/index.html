@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YAAT-2742: satellite imagery source under the Airport Editor</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 20px 24px 28px; background: #16161f; color: #d6d6de; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { max-width: 1560px; margin-bottom: 16px; }
+  h1 { font-size: 19px; margin: 0 0 6px; color: #f0f0f5; font-weight: 600; }
+  header p { margin: 4px 0; max-width: 1300px; }
+  .meta { color: #9a9aa8; font-size: 12.5px; }
+  .lanes { display: flex; gap: 24px; align-items: flex-start; }
+  .lane { width: 768px; flex: none; }
+  .lane h2 { font-size: 15px; margin: 0 0 2px; font-weight: 600; color: #ececf2; display: flex; align-items: center; gap: 8px; }
+  .lane .sub { margin: 0 0 10px 30px; font-size: 12.5px; color: #9a9aa8; }
+  .tag { display: inline-block; width: 22px; height: 22px; border-radius: 4px; background: #2c2c3a; text-align: center; line-height: 22px; font-size: 13px; }
+  .cell { margin: 0 0 18px; }
+  figcaption { font-size: 13px; color: #c4c4ce; margin: 0 0 5px; height: 20px; white-space: nowrap; }
+  figcaption b { color: #ececf2; font-weight: 600; }
+  figcaption .src { float: right; color: #9a9aa8; font-size: 12.5px; }
+  .view { position: relative; width: 768px; height: 768px; overflow: hidden; border-radius: 4px; background: #1d2418; }
+  .tile { position: absolute; width: 256px; height: 256px; display: block; }
+  .hud { position: absolute; left: 8px; bottom: 6px; font: 11px Consolas, monospace; color: #e8e8ee; background: rgba(0,0,0,.55); padding: 2px 6px; border-radius: 3px; }
+  .attrib { position: absolute; right: 0; bottom: 0; font: 11px "Segoe UI", sans-serif; color: #222; background: rgba(255,255,255,.78); padding: 1px 6px; border-top-left-radius: 3px; }
+  .note { margin: 2px 2px 0; font-size: 13px; color: #c4c4ce; }
+  .note b { color: #ececf2; font-weight: 600; }
+  .note .worst { color: #f0a58a; }
+  .note .good { color: #9be3b4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>YAAT-2742 &middot; Which satellite imagery goes under the Airport Editor?</h1>
+  <p>Each row shows the same 3&times;3 block of 256&nbsp;px Web Mercator tiles in both lanes, drawn 1:1, at zoom 17 and zoom 18, around the Oakland (KOAK) passenger terminal ramp and the San Francisco (KSFO) airport reference point, where runways 1L/1R and 10L/10R cross. KOAK is centred on its terminal ramp because its reference point lies in the marsh between the north and south fields. Lane A asks USGS for each tile as a server-rendered image; lane B is Esri's tile cache, the source YAATEdit uses today.</p>
+  <p class="meta">Source dates and resolutions come from each service's own metadata at each centre point (USGSNAIPPlus ImageServer <code>identify</code> catalog items; World_Imagery MapServer <code>identify</code>). Tiles fetched by <code>fetch_tiles.py</code> beside this page. Research: docs/research/usgs-imagery-source.md, docs/research/esri-world-imagery-licence.md.</p>
+</header>
+<main class="lanes">
+
+<section class="lane">
+  <h2><span class="tag">A</span> USGS National Map NAIPPlus</h2>
+  <p class="sub">exportImage per tile, Web Mercator bbox, no tile cache at z17&ndash;18</p>
+  <figure class="cell">
+    <figcaption><b>KOAK</b> Oakland terminal ramp &middot; zoom 17 &middot; 0.94 m per screen pixel<span class="src">NAIP, USDA, flown 2022-05-18, 0.6 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/usgs/17-21037-50690.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21037-50691.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21037-50692.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21038-50690.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21038-50691.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21038-50692.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21039-50690.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21039-50691.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-21039-50692.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KOAK z17 &middot; tiles 21037&ndash;21039 / 50690&ndash;50692</div>
+      <div class="attrib">Map services and data available from U.S. Geological Survey, National Geospatial Program.</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KOAK</b> Oakland terminal ramp &middot; zoom 18 &middot; 0.47 m per screen pixel<span class="src">NAIP, USDA, flown 2022-05-18, 0.6 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/usgs/18-42076-101381.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42076-101382.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42076-101383.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42077-101381.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42077-101382.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42077-101383.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42078-101381.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42078-101382.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-42078-101383.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KOAK z18 &middot; tiles 42076&ndash;42078 / 101381&ndash;101383</div>
+      <div class="attrib">Map services and data available from U.S. Geological Survey, National Geospatial Program.</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KSFO</b> San Francisco runway crossings &middot; zoom 17 &middot; 0.95 m per screen pixel<span class="src">NAIP, USDA, flown 2022-05-18, 0.6 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/usgs/17-20979-50732.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20979-50733.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20979-50734.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20980-50732.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20980-50733.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20980-50734.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20981-50732.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20981-50733.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/17-20981-50734.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KSFO z17 &middot; tiles 20979&ndash;20981 / 50732&ndash;50734</div>
+      <div class="attrib">Map services and data available from U.S. Geological Survey, National Geospatial Program.</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KSFO</b> San Francisco runway crossings &middot; zoom 18 &middot; 0.47 m per screen pixel<span class="src">NAIP, USDA, flown 2022-05-18, 0.6 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/usgs/18-41960-101466.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41960-101467.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41960-101468.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41961-101466.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41961-101467.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41961-101468.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41962-101466.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41962-101467.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/usgs/18-41962-101468.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KSFO z18 &middot; tiles 41960&ndash;41962 / 101466&ndash;101468</div>
+      <div class="attrib">Map services and data available from U.S. Geological Survey, National Geospatial Program.</div>
+    </div>
+  </figure>
+  <p class="note"><b>Terms:</b> public domain, no key, no stated rate limit; credit line &ldquo;Map services and data available from U.S. Geological Survey, National Geospatial Program.&rdquo; <span class="worst">Coverage: US only (CONUS, AK, HI, PR, territories).</span></p>
+</section>
+
+<section class="lane">
+  <h2><span class="tag">B</span> Esri World Imagery</h2>
+  <p class="sub">cached XYZ tiles, MapServer/tile/{z}/{y}/{x}</p>
+  <figure class="cell">
+    <figcaption><b>KOAK</b> Oakland terminal ramp &middot; zoom 17 &middot; 0.94 m per screen pixel<span class="src">Vantor Vivid Advanced, 2026-03-24, 0.34 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/esri/17-21037-50690.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21037-50691.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21037-50692.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21038-50690.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21038-50691.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21038-50692.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21039-50690.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21039-50691.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-21039-50692.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KOAK z17 &middot; tiles 21037&ndash;21039 / 50690&ndash;50692</div>
+      <div class="attrib">Powered by Esri &middot; Esri, Vantor, Earthstar Geographics, and the GIS User Community</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KOAK</b> Oakland terminal ramp &middot; zoom 18 &middot; 0.47 m per screen pixel<span class="src">Vantor Vivid Advanced, 2026-03-24, 0.34 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/esri/18-42076-101381.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42076-101382.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42076-101383.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42077-101381.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42077-101382.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42077-101383.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42078-101381.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42078-101382.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-42078-101383.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KOAK z18 &middot; tiles 42076&ndash;42078 / 101381&ndash;101383</div>
+      <div class="attrib">Powered by Esri &middot; Esri, Vantor, Earthstar Geographics, and the GIS User Community</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KSFO</b> San Francisco runway crossings &middot; zoom 17 &middot; 0.95 m per screen pixel<span class="src">Vantor Vivid Advanced, 2026-03-19, 0.34 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/esri/17-20979-50732.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20979-50733.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20979-50734.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20980-50732.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20980-50733.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20980-50734.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20981-50732.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20981-50733.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/17-20981-50734.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KSFO z17 &middot; tiles 20979&ndash;20981 / 50732&ndash;50734</div>
+      <div class="attrib">Powered by Esri &middot; Esri, Vantor, Earthstar Geographics, and the GIS User Community</div>
+    </div>
+  </figure>
+  <figure class="cell">
+    <figcaption><b>KSFO</b> San Francisco runway crossings &middot; zoom 18 &middot; 0.47 m per screen pixel<span class="src">Vantor Vivid Advanced, 2026-03-19, 0.34 m source</span></figcaption>
+    <div class="view">
+      <img class="tile" data-no-lightbox src="tiles/esri/18-41960-101466.jpg" style="left:0px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41960-101467.jpg" style="left:0px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41960-101468.jpg" style="left:0px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41961-101466.jpg" style="left:256px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41961-101467.jpg" style="left:256px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41961-101468.jpg" style="left:256px;top:512px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41962-101466.jpg" style="left:512px;top:0px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41962-101467.jpg" style="left:512px;top:256px" alt=""><img class="tile" data-no-lightbox src="tiles/esri/18-41962-101468.jpg" style="left:512px;top:512px" alt="">
+      <div class="hud">KSFO z18 &middot; tiles 41960&ndash;41962 / 101466&ndash;101468</div>
+      <div class="attrib">Powered by Esri &middot; Esri, Vantor, Earthstar Geographics, and the GIS User Community</div>
+    </div>
+  </figure>
+  <p class="note"><b>Terms:</b> Esri Master License Agreement; shipping needs an ArcGIS Location Platform account and API key (free tier 2M tiles a month), &ldquo;Powered by Esri&rdquo; and data credits always on the map, and no shipped or bulk-harvested tiles. <span class="good">Coverage: worldwide.</span></p>
+</section>
+</main>
+</body>
+</html>

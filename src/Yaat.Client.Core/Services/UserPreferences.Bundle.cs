@@ -109,6 +109,8 @@ public sealed partial class UserPreferences
         ("groundHideDataBlocksByDefault", Flag),
         ("groundShowTaxiRouteOnHover", Flag),
         ("groundShowAllTaxiRoutes", Flag),
+        ("airportEditorShowImagery", Flag),
+        ("airportEditorImageryBrightness", IntRange(0, 100)),
         // Terminal
         ("terminalCommandColor", Color),
         ("terminalResponseColor", Color),

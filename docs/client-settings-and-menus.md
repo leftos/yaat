@@ -92,6 +92,8 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **It opens a map three ways.** From the vNAS cache by FAA or ICAO id (a small prompt asks for it), from a file, or from a folder holding exactly one `.geojson`; the toolbar has a command for each, and the status line along the bottom reports the outcome or why an open failed. The title carries the open map's source. There is no editing yet: the map is drawn, can be panned and zoomed, and a feature can be selected and inspected.
 
+**The airport's vNAS tower-cab image draws under the map.** It is the image and cache the Ground View uses, drawn when the editor knows the airport (a vNAS-cache open, or a file named for an airport within 10 nm of the map's centre) and its ARTCC (the smallest ARTCC boundary containing the centre, else the preferred ARTCC); otherwise nothing is drawn. The toolbar's Imagery toggle (on by default, remembered) shows or hides it; Settings › Ground › Airport Editor Imagery holds the same show checkbox and a 0-100% brightness (preferences `airportEditorShowImagery` and `airportEditorImageryBrightness`, both carried in the settings bundle).
+
 **The canvas pans with the middle button, zooms with the wheel, and fits the map on each open.** The right button is kept for context menus.
 
 **A left click selects a raw map feature, or a vertex of the selected line.** The selection is highlighted and hovered features show translucent white. Esc, or a click on empty space, clears it. Hits are tiered: the selected line's vertices first (8 px), then points (12 px), then line segments (6 px) (`AirportEditorHitTest`).

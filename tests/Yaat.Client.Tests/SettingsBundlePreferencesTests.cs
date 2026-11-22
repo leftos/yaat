@@ -104,6 +104,40 @@ public class SettingsBundlePreferencesTests
     }
 
     [Fact]
+    public void AirportEditorImagery_RoundTripsThroughTheBundle_AndIsSaved()
+    {
+        var preferences = new UserPreferences();
+        Assert.Contains("airportEditorShowImagery", UserPreferences.BundledPreferenceKeys);
+        Assert.Contains("airportEditorImageryBrightness", UserPreferences.BundledPreferenceKeys);
+        bool show = preferences.AirportEditorShowImagery;
+        int brightness = preferences.AirportEditorImageryBrightness;
+        Assert.Equal(show, preferences.ExportBundlePreferences()["airportEditorShowImagery"]!.GetValue<bool>());
+        Assert.Equal(brightness, preferences.ExportBundlePreferences()["airportEditorImageryBrightness"]!.GetValue<int>());
+
+        try
+        {
+            PreferencesImportResult result = preferences.ImportBundlePreferences(
+                new JsonObject { ["airportEditorShowImagery"] = !show, ["airportEditorImageryBrightness"] = 0 }
+            );
+
+            Assert.Equal(["airportEditorImageryBrightness", "airportEditorShowImagery"], result.AppliedKeys.Order(StringComparer.Ordinal));
+            Assert.Equal(!show, preferences.AirportEditorShowImagery);
+            Assert.Equal(0, preferences.AirportEditorImageryBrightness);
+            Assert.Equal(!show, new UserPreferences().AirportEditorShowImagery);
+            Assert.Equal(0, new UserPreferences().AirportEditorImageryBrightness);
+            Assert.Equal(
+                ["airportEditorImageryBrightness"],
+                preferences.ImportBundlePreferences(new JsonObject { ["airportEditorImageryBrightness"] = 101 }).IgnoredKeys
+            );
+        }
+        finally
+        {
+            preferences.SetAirportEditorShowImagery(show);
+            preferences.SetAirportEditorImageryBrightness(brightness);
+        }
+    }
+
+    [Fact]
     public void PreferencesImport_AppliesAllowlistedKeys_AndIgnoresEverythingElse()
     {
         var preferences = new UserPreferences();

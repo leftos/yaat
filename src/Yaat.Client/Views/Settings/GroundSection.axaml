@@ -205,6 +205,33 @@
               FontSize="11"
               Margin="0,4,0,0"
             />
+            <Separator Margin="0,8" />
+            <TextBlock Text="Airport Editor Imagery" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <CheckBox Content="Show imagery under the Airport Editor's map" IsChecked="{Binding AirportEditorShowImagery}" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+              <TextBlock Text="Imagery Brightness:" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <Slider
+                Value="{Binding AirportEditorImageryBrightness}"
+                Minimum="0"
+                Maximum="100"
+                Width="200"
+                TickFrequency="10"
+                IsSnapToTickEnabled="True"
+              />
+              <TextBlock
+                Text="{Binding AirportEditorImageryBrightness, StringFormat='{}{0}%'}"
+                Foreground="{DynamicResource SubtleTextBrush}"
+                VerticalAlignment="Center"
+                Margin="4,0,0,0"
+              />
+            </StackPanel>
+            <TextBlock
+              Text="The Airport Editor draws the airport's vNAS tower cab image under its map. The editor's Imagery button sets the same toggle."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,4,0,0"
+            />
           </StackPanel>
         </StackPanel>
       </Border>

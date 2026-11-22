@@ -26,7 +26,7 @@ For taxi-route *resolution and following* (the pathfinder and navigator), see [`
 `GroundRenderer.Render(...)` paints strictly back-to-front:
 
 1. **Background clear**
-2. **Layer 1 — satellite image** (`ShowSatelliteImage`, brightness-scaled)
+2. **Layer 1 — satellite image** (`ShowSatelliteImage`, brightness-scaled, drawn by the shared `Views/Map/GeoImageDrawing.Draw`, which the Airport Editor also uses)
 3. **Layer 2 — tower-cab video map overlay** (`ShowVideoMapOverlay`)
 4. **Runways** (drawn when GND *or* MAP is on; labels + threshold markers only when GND is on and an aircraft is selected), then **ADW marks** under the same condition plus the `ADW` toggle — see below. The runway pass is `DrawRunwaySurface` (fill, outline, centreline) plus the label step; a runways-only layout (below) takes `DrawRunwayEndLabels` instead of the mid label
 5. **Layer 3 — YAAT ground layout** (only when `ShowYaatLayout`), brightness-scaled, in this sub-order:
@@ -436,8 +436,8 @@ An **extra** Ground window has its own `GroundViewModel` (`IsPrimary=false`, `Se
 - **Never `Dispose()` an `SKImage` a `RenderSnapshot` may still hold — drop the reference instead.** `CreateRenderSnapshot` (UI thread) captures
   `BackgroundImage` (the `TowerCabImage`'s `SKImage`) into the immutable snapshot that `RenderFromSnapshot` reads later on the compositor thread.
   The snapshot keeps the managed wrapper alive, but an explicit `Dispose()` frees the native handle regardless, so disposing on the UI thread while
-  a frame is mid-render reads freed memory in `DrawBackgroundImage` → `sk_image_get_width()` and kills the process with an uncatchable
+  a frame is mid-render reads freed memory in `GeoImageDrawing.Draw` → `sk_image_get_width()` and kills the process with an uncatchable
   `ExecutionEngineException`. `GroundViewModel.ClearLayout()` therefore sets `BackgroundImage = null` and lets finalization reclaim the image once
   no in-flight snapshot references it — the same swap `LoadTowerCabLayersAsync` does on a scenario switch. `GroundViewModelClearLayoutTests`
   pins it by asserting the image's `Handle` is still non-zero after `ClearLayout()`.
-- **The tower-cab blit is mipmapped on purpose.** `new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)` — dropping the mipmap mode makes Skia walk the full 8K source per output pixel at typical airport zoom (~30% GPU).
+- **The tower-cab blit is mipmapped on purpose** (in `GeoImageDrawing`). `new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)` — dropping the mipmap mode makes Skia walk the full 8K source per output pixel at typical airport zoom (~30% GPU).

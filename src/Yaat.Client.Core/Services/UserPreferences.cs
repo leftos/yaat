@@ -1002,6 +1002,8 @@ public sealed partial class UserPreferences
     public bool GroundHideDataBlocksByDefault => _data.GroundHideDataBlocksByDefault;
     public bool GroundShowSatelliteImage => _data.GroundShowSatelliteImage;
     public int GroundSatelliteImageBrightness => _data.GroundSatelliteImageBrightness;
+    public bool AirportEditorShowImagery => _data.AirportEditorShowImagery;
+    public int AirportEditorImageryBrightness => _data.AirportEditorImageryBrightness;
     public bool GroundShowVideoMapOverlay => _data.GroundShowVideoMapOverlay;
     public int GroundVideoMapOverlayBrightness => _data.GroundVideoMapOverlayBrightness;
     public bool GroundShowYaatLayout => _data.GroundShowYaatLayout;
@@ -2108,6 +2110,22 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>Remembers whether the Airport Editor draws imagery under its map.</summary>
+    /// <param name="show">True to draw it.</param>
+    public void SetAirportEditorShowImagery(bool show)
+    {
+        _data.AirportEditorShowImagery = show;
+        Save();
+    }
+
+    /// <summary>Remembers the Airport Editor imagery's opacity, clamped to 0 to 100.</summary>
+    /// <param name="brightness">The opacity in percent.</param>
+    public void SetAirportEditorImageryBrightness(int brightness)
+    {
+        _data.AirportEditorImageryBrightness = Math.Clamp(brightness, 0, 100);
+        Save();
+    }
+
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
@@ -2758,6 +2776,8 @@ public sealed partial class UserPreferences
             GroundHideDataBlocksByDefault = GetFieldOr(obj, "groundHideDataBlocksByDefault", false),
             GroundShowSatelliteImage = GetFieldOr(obj, "groundShowSatelliteImage", false),
             GroundSatelliteImageBrightness = GetFieldOr(obj, "groundSatelliteImageBrightness", 50),
+            AirportEditorShowImagery = GetFieldOr(obj, "airportEditorShowImagery", true),
+            AirportEditorImageryBrightness = Math.Clamp(GetFieldOr(obj, "airportEditorImageryBrightness", 50), 0, 100),
             GroundShowVideoMapOverlay = GetFieldOr(obj, "groundShowVideoMapOverlay", false),
             GroundVideoMapOverlayBrightness = GetFieldOr(obj, "groundVideoMapOverlayBrightness", 70),
             GroundShowYaatLayout = GetFieldOr(obj, "groundShowYaatLayout", true),
@@ -3231,6 +3251,8 @@ public sealed partial class UserPreferences
         public bool GroundHideDataBlocksByDefault { get; set; }
         public bool GroundShowSatelliteImage { get; set; }
         public int GroundSatelliteImageBrightness { get; set; } = 50;
+        public bool AirportEditorShowImagery { get; set; } = true;
+        public int AirportEditorImageryBrightness { get; set; } = 50;
         public bool GroundShowVideoMapOverlay { get; set; }
         public int GroundVideoMapOverlayBrightness { get; set; } = 70;
         public bool GroundShowYaatLayout { get; set; } = true;

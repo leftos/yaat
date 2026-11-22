@@ -21,6 +21,7 @@ public static class SettingsSearchCatalog
     private static readonly string[] Macro = ["macro"];
     private static readonly string[] QuickCommand = ["quick commands", "context menu", "right-click", "icon strip", "menu commands"];
     private static readonly string[] None = [];
+    private static readonly string[] Imagery = ["imagery", "satellite", "tower cab", "airport editor"];
 
     private const string AlwaysOnTop = "Always on Top";
     private const string FontSizes = "Font Sizes";
@@ -29,6 +30,7 @@ public static class SettingsSearchCatalog
     private const string ArrivalSpacing = "Auto arrival spacing behind traffic on the runway";
     private const string MvaTint = "Tint datablock altitude by MVA (red below, amber at)";
     private const string LayerBrightness = "Layer Brightness";
+    private const string AirportEditorImagery = "Airport Editor Imagery";
     private const string TerminalChannels = "Terminal Channels";
     private const string TerminalHistory = "Terminal History";
     private const string WhisperModel = "Whisper Model (speech-to-text)";
@@ -200,6 +202,8 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "GroundSatelliteImageBrightness", "Satellite Image:", LayerBrightness, None),
             SettingWithin(s, "GroundVideoMapOverlayBrightness", "Video Map Overlay:", LayerBrightness, None),
             SettingWithin(s, "GroundYaatLayoutBrightness", "YAAT Layout:", LayerBrightness, None),
+            SettingWithin(s, "AirportEditorShowImagery", "Show imagery under the Airport Editor's map", AirportEditorImagery, Imagery),
+            SettingWithin(s, "AirportEditorImageryBrightness", "Imagery Brightness:", AirportEditorImagery, Imagery),
         ];
     }
 

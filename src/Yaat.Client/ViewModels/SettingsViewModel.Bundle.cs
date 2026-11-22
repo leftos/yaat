@@ -325,6 +325,8 @@ public partial class SettingsViewModel
             Field("groundHideDataBlocksByDefault", vm => vm.GroundHideDataBlocksByDefault, (vm, v) => vm.GroundHideDataBlocksByDefault = v),
             Field("groundShowTaxiRouteOnHover", vm => vm.GroundShowTaxiRouteOnHover, (vm, v) => vm.GroundShowTaxiRouteOnHover = v),
             Field("groundShowAllTaxiRoutes", vm => vm.GroundShowAllTaxiRoutes, (vm, v) => vm.GroundShowAllTaxiRoutes = v),
+            Field("airportEditorShowImagery", vm => vm.AirportEditorShowImagery, (vm, v) => vm.AirportEditorShowImagery = v),
+            Field("airportEditorImageryBrightness", vm => vm.AirportEditorImageryBrightness, (vm, v) => vm.AirportEditorImageryBrightness = v),
             Field(
                 "signatureHelpPlacement",
                 vm => vm.SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above",
