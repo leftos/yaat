@@ -57,6 +57,69 @@ public sealed record HoldResume
 }
 
 /// <summary>
+/// A boundary hold taken out of <see cref="List"/> by <see cref="PhaseList.LiftHold"/>: the hold, the phase it stood in front
+/// of and the index both stood at. Ended once, by <see cref="PhaseList.PutBackHold"/> on the same list or by
+/// <see cref="Discard"/>.
+/// </summary>
+internal sealed class HoldLift
+{
+    private static readonly ILogger Log = SimLog.CreateLogger("HoldLift");
+
+    internal HoldLift(PhaseList list, AirspaceBoundaryHoldPhase hold, Phase held, int index)
+    {
+        List = list;
+        Hold = hold;
+        Held = held;
+        Index = index;
+    }
+
+    /// <summary>The list the hold was lifted from.</summary>
+    public PhaseList List { get; }
+
+    /// <summary>The lifted hold.</summary>
+    public AirspaceBoundaryHoldPhase Hold { get; }
+
+    /// <summary>The phase the hold stood in front of.</summary>
+    public Phase Held { get; }
+
+    /// <summary>The index the hold and then the held phase stood at.</summary>
+    public int Index { get; }
+
+    /// <summary>Whether the lift has ended: the hold was put back or discarded.</summary>
+    public bool Ended { get; internal set; }
+
+    /// <summary>
+    /// The hold does not go back: it ends Skipped, with one <c>OnEnd</c> when it had started (Active); a hold that never
+    /// started (Pending) gets none, as it had no <c>OnStart</c>. Nothing for a lift already ended.
+    /// </summary>
+    public void Discard(PhaseContext ctx)
+    {
+        if (Ended)
+        {
+            return;
+        }
+
+        Ended = true;
+        bool started = Hold.Status == PhaseStatus.Active;
+        Hold.Status = PhaseStatus.Skipped;
+        if (started)
+        {
+            Hold.OnEnd(ctx, PhaseStatus.Skipped);
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[HoldLift] lifted {Hold} discarded ({Started}): {Held} did not survive the command",
+                Hold.Name,
+                started ? "started" : "never started",
+                Held.Name
+            );
+        }
+    }
+}
+
+/// <summary>
 /// LAHSO hold-short point data: the location where the aircraft must stop
 /// before the intersecting runway, and the ID of that runway.
 /// </summary>
@@ -442,6 +505,44 @@ public sealed class PhaseList
     /// in front of one, else <see cref="CurrentPhase"/>. Read-only; the phase that ticks is always <see cref="CurrentPhase"/>.
     /// </summary>
     public Phase? EffectivePhase => HeldPhase ?? CurrentPhase;
+
+    /// <summary>
+    /// Takes the boundary hold standing in front of <see cref="HeldPhase"/> out of the list, so the held phase is
+    /// <see cref="CurrentPhase"/> while a controller command is judged, until <see cref="PutBackHold"/> or
+    /// <see cref="HoldLift.Discard"/> ends the lift. No hook runs, and the hold keeps its status (Pending when it has not
+    /// started yet). Null, and nothing changes, when no held pair stands; the dispatcher keeps the lifted hold on the
+    /// aircraft (<see cref="AircraftState.LiftedBoundaryHold"/>) and lifts nothing in a nested dispatch.
+    /// </summary>
+    internal HoldLift? LiftHold()
+    {
+        if ((HeldPhase is not { } held) || (CurrentPhase is not AirspaceBoundaryHoldPhase hold))
+        {
+            return null;
+        }
+
+        Phases.RemoveAt(CurrentIndex);
+        return new HoldLift(this, hold, held, CurrentIndex);
+    }
+
+    /// <summary>
+    /// Puts the hold <paramref name="lift"/> took out of this list back in front of the held phase, with no <c>OnStart</c>
+    /// and its state kept, when the held phase is still current at the same index, the same instance and Active, and answers
+    /// true. Otherwise the command ended, advanced or replaced the held phase: nothing changes and the answer is false, for the
+    /// caller to <see cref="HoldLift.Discard"/> the hold. False too for a lift already ended.
+    /// </summary>
+    internal bool PutBackHold(HoldLift lift)
+    {
+        bool heldSurvived =
+            !lift.Ended && (CurrentIndex == lift.Index) && ReferenceEquals(CurrentPhase, lift.Held) && (lift.Held.Status == PhaseStatus.Active);
+        if (!heldSurvived)
+        {
+            return false;
+        }
+
+        Phases.Insert(CurrentIndex, lift.Hold);
+        lift.Ended = true;
+        return true;
+    }
 
     /// <summary>
     /// True when the aircraft is established on an approach procedure that is descending it

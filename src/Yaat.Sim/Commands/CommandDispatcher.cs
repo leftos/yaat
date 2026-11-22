@@ -424,7 +424,65 @@ public static class CommandDispatcher
     private static CommandResult RejectFlightPlanCommand(ParsedCommand cmd) =>
         new(false, $"Flight-plan edits ({cmd.GetType().Name}) are applied by the server, not dispatched to the aircraft");
 
+    /// <summary>
+    /// Dispatches <paramref name="compound"/> with a boundary hold standing in front of a held phase lifted out of the list
+    /// (<see cref="PhaseList.LiftHold"/>), so every check and handler below judges the command against the held phase; the
+    /// hold goes back afterwards only when the held phase survived (<see cref="EndHoldLift"/>). A nested dispatch lifts
+    /// nothing.
+    /// </summary>
     private static CommandResult DispatchCompoundCore(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
+    {
+        HoldLift? lift = BeginHoldLift(aircraft);
+        try
+        {
+            return DispatchCompoundBody(compound, aircraft, ctx);
+        }
+        finally
+        {
+            EndHoldLift(aircraft, lift);
+        }
+    }
+
+    /// <summary>
+    /// Lifts the boundary hold standing in front of a held phase (<see cref="PhaseList.LiftHold"/>) and keeps it on the
+    /// aircraft for the whole lift (<see cref="AircraftState.LiftedBoundaryHold"/>), whatever the command does to the list.
+    /// Null when no held pair stands, or when a lift is already in progress (a nested dispatch, a block applied within one).
+    /// </summary>
+    private static HoldLift? BeginHoldLift(AircraftState aircraft)
+    {
+        if (aircraft.LiftedBoundaryHold is not null)
+        {
+            return null;
+        }
+
+        HoldLift? lift = aircraft.Phases?.LiftHold();
+        aircraft.LiftedBoundaryHold = lift?.Hold;
+        return lift;
+    }
+
+    /// <summary>
+    /// Ends <paramref name="lift"/> and clears <see cref="AircraftState.LiftedBoundaryHold"/>: on the list it was lifted from,
+    /// when that list is still the aircraft's, the hold goes back if the held phase survived (<see cref="PhaseList.PutBackHold"/>);
+    /// otherwise, or when the command replaced or dropped the list, it is discarded (<see cref="HoldLift.Discard"/>). Nothing
+    /// for a null lift.
+    /// </summary>
+    private static void EndHoldLift(AircraftState aircraft, HoldLift? lift)
+    {
+        if (lift is null)
+        {
+            return;
+        }
+
+        aircraft.LiftedBoundaryHold = null;
+        if (ReferenceEquals(aircraft.Phases, lift.List) && lift.List.PutBackHold(lift))
+        {
+            return;
+        }
+
+        lift.Discard(BuildMinimalContext(aircraft, ActiveRunways.Empty));
+    }
+
+    private static CommandResult DispatchCompoundBody(CompoundCommand compound, AircraftState aircraft, DispatchContext ctx)
     {
         // Leading WAIT → deferred dispatch: extract the timer and store the remaining
         // blocks as a deferred payload. The payload dispatches fresh when the timer expires,
@@ -5320,51 +5378,72 @@ public static class CommandDispatcher
         var captured = commands.ToList();
         return (ac, firedFromQueue) =>
         {
-            bool hadProcedure = ac.Procedure.ActiveSidId is not null || ac.Procedure.ActiveStarId is not null;
-            bool hadProcedureAltitudes = AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac);
-            var messages = new List<string>();
-            DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
-            HandlerReadback? readback = null;
-            TaxiCommand? reRouteAs = null;
-            var taxiReadback = new BlockTaxiReadback();
-
-            for (int index = 0; index < captured.Count; index++)
+            // The lift spans the whole block, as DispatchCompoundCore's does: every command is judged against the held phase.
+            HoldLift? lift = BeginHoldLift(ac);
+            try
             {
-                ParsedCommand cmd = captured[index];
-                CommandResult result = ApplyBlockCommand(cmd, ac, ForBlockCommand(current, captured, index), firedFromQueue);
+                return ApplyCapturedBlock(captured, ctx, block, ac, firedFromQueue);
+            }
+            finally
+            {
+                EndHoldLift(ac, lift);
+            }
+        };
+    }
 
-                if (!result.Success)
-                {
-                    return WithRejectedCommand(result, cmd);
-                }
+    /// <summary>The body of <see cref="BuildApplyAction"/>'s action: applies <paramref name="captured"/> in order.</summary>
+    private static CommandResult ApplyCapturedBlock(
+        List<ParsedCommand> captured,
+        DispatchContext ctx,
+        CommandBlock block,
+        AircraftState ac,
+        bool firedFromQueue
+    )
+    {
+        bool hadProcedure = (ac.Procedure.ActiveSidId is not null) || (ac.Procedure.ActiveStarId is not null);
+        bool hadProcedureAltitudes = AltitudeRestrictionInForce.ProcedureAltitudesInForce(ac);
+        var messages = new List<string>();
+        DispatchContext current = ctx with { TransmissionId = block.TransmissionId };
+        HandlerReadback? readback = null;
+        TaxiCommand? reRouteAs = null;
+        var taxiReadback = new BlockTaxiReadback();
 
-                // Release phase-internal state only after the command actually applied
-                // (e.g. RV SID heading hold on a successful DCT during InitialClimb).
-                if (ac.Phases?.CurrentPhase is { } phaseForNotify)
-                {
-                    NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, current);
-                }
+        for (int index = 0; index < captured.Count; index++)
+        {
+            ParsedCommand cmd = captured[index];
+            CommandResult result = ApplyBlockCommand(cmd, ac, ForBlockCommand(current, captured, index), firedFromQueue);
 
-                if (result.Message is not null)
-                {
-                    messages.Add(result.Message);
-                }
-
-                readback ??= result.PilotReadback;
-                reRouteAs ??= result.ReRouteAppliedAs;
-                taxiReadback.Observe(result);
-
-                // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
-                if (cmd is ChangeDestinationCommand)
-                {
-                    current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
-                }
+            if (!result.Success)
+            {
+                return WithRejectedCommand(result, cmd);
             }
 
-            CheckVectoringWarning(ac, captured, hadProcedure, hadProcedureAltitudes);
-            string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
-            return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac), ReRouteAppliedAs = reRouteAs };
-        };
+            // Release phase-internal state only after the command actually applied
+            // (e.g. RV SID heading hold on a successful DCT during InitialClimb).
+            if (ac.Phases?.CurrentPhase is { } phaseForNotify)
+            {
+                NotifyPhaseCommandAccepted(ac, cmd, phaseForNotify, current);
+            }
+
+            if (result.Message is not null)
+            {
+                messages.Add(result.Message);
+            }
+
+            readback ??= result.PilotReadback;
+            reRouteAs ??= result.ReRouteAppliedAs;
+            taxiReadback.Observe(result);
+
+            // An APT that switched an airborne aircraft's layout: the rest of the block resolves names there.
+            if (cmd is ChangeDestinationCommand)
+            {
+                current = AfterDestinationChange(new ParsedBlock(null, [cmd]), ac, current);
+            }
+        }
+
+        CheckVectoringWarning(ac, captured, hadProcedure, hadProcedureAltitudes);
+        string? msg = messages.Count > 0 ? string.Join(", ", messages) : null;
+        return new CommandResult(true, msg) { PilotReadback = taxiReadback.Readback(readback, captured, ac), ReRouteAppliedAs = reRouteAs };
     }
 
     /// <summary>

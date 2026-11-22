@@ -122,7 +122,11 @@ public static class ImplicitBravoClearance
             return new BravoClearanceWait(requested, request.BravoWording ?? BravoClearanceWording.Into);
         }
 
-        return aircraft.Phases?.CurrentPhase is AirspaceBoundaryHoldPhase { AirspaceClass: AirspaceClass.Bravo, Ident: { Length: > 0 } held }
+        // While a controller command is judged against a held phase the hold is lifted out of the list, onto the aircraft, and
+        // the pilot is still waiting on its Class B, even after the command dropped or replaced the list.
+        return
+            ((aircraft.Phases?.CurrentPhase as AirspaceBoundaryHoldPhase) ?? aircraft.LiftedBoundaryHold)
+                is { AirspaceClass: AirspaceClass.Bravo, Ident: { Length: > 0 } held }
             ? new BravoClearanceWait(held, BravoClearanceWording.Into)
             : null;
     }

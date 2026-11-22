@@ -465,6 +465,16 @@ public class AircraftState
     public bool IsClearedIntoBravo(string ident) => string.Equals(ClearedBravoIdent, ident, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// The boundary hold the dispatcher lifted out of the phase list while a controller command is judged against the phase
+    /// held behind it (<c>CommandDispatcher.DispatchCompoundCore</c>, <c>BuildApplyAction</c>); null when no lift is in
+    /// progress. Kept on the aircraft, not the list, so a command that drops or replaces the list mid-lift still leaves the
+    /// hold visible to "is the pilot waiting on this Class B?" (<see cref="ImplicitBravoClearance.CaptureWait"/>). Transient:
+    /// a lift never spans a tick, so no snapshot carries it.
+    /// </summary>
+    [JsonIgnore]
+    public AirspaceBoundaryHoldPhase? LiftedBoundaryHold { get; internal set; }
+
+    /// <summary>
     /// Grants the Class B clearance into the Class B named <paramref name="ident"/>, replacing any other; not yet entered.
     /// It also ends a <see cref="RemainOutsideBravo"/> instruction for that Class B: the clearance is what it waited for.
     /// </summary>

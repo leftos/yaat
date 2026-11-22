@@ -346,6 +346,191 @@ public class PhaseListHoldInFrontTests
         Assert.Equal(entryElapsed + 1.0, restoredEntry.ElapsedSeconds);
     }
 
+    [Fact]
+    public void LiftHold_ThenPutBackHold_RestoresTheExactListAndIndex()
+    {
+        var held = new LifecycleProbePhase();
+        var pending = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held, pending);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        Assert.Same(hold, lift.Hold);
+        Assert.Same(held, lift.Held);
+        Assert.Equal([held, pending], ac.Phases.Phases);
+        Assert.Equal(0, ac.Phases.CurrentIndex);
+        Assert.Same(held, ac.Phases.CurrentPhase);
+        Assert.Null(ac.Phases.HeldPhase);
+
+        Assert.True(ac.Phases.PutBackHold(lift));
+
+        Assert.Equal([hold, held, pending], ac.Phases.Phases);
+        Assert.Equal(0, ac.Phases.CurrentIndex);
+        Assert.Same(held, ac.Phases.HeldPhase);
+        Assert.Equal(PhaseStatus.Active, hold.Status);
+        Assert.Equal(PhaseStatus.Active, held.Status);
+        Assert.Equal(1, held.Starts);
+        Assert.Empty(held.Ends);
+        Assert.True(lift.Ended);
+    }
+
+    [Fact]
+    public void PutBackHold_WhenTheHeldPhaseAdvanced_RefusesAndTheDiscardEndsTheHoldSkipped()
+    {
+        var held = new LifecycleProbePhase();
+        var next = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held, next);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        ac.Phases.AdvanceToNext(ctx);
+
+        Assert.False(ac.Phases.PutBackHold(lift));
+        Assert.Equal(PhaseStatus.Active, hold.Status);
+        lift.Discard(ctx);
+        Assert.Equal(PhaseStatus.Skipped, hold.Status);
+        Assert.Equal([held, next], ac.Phases.Phases);
+        Assert.Same(next, ac.Phases.CurrentPhase);
+        Assert.Equal([PhaseStatus.Completed], held.Ends);
+        Assert.Equal(1, next.Starts);
+    }
+
+    [Fact]
+    public void PutBackHold_WhenTheHeldPhaseWasReplaced_Refuses()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+        var replacement = new LifecycleProbePhase { Status = PhaseStatus.Active };
+
+        ac.Phases.Phases[ac.Phases.CurrentIndex] = replacement;
+
+        Assert.False(ac.Phases.PutBackHold(lift));
+        Assert.Same(replacement, Assert.Single(ac.Phases.Phases));
+        Assert.Null(ac.Phases.HeldPhase);
+        Assert.False(lift.Ended);
+    }
+
+    [Fact]
+    public void PutBackHold_WhenTheHeldPhaseEnded_Refuses()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        ac.Phases.Clear(ctx);
+
+        Assert.False(ac.Phases.PutBackHold(lift));
+        Assert.Equal([PhaseStatus.Skipped], held.Ends);
+        Assert.DoesNotContain(hold, ac.Phases.Phases);
+        Assert.True(ac.Phases.IsComplete);
+    }
+
+    [Fact]
+    public void Discard_EndsTheLiftedHoldSkipped_AndASecondDiscardOrPutBackChangesNothing()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        lift.Discard(ctx);
+        Assert.Equal(PhaseStatus.Skipped, hold.Status);
+        hold.Status = PhaseStatus.Completed;
+        lift.Discard(ctx);
+
+        Assert.Equal(PhaseStatus.Completed, hold.Status);
+        Assert.False(ac.Phases.PutBackHold(lift));
+        Assert.Same(held, Assert.Single(ac.Phases.Phases));
+        Assert.Equal(PhaseStatus.Active, held.Status);
+    }
+
+    [Fact]
+    public void LiftHold_OfAPendingHold_PutBack_StaysPending_AndStartsOnTheNextTick()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        Assert.True(ac.Phases.PutBackHold(lift));
+
+        Assert.Equal(PhaseStatus.Pending, hold.Status);
+        Assert.Equal([hold, held], ac.Phases.Phases);
+
+        PhaseRunner.Tick(ac, ctx);
+
+        Assert.Equal(PhaseStatus.Active, hold.Status);
+        Assert.True(Assert.IsType<AirspaceBoundaryHoldPhaseDto>(hold.ToSnapshot()).Started);
+        Assert.Same(held, ac.Phases.HeldPhase);
+        Assert.Equal(0, held.Ticks);
+    }
+
+    [Fact]
+    public void Discard_OfAPendingHold_SkipsItWithoutTheEndOfAStartedHold()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        HoldLift lift = Assert.IsType<HoldLift>(ac.Phases.LiftHold());
+
+        lift.Discard(ctx);
+
+        // An Orbit hold's OnEnd(Skipped) writes nothing, so only its status shows here that it never started.
+        Assert.Equal(PhaseStatus.Skipped, hold.Status);
+        Assert.False(Assert.IsType<AirspaceBoundaryHoldPhaseDto>(hold.ToSnapshot()).Started);
+        Assert.Same(held, Assert.Single(ac.Phases.Phases));
+        Assert.Equal(PhaseStatus.Active, held.Status);
+        Assert.Empty(held.Ends);
+    }
+
+    [Fact]
+    public void LiftHold_WhileLifted_ReturnsNull_AndChangesNothing()
+    {
+        var held = new LifecycleProbePhase();
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(held);
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        ac.Phases!.InsertHoldInFront(hold);
+        PhaseRunner.Tick(ac, ctx);
+        Assert.NotNull(ac.Phases.LiftHold());
+
+        Assert.Null(ac.Phases.LiftHold());
+
+        Assert.Same(held, Assert.Single(ac.Phases.Phases));
+        Assert.Equal(PhaseStatus.Active, hold.Status);
+    }
+
+    [Fact]
+    public void LiftHold_WithNoHeldPair_ReturnsNull()
+    {
+        (AircraftState ac, PhaseContext ctx) = AircraftWith(new LifecycleProbePhase());
+        Assert.Null(ac.Phases!.LiftHold());
+
+        var freeFlight = new PhaseList();
+        AirspaceBoundaryHoldPhase hold = SfoBravoHold();
+        freeFlight.Add(hold);
+        freeFlight.Start(ctx);
+
+        Assert.Null(freeFlight.LiftHold());
+        Assert.Same(hold, Assert.Single(freeFlight.Phases));
+        Assert.Same(hold, freeFlight.CurrentPhase);
+    }
+
     private static (AircraftState Aircraft, PhaseContext Context, PatternEntryPhase Entry) AircraftOnPatternEntry()
     {
         (AircraftState ac, PhaseContext ctx, PatternEntryPhase entry) = AircraftWithUnstartedPatternEntry();
