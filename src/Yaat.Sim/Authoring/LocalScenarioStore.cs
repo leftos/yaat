@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Authoring;
@@ -27,10 +27,6 @@ public sealed partial class LocalScenarioStore
     private const string ServerFolder = "server";
     private const string LocalFolder = "local";
     private const string SidecarSuffix = ".meta.json";
-    private const int MaxMoveAttempts = 5;
-
-    // Short steps (10, 20, 30, 40 ms): the retry runs under the root's lock, which other workers wait on.
-    private const int MoveRetryStepMs = 10;
 
     private static readonly ILogger Log = SimLog.CreateLogger<LocalScenarioStore>();
 
@@ -75,7 +71,7 @@ public sealed partial class LocalScenarioStore
     /// </summary>
     /// <param name="id">The id to check.</param>
     /// <returns>True when the id can name a file or folder of the store.</returns>
-    public static bool IsValidId(string? id) => (id is not null) && IdPattern().IsMatch(id) && !ReservedNamePattern().IsMatch(id);
+    public static bool IsValidId(string? id) => StoreFiles.IsValidId(id);
 
     /// <summary>The full path of a scenario's server mirror file, whether or not it exists.</summary>
     /// <param name="artccId">The ARTCC.</param>
@@ -112,7 +108,7 @@ public sealed partial class LocalScenarioStore
     {
         string dir = ArtccDirectory(artccId);
         ArgumentNullException.ThrowIfNull(body);
-        if (!IsValidId(id))
+        if (!StoreFiles.IsValidId(id))
         {
             return Rejected("invalid id");
         }
@@ -211,7 +207,7 @@ public sealed partial class LocalScenarioStore
             // The sidecar goes first: a crash between the two leaves an orphan sidecar, reported and overwritten by the
             // next attempt, rather than a copy that has lost its origin.
             WriteSidecar(dir, serverId, new WorkingCopySidecar(serverId, ComputeVersion(text), ComputeContentHash(scenario!), null));
-            WriteAtomically(localPath, text);
+            StoreFiles.WriteAtomically(localPath, text);
         }
     }
 
@@ -228,7 +224,7 @@ public sealed partial class LocalScenarioStore
         ArgumentNullException.ThrowIfNull(json);
         lock (_gate)
         {
-            WriteAtomically(LocalPath(dir, id), json);
+            StoreFiles.WriteAtomically(LocalPath(dir, id), json);
             if (!File.Exists(SidecarPath(dir, id)))
             {
                 WriteSidecar(dir, id, new WorkingCopySidecar(null, null, null, null));
@@ -306,22 +302,52 @@ public sealed partial class LocalScenarioStore
             return "missing: the index lists it but the file is gone";
         }
 
-        string? text = TryReadText(path, out string? readFailure);
-        if (text is null)
+        if (!TryReadMirror(path, id, out string? text, out _, out string? reason))
         {
-            return readFailure;
+            return reason;
         }
 
-        string? reason = CheckScenario(text, out JsonObject? scenario) ?? IdMismatch(scenario!, id);
-        version = reason is null ? ComputeVersion(text) : null;
-        return reason;
+        version = ComputeVersion(text);
+        return null;
     }
 
-    // Null when the body's own id is the file's id, else the problem.
-    private static string? IdMismatch(JsonObject scenario, string fileId)
+    // Whether the mirror file is a scenario whose own id is id: its text and scenario when it is, else why it cannot be
+    // used, the one reason every reader of a mirror reports.
+    private static bool TryReadMirror(
+        string path,
+        string id,
+        [NotNullWhen(true)] out string? text,
+        [NotNullWhen(true)] out JsonObject? scenario,
+        [NotNullWhen(false)] out string? reason
+    )
     {
-        string bodyId = TextOf(scenario, "id");
-        return string.Equals(bodyId, fileId, StringComparison.Ordinal) ? null : $"holds scenario {bodyId}, not {fileId}";
+        scenario = null;
+        reason = null;
+        text = TryReadText(path, out string? failure);
+        if (text is null)
+        {
+            // TryReadText sets the failure whenever it returns null.
+            reason = failure!;
+            return false;
+        }
+
+        string? corrupt = CheckScenario(text, out JsonObject? parsed);
+        if (corrupt is not null)
+        {
+            reason = corrupt;
+            return false;
+        }
+
+        JsonObject mirror = parsed!;
+        string bodyId = TextOf(mirror, "id");
+        if (!string.Equals(bodyId, id, StringComparison.Ordinal))
+        {
+            reason = $"holds scenario {bodyId}, not {id}";
+            return false;
+        }
+
+        scenario = mirror;
+        return true;
     }
 
     // The file's text, or null with the reason when it is locked or access is denied.
@@ -369,7 +395,7 @@ public sealed partial class LocalScenarioStore
             return new ServerApplyResult(ServerApplyOutcome.Unchanged, null, problems);
         }
 
-        WriteAtomically(mirrorPath, body);
+        StoreFiles.WriteAtomically(mirrorPath, body);
         Upsert(index, entry);
         SaveIndex(dir, index);
         if (!exists)
@@ -530,7 +556,7 @@ public sealed partial class LocalScenarioStore
     }
 
     private static void WriteSidecar(string dir, string id, WorkingCopySidecar sidecar) =>
-        WriteAtomically(SidecarPath(dir, id), JsonSerializer.Serialize(sidecar, JsonOptions));
+        StoreFiles.WriteAtomically(SidecarPath(dir, id), JsonSerializer.Serialize(sidecar, JsonOptions));
 
     private static StoreIndexFile LoadIndex(string dir, List<StoreProblem> problems, out bool rebuilt)
     {
@@ -589,7 +615,8 @@ public sealed partial class LocalScenarioStore
     }
 
     // An index entry may be null or lack fields: JSON deserialization does not enforce the record's non-null members.
-    private static bool IsUsableEntry(MirrorEntry? m) => (m is not null) && IsValidId(m.Id) && (m.Name is not null) && (m.Version is not null);
+    private static bool IsUsableEntry(MirrorEntry? m) =>
+        (m is not null) && StoreFiles.IsValidId(m.Id) && (m.Name is not null) && (m.Version is not null);
 
     private static string KeepCorruptIndex(string dir, string path)
     {
@@ -633,16 +660,13 @@ public sealed partial class LocalScenarioStore
         string fileName = $"{ServerFolder}/{Path.GetFileName(path)}";
         string id = Path.GetFileNameWithoutExtension(path);
         string note = reportAdded ? "not in the index; " : "";
-        JsonObject? scenario = null;
-        string? text = null;
-        string? reason = "the file name is not a valid scenario id";
-        if (IsValidId(id))
+        if (!StoreFiles.IsValidId(id))
         {
-            text = TryReadText(path, out reason);
-            reason = text is null ? reason : CheckScenario(text, out scenario) ?? IdMismatch(scenario!, id);
+            problems.Add(new StoreProblem(fileName, note + "the file name is not a valid scenario id"));
+            return null;
         }
 
-        if (reason is not null)
+        if (!TryReadMirror(path, id, out string? text, out JsonObject? scenario, out string? reason))
         {
             problems.Add(new StoreProblem(fileName, note + reason));
             return null;
@@ -653,7 +677,7 @@ public sealed partial class LocalScenarioStore
             problems.Add(new StoreProblem(fileName, note + "added to it"));
         }
 
-        return new MirrorEntry(id, TextOf(scenario!, "name"), ComputeVersion(text!), false);
+        return new MirrorEntry(id, TextOf(scenario, "name"), ComputeVersion(text), false);
     }
 
     private static bool HasAnyScenarioFile(string dir) =>
@@ -665,7 +689,7 @@ public sealed partial class LocalScenarioStore
     private static void SaveIndex(string dir, StoreIndexFile index)
     {
         index.Mirrors.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
-        WriteAtomically(Path.Combine(dir, IndexFileName), JsonSerializer.Serialize(index, JsonOptions));
+        StoreFiles.WriteAtomically(Path.Combine(dir, IndexFileName), JsonSerializer.Serialize(index, JsonOptions));
     }
 
     /// <summary>
@@ -746,7 +770,7 @@ public sealed partial class LocalScenarioStore
 
     private static void RequireValidId(string id)
     {
-        if (!IsValidId(id))
+        if (!StoreFiles.IsValidId(id))
         {
             throw new ArgumentException($"'{id}' is not a valid scenario id (letters, digits, '_' and '-' only).", nameof(id));
         }
@@ -754,7 +778,7 @@ public sealed partial class LocalScenarioStore
 
     private string ArtccDirectory(string artccId)
     {
-        if (!IsValidId(artccId))
+        if (!StoreFiles.IsValidId(artccId))
         {
             throw new ArgumentException($"'{artccId}' is not a valid ARTCC id (letters, digits, '_' and '-' only).", nameof(artccId));
         }
@@ -774,64 +798,6 @@ public sealed partial class LocalScenarioStore
         return path.Equals(trimmed, StringComparison.OrdinalIgnoreCase)
             || path.StartsWith(trimmed + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
-
-    // Write to a uniquely named sibling, then replace the target, so a reader sees the old file or the new one, never a
-    // half-written one. The replacing move is retried briefly because an antivirus scan can hold a just-written target.
-    internal static void WriteAtomically(string path, string text)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        string tmpPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllText(tmpPath, text);
-            for (int attempt = 1; ; attempt++)
-            {
-                try
-                {
-                    File.Move(tmpPath, path, overwrite: true);
-                    return;
-                }
-                catch (Exception ex) when ((ex is UnauthorizedAccessException or IOException) && (attempt < MaxMoveAttempts))
-                {
-                    if (Log.IsEnabled(LogLevel.Debug))
-                    {
-                        Log.LogDebug(ex, "Replacing {Path} failed on attempt {Attempt}; retrying", path, attempt);
-                    }
-
-                    Thread.Sleep(MoveRetryStepMs * attempt);
-                }
-            }
-        }
-        finally
-        {
-            DeleteTemp(tmpPath);
-        }
-    }
-
-    // A temp file left behind is logged, never thrown: it must not replace the error that left it.
-    private static void DeleteTemp(string tmpPath)
-    {
-        try
-        {
-            if (File.Exists(tmpPath))
-            {
-                File.Delete(tmpPath);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            if (Log.IsEnabled(LogLevel.Warning))
-            {
-                Log.LogWarning(ex, "Could not delete the temporary file {Path}", tmpPath);
-            }
-        }
-    }
-
-    [GeneratedRegex(@"^[A-Za-z0-9_-]+\z")]
-    private static partial Regex IdPattern();
-
-    [GeneratedRegex(@"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])\z", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ReservedNamePattern();
 
     private sealed class StoreIndexFile
     {

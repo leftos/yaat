@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Yaat.Sim.Authoring;
 
 namespace Yaat.Sim.Data.Vnas;
 
@@ -116,7 +115,7 @@ public sealed class VnasArtccList(string? cachePath)
                 return Failed("data-api listed no ARTCCs", null);
             }
 
-            LocalScenarioStore.WriteAtomically(CachePath, JsonSerializer.Serialize(artccs, JsonOptions));
+            StoreFiles.WriteAtomically(CachePath, JsonSerializer.Serialize(artccs, JsonOptions));
             return new VnasFetchResult<IReadOnlyList<VnasArtcc>>(artccs, null);
         }
         catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
@@ -137,7 +136,7 @@ public sealed class VnasArtccList(string? cachePath)
         var kept = new List<VnasArtcc>(artccs.Count);
         foreach (VnasArtcc artcc in artccs)
         {
-            if (LocalScenarioStore.IsValidId(artcc.Id) && seen.Add(artcc.Id))
+            if (StoreFiles.IsValidId(artcc.Id) && seen.Add(artcc.Id))
             {
                 kept.Add(artcc);
             }
@@ -161,7 +160,7 @@ public sealed class VnasArtccList(string? cachePath)
                 return "it holds no ARTCCs";
             }
 
-            if (read.Any(a => (a is null) || !LocalScenarioStore.IsValidId(a.Id) || (a.Name is null)))
+            if (read.Any(a => (a is null) || !StoreFiles.IsValidId(a.Id) || (a.Name is null)))
             {
                 return "an entry has no valid id or name";
             }

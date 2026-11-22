@@ -28,7 +28,7 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
     /// <returns>What landed, what was unchanged, changed or gone, and every failure.</returns>
     public async Task<DownloadReport> DownloadArtccAsync(string artccId, IProgress<DownloadProgress>? progress, CancellationToken ct)
     {
-        if (!LocalScenarioStore.IsValidId(artccId))
+        if (!StoreFiles.IsValidId(artccId))
         {
             return DownloadReport.ListFailed(artccId ?? "", "invalid ARTCC id");
         }
@@ -54,7 +54,7 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
             }
         );
 
-        string[] listed = [.. summaries.Select(s => s.Id).Where(LocalScenarioStore.IsValidId)];
+        string[] listed = [.. summaries.Select(s => s.Id).Where(StoreFiles.IsValidId)];
         MarkGoneResult gone = _store.MarkGoneFromServer(artccId, listed);
         return tally.ToReport(artccId, gone);
     }
@@ -63,7 +63,7 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
     {
         string id = summary.Id ?? "";
         string name = summary.Name ?? "";
-        if (!LocalScenarioStore.IsValidId(id))
+        if (!StoreFiles.IsValidId(id))
         {
             tally.Fail(id, name, "invalid id");
             return;

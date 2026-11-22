@@ -512,6 +512,171 @@ public class LocalScenarioStoreTests
     public void IsValidId_AcceptsNamesThatOnlyLookReserved(string id) => Assert.True(LocalScenarioStore.IsValidId(id));
 
     [Fact]
+    public void Load_UnindexedMirrorHoldingAnotherScenario_IsReported_NotListed_NotAdded() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), TrainingFixtures.Read(IdA));
+                string indexBefore = File.ReadAllText(TrainingFixtures.IndexPath(root));
+                string reason = $"not in the index; holds scenario {IdA}, not {idC}";
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                Assert.False(listing.IndexRebuilt);
+                Assert.Equal(reason, Assert.Single(listing.Problems, p => p.FileName == $"server/{idC}.json").Reason);
+                Assert.DoesNotContain(listing.Mirrors, m => m.Mirror.Id == idC);
+                Assert.Equal(indexBefore, File.ReadAllText(TrainingFixtures.IndexPath(root)));
+                Assert.Equal(reason, Assert.Single(store.Load(Zoa).Problems, p => p.FileName == $"server/{idC}.json").Reason);
+            }
+        );
+
+    [Fact]
+    public void Load_UnindexedMalformedMirror_IsReported_NotListed() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), "{ broken");
+                string indexBefore = File.ReadAllText(TrainingFixtures.IndexPath(root));
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                StoreProblem problem = Assert.Single(listing.Problems, p => p.FileName == $"server/{idC}.json");
+                Assert.StartsWith("not in the index; not a scenario: malformed JSON (", problem.Reason, StringComparison.Ordinal);
+                Assert.DoesNotContain(listing.Mirrors, m => m.Mirror.Id == idC);
+                Assert.Equal(indexBefore, File.ReadAllText(TrainingFixtures.IndexPath(root)));
+            }
+        );
+
+    [Fact]
+    public void Load_UnindexedMirrorWithNoName_IsReported_NotListed() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), "{\"id\":\"" + idC + "\"}");
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                Assert.Equal(
+                    "not in the index; not a scenario: it has no id or no name",
+                    Assert.Single(listing.Problems, p => p.FileName == $"server/{idC}.json").Reason
+                );
+                Assert.DoesNotContain(listing.Mirrors, m => m.Mirror.Id == idC);
+            }
+        );
+
+    [Fact]
+    public void Load_UnindexedLockedMirror_IsReported_ThenAddedOnceUnlocked() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), TrainingFixtures.WithId(IdA, idC));
+                ArtccStoreListing listing;
+                using (new FileStream(TrainingFixtures.MirrorPath(root, idC), FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    listing = store.Load(Zoa);
+                }
+
+                Assert.StartsWith(
+                    "not in the index; unreadable: ",
+                    Assert.Single(listing.Problems, p => p.FileName == $"server/{idC}.json").Reason,
+                    StringComparison.Ordinal
+                );
+                Assert.DoesNotContain(listing.Mirrors, m => m.Mirror.Id == idC);
+
+                ArtccStoreListing after = store.Load(Zoa);
+
+                Assert.Equal("not in the index; added to it", Assert.Single(after.Problems, p => p.FileName == $"server/{idC}.json").Reason);
+                Assert.Contains(after.Mirrors, m => m.Mirror.Id == idC);
+            }
+        );
+
+    [Theory]
+    [InlineData("bad name.json")]
+    public void Load_UnindexedMirrorWithAnInvalidFileName_IsReported_NotRead(string fileName) =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(Path.Combine(root, Zoa, "server", fileName), "{ broken");
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                Assert.Equal(
+                    "not in the index; the file name is not a valid scenario id",
+                    Assert.Single(listing.Problems, p => p.FileName == $"server/{fileName}").Reason
+                );
+                Assert.DoesNotContain(listing.Mirrors, m => m.Mirror.Id == Path.GetFileNameWithoutExtension(fileName));
+            }
+        );
+
+    [Fact]
+    public void Load_IndexMissing_RebuildReportsBadMirrorsWithoutTheNotInIndexPrefix() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                string idD = IdA + "-D";
+                string idE = IdA + "-E";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.Delete(TrainingFixtures.IndexPath(root));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idD), TrainingFixtures.WithId(IdA, idD));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idE), "{ broken");
+                ArtccStoreListing listing;
+                using (new FileStream(TrainingFixtures.MirrorPath(root, idD), FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    listing = store.Load(Zoa);
+                }
+
+                Assert.True(listing.IndexRebuilt);
+                Assert.Equal($"holds scenario {IdA}, not {idC}", Assert.Single(listing.Problems, p => p.FileName == $"server/{idC}.json").Reason);
+                Assert.StartsWith(
+                    "unreadable: ",
+                    Assert.Single(listing.Problems, p => p.FileName == $"server/{idD}.json").Reason,
+                    StringComparison.Ordinal
+                );
+                Assert.StartsWith(
+                    "not a scenario: malformed JSON (",
+                    Assert.Single(listing.Problems, p => p.FileName == $"server/{idE}.json").Reason,
+                    StringComparison.Ordinal
+                );
+                Assert.DoesNotContain(listing.Problems, p => p.Reason.Contains("not in the index", StringComparison.Ordinal));
+                Assert.DoesNotContain(listing.Problems, p => p.Reason.Contains("added to it", StringComparison.Ordinal));
+                Assert.Equal([IdA], listing.Mirrors.Select(m => m.Mirror.Id));
+                Assert.DoesNotContain(idC, File.ReadAllText(TrainingFixtures.IndexPath(root)), StringComparison.Ordinal);
+            }
+        );
+
+    [Fact]
+    public void Load_UnindexedMismatchBesideAGoodIndexedMirror_LeavesTheGoodOneAlone() =>
+        InRoot(
+            (root, store) =>
+            {
+                string idC = IdA + "-C";
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.ApplyServerBody(Zoa, IdB, TrainingFixtures.Read(IdB));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, idC), TrainingFixtures.Read(IdA));
+                string indexBefore = File.ReadAllText(TrainingFixtures.IndexPath(root));
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                Assert.False(listing.IndexRebuilt);
+                Assert.Contains(listing.Problems, p => p.FileName == $"server/{idC}.json");
+                Assert.Equal([IdA, IdB], listing.Mirrors.Select(m => m.Mirror.Id));
+                Assert.All(listing.Mirrors, m => Assert.False(m.Corrupt));
+                Assert.Equal(indexBefore, File.ReadAllText(TrainingFixtures.IndexPath(root)));
+            }
+        );
+
+    [Fact]
     public void Store_RefusesRootUnderCache()
     {
         string underCache = YaatPaths.Combine("cache", "scenarios");

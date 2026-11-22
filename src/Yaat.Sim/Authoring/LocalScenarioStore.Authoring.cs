@@ -179,7 +179,7 @@ public sealed partial class LocalScenarioStore
         {
             ImportIdChoice.Skip => new ImportResult(ImportOutcome.Skipped, null, false, mismatch, null),
             ImportIdChoice.NewId => ImportWithNewId(dir, scenario!, newId(), mismatch),
-            ImportIdChoice.KeepId => IsValidId(fileId)
+            ImportIdChoice.KeepId => StoreFiles.IsValidId(fileId)
                 ? ImportKeepingId(dir, fileId, scenario!, json, mismatch)
                 : ImportResult.Rejected($"its id {fileId} cannot name a file (letters, digits, '_' and '-' only)"),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice, "Not an import id choice."),
@@ -207,7 +207,7 @@ public sealed partial class LocalScenarioStore
         {
             if (StoredId(dir, LocalFolder, fileId) is { } copyId)
             {
-                WriteAtomically(LocalPath(dir, copyId), TextWithId(scenario, json, fileId, copyId));
+                StoreFiles.WriteAtomically(LocalPath(dir, copyId), TextWithId(scenario, json, fileId, copyId));
                 if (!File.Exists(SidecarPath(dir, copyId)))
                 {
                     WriteSidecar(dir, copyId, new WorkingCopySidecar(null, null, null, null));
@@ -230,16 +230,13 @@ public sealed partial class LocalScenarioStore
     // its content differs from the mirror's; a mirror Load would list corrupt is refused and nothing is written.
     private static ImportResult ImportOverMirror(string dir, string mirrorId, string text, bool mismatch)
     {
-        string? mirrorText = TryReadText(MirrorPath(dir, mirrorId), out string? failure);
-        JsonObject? mirror = null;
-        string? reason = mirrorText is null ? failure : CheckScenario(mirrorText, out mirror) ?? IdMismatch(mirror!, mirrorId);
-        if (reason is not null)
+        if (!TryReadMirror(MirrorPath(dir, mirrorId), mirrorId, out string? mirrorText, out JsonObject? mirror, out string? reason))
         {
             return ImportResult.Rejected($"the server copy {ServerFolder}/{mirrorId}.json can't be used ({reason}); import the file with a new id");
         }
 
-        WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText!), ComputeContentHash(mirror!), null));
-        WriteAtomically(LocalPath(dir, mirrorId), text);
+        WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText), ComputeContentHash(mirror), null));
+        StoreFiles.WriteAtomically(LocalPath(dir, mirrorId), text);
         return new ImportResult(ImportOutcome.Imported, mirrorId, false, mismatch, null);
     }
 
@@ -302,7 +299,7 @@ public sealed partial class LocalScenarioStore
     private static void WriteLocalOnly(string dir, string id, string text)
     {
         WriteSidecar(dir, id, new WorkingCopySidecar(null, null, null, null));
-        WriteAtomically(LocalPath(dir, id), text);
+        StoreFiles.WriteAtomically(LocalPath(dir, id), text);
     }
 
     private static bool DeleteIfPresent(string path)

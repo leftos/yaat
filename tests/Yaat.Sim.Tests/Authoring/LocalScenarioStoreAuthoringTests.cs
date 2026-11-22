@@ -483,6 +483,26 @@ public class LocalScenarioStoreAuthoringTests
         );
 
     [Fact]
+    public void Import_KeepId_OverAMirrorHoldingAnotherScenario_IsRejected_WritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                File.WriteAllText(TrainingFixtures.MirrorPath(root, IdA), TrainingFixtures.Read(IdB));
+
+                ImportResult result = store.ImportScenario(Zoa, TrainingFixtures.Read(IdA), ImportIdChoice.KeepId, Ids(26));
+
+                Assert.Equal(ImportOutcome.Rejected, result.Outcome);
+                Assert.Equal(
+                    $"the server copy server/{IdA}.json can't be used (holds scenario {IdB}, not {IdA}); import the file with a new id",
+                    result.Reason
+                );
+                Assert.False(Directory.Exists(LocalDir(root)));
+                Assert.Equal(TrainingFixtures.Read(IdB), File.ReadAllText(TrainingFixtures.MirrorPath(root, IdA)));
+            }
+        );
+
+    [Fact]
     public void Import_Skip_FileOfAnotherArtcc_IsSkipped_FlagsTheMismatch() =>
         InRoot(
             (root, store) =>
