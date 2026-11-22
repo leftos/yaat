@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 
@@ -165,15 +164,7 @@ public sealed partial class CskoRouteSource(HttpClient? http, string? cacheDir) 
         }
 
         string? last = flight.LastRouteText;
-        if (string.IsNullOrWhiteSpace(last) || last.Contains("./.", StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        List<string> tokens = [.. EtaSuffix().Replace(last.Trim(), "").Split('.', StringSplitOptions.RemoveEmptyEntries)];
-        RouteFinder.TrimAirports(tokens, flight.Departure, flight.Arrival);
-
-        return tokens.Count == 0 ? null : string.Join(' ', tokens);
+        return string.IsNullOrWhiteSpace(last) ? null : RouteFinder.SpacedNasRoute(last, flight.Departure, flight.Arrival);
     }
 
     private static HttpClient CreateClient()
@@ -182,9 +173,6 @@ public sealed partial class CskoRouteSource(HttpClient? http, string? cacheDir) 
         http.DefaultRequestHeaders.UserAgent.ParseAdd("yaat-route-finder");
         return http;
     }
-
-    [GeneratedRegex(@"/\d{4}$")]
-    private static partial Regex EtaSuffix();
 
     /// <summary>One flight in a csko search reply; only the fields the route source reads.</summary>
     internal sealed record CskoFlight(

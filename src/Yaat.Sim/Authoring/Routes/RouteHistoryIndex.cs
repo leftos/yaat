@@ -24,14 +24,17 @@ public sealed partial class RouteHistoryIndex
     private readonly Lock _gate = new();
     private readonly Dictionary<BucketKey, int> _counts = [];
 
-    /// <summary>Gets the size in bytes of the index written by <see cref="WriteLines"/>: each line's UTF-8 bytes and its newline.</summary>
+    /// <summary>Each day's serialized size, kept current by <see cref="Merge"/> and <see cref="Trim"/>.</summary>
+    private readonly Dictionary<DateOnly, long> _dayBytes = [];
+
+    /// <summary>Gets the size in bytes of the index written by <see cref="WriteLines(TextWriter)"/>: each line's UTF-8 bytes and its newline.</summary>
     public long SerializedBytes
     {
         get
         {
             lock (_gate)
             {
-                return _counts.Sum(pair => LineBytes(pair.Key.ToRecord(pair.Value)));
+                return _dayBytes.Values.Sum();
             }
         }
     }
@@ -70,7 +73,12 @@ public sealed partial class RouteHistoryIndex
             return null;
         }
 
-        string route = RouteFinder.NormalizedKey(observation.RouteText, new RouteQuery(departure, destination, [], [], null));
+        if (RouteFinder.SpacedNasRoute(observation.RouteText, departure, destination) is not { } spaced)
+        {
+            return null;
+        }
+
+        string route = RouteFinder.NormalizedKey(spaced, new RouteQuery(departure, destination, [], [], null));
         if (route.Length == 0)
         {
             return null;
@@ -104,7 +112,15 @@ public sealed partial class RouteHistoryIndex
         var key = BucketKey.Of(record);
         lock (_gate)
         {
-            _counts[key] = _counts.GetValueOrDefault(key) + record.Count;
+            long bytes = _dayBytes.GetValueOrDefault(key.Day);
+            if (_counts.TryGetValue(key, out int existing))
+            {
+                bytes -= LineBytes(key.ToRecord(existing));
+            }
+
+            int count = existing + record.Count;
+            _counts[key] = count;
+            _dayBytes[key.Day] = bytes + LineBytes(key.ToRecord(count));
         }
     }
 
@@ -165,6 +181,11 @@ public sealed partial class RouteHistoryIndex
                 _counts.Remove(key);
             }
 
+            foreach (DateOnly day in dropped)
+            {
+                _dayBytes.Remove(day);
+            }
+
             return [.. dropped.Order()];
         }
     }
@@ -193,9 +214,17 @@ public sealed partial class RouteHistoryIndex
     }
 
     /// <summary>Writes every bucket as one line (see <see cref="ToLine"/>); every line ends in '\n', whatever the platform.</summary>
-    public void WriteLines(TextWriter writer)
+    public void WriteLines(TextWriter writer) => Write(writer, Records());
+
+    /// <summary>
+    /// Writes one day's buckets as lines, as <see cref="WriteLines(TextWriter)"/> does for the whole index: the compacted
+    /// form of that day's file.
+    /// </summary>
+    public void WriteLines(TextWriter writer, DateOnly day) => Write(writer, [.. Records().Where(record => record.Day == day)]);
+
+    private static void Write(TextWriter writer, IReadOnlyList<RouteHistoryRecord> records)
     {
-        foreach (RouteHistoryRecord record in Records())
+        foreach (RouteHistoryRecord record in records)
         {
             writer.Write(ToLine(record));
             writer.Write('\n');
@@ -304,16 +333,7 @@ public sealed partial class RouteHistoryIndex
         );
     }
 
-    private SortedDictionary<DateOnly, long> DayBytes()
-    {
-        var bytes = new SortedDictionary<DateOnly, long>();
-        foreach ((BucketKey key, int count) in _counts)
-        {
-            bytes[key.Day] = bytes.GetValueOrDefault(key.Day) + LineBytes(key.ToRecord(count));
-        }
-
-        return bytes;
-    }
+    private SortedDictionary<DateOnly, long> DayBytes() => new(_dayBytes);
 
     [GeneratedRegex("^[A-Z]{3}[0-9]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AirlineCallsign();

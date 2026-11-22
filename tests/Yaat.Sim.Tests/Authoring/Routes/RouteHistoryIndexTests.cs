@@ -66,6 +66,26 @@ public class RouteHistoryIndexTests
     }
 
     [Fact]
+    public void NasRouteText_IsRecordedAsItsSpacedKey()
+    {
+        var index = new RouteHistoryIndex();
+
+        index.Add(new RouteObservation(At(Today), "UAL174", "C525", "KHOU", "KABQ", "KHOU.RETYR8.JCT..CME.MIERA2.KABQ/0210"));
+
+        RouteHistoryRecord record = Assert.Single(index.Records());
+        Assert.Equal("RETYR8 JCT CME MIERA2", record.RouteText);
+    }
+
+    [Fact]
+    public void AnAmendmentFromAPresentPosition_IsNotRecorded()
+    {
+        var index = new RouteHistoryIndex();
+
+        Assert.Null(index.Add(new RouteObservation(At(Today), "UAL174", "C525", "KHOU", "KABQ", "./.CME.MIERA2.KABQ")));
+        Assert.Empty(index.Records());
+    }
+
+    [Fact]
     public void PlanOlderThanWindow_IsTrimmed()
     {
         RouteHistoryIndex index = IndexOf(Flight(Today.AddDays(-31), "UAL123"), Flight(Today, "UAL456", "B738", "WESLA5 SUSEY EBAYE BURGL IRNMN2"));

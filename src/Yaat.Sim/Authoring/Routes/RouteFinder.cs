@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Data;
 
@@ -13,7 +14,7 @@ namespace Yaat.Sim.Authoring.Routes;
 /// </summary>
 /// <param name="sources">The sources to ask, in merge order: a duplicate keeps the text of the earliest source.</param>
 /// <param name="navDb">The navdata each route is checked against.</param>
-public sealed class RouteFinder(IReadOnlyList<IRouteSource> sources, NavigationDatabase navDb)
+public sealed partial class RouteFinder(IReadOnlyList<IRouteSource> sources, NavigationDatabase navDb)
 {
     private static readonly ILogger Log = SimLog.CreateLogger<RouteFinder>();
 
@@ -119,6 +120,28 @@ public sealed class RouteFinder(IReadOnlyList<IRouteSource> sources, NavigationD
             tokens.RemoveAt(tokens.Count - 1);
         }
     }
+
+    /// <summary>
+    /// A NAS route text (ERAM's dotted form, e.g. "KHOU.RETYR8.JCT..CME.MIERA2.KABQ/0210") as a spaced route: split on '.',
+    /// a trailing "/HHMM" dropped, and a leading <paramref name="departure"/> and trailing <paramref name="destination"/>
+    /// dropped. A text already spaced passes through as one token. Null for a text holding "./.", an amendment from a present
+    /// position rather than a departure route, and for a text with nothing left.
+    /// </summary>
+    internal static string? SpacedNasRoute(string text, string? departure, string? destination)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Contains("./.", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        List<string> tokens = [.. EtaSuffix().Replace(text.Trim(), "").Split('.', StringSplitOptions.RemoveEmptyEntries)];
+        TrimAirports(tokens, departure, destination);
+
+        return tokens.Count == 0 ? null : string.Join(' ', tokens);
+    }
+
+    [GeneratedRegex(@"/\d{4}$")]
+    private static partial Regex EtaSuffix();
 
     private bool IsExpandable(string routeText, RouteQuery query)
     {
