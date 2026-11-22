@@ -1383,6 +1383,9 @@ A published route's expanded length (departure airport, every fix, arrival airpo
 **Preferred route**:
 A route the FAA publishes for an origin and destination pair in its preferred IFR routes file (PFR, in the NASR 28-day subscription), of a type such as high, low or tower en route (TEC); `PreferredRouteSource` offers it with the FAA's notes in `FoundRoute.Preferred` (`PreferredRouteInfo`). Not the same as a published SID and STAR pairing (`PublishedRouteInfo`).
 
+**Route history**:
+The routes, aircraft types and airline prefixes yaat-server has seen in live SWIM flight plans, kept in a rolling window of per-day buckets (`RouteHistoryIndex`) and offered by `RouteHistorySource`; a full callsign is never kept, only a three-letter airline prefix.
+
 **Route source**:
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 

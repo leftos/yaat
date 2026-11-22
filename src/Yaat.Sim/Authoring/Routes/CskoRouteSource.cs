@@ -149,7 +149,7 @@ public sealed partial class CskoRouteSource(HttpClient? http, string? cacheDir) 
             counts[route] = count + 1;
         }
 
-        return [.. order.Select(route => new FoundRoute(route, counts[route], ["csko"], Published: null, Preferred: null))];
+        return [.. order.Select(route => new FoundRoute(route, counts[route], ["csko"], Published: null, Preferred: null, Observed: null))];
     }
 
     /// <summary>

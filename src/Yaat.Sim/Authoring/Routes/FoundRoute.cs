@@ -8,12 +8,16 @@ namespace Yaat.Sim.Authoring.Routes;
 /// <param name="Sources">The names of the sources that offered it, in source order.</param>
 /// <param name="Published">What the navdata source knows about a published SID and STAR route; null for an observed route.</param>
 /// <param name="Preferred">What the FAA publishes about a preferred route; null for a route that is not one.</param>
+/// <param name="Observed">
+/// The most-flown airline prefix and aircraft type the SWIM route history saw with the route; null for routes from other sources.
+/// </param>
 public sealed record FoundRoute(
     string RouteText,
     int Count,
     IReadOnlyList<string> Sources,
     PublishedRouteInfo? Published,
-    PreferredRouteInfo? Preferred
+    PreferredRouteInfo? Preferred,
+    ObservedRouteSample? Observed
 );
 
 /// <summary>

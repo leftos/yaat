@@ -517,7 +517,7 @@ public class NavdataRouteSourceTests
     {
         var navdata = new NavdataRouteSource(Db);
         FoundRoute published = (await FindAsync(Query("KSFO", "KLAX")))[0];
-        var observed = new FixedSource(new FoundRoute(published.RouteText, 7, ["csko"], Published: null, Preferred: null));
+        var observed = new FixedSource(new FoundRoute(published.RouteText, 7, ["csko"], Published: null, Preferred: null, Observed: null));
 
         RouteFindResult result = await new RouteFinder([observed, navdata], Db).FindAsync(Query("KSFO", "KLAX"), CancellationToken.None);
 

@@ -156,7 +156,7 @@ public sealed partial class PreferredRouteSource(HttpClient? http, string? cache
                 continue;
             }
 
-            routes.Add(new FoundRoute(row.RouteText, Count: 0, [Name], Published: null, row.Info));
+            routes.Add(new FoundRoute(row.RouteText, Count: 0, [Name], Published: null, row.Info, Observed: null));
         }
 
         return routes;
