@@ -21,6 +21,8 @@ using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Tdls.ViewModels;
 using Yaat.Client.Tdls.Views.VTdls;
 using Yaat.Client.ViewModels;
+using Yaat.Client.ViewModels.Authoring;
+using Yaat.Client.Views.Authoring;
 using Yaat.Client.Views.Ground;
 using Yaat.Client.Views.VStrips;
 using Yaat.Client.Views.VTdls;
@@ -43,6 +45,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
     private WeatherTimelineEditorWindow? _weatherEditorWindow;
     private ArrivalGeneratorsEditorWindow? _arrivalGeneratorsEditorWindow;
     private ActiveRunwaysWindow? _activeRunwaysWindow;
+    private ScenarioEditorWindow? _scenarioEditorWindow;
 
     // Test hooks — read-only views of the subordinate windows the MainWindow creates
     // in response to IsDataGridPoppedOut / IsGroundViewPoppedOut / IsScopePoppedOut
@@ -185,6 +188,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // The item's IsEnabled is bound to HasScenario in the XAML, as the weather items are.
         this.FindControl<MenuItem>("ActiveRunwaysMenuItem")?.Click += OnActiveRunwaysClick;
+
+        // No IsEnabled binding: the Scenario Editor needs no connection and no scenario.
+        this.FindControl<MenuItem>("ScenarioEditorMenuItem")?.Click += OnScenarioEditorClick;
 
         MenuItem? recentItem = this.FindControl<MenuItem>("RecentScenariosMenuItem");
         if (recentItem is not null)
@@ -3524,6 +3530,36 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         );
         _arrivalGeneratorsEditorWindow.Closing += (_, _) => _arrivalGeneratorsEditorWindow = null;
         _arrivalGeneratorsEditorWindow.Show();
+    }
+
+    // One Scenario Editor window: a second click brings the open one forward. The ARTCCs it lists are the ones the signed-in
+    // user may edit, asked of the server while connected, else the list cached with the session or the Settings ARTCC.
+    private void OnScenarioEditorClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (_scenarioEditorWindow is not null)
+        {
+            _scenarioEditorWindow.RestoreAndActivate();
+            return;
+        }
+
+        var access = new ArtccEditAccessSource(
+            new ArtccEditAccess(vm.Auth, () => vm.Preferences.ArtccId),
+            () => vm.Connection.IsConnected,
+            () => vm.Connection.IsConnected ? vm.ConnectedServerUrl : vm.Preferences.LastUsedServerUrl,
+            vm.Connection.GetMyEditableArtccsAsync
+        );
+        _scenarioEditorWindow = new ScenarioEditorWindow(
+            vm.Preferences,
+            prompts => ScenarioBrowserServices.ForApp(vm.Preferences, prompts, access),
+            FilePickerFactory.Create
+        );
+        _scenarioEditorWindow.Closed += (_, _) => _scenarioEditorWindow = null;
+        _scenarioEditorWindow.Show();
     }
 
     private void OnActiveRunwaysClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

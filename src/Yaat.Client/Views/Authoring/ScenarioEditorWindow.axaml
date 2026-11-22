@@ -1,0 +1,163 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.ScenarioEditorWindow"
+  x:DataType="vm:ScenarioBrowserViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Scenario Editor"
+  Background="#1F1F1F"
+  Width="1100"
+  Height="700"
+  MinWidth="800"
+  MinHeight="500"
+  CanResize="True"
+>
+  <Window.Styles>
+    <Style Selector="Border.vsep">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="Background" Value="#3D3D3D" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.toolbar Button">
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.status">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.status.offline">
+      <Setter Property="Foreground" Value="#E0A33A" />
+    </Style>
+    <Style Selector="Path.icon">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="StrokeThickness" Value="1.4" />
+    </Style>
+  </Window.Styles>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="toolbar" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5" MinHeight="36">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+          <TextBlock Text="ARTCC" FontSize="10" Foreground="#B0B0B0" VerticalAlignment="Center" />
+          <TextBlock
+            x:Name="ArtccLabel"
+            Text="{Binding ArtccLabelText}"
+            IsVisible="{Binding IsArtccLabelVisible}"
+            FontSize="14"
+            FontWeight="Bold"
+            Foreground="White"
+            VerticalAlignment="Center"
+          />
+          <TextBlock Text="—" IsVisible="{Binding !HasArtcc}" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" />
+          <ComboBox
+            x:Name="ArtccSelector"
+            ItemsSource="{Binding Artccs}"
+            SelectedItem="{Binding SelectedArtcc}"
+            IsVisible="{Binding IsArtccSelectorVisible}"
+            MinWidth="80"
+            VerticalAlignment="Center"
+          />
+        </StackPanel>
+        <Border Classes="vsep" />
+        <Button x:Name="NewButton" Content="New" Command="{Binding NewCommand}" />
+        <Button x:Name="DuplicateButton" Content="Duplicate" Command="{Binding DuplicateCommand}" />
+        <Button x:Name="DeleteButton" Content="Delete" Command="{Binding DeleteCommand}" />
+        <Border Classes="vsep" />
+        <Button x:Name="ImportButton" Content="Import…" Command="{Binding ImportCommand}" />
+        <Button x:Name="SaveCopyButton" Content="Save copy…" Command="{Binding SaveCopyCommand}" />
+        <Border Classes="vsep" />
+        <Button x:Name="RefreshButton" Command="{Binding RefreshCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Viewbox Width="13" Height="13">
+              <Path Classes="icon" Data="{x:Static local:ScenarioEditorIcons.Refresh}" Stroke="{Binding $parent[Button].Foreground}" />
+            </Viewbox>
+            <TextBlock Text="Refresh" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="NoticesButton" IsVisible="{Binding HasNotices}" Foreground="#E0A33A" FontWeight="SemiBold">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Viewbox Width="13" Height="13">
+              <Path Classes="icon" Data="{x:Static local:ScenarioEditorIcons.Warning}" Stroke="{x:Static local:ScenarioEditorIcons.Amber}" />
+            </Viewbox>
+            <TextBlock Text="{Binding NoticeCount}" />
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedRight">
+              <StackPanel Width="290">
+                <TextBlock Text="{Binding NoticesHeaderText}" FontWeight="SemiBold" Margin="10,6" />
+                <Border Height="1" Background="#444444" />
+                <ScrollViewer MaxHeight="360">
+                  <ItemsControl x:Name="NoticesList" ItemsSource="{Binding Notices}" Margin="0,0,0,4">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="x:String">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" Margin="10,6">
+                          <Viewbox Width="14" Height="14" VerticalAlignment="Top" Margin="0,1,0,0">
+                            <Path
+                              Classes="icon"
+                              Data="{x:Static local:ScenarioEditorIcons.Warning}"
+                              Stroke="{x:Static local:ScenarioEditorIcons.Amber}"
+                            />
+                          </Viewbox>
+                          <TextBlock Grid.Column="1" Text="{Binding}" TextWrapping="Wrap" Foreground="#EEEEEE" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+      </StackPanel>
+    </Border>
+    <Border DockPanel.Dock="Bottom" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,1,0,0" Padding="10,4" MinHeight="24">
+      <Grid ColumnDefinitions="Auto,*">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <Viewbox Width="14" Height="14" IsVisible="{Binding IsStatusOffline}" VerticalAlignment="Center">
+            <Path Classes="icon" Data="{x:Static local:ScenarioEditorIcons.Warning}" Stroke="{x:Static local:ScenarioEditorIcons.Amber}" />
+          </Viewbox>
+          <TextBlock x:Name="StatusText" Classes="status" Classes.offline="{Binding IsStatusOffline}" Text="{Binding StatusText}" />
+        </StackPanel>
+        <ProgressBar
+          Grid.Column="1"
+          Margin="10,0,0,0"
+          Height="4"
+          MinHeight="4"
+          VerticalAlignment="Center"
+          IsVisible="{Binding IsResyncRunning}"
+          Maximum="{Binding ProgressTotal}"
+          Value="{Binding ProgressDone}"
+          IsIndeterminate="{Binding IsProgressIndeterminate}"
+        />
+      </Grid>
+    </Border>
+    <Grid ColumnDefinitions="300,4,*">
+      <local:ScenarioBrowserView x:Name="BrowserView" Grid.Column="0" />
+      <GridSplitter Grid.Column="1" Background="#1B1B1B" ResizeDirection="Columns" />
+      <Panel Grid.Column="2">
+        <TextBlock
+          Text="Open a scenario from the list to edit it."
+          IsVisible="{Binding HasArtcc}"
+          Foreground="#8A8A8A"
+          FontSize="13"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+        />
+        <TextBlock
+          Text="No ARTCC set."
+          IsVisible="{Binding !HasArtcc}"
+          Foreground="#8A8A8A"
+          FontSize="13"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+        />
+      </Panel>
+    </Grid>
+  </DockPanel>
+</Window>

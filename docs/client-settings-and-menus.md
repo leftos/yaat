@@ -72,6 +72,12 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **Preferences travel by allowlist.** Only Settings-section preference keys travel, each with a validation rule (`UserPreferences.Bundle.cs`, `BundledRules`); identity, servers, admin access and secrets never do, and a model source travels only without a local path. Every other key is listed in `UnbundledKeys` with its reason.
 
+## Tools menu: Scenario Editor
+
+**One window, no connection needed.** Tools › Scenario Editor… (`ScenarioEditorMenuItem`, no `IsEnabled` binding) opens `Views/Authoring/ScenarioEditorWindow` (geometry key `"ScenarioEditor"`). `MainWindow` keeps one instance, so a second click brings the open one forward, and closing it clears the reference.
+
+**The ARTCC list is what the signed-in user may edit.** `ArtccEditAccessSource` asks the hub while connected, else uses the list cached with the stored session, else the Settings ARTCC. The selector's last pick is `UserPreferences.ScenarioEditorLastArtcc` (`scenarioEditorLastArtcc`), separate from the Settings ARTCC and never carried in a settings bundle (it is in `UnbundledKeys` as session state).
+
 ## View menu and hotkeys
 
 **Three submenus.** View holds Windows (the pop-outs, _Radar among them, New ground window…, New Radar window…, Strips, vTDLS), Bars (Favorites bar, Favorites panel…, Notes…, Timeline bar) and Layout (the saved layouts, then Save current as layout…, From this scenario's views…, Manage layouts…, Reset aircraft list columns).

@@ -41,6 +41,10 @@ public partial class MainViewModel : ObservableObject
     private readonly UserPreferences _preferences = new();
     private readonly FavoriteStore _favoriteStore;
     private readonly VatsimAuthClient _auth = new();
+
+    /// <summary>Gets the VATSIM sign-in client: the stored sessions and what is cached with them.</summary>
+    public VatsimAuthClient Auth => _auth;
+
     private VatsimIdentity? _identity;
     internal string? CurrentCid => _identity?.Cid;
     private readonly CommandInputController _commandInput = new();

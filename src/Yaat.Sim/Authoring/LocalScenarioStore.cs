@@ -720,17 +720,20 @@ public sealed partial class LocalScenarioStore
 
     private static void LogArtccMismatch(string artccId, string id, JsonObject scenario)
     {
-        string? field = HasText(scenario, "artccId") ? TextOf(scenario, "artccId") : null;
-        if ((field is not null) && !string.Equals(field, artccId, StringComparison.OrdinalIgnoreCase) && Log.IsEnabled(LogLevel.Information))
+        if (NamesOtherArtcc(artccId, scenario) && Log.IsEnabled(LogLevel.Information))
         {
             Log.LogInformation(
                 "Scenario {Id} names ARTCC {Field} but was listed under {ArtccId}; it is kept in that ARTCC's folder",
                 id,
-                field,
+                TextOf(scenario, "artccId"),
                 artccId
             );
         }
     }
+
+    // Whether the scenario's own artccId names an ARTCC other than artccId (letter case ignored); false when it has none.
+    private static bool NamesOtherArtcc(string artccId, JsonObject scenario) =>
+        HasText(scenario, "artccId") && !string.Equals(TextOf(scenario, "artccId"), artccId, StringComparison.OrdinalIgnoreCase);
 
     private static ServerApplyResult Rejected(string reason) => new(ServerApplyOutcome.Rejected, reason, []);
 

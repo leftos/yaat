@@ -1383,6 +1383,9 @@ A published route's expanded length (departure airport, every fix, arrival airpo
 **Route source**:
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 
+**Server changed**:
+The marker (`ScenarioBadge.ServerChanged`) on a working copy whose origin server scenario has a newer version in the server mirror than the one the copy started from; the copy itself is never touched. Not the same as Modified (the copy's own content differs from its base) or Gone from server (the server no longer lists the origin).
+
 **Server mirror**:
 The on-disk copy of an ARTCC's scenarios exactly as vNAS last served them (`scenarios/{ARTCC}/server/{id}.json` under `YaatPaths`), rewritten by a download; the Load Scenario window lists it offline.
 

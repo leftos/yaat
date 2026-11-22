@@ -671,6 +671,9 @@ public sealed partial class UserPreferences
     public bool DataGridAlternatingRowColor => _data.DataGridAlternatingRowColor;
     public string? LastScenarioFolder => _data.LastScenarioFolder;
 
+    /// <summary>The ARTCC last picked in the Scenario Editor's selector; never the room ARTCC (<see cref="ArtccId"/>).</summary>
+    public string? ScenarioEditorLastArtcc => _data.ScenarioEditorLastArtcc;
+
     /// <summary>The position/airport the last live session was opened at; the picker pre-selects it.</summary>
     public LiveSessionChoice? LastLiveSession => _data.LastLiveSession;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
@@ -1267,6 +1270,14 @@ public sealed partial class UserPreferences
     public void SetLastScenarioFolder(string? folder)
     {
         _data.LastScenarioFolder = folder;
+        Save();
+    }
+
+    /// <summary>Remembers the ARTCC picked in the Scenario Editor's selector.</summary>
+    /// <param name="artccId">The ARTCC id, or null to forget it.</param>
+    public void SetScenarioEditorLastArtcc(string? artccId)
+    {
+        _data.ScenarioEditorLastArtcc = artccId;
         Save();
     }
 
@@ -2646,6 +2657,7 @@ public sealed partial class UserPreferences
             ShowTimelineBar = GetFieldOr(obj, "showTimelineBar", false),
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
+            ScenarioEditorLastArtcc = GetFieldOr<string?>(obj, "scenarioEditorLastArtcc", null),
             LastLiveSession = GetFieldOr<LiveSessionChoice?>(obj, "lastLiveSession", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
@@ -3074,6 +3086,7 @@ public sealed partial class UserPreferences
         public bool DataGridAlternatingRowColor { get; set; } = true;
         public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
+        public string? ScenarioEditorLastArtcc { get; set; }
         public LiveSessionChoice? LastLiveSession { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];

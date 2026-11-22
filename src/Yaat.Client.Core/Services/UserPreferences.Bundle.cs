@@ -190,6 +190,7 @@ public sealed partial class UserPreferences
         ["lastActiveRoomId"] = "session state",
         ["lastLiveSession"] = "session state",
         ["lastScenarioFolder"] = "a path on this machine",
+        ["scenarioEditorLastArtcc"] = "session state: the Scenario Editor's last ARTCC pick",
         ["lastWeatherFolder"] = "a path on this machine",
         ["crcAliasDirectory"] = "a path on this machine",
         ["recentScenarios"] = "recent files on this machine",

@@ -171,6 +171,16 @@ ViewModels/
   VfrArrivalGeneratorRowViewModel.cs # Per-row VM for the VFR-arrival tab: bearing arc/alt band/direct-to/initial V-S/Active
   OverflightGeneratorRowViewModel.cs # Per-row VM for the overflight tab: from/to arcs, exit distance, hemispheric snap, Active
   EnumEqualsConverter.cs        # Two-way radio-button binding to one enum value (checked while the value equals the parameter; unchecking writes nothing): the Settings > Speech Mode and Device radios
+  Authoring/ScenarioBrowserViewModel.cs # The Scenario Editor browser's state (partials .Commands, .Import, .Resync): the ARTCC selector (ids from IArtccAccessSource; the pick is remembered as UserPreferences.ScenarioEditorLastArtcc), the Local and Server tabs of ScenarioBrowserRowViewModel rows, the status line, and the commands New, Duplicate, Delete, Import, Save a Copy, Start Working Copy, Open (raises ScenarioOpenRequested) and Refresh; Test in Room is built in but stays off until a room loader is given (M1.8)
+  Authoring/ScenarioBrowserViewModel.Commands.cs # New (id from ScenarioIdGenerator), Duplicate, Delete (confirmed through IScenarioBrowserPrompts), Save a Copy (save picker), Start Working Copy from a server row, Open, Test in Room; each runs the LocalScenarioStore authoring operation off the UI thread and rebuilds the rows
+  Authoring/ScenarioBrowserViewModel.Import.cs # Import of scenario files: ImportScenario per file, the id-clash question (ImportConflictQuestion and ImportConflictAnswer, optionally applied to the remaining files), a rejected file reported by name, an ARTCC mismatch noted
+  Authoring/ScenarioBrowserViewModel.Resync.cs # The resync: the ARTCC's server scenarios downloaded through ScenarioDownloader off the UI thread with progress, then the rows rebuilt; Summarize makes the status line and notices in Load Scenario's wording; a resync that is no longer current (ARTCC changed, window closed) is dropped
+  Authoring/ScenarioBrowserRowViewModel.cs # One browser row (id, name, ScenarioRowKind, its ScenarioBadge list of Modified, ServerChanged, GoneFromServer, Corrupt and LocalOnly, problem text) plus ScenarioBrowserTab and ScenarioOpenRequestedEventArgs
+  Authoring/ScenarioBrowserRows.cs # Builds the rows and the problem list from LocalScenarioStore.Load off the UI thread (ScenarioBrowserSnapshot)
+  Authoring/ScenarioBrowserServices.cs # What the browser works through, as one record (preferences, store, ARTCC access, download, prompts, clock, random, UI-thread post, Test in Room gate and loader; tests swap each); ForApp builds the app's set
+  Authoring/IScenarioBrowserPrompts.cs # The browser's dialogs and pickers as an interface (delete confirm, import files, save path, import clash) so tests answer them; the ImportConflictQuestion and ImportConflictAnswer records
+  Authoring/IArtccAccessSource.cs # The ARTCC ids the signed-in user may edit, in listing order
+  Authoring/ArtccEditAccessSource.cs # IArtccAccessSource over ArtccEditAccess: asks the hub (ServerConnection.GetMyEditableArtccsAsync) while connected, else the list cached with the stored session, else the Settings ARTCC
   *Converter.cs                 # IValueConverters for UI bindings (Dock, Pause, SuggestionKindColor, SignatureHelp, RunwayDisplay, TypeMismatchBrush for the Aircraft List's Filed column)
 
 Views/
@@ -213,6 +223,12 @@ Views/
   WeatherTimelineEditorWindow.axaml.cs  # Timeline editor: period list (left) + WeatherEditorControl (right); v1/v2 auto-format on save
   ArrivalGeneratorsEditorWindow.axaml.cs # Live arrival-generator editor: row grid + Apply (push to sim) / Save As (new scenario JSON)
   ActiveRunwaysWindow.axaml(.cs) # Scenario › Active Runways…: one row per airport of the room's active runways, Apply (one ARWY per changed row, sent through the connection) / Close; a public parameterless ctor for the loader, geometry key "ActiveRunways"
+  Authoring/ScenarioEditorWindow.axaml(.cs) # Tools › Scenario Editor…: the non-modal window "Scenario Editor — {ARTCC}" (geometry key "ScenarioEditor") with the browser beside a content area and the status line and resync progress along the bottom; opening it reads the ARTCCs and starts the resync once, closing it cancels a running resync; MainWindow keeps one instance and a second menu click brings it forward
+  Authoring/ScenarioBrowserView.axaml(.cs) # The browser UserControl: ARTCC selector, Local and Server tabs, rows with name, id and badge icons, an empty state per list, the browser's commands on right-click
+  Authoring/ScenarioBrowserPrompts.cs # IScenarioBrowserPrompts over the window: message boxes, ImportConflictDialog and the file pickers
+  Authoring/ImportConflictDialog.axaml(.cs) # What to do with an imported file whose id is taken: new id, keep id (wording follows what holds the id) or skip, with "apply to the remaining files"; closing it answers Skip
+  Authoring/ScenarioBadgeLook.cs # A badge's icon, stroke, fill and tooltip
+  Authoring/ScenarioEditorIcons.cs # The editor's 16 x 16 icon geometries and colours
   SessionReportWindow.axaml.cs  # Live solo-training session report: score, coaching notes, separation timeline, approach/runway grids, per-aircraft debrief tab with "Show on Timeline" cross-link
   TimelineMarkerCanvas.cs       # Panel that arranges marker children along the rewind scrub slider by their attached Time against MaxTime; MainWindow's timeline bar uses it as the items panel for the bookmark row and the finding/command marker row, setting Time on each item container. TimelineMarkerVisuals holds the marker brushes.
   ManageLayoutsDialog.axaml(.cs)         # View → Layout → Manage layouts…: list saved layouts, apply, update from current, rename, delete
