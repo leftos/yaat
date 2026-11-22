@@ -4,8 +4,8 @@
 
 ## YAATEdit in YAAT
 
-### M1 Scenario editor (3/8 done)
-- [ ] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext
+### M1 Scenario editor (4/9 done)
+- [/] YAAT-2490 YAATEdit M1.4: General tab (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2493 YAATEdit M1.7: Parking picker (sub-issue of YAAT-1989) · release vNext
@@ -16,8 +16,7 @@
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (3/16 done)
-- [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) (sub-issue of YAAT-1989) · release vNext
+### M3 Routes, timing and metrics (4/16 done)
 - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext
@@ -42,7 +41,7 @@
 
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
-  - [ ] YAAT-2490 YAATEdit M1.4: General tab · release vNext
+  - [/] YAAT-2490 YAATEdit M1.4: General tab · release vNext
   - [ ] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext
   - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
   - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext
@@ -50,7 +49,6 @@
   - [ ] YAAT-2495 YAATEdit M2.1: Export JSON · release vNext
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
   - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
-  - [ ] YAAT-2500 YAATEdit M3.3: SWIM route history (yaat-server and yaat) · release vNext
   - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext
   - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
   - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext
@@ -1192,7 +1190,7 @@
 ### 1 Defects (6/23 done)
 - [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
   - [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
-    - [ ] YAAT-2700 Hold an uncleared VFR pattern or approach in front of its phase at the Class B boundary and resume it · release vNext
+    - [/] YAAT-2700 Hold an uncleared VFR pattern or approach in front of its phase at the Class B boundary and resume it · release vNext
     - [ ] YAAT-2701 Judge Class B entry along the pattern or approach path and release the hold when the path clears · release vNext
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext
@@ -1703,6 +1701,13 @@
 - [ ] YAAT-2598 Solo natural commands parse their canonical text with the user's renamed verbs
 - [ ] YAAT-2601 Read per-room ARTCC config from the room's pinned config in CRC broadcasts, ATPA, hubs and position lookups
 - [ ] YAAT-2602 Test the auto scratchpad projection and that broadcasts read the pinned ARTCC config, not the live cache
+- [ ] YAAT-2720 Pilot says "unable to make (fix) at (altitude)" when a late descent clearance cannot be met
+- [ ] YAAT-2721 HttpFileCache: validate a fetched body before it replaces the cached file
+- [ ] YAAT-2722 Holding pattern entry re-adds the clearance-limit fix, so a fix crossing is logged or not by tick phase
+- [ ] YAAT-2723 Descent planner: spend each slowdown allowance at its own ceiling, not at top of descent
+- [ ] YAAT-2724 Compound "cross X at Y, descend and maintain Z" should be pilot's discretion until X
+- [ ] YAAT-2725 A 360 or S-turn resume in the pattern re-voices the "turning {leg}" report
+- [ ] YAAT-2726 A 360 or S-turn in the pattern drops a controller altitude given on the leg
 
 ## Design files
 
@@ -1731,4 +1736,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2490, YAAT-2491, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2500, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2506, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2515, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2519, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2490, YAAT-2491, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2506, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2515, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2519, YAAT-2520, YAATEdit in YAAT
