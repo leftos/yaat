@@ -21,7 +21,8 @@ public sealed record ScenarioPickOption(string Value, string Label);
 /// <see cref="NameError"/>. The position and airport options come from one load of the ARTCC's config, off the UI thread
 /// through the services' post; when it cannot load, both fall back to free text with <see cref="ConfigProblem"/>. A value
 /// the document holds that no option lists is still offered, so it is never dropped. Holds the session, never the
-/// scenario: <see cref="Reload"/> re-reads every field after undo or redo replaced the document.
+/// scenario: <see cref="Reload"/> re-reads every field after undo or redo replaced the document. The ATC positions,
+/// initialization triggers and strip placements are row lists kept in the ScenarioGeneralViewModel.Lists.cs partial.
 /// </summary>
 public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDisposable
 {
@@ -127,6 +128,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         PrimaryAirportId = scenario.PrimaryAirportId ?? "";
         PrimaryApproach = scenario.PrimaryApproach ?? "";
         AutoDeleteMode = scenario.AutoDeleteMode ?? "";
+        RebuildRows();
         RebuildOptions();
     }
 
@@ -220,6 +222,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         RatingOptions = WithCurrent(BaseRatingOptions, MinimumRating, MinimumRating);
         AutoDeleteOptions = WithCurrent(BaseAutoDeleteOptions, AutoDeleteMode, AutoDeleteMode);
         AirportOptions = WithCurrentAirport(_configAirports, PrimaryAirportId);
+        RebuildRowOptions();
     }
 
     // The config's airports with the document's airport offered once, in the document's spelling: it takes the place of
@@ -235,11 +238,6 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
             ? [.. airports.Select(a => string.Equals(a, value, StringComparison.OrdinalIgnoreCase) ? value : a)]
             : [.. airports, value];
     }
-
-    private static IReadOnlyList<ScenarioPickOption> WithCurrent(IReadOnlyList<ScenarioPickOption> options, string value, string label) =>
-        ((value.Length == 0) || options.Any(o => string.Equals(o.Value, value, StringComparison.Ordinal)))
-            ? options
-            : [.. options, new ScenarioPickOption(value, label)];
 
     // One load of the ARTCC's config per open: its positions (with its neighbours') and its airports.
     private async Task LoadPickersAsync(string artccId, CancellationToken ct)
@@ -257,30 +255,30 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         catch (Exception ex)
         {
             LogFailure(ex, "loading the ARTCC config of " + artccId);
-            data = new PickerData(null, null, ex.Message);
+            data = new PickerData(null, null, null, ex.Message);
         }
 
         await PostAsync(() => ApplyPickers(data)).ConfigureAwait(false);
     }
 
-    // The catalog of the ARTCC and its neighbours, one option per position id, and the airports its config lists; no
-    // options and the load's problem when the ARTCC's own config cannot be read.
+    // The catalog of the ARTCC and its neighbours, one row per position id, and the airports and strip bays its own config
+    // lists; no options and the load's problem when the ARTCC's own config cannot be read.
     private static async Task<PickerData> ReadPickersAsync(ArtccConfigSource configs, string artccId, CancellationToken ct)
     {
         ArtccConfigLoad load = await configs.LoadAsync(artccId, ct).ConfigureAwait(false);
         if (load.Config is null)
         {
-            return new PickerData(null, null, load.Problem ?? $"the ARTCC config for {artccId} could not be read");
+            return new PickerData(null, null, null, load.Problem ?? $"the ARTCC config for {artccId} could not be read");
         }
 
         ArtccPositionCatalog catalog = await ArtccNeighbourLoader.LoadCatalogAsync(configs, load.Config, ct).ConfigureAwait(false);
-        List<ScenarioPickOption> options =
-        [
-            .. catalog
-                .Positions.DistinctBy(p => p.PositionId, StringComparer.Ordinal)
-                .Select(p => new ScenarioPickOption(p.PositionId, $"{p.Callsign} — {p.Name} ({p.FacilityId})")),
-        ];
-        return new PickerData(options, UnderlyingAirports(load.Config), JoinProblems(load.Problem, catalog.UnreadNeighbours));
+        List<ArtccPositionRow> positions = [.. catalog.Positions.DistinctBy(p => p.PositionId, StringComparer.Ordinal)];
+        return new PickerData(
+            positions,
+            UnderlyingAirports(load.Config),
+            StripBays(load.Config),
+            JoinProblems(load.Problem, catalog.UnreadNeighbours)
+        );
     }
 
     // The load's own problem and, when some neighbouring centers' configs could not be read, which ones; null for neither.
@@ -296,28 +294,34 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     private static List<string> UnderlyingAirports(ArtccConfigRoot config)
     {
         var airports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        CollectAirports(config.Facility, airports);
+        WalkFacilities(
+            config.Facility,
+            facility =>
+            {
+                foreach (string id in (facility.StarsConfiguration?.Areas ?? []).SelectMany(a => a.UnderlyingAirports))
+                {
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        airports.Add(id);
+                    }
+                }
+            }
+        );
         return [.. airports.Order()];
     }
 
-    private static void CollectAirports(FacilityConfig? facility, HashSet<string> airports)
+    // Visits a facility and then each child facility's tree, in the config's order.
+    private static void WalkFacilities(FacilityConfig? facility, Action<FacilityConfig> visit)
     {
         if (facility is null)
         {
             return;
         }
 
-        foreach (string id in (facility.StarsConfiguration?.Areas ?? []).SelectMany(a => a.UnderlyingAirports))
-        {
-            if (!string.IsNullOrWhiteSpace(id))
-            {
-                airports.Add(id);
-            }
-        }
-
+        visit(facility);
         foreach (FacilityConfig child in facility.ChildFacilities)
         {
-            CollectAirports(child, airports);
+            WalkFacilities(child, visit);
         }
     }
 
@@ -328,7 +332,10 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
             return;
         }
 
-        _catalogOptions = data.Positions ?? [];
+        IReadOnlyList<ArtccPositionRow> positions = data.Positions ?? [];
+        _catalogOptions = [.. positions.Select(p => new ScenarioPickOption(p.PositionId, $"{p.Callsign} — {p.Name} ({p.FacilityId})"))];
+        _catalogRows = positions.ToDictionary(p => p.PositionId, StringComparer.Ordinal);
+        _bayOptions = data.Bays ?? [];
         IsStudentPositionFreeText = data.Positions is null;
         IsPrimaryAirportFreeText = data.Airports is null;
         _configAirports = data.Airports ?? [];
@@ -364,5 +371,10 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     }
 
     // What one config load gives the pickers: null lists when the config could not be read, and the load's problem.
-    private sealed record PickerData(IReadOnlyList<ScenarioPickOption>? Positions, IReadOnlyList<string>? Airports, string? Problem);
+    private sealed record PickerData(
+        IReadOnlyList<ArtccPositionRow>? Positions,
+        IReadOnlyList<string>? Airports,
+        IReadOnlyList<ScenarioPickOption>? Bays,
+        string? Problem
+    );
 }

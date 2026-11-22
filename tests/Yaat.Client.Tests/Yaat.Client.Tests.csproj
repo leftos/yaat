@@ -68,6 +68,9 @@
          the underlying airports live weather is fetched for; a synthetic stub would not have
          caught the facility-tree nesting that broke it. -->
     <None Include="..\..\docs\vnas-artcc-config-examples\zoa.json" Link="TestData\zoa.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Real ZLA config and a real SFO scenario for the Scenario Editor's General tab tests (neighbour positions, null lists). -->
+    <None Include="..\Yaat.Sim.Tests\TestData\artcc-zla-snapshot.json" Link="TestData\artcc-zla-snapshot.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Yaat.Sim.Tests\TestData\sfo-gc-scenario.json" Link="TestData\sfo-gc-scenario.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- A user's real favorites-library export attached to GitHub issue #437 (import "does nothing"). -->
     <None Include="TestData\favorites\*.zip" CopyToOutputDirectory="PreserveNewest" />
     <!-- Text-only speech regression corpus promoted from opted-in user telemetry by
