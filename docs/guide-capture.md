@@ -52,6 +52,8 @@ A menu entry appears only in the state that offers it, so a scene's staging is d
 4. **What must not be sent.** A command that changes the state the entry depends on hides it: an approach or descent clearance hides Cleared approach (`QuickCommandResolver.cs:45-47`), so never send `CAPP` to stage that shot.
 5. **Where it sits on the Radar.** The aircraft must be inside the Radar canvas's drawn area, which sits under a toolbar beside a dock and scales with the range (`ScopeViewModel.RangeNm`), so it has no fixed NM box: `ScopeScreenPicks` throws, listing each drawn track's position, when none is drawn in the region, and an aircraft outside the canvas has its menu clamp into a corner. The menu opens to the right of and below the target, so a target left of centre keeps its symbol and data block clear of it. An `@fix` or bearing spawn heads straight at the airport.
 
+The Radar's `RangeNm` spans the canvas's longer side. The main window's Scope canvas is wide and short, so its vertical span is a fraction of the range: frame a pair by its on-screen extent on both axes, as `ScopeScreenPicks.FramedEramStarsPair` does, never by its distance.
+
 Run captures one at a time (two GuideCapture builds collide on file locks), each once: a failed check or a wrong picture means the staging is wrong, which is fixed at step 1–5, not by trying placements.
 
 ### Recipes
@@ -79,6 +81,7 @@ Approach rows read "short" when the runway is under 1.15 × the type's landing d
 - `SceneActions.OpenStripFlyoutAsync(window, menu, entryId, …)` does that for the strip icon of a `MenuIds` entry and returns the flyout's `MenuFlyoutPresenter` once its rows are laid out; a flyout that refills while open (Push back to…) is then waited on for its settled rows, as `Scenes/WhatsNewPushBackScene.cs` does.
 - `SceneActions.PlaceInGroundView(window, vm, position, x, y)` moves the zoomed ground view so a point sits at fractions of its width and height, near the upper left to leave a menu and its flyouts room to the right.
 - **A Radar range/bearing shot needs two aircraft** to latch the line to; `Scenes/WhatsNewRblLabelScene.cs` picks the pair through `ScopeScreenPicks`.
+- **`ScopeScreenPicks`' drawn list includes off-canvas tracks:** a pick that selects from what is already on screen filters to the canvas, and a pick that re-centres on its result asserts the result is on the canvas afterwards.
 - Menu-bar menus, submenus and button flyouts: `SceneActions.OpenMenuAsync`, `OpenSubmenuAsync`, `OpenButtonFlyoutAsync`. A control's `ContextMenu` in a host window: `Scenes/TerminalRewindMenuScene.cs`.
 - An aircraft whose strip has no icon for an entry opens it through All Commands: `SceneActions.OpenAllCommandsEntryAsync(window, menu, label, timeout)` opens All Commands and each submenu down to the entry headed `label` (through `OpenSubmenuAsync`) and returns that entry, as `Scenes/WhatsNewTaxiToRunwayTabsScene.cs` does.
 
