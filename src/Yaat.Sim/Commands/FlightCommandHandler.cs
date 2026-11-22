@@ -2202,9 +2202,10 @@ internal static class FlightCommandHandler
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             string names = FixListSpaced(cmd.Fixes);
+            string route = NavigationRouteSuffix(aircraft);
             return resolved.Count > originalCount
-                ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
-                : CommandDispatcher.Ok($"Proceed direct {names}");
+                ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route{route}")
+                : CommandDispatcher.Ok($"Proceed direct {names}{route}");
         }
         else
         {
@@ -2213,11 +2214,16 @@ internal static class FlightCommandHandler
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             string appended = FixListSpaced(cmd.Fixes);
+            string route = NavigationRouteSuffix(aircraft);
             return resolved.Count > originalCount
-                ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
-                : CommandDispatcher.Ok($"Then direct {appended}");
+                ? CommandDispatcher.Ok($"Then direct {appended}, then filed route{route}")
+                : CommandDispatcher.Ok($"Then direct {appended}{route}");
         }
     }
+
+    /// <summary>"; route A B C": every fix of the navigation route after an append, in order, for the ADCT/ADCTF response.</summary>
+    private static string NavigationRouteSuffix(AircraftState aircraft) =>
+        $"; route {string.Join(" ", aircraft.Targets.NavigationRoute.Select(t => t.Name))}";
 
     internal static CommandResult ApplyAppendForceDirectTo(AppendForceDirectToCommand cmd, AircraftState aircraft)
     {
@@ -2234,9 +2240,10 @@ internal static class FlightCommandHandler
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             string names = FixListSpaced(cmd.Fixes);
+            string route = NavigationRouteSuffix(aircraft);
             return resolved.Count > originalCount
-                ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route")
-                : CommandDispatcher.Ok($"Proceed direct {names}");
+                ? CommandDispatcher.Ok($"Proceed direct {names}, then filed route{route}")
+                : CommandDispatcher.Ok($"Proceed direct {names}{route}");
         }
         else
         {
@@ -2245,9 +2252,10 @@ internal static class FlightCommandHandler
                 aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = fix.Name, Position = new LatLon(fix.Lat, fix.Lon) });
             }
             string appended = FixListSpaced(cmd.Fixes);
+            string route = NavigationRouteSuffix(aircraft);
             return resolved.Count > originalCount
-                ? CommandDispatcher.Ok($"Then direct {appended}, then filed route")
-                : CommandDispatcher.Ok($"Then direct {appended}");
+                ? CommandDispatcher.Ok($"Then direct {appended}, then filed route{route}")
+                : CommandDispatcher.Ok($"Then direct {appended}{route}");
         }
     }
 

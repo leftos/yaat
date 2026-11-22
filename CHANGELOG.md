@@ -13,6 +13,7 @@
 
 - Aircraft taxiing, rolling out, exiting a runway or lining up now ease their nose into and out of turns, and turn more gently at high speed.
 - Radar: on the Mixed template, tracks nobody owns draw as STARS tracks up to 120 NM range and as ERAM tracks beyond.
+- `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
 
