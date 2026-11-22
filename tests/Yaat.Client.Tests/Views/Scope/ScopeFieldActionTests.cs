@@ -127,7 +127,7 @@ public class ScopeFieldActionTests
 
         IReadOnlyList<FieldRect> fields = Assert.Single(frame.Tracks).Block.Fields;
         Assert.Equal(expectedNote, Assert.Single(fields, f => f.Slot == ScopeFieldSlot.InstructorNote).Action);
-        string kind = ScopeOwnerKind.TemplateIdFor(ac);
+        string kind = ScopeOwnerKind.TemplateIdFor(ac, ScopeTemplates.EramId);
         Assert.All(fields, f => Assert.Equal(TrackPresenter.ActionFor(kind, f.Slot, starsFieldMenus: true), f.Action));
     }
 

@@ -87,6 +87,15 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         defaultValue: ScopeProfile.OthersFull
     );
 
+    /// <summary>
+    /// The zoom band's template for tracks nobody owns under the Mixed template (<see cref="ScopeTemplates.StarsId"/> or
+    /// <see cref="ScopeTemplates.EramId"/>); read in <see cref="BuildFrame"/>, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<string> UnownedTemplateIdProperty = AvaloniaProperty.Register<ScopeCanvas, string>(
+        nameof(UnownedTemplateId),
+        defaultValue: ScopeTemplates.EramId
+    );
+
     /// <summary>The vector length in effect, in minutes; read in <see cref="BuildFrame"/>, never on the render thread.</summary>
     public static readonly StyledProperty<double> VectorMinutesProperty = AvaloniaProperty.Register<ScopeCanvas, double>(nameof(VectorMinutes));
 
@@ -297,6 +306,12 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(OthersLevelProperty);
         set => SetValue(OthersLevelProperty, value);
+    }
+
+    public string UnownedTemplateId
+    {
+        get => GetValue(UnownedTemplateIdProperty);
+        set => SetValue(UnownedTemplateIdProperty, value);
     }
 
     public double VectorMinutes
@@ -715,6 +730,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
             || (change.Property == TemplateIdProperty)
             || (change.Property == ViewerProperty)
             || (change.Property == OthersLevelProperty)
+            || (change.Property == UnownedTemplateIdProperty)
             || IsLayerProperty(change.Property)
         )
         {
@@ -1139,7 +1155,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     private static bool IsEramCallsignOf(ScopeFrame frame, AircraftModel selected, float x, float y) =>
         (frame.FieldAt(x, y) is { Field.Slot: ScopeFieldSlot.Callsign } field)
         && ReferenceEquals(field.Aircraft, selected)
-        && (ScopeOwnerKind.Resolve(frame.TemplateId, selected) == ScopeTemplates.EramId);
+        && (frame.TemplateIdOf(selected) == ScopeTemplates.EramId);
 
     /// <summary>
     /// Dwells the track under the pointer at once, as CRC does, previews the VCI whose cell it is on, or shows the pending lines
@@ -1238,7 +1254,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     HiddenCallsigns: DataBlockState?.HiddenCallsigns,
                     SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false,
                     EramConflicts: EramConflicts,
-                    EramMetrics: eramMetrics
+                    EramMetrics: eramMetrics,
+                    UnownedTemplateId: UnownedTemplateId
                 ),
                 stepDeconfliction
             )

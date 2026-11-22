@@ -2,9 +2,9 @@
   "name": "stars",
   "kind": "stars",
   "bands": [
-    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring" },
-    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" },
-    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" }
+    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" }
   ],
   "template": "stars",
   "toolbar": [

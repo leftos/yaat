@@ -10,8 +10,8 @@ namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
 /// The Mixed template: a routing id that draws each track in its owner's display kind (an ERAM sector's track the ERAM block,
-/// a STARS position's track the STARS block, an unowned track or one with no sector code the ERAM block), resolved per track
-/// when the frame is built; it has no layout of its own.
+/// a STARS position's track the STARS block, an owner with no sector code the ERAM block, and an unowned track the zoom
+/// band's unowned template), resolved per track when the frame is built; it has no layout of its own.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeMixedTemplateTests
@@ -26,11 +26,14 @@ public class ScopeMixedTemplateTests
         ac.Owner = "OWNER";
         ac.OwnerSectorCode = sectorCode;
 
-        Assert.Equal(expected, ScopeOwnerKind.TemplateIdFor(ac));
+        Assert.Equal(expected, ScopeOwnerKind.TemplateIdFor(ac, ScopeTemplates.StarsId));
     }
 
-    [Fact]
-    public void OwnerKind_Unowned_IsEram() => Assert.Equal(ScopeTemplates.EramId, ScopeOwnerKind.TemplateIdFor(ScopeTestAircraft.CreateModel()));
+    [Theory]
+    [InlineData(ScopeTemplates.StarsId)]
+    [InlineData(ScopeTemplates.EramId)]
+    public void OwnerKind_Unowned_IsTheUnownedTemplate(string unownedTemplateId) =>
+        Assert.Equal(unownedTemplateId, ScopeOwnerKind.TemplateIdFor(ScopeTestAircraft.CreateModel(), unownedTemplateId));
 
     [Fact]
     public void OwnerKind_OwnerWithNoSectorCode_IsEram()
@@ -39,7 +42,7 @@ public class ScopeMixedTemplateTests
         ac.Owner = "?";
         ac.OwnerSectorCode = null;
 
-        Assert.Equal(ScopeTemplates.EramId, ScopeOwnerKind.TemplateIdFor(ac));
+        Assert.Equal(ScopeTemplates.EramId, ScopeOwnerKind.TemplateIdFor(ac, ScopeTemplates.StarsId));
     }
 
     [Theory]
@@ -51,7 +54,7 @@ public class ScopeMixedTemplateTests
         AircraftModel ac = ScopeTestAircraft.CreateModel();
         ac.OwnerSectorCode = "1A";
 
-        Assert.Equal(templateId, ScopeOwnerKind.Resolve(templateId, ac));
+        Assert.Equal(templateId, ScopeOwnerKind.Resolve(templateId, ac, ScopeTemplates.StarsId));
     }
 
     [Fact]
@@ -64,7 +67,12 @@ public class ScopeMixedTemplateTests
     }
 
     [Fact]
-    public void MixedFrame_LaysEachTrackOutAsItsOwnersTemplate()
+    public void MixedFrame_LaysEachTrackOutAsItsOwnersTemplate() => AssertMixedFrame(ScopeTemplates.StarsId);
+
+    [Fact]
+    public void MixedFrame_LaysEachTrackOutAsItsOwnersTemplate_AndAnUnownedTrackAsEram() => AssertMixedFrame(ScopeTemplates.EramId);
+
+    private static void AssertMixedFrame(string unownedTemplateId)
     {
         AircraftModel eram = ScopeTestAircraft.CreateModel();
         eram.Owner = "OAK_44_CTR";
@@ -79,26 +87,27 @@ public class ScopeMixedTemplateTests
         unowned.Position = new LatLon(36.95, -122.05);
 
         using var pin = MapBlinkPin.Phase(true);
-        ScopeFrame mixed = Build(ScopeTemplates.MixedId, eram, stars, unowned);
+        ScopeFrame mixed = Build(ScopeTemplates.MixedId, unownedTemplateId, eram, stars, unowned);
 
         Assert.Equal(ScopeTemplates.MixedId, mixed.TemplateId);
+        Assert.Equal(unownedTemplateId, mixed.UnownedTemplateId);
         AssertLaidOutAs(mixed, eram, ScopeTemplates.EramId);
         AssertLaidOutAs(mixed, stars, ScopeTemplates.StarsId);
-        AssertLaidOutAs(mixed, unowned, ScopeTemplates.EramId);
+        AssertLaidOutAs(mixed, unowned, unownedTemplateId);
     }
 
     private static void AssertLaidOutAs(ScopeFrame mixed, AircraftModel ac, string templateId)
     {
-        Assert.Equal(templateId, ScopeOwnerKind.Resolve(ScopeTemplates.MixedId, ac));
+        Assert.Equal(templateId, mixed.TemplateIdOf(ac));
         ScopeTrack track = Assert.Single(mixed.Tracks, t => ReferenceEquals(t.Aircraft, ac));
-        ScopeTrack direct = Assert.Single(Build(templateId, ac).Tracks);
+        ScopeTrack direct = Assert.Single(Build(templateId, ScopeTemplates.EramId, ac).Tracks);
         Assert.Equal(direct.Block.Fields, track.Block.Fields);
         Assert.Equal(direct.Block.Bounds, track.Block.Bounds);
         Assert.Equal(direct.Block.TextBounds, track.Block.TextBounds);
         Assert.Equal(direct.ShowsLeader, track.ShowsLeader);
     }
 
-    private static ScopeFrame Build(string templateId, params AircraftModel[] aircraft)
+    private static ScopeFrame Build(string templateId, string unownedTemplateId, params AircraftModel[] aircraft)
     {
         using var font = new SKFont { Size = 12f };
         using var paint = new SKPaint();
@@ -124,7 +133,8 @@ public class ScopeMixedTemplateTests
             VectorOwnership: ScopeVectorOwnership.Own,
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
-            IntentPaths: new ScopeIntentPathCache()
+            IntentPaths: new ScopeIntentPathCache(),
+            UnownedTemplateId: unownedTemplateId
         );
         return ScopeFrame.Build(input);
     }

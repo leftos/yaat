@@ -662,6 +662,59 @@ public class ScopeEntryTests
     }
 
     [AvaloniaFact]
+    public async Task OnTheMixedTemplate_AnUnownedTrack_ReadsStarsAt40Nm_AndEramAt200Nm()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Mixed);
+        try
+        {
+            TypeOnAnUnownedTrackOnTheMixedTemplateAt40Nm(main, scope, view, window);
+
+            scope.RangeNm = 200;
+            Settle(window);
+            Assert.Equal(ScopeEntryKind.Eram, scope.EntryReading.Kind);
+            Assert.StartsWith("ERAM QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnTheMixedTemplate_AnUnownedTracksPreview_FollowsASwitchToTheStarsTemplate()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Mixed);
+        try
+        {
+            TypeOnAnUnownedTrackOnTheMixedTemplateAt40Nm(main, scope, view, window);
+
+            // Off the Mixed template an unowned track reads in the ERAM dialect, as it always has.
+            scope.PickTemplateCommand.Execute(ScopeTemplates.StarsId);
+            Settle(window);
+            Assert.Equal(ScopeEntryKind.Eram, scope.EntryReading.Kind);
+            Assert.StartsWith("ERAM QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // At 40 NM the Mixed template draws an unowned track as STARS, and QQ is no STARS entry: it reads as nothing, with no label.
+    private static void TypeOnAnUnownedTrackOnTheMixedTemplateAt40Nm(MainViewModel main, ScopeViewModel scope, ScopeView view, Window window)
+    {
+        scope.RangeNm = 40;
+        scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
+        Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
+        AircraftModel unowned = AddAircraft(main, "SKW5410", 5000);
+        FocusCanvas(window, view);
+        main.SelectedAircraft = unowned;
+        Type(window, "QQ 250");
+        Assert.Equal(ScopeEntryKind.None, scope.EntryReading.Kind);
+        Assert.Equal("QQ 250_", Lines(view.EntryLayer.EramPreview)[0]);
+    }
+
+    [AvaloniaFact]
     public async Task OnMixed_TheSelectedTracksOwner_DecidesTheDialect_AndTheLabelFollowsTheSelection()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Mixed);
@@ -676,6 +729,7 @@ public class ScopeEntryTests
             AircraftModel stars = AddAircraft(main, "UAL238", 5000);
             stars.OwnerSectorCode = "1A";
             AircraftModel eram = AddAircraft(main, "AAL1", 5000);
+            eram.Owner = "OAK_36_CTR";
             eram.OwnerSectorCode = "C36";
             main.SelectedAircraft = stars;
             FocusCanvas(window, view);

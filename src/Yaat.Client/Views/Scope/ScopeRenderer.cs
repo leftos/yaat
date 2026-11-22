@@ -99,6 +99,10 @@ namespace Yaat.Client.Views.Scope;
 /// The room's ERAM conflict pairs (<c>MainViewModel.EramConflictAlerts</c>), copied on the UI thread; null is none. A member
 /// <see cref="ScopeEramConflictGate"/> shows the viewer flashes its block when drawn with the ERAM template.
 /// </param>
+/// <param name="UnownedTemplateId">
+/// The template a track nobody owns draws with under <see cref="ScopeTemplates.MixedId"/> (the zoom band's
+/// <see cref="Profiles.ScopeZoomBand.Unowned"/>): <see cref="ScopeTemplates.StarsId"/> or <see cref="ScopeTemplates.EramId"/>.
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -132,7 +136,8 @@ public sealed record ScopeFrameInput(
     bool SyncLeaderDirection = false,
     IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null,
     IReadOnlyList<ConflictAlertDto>? EramConflicts = null,
-    ScopeTextMetrics? EramMetrics = null
+    ScopeTextMetrics? EramMetrics = null,
+    string UnownedTemplateId = ScopeTemplates.EramId
 )
 {
     /// <summary>
@@ -302,6 +307,15 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     private const int MvaAtBandFt = 100;
 
     /// <summary>
+    /// The template a track nobody owns draws with under <see cref="ScopeTemplates.MixedId"/>
+    /// (<see cref="ScopeFrameInput.UnownedTemplateId"/>).
+    /// </summary>
+    public string UnownedTemplateId { get; init; } = ScopeTemplates.EramId;
+
+    /// <summary>The template <paramref name="ac"/> draws with in this frame (<see cref="ScopeOwnerKind.Resolve"/>).</summary>
+    public string TemplateIdOf(AircraftModel ac) => ScopeOwnerKind.Resolve(TemplateId, ac, UnownedTemplateId);
+
+    /// <summary>
     /// Lays every track out for this frame, reading the blink phase from <see cref="MapBlink"/> once so the whole frame
     /// shares one phase. Each block sits where <see cref="PlaceBlock"/> puts it; dwelled tracks come last, so they draw on top
     /// and hit-test first: the dwell-locked ones, then the hovered one.
@@ -338,7 +352,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         tracks.AddRange(locked);
         tracks.AddRange(hovered);
         input.IntentPaths.Sweep();
-        return new ScopeFrame(input.TemplateId, tracks);
+        return new ScopeFrame(input.TemplateId, tracks) { UnownedTemplateId = input.UnownedTemplateId };
     }
 
     /// <summary>
@@ -449,7 +463,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     )
     {
         bool isSelected = ReferenceEquals(ac, input.Selected);
-        string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac);
+        string templateId = ScopeOwnerKind.Resolve(input.TemplateId, ac, input.UnownedTemplateId);
         AircraftModel? atpaLead = Peer(byCallsign, ac.AtpaLeadCallsign);
         bool hidden = IsBlockHidden(input, ac, isSelected);
         bool locked = IsDwellLockedTrack(ac, templateId, input);

@@ -875,7 +875,7 @@ The words the Preview area shows before the entry to say how it will be read (`$
 ERAM's boxed text entry area at the bottom left of the display; in Radar on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
 
 **Mixed (Radar template)**:
-The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an unowned track or an owner with no sector code the ERAM block; a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
+The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an owner with no sector code the ERAM block, an unowned track the look its zoom band's `unowned` field names (STARS up to 120 NM, ERAM beyond, as shipped); a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **Monitor cones (Radar)**:
 The DB menu's MONITOR CONES toggle (`.scope db monitorcones`): whether an ATPA pair in the Monitor state draws its cone on the Scope; on at open. The Warning and Alert states have their own toggle, **Alert cones**.
@@ -962,7 +962,7 @@ The position the Scope is viewed from: the instructor's active position (the sce
 The fixed-width right-hand column of the Scope under the toolbar that holds its docked views and hides when none is docked: today the SSA and the LA/CA/MCI list, each a card opened and closed by the VIEWS tray or `.view`, and floating off the dock when torn off (`Views/Scope/Dock/`); the Tab list is planned (docs/plans/yaat-scope/README.md).
 
 **Zoom band**:
-A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; the Scope's band is the first whose `maxNm` is null or at least the range (inclusive). A manual change pins the value until AUTO.
+A range interval in a profile (e.g. up to 30 NM, 30–120 NM, beyond) that sets defaults such as other controllers' block level, vector length and history count; the Scope's band is the first whose `maxNm` is null or at least the range (inclusive); its `unowned` (`stars` or `eram`) is the look an unowned track draws in on the Mixed template. A manual change pins the value until AUTO.
 
 **Swept position**:
 An aircraft's ERAM position as of its last 12 s sweep (`EramSweptPosition` in yaat-server's `AircraftChangeTracker`): what CRC's ERAM display shows, and where a coverage coast and a QT without a location start from, rather than the live position.

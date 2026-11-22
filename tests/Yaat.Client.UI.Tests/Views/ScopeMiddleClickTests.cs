@@ -165,6 +165,7 @@ public class ScopeMiddleClickTests
                 eramSends.Add(dto);
                 return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
             };
+            eram.Owner = "OAK_36_CTR";
             eram.OwnerSectorCode = "C36";
             AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f, 300f);
             stars.OwnerSectorCode = "1A";
@@ -197,6 +198,7 @@ public class ScopeMiddleClickTests
                 eramSends.Add(dto);
                 return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
             };
+            eram.Owner = "OAK_36_CTR";
             eram.OwnerSectorCode = "C36";
             AircraftModel stars = AddAt(scope.Main, view.Canvas, "AAL1", 600f, 300f);
             stars.OwnerSectorCode = "1A";
@@ -229,6 +231,35 @@ public class ScopeMiddleClickTests
                 return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
             };
             stars.OwnerSectorCode = "1A";
+            Dispatcher.UIThread.RunJobs();
+
+            ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");
+
+            Assert.Contains("UAL238", scope.DataBlockState.HighlightedCallsigns);
+            Assert.Equal("QQ 250", scope.EntryText);
+            Assert.Empty(eramSends);
+            Assert.Null(scope.LastSentEntryText);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnMixed_AMiddleClickOnAnUnownedTrackAt40Nm_TogglesItsHighlight_AndSendsNothing()
+    {
+        (ScopeViewModel scope, ScopeView view, Window window, _) = await ShowAsync(ScopeTemplates.MixedId, "QQ 250");
+        try
+        {
+            var eramSends = new List<ScopeEramEntryDto>();
+            scope.EramEntrySender = dto =>
+            {
+                eramSends.Add(dto);
+                return Task.FromResult(new ScopeEramEntryResultDto(true, ["ACCEPT"], null));
+            };
+            // Up to 120 NM Mixed draws an unowned track as STARS.
+            scope.RangeNm = 40;
             Dispatcher.UIThread.RunJobs();
 
             ClickField(window, view.Canvas, ScopeFieldSlot.Callsign, MouseButton.Middle, "UAL238");

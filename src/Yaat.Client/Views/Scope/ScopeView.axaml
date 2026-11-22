@@ -25,6 +25,7 @@
       Brightness="{Binding Brightness}"
       DbSettings="{Binding DbSettings}"
       OthersLevel="{Binding EffectiveBand.OthersLevel}"
+      UnownedTemplateId="{Binding EffectiveBand.Unowned}"
       VectorMinutes="{Binding EffectiveBand.VectorMin}"
       VectorOwnership="{Binding VectorOwnership}"
       HistoryCount="{Binding EffectiveBand.History}"

@@ -454,7 +454,7 @@ public partial class ScopeView : UserControl
     private void OpenFieldMenu(ScopeViewModel vm, AircraftModel ac, ScopeFieldAction action, Point pos)
     {
         _fieldMenuShift = false;
-        string kind = ScopeOwnerKind.Resolve(vm.TemplateId, ac);
+        string kind = vm.TrackTemplateId(ac);
         if ((kind == ScopeTemplates.EuroScopeId) && OpenEuroScopeFlyout(vm, ac, action, pos))
         {
             return;
@@ -917,7 +917,7 @@ public partial class ScopeView : UserControl
             return;
         }
 
-        switch (ScopeMiddleClick.OnTrack(vm.TemplateId, ac, hit, vm.EntryText.Length > 0, vm.IsRingToolArmed))
+        switch (ScopeMiddleClick.OnTrack(vm.TrackTemplateId(ac), hit, vm.EntryText.Length > 0, vm.IsRingToolArmed))
         {
             case ScopeMiddleClickAction.ToggleHighlight:
                 vm.ToggleHighlight(callsign);

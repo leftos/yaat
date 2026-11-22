@@ -51,6 +51,8 @@ public partial class ScopeEntryLayer : UserControl
                 or nameof(ScopeViewModel.ProfileKind)
                 or nameof(ScopeViewModel.SelectedAircraft)
                 or nameof(ScopeViewModel.Brightness)
+                or nameof(ScopeViewModel.EffectiveBand)
+                or nameof(ScopeViewModel.TemplateId)
         )
         {
             Refresh();

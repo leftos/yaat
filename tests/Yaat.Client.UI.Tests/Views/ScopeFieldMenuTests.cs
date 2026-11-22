@@ -2682,12 +2682,43 @@ public partial class ScopeFieldMenuTests
     [AvaloniaFact]
     public async Task MixedAltitudeClick_OnAnUnownedTrack_OpensTheEramPopup_NotTheEuroScopeFlyout()
     {
-        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(ScopeTemplates.MixedId, ScopeFieldSlot.EramAltitude, _ => { }, _ => { });
+        // Beyond 120 NM, the band where Mixed draws an unowned track as ERAM.
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.MixedId,
+            ScopeFieldSlot.EramAltitude,
+            _ => { },
+            scope => scope.RangeNm = 200
+        );
         try
         {
             Assert.IsType<ScopeDataAltitudePopup>(view.ActiveFieldPopup);
             Assert.Null(view.ActiveContextMenu);
             Assert.Null(view.ActiveEntryPopup);
+        }
+        finally
+        {
+            CloseWindow(window, view);
+        }
+    }
+
+    /// <summary>Up to 120 NM Mixed draws an unowned track as STARS, so its altitude click opens the STARS menu.</summary>
+    [AvaloniaFact]
+    public async Task MixedAltitudeClick_OnAnUnownedTrackAt40Nm_OpensTheStarsMenu()
+    {
+        (_, _, ScopeView view, Window window, _) = await ClickFieldAsync(
+            ScopeTemplates.MixedId,
+            ScopeFieldSlot.Altitude,
+            _ => { },
+            scope =>
+            {
+                scope.RangeNm = 40;
+                StarsMenusSideBySide(scope);
+            }
+        );
+        try
+        {
+            Assert.Equal(MenuCatalog.Get(MenuIds.AltitudeMaintain).Label, OpenEntry(view).Header);
+            Assert.Null(view.ActiveFieldPopup);
         }
         finally
         {

@@ -1,13 +1,14 @@
 using System.Text.Json;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// The Scope profiles: the kind test that picks one from the viewer's position, the three shipped profile files, and the
-/// passthrough of a field this build does not know.
+/// The Scope profiles: the kind test that picks one from the viewer's position, the three shipped profile files and the
+/// template each of their bands draws an unowned track with, and the passthrough of a field this build does not know.
 /// </summary>
 public class ScopeProfileTests
 {
@@ -69,9 +70,9 @@ public class ScopeProfileTests
         Assert.Equal("mixed", mixed.Template);
         Assert.Equal(
             [
-                new ScopeZoomBand(30, "full", 0, 5, "jring"),
-                new ScopeZoomBand(120, "partial", 1, 5, "jring"),
-                new ScopeZoomBand(null, "partial", 4, 3, "dri"),
+                new ScopeZoomBand(30, "full", 0, 5, "jring", ScopeTemplates.StarsId),
+                new ScopeZoomBand(120, "partial", 1, 5, "jring", ScopeTemplates.StarsId),
+                new ScopeZoomBand(null, "partial", 4, 3, "dri", ScopeTemplates.EramId),
             ],
             mixed.Bands
         );
@@ -87,9 +88,9 @@ public class ScopeProfileTests
         Assert.Equal(("stars", "stars", "stars"), (stars.Name, stars.Kind, stars.Template));
         Assert.Equal(
             [
-                new ScopeZoomBand(30, "full", 0, 5, "jring"),
-                new ScopeZoomBand(120, "partial", 1, 5, "jring"),
-                new ScopeZoomBand(null, "partial", 1, 5, "jring"),
+                new ScopeZoomBand(30, "full", 0, 5, "jring", ScopeTemplates.StarsId),
+                new ScopeZoomBand(120, "partial", 1, 5, "jring", ScopeTemplates.StarsId),
+                new ScopeZoomBand(null, "partial", 1, 5, "jring", ScopeTemplates.StarsId),
             ],
             stars.Bands
         );
@@ -103,10 +104,22 @@ public class ScopeProfileTests
         ScopeProfile eram = ScopeProfileStore.Shipped(ScopeProfileKind.Eram);
 
         Assert.Equal(("eram", "eram", "eram"), (eram.Name, eram.Kind, eram.Template));
-        Assert.Equal([new ScopeZoomBand(null, "partial", 1, 5, "dri")], eram.Bands);
+        Assert.Equal([new ScopeZoomBand(null, "partial", 1, 5, "dri", ScopeTemplates.EramId)], eram.Bands);
         Assert.Equal(ShippedToolbar, eram.Toolbar);
         Assert.Equal(["ssa", "ca"], eram.Views);
     }
+
+    [Theory]
+    [InlineData(ScopeProfileKind.Mixed, 30, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Mixed, 120, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Mixed, 121, ScopeTemplates.EramId)]
+    [InlineData(ScopeProfileKind.Stars, 30, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Stars, 120, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Stars, 121, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Eram, 30, ScopeTemplates.EramId)]
+    [InlineData(ScopeProfileKind.Eram, 121, ScopeTemplates.EramId)]
+    public void ShippedBands_DrawUnownedTracks_StarsUpTo120Nm_OnMixed(ScopeProfileKind kind, double rangeNm, string expected) =>
+        Assert.Equal(expected, ScopeZoomBands.Resolve(ScopeProfileStore.Shipped(kind).Bands, rangeNm).Unowned);
 
     [Fact]
     public void UnknownField_RoundTripsThroughExtra()
@@ -115,7 +128,7 @@ public class ScopeProfileTests
             {
               "name": "mixed",
               "kind": "mixed",
-              "bands": [{ "maxNm": null, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring" }],
+              "bands": [{ "maxNm": null, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring", "unowned": "eram" }],
               "template": "mixed",
               "toolbar": [],
               "views": [],

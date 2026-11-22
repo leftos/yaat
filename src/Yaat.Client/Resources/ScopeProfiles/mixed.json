@@ -2,9 +2,9 @@
   "name": "mixed",
   "kind": "mixed",
   "bands": [
-    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring" },
-    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring" },
-    { "maxNm": null, "othersLevel": "partial", "vectorMin": 4, "history": 3, "rings": "dri" }
+    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 4, "history": 3, "rings": "dri", "unowned": "eram" }
   ],
   "template": "mixed",
   "toolbar": [

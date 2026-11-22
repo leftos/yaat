@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
+using Yaat.Client.Models;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -24,6 +25,12 @@ public sealed partial class ScopeViewModel
     /// </summary>
     [ObservableProperty]
     private ScopeZoomBand _effectiveBand = ScopeZoomBands.Resolve(ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands, DefaultRangeNm);
+
+    /// <summary>
+    /// The template <paramref name="ac"/> draws with: its owner's kind on Mixed, an unowned track's the band's
+    /// <see cref="ScopeZoomBand.Unowned"/>, else the picked template.
+    /// </summary>
+    internal string TrackTemplateId(AircraftModel ac) => ScopeOwnerKind.Resolve(TemplateId, ac, EffectiveBand.Unowned);
 
     /// <summary>Whether <paramref name="word"/> is an others' level word: <c>full</c> or <c>partial</c>.</summary>
     internal static bool IsOthersLevel(string word) => word is ScopeProfile.OthersFull or ScopeProfile.OthersPartial;

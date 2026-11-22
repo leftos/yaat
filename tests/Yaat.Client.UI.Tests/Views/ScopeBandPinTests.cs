@@ -162,6 +162,30 @@ public class ScopeBandPinTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task MixedUnownedTemplate_IsStarsUpTo120Nm_AndEramBeyond()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        try
+        {
+            var unowned = new AircraftModel { Callsign = "SKW5410" };
+            main.RunScopeCommand(".scope template mixed");
+            Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
+
+            main.RunScopeCommand(".scope range 100");
+            Assert.Equal(ScopeTemplates.StarsId, scope.EffectiveBand.Unowned);
+            Assert.Equal(ScopeTemplates.StarsId, scope.TrackTemplateId(unowned));
+
+            main.RunScopeCommand(".scope range 200");
+            Assert.Equal(ScopeTemplates.EramId, scope.EffectiveBand.Unowned);
+            Assert.Equal(ScopeTemplates.EramId, scope.TrackTemplateId(unowned));
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Canvas_OthersLevel_FollowsTheEffectiveBand()
     {
         MainViewModel main = await MainAsync();
@@ -180,6 +204,36 @@ public class ScopeBandPinTests : IDisposable
             main.RunScopeCommand(".scope others full");
             Dispatcher.UIThread.RunJobs();
             Assert.Equal(ScopeBlockLevel.Full, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Canvas_UnownedTrackLook_FollowsTheEffectiveBand()
+    {
+        MainViewModel main = await MainAsync();
+        main.SetActivePositionFromServer(new PositionDisplayConfigDto([], [], [], Sector44.HandoffCode, Sector44, 3, NoStarsDisplay: true));
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        main.OpenScope = scope;
+        (ScopeView view, Window window) = ShowScope(scope);
+        try
+        {
+            main.RunScopeCommand(".scope profile mixed");
+            main.RunScopeCommand(".scope template mixed");
+            main.RunScopeCommand(".scope range 200");
+
+            // No one owns this track: beyond 120 NM the Mixed profile's band draws it in the ERAM look.
+            AddAt(main, view.Canvas, "SKW5410", 300, 300);
+            Assert.True(Assert.Single(view.Canvas.CurrentFrame.Tracks).EramLook);
+
+            main.RunScopeCommand(".scope profile stars");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(200, scope.RangeNm);
+            Assert.False(Assert.Single(view.Canvas.CurrentFrame.Tracks).EramLook);
         }
         finally
         {

@@ -2,7 +2,7 @@
   "name": "eram",
   "kind": "eram",
   "bands": [
-    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "dri" }
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "dri", "unowned": "eram" }
   ],
   "template": "eram",
   "toolbar": [

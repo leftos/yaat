@@ -1,5 +1,3 @@
-using Yaat.Client.Models;
-
 namespace Yaat.Client.Views.Scope;
 
 /// <summary>What a middle click on the Scope does.</summary>
@@ -33,8 +31,8 @@ internal enum ScopeMiddleClickAction
 public readonly record struct ScopeMiddleHit(bool OnEramFieldA, ScopeFieldAction Action);
 
 /// <summary>
-/// The row a middle click on the Scope takes. On a track the row is picked by the block's resolved kind
-/// (<see cref="ScopeOwnerKind.Resolve"/>): an ERAM block fills the track into a non-empty preview and runs it; with an empty
+/// The row a middle click on the Scope takes. On a track the row is picked by the template the block draws with, which the
+/// caller resolves (<see cref="ScopeOwnerKind.Resolve"/>): an ERAM block fills the track into a non-empty preview and runs it; with an empty
 /// preview its Field A runs <c>QF</c>, and its HSF indicator, VCI cell or a field with an action does what a plain left click
 /// does there; a STARS or EuroScope block toggles its highlight whatever the preview holds (strict CRC). On the map the row is
 /// picked by the entry layout: ERAM (and Mixed) fills the point into a non-empty preview and runs it. The armed Rings tool
@@ -43,17 +41,17 @@ public readonly record struct ScopeMiddleHit(bool OnEramFieldA, ScopeFieldAction
 internal static class ScopeMiddleClick
 {
     /// <summary>
-    /// The row for a middle click, landing on <paramref name="hit"/>, on <paramref name="ac"/>'s target or block on a Scope that
-    /// picked <paramref name="templateId"/>.
+    /// The row for a middle click, landing on <paramref name="hit"/>, on a track's target or block that draws with
+    /// <paramref name="trackTemplateId"/>, the template already resolved for that track.
     /// </summary>
-    public static ScopeMiddleClickAction OnTrack(string templateId, AircraftModel ac, ScopeMiddleHit hit, bool hasText, bool ringsArmed)
+    public static ScopeMiddleClickAction OnTrack(string trackTemplateId, ScopeMiddleHit hit, bool hasText, bool ringsArmed)
     {
         if (ringsArmed)
         {
             return ScopeMiddleClickAction.None;
         }
 
-        if (ScopeOwnerKind.Resolve(templateId, ac) != ScopeTemplates.EramId)
+        if (trackTemplateId != ScopeTemplates.EramId)
         {
             return ScopeMiddleClickAction.ToggleHighlight;
         }

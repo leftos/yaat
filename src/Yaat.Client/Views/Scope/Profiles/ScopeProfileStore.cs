@@ -109,7 +109,7 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
             return shipped;
         }
 
-        if (Parse(text, kind, path, out string? reason) is not { } profile)
+        if (Parse(text, kind, shipped, path, out string? reason) is not { } profile)
         {
             SetCorruptAside(path, kind, reason);
             return shipped;
@@ -123,7 +123,7 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
     /// does not bind or a null template replaced by the shipped one; null with the reason when it holds no profile: text
     /// that is not a JSON object, a property name it repeats, or a field of the wrong JSON type.
     /// </summary>
-    private ScopeProfile? Parse(string text, ScopeProfileKind kind, string path, out string? reason)
+    private ScopeProfile? Parse(string text, ScopeProfileKind kind, ScopeProfile shippedProfile, string path, out string? reason)
     {
         JsonObject file;
         try
@@ -161,6 +161,7 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
                 }
             }
 
+            FillUnownedFromShippedBands(file, shippedProfile.Bands, path);
             KeepShippedBandsUnlessTheyBind(file, shipped, path);
             KeepShippedTemplateWhenNull(file, shipped, path);
             reason = null;
@@ -170,6 +171,37 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
         {
             reason = ex.Message;
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Gives each band object of <paramref name="file"/> that names no <c>unowned</c> template the one of the shipped band its
+    /// <c>maxNm</c> selects (no edge selects the last), keeping its other values: a file written before bands had one. A band
+    /// that is not a JSON object is left to <see cref="KeepShippedBandsUnlessTheyBind"/>.
+    /// </summary>
+    private void FillUnownedFromShippedBands(JsonObject file, IReadOnlyList<ScopeZoomBand> shipped, string path)
+    {
+        if (file["bands"] is not JsonArray bands)
+        {
+            return;
+        }
+
+        bool filled = false;
+        foreach (JsonNode? node in bands)
+        {
+            if ((node is not JsonObject band) || band.ContainsKey("unowned"))
+            {
+                continue;
+            }
+
+            double rangeNm = ((band["maxNm"] is JsonValue maxNm) && maxNm.TryGetValue(out double edge)) ? edge : double.PositiveInfinity;
+            band["unowned"] = ScopeZoomBands.Resolve(shipped, rangeNm).Unowned;
+            filled = true;
+        }
+
+        if (filled && log.IsEnabled(LogLevel.Debug))
+        {
+            log.LogDebug("Scope profile {Path} holds bands that name no unowned template; using the shipped bands' templates", path);
         }
     }
 
@@ -269,6 +301,7 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
         (band is not null)
         && (band.OthersLevel is ScopeProfile.OthersFull or ScopeProfile.OthersPartial)
         && (band.Rings is ScopeProfile.RingsJRing or ScopeProfile.RingsDri)
+        && (band.Unowned is ScopeTemplates.StarsId or ScopeTemplates.EramId)
         && (band.VectorMin >= 0)
         && (band.History >= 0)
         && (band.MaxNm is null or > 0);

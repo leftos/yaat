@@ -9,6 +9,10 @@
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 
+### Changed
+
+- Radar: on the Mixed template, tracks nobody owns draw as STARS tracks up to 120 NM range and as ERAM tracks beyond.
+
 ### Fixed
 
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.

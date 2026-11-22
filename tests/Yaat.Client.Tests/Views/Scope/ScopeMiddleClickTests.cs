@@ -1,5 +1,4 @@
 using Xunit;
-using Yaat.Client.Models;
 using Yaat.Client.Views.Scope;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -12,8 +11,6 @@ namespace Yaat.Client.Tests.Views.Scope;
 /// </summary>
 public class ScopeMiddleClickTests
 {
-    private static AircraftModel Track(string? ownerSectorCode) => new() { Callsign = "UAL238", OwnerSectorCode = ownerSectorCode };
-
     private static ScopeMiddleHit On(ScopeFieldAction action) => new(OnEramFieldA: false, action);
 
     private static readonly ScopeMiddleHit Block = On(ScopeFieldAction.None);
@@ -24,7 +21,7 @@ public class ScopeMiddleClickTests
     public void EramTrack_WithText_FillsAndExecutes() =>
         Assert.Equal(
             ScopeMiddleClickAction.FillTrackAndExecute,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), Block, hasText: true, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Block, hasText: true, ringsArmed: false)
         );
 
     [Theory]
@@ -35,15 +32,12 @@ public class ScopeMiddleClickTests
     public void EramTrack_WithText_OnACellOrAField_FillsAndExecutes(ScopeFieldAction action) =>
         Assert.Equal(
             ScopeMiddleClickAction.FillTrackAndExecute,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), On(action), hasText: true, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, On(action), hasText: true, ringsArmed: false)
         );
 
     [Fact]
     public void EramTrack_Empty_OnAFieldWithNoActionOrOutsideAnyField_DoesNothing() =>
-        Assert.Equal(
-            ScopeMiddleClickAction.None,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), Block, hasText: false, ringsArmed: false)
-        );
+        Assert.Equal(ScopeMiddleClickAction.None, ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Block, hasText: false, ringsArmed: false));
 
     [Theory]
     [InlineData(ScopeFieldAction.ToggleHsf)]
@@ -51,7 +45,7 @@ public class ScopeMiddleClickTests
     public void EramTrack_Empty_OnTheHsfOrVciCell_ClicksItAsAPlainLeftClick(ScopeFieldAction action) =>
         Assert.Equal(
             ScopeMiddleClickAction.ClickField,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), On(action), hasText: false, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, On(action), hasText: false, ringsArmed: false)
         );
 
     [Theory]
@@ -62,55 +56,21 @@ public class ScopeMiddleClickTests
     public void EramTrack_Empty_OnAFieldWithAMenu_OpensItAsAPlainLeftClick(ScopeFieldAction action) =>
         Assert.Equal(
             ScopeMiddleClickAction.ClickField,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), On(action), hasText: false, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, On(action), hasText: false, ringsArmed: false)
         );
 
     [Fact]
     public void EramFieldA_Empty_RunsQuickFlight() =>
         Assert.Equal(
             ScopeMiddleClickAction.RunQuickFlight,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), FieldA, hasText: false, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, FieldA, hasText: false, ringsArmed: false)
         );
 
     [Fact]
     public void EramFieldA_WithText_FillsAndExecutes() =>
         Assert.Equal(
             ScopeMiddleClickAction.FillTrackAndExecute,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), FieldA, hasText: true, ringsArmed: false)
-        );
-
-    [Fact]
-    public void MixedTrack_ResolvingEram_ActsAsEram() =>
-        Assert.Equal(
-            ScopeMiddleClickAction.FillTrackAndExecute,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.MixedId, Track("C45"), Block, hasText: true, ringsArmed: false)
-        );
-
-    [Fact]
-    public void MixedTrack_ResolvingEram_Empty_OnAFieldWithAMenu_OpensIt() =>
-        Assert.Equal(
-            ScopeMiddleClickAction.ClickField,
-            ScopeMiddleClick.OnTrack(
-                ScopeTemplates.MixedId,
-                Track("C45"),
-                On(ScopeFieldAction.OpenEramAltitudeMenu),
-                hasText: false,
-                ringsArmed: false
-            )
-        );
-
-    [Fact]
-    public void MixedTrack_ResolvingStars_TogglesHighlight() =>
-        Assert.Equal(
-            ScopeMiddleClickAction.ToggleHighlight,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.MixedId, Track("1A"), Block, hasText: true, ringsArmed: false)
-        );
-
-    [Fact]
-    public void MixedTrack_ResolvingStars_Empty_OnAFieldWithAMenu_TogglesHighlight() =>
-        Assert.Equal(
-            ScopeMiddleClickAction.ToggleHighlight,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.MixedId, Track("1A"), On(ScopeFieldAction.OpenAltitudeMenu), hasText: false, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, FieldA, hasText: true, ringsArmed: false)
         );
 
     [Theory]
@@ -119,7 +79,7 @@ public class ScopeMiddleClickTests
     public void StarsTrack_EmptyOrWithText_TogglesHighlight(bool hasText) =>
         Assert.Equal(
             ScopeMiddleClickAction.ToggleHighlight,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.StarsId, Track(null), On(ScopeFieldAction.OpenAltitudeMenu), hasText, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.StarsId, On(ScopeFieldAction.OpenAltitudeMenu), hasText, ringsArmed: false)
         );
 
     [Theory]
@@ -128,7 +88,7 @@ public class ScopeMiddleClickTests
     public void EuroScopeTrack_TogglesHighlight(bool hasText) =>
         Assert.Equal(
             ScopeMiddleClickAction.ToggleHighlight,
-            ScopeMiddleClick.OnTrack(ScopeTemplates.EuroScopeId, Track(null), On(ScopeFieldAction.OpenAltitudeMenu), hasText, ringsArmed: false)
+            ScopeMiddleClick.OnTrack(ScopeTemplates.EuroScopeId, On(ScopeFieldAction.OpenAltitudeMenu), hasText, ringsArmed: false)
         );
 
     [Fact]
@@ -151,8 +111,8 @@ public class ScopeMiddleClickTests
     public void RingsArmed_Track_DoesNothing(bool onEramFieldA, bool hasText, ScopeFieldAction action)
     {
         var hit = new ScopeMiddleHit(onEramFieldA, action);
-        Assert.Equal(ScopeMiddleClickAction.None, ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, Track(null), hit, hasText, ringsArmed: true));
-        Assert.Equal(ScopeMiddleClickAction.None, ScopeMiddleClick.OnTrack(ScopeTemplates.StarsId, Track(null), hit, hasText, ringsArmed: true));
+        Assert.Equal(ScopeMiddleClickAction.None, ScopeMiddleClick.OnTrack(ScopeTemplates.EramId, hit, hasText, ringsArmed: true));
+        Assert.Equal(ScopeMiddleClickAction.None, ScopeMiddleClick.OnTrack(ScopeTemplates.StarsId, hit, hasText, ringsArmed: true));
     }
 
     [Fact]

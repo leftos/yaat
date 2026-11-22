@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -11,7 +12,7 @@ public class ScopeZoomBandTests
 {
     private static readonly IReadOnlyList<ScopeZoomBand> MixedBands = ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands;
 
-    private static readonly ScopeZoomBand Approach = new(30, ScopeProfile.OthersFull, 0, 5, ScopeProfile.RingsJRing);
+    private static readonly ScopeZoomBand Approach = new(30, ScopeProfile.OthersFull, 0, 5, ScopeProfile.RingsJRing, ScopeTemplates.StarsId);
 
     [Fact]
     public void Resolve_At29Nm_IsTheApproachBand() => Assert.Equal(30, ScopeZoomBands.Resolve(MixedBands, 29).MaxNm);

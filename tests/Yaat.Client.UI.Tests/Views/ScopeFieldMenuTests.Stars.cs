@@ -117,7 +117,11 @@ public partial class ScopeFieldMenuTests
         (_, _, ScopeView eramView, Window eramWindow, _) = await ClickFieldAsync(
             ScopeTemplates.MixedId,
             ScopeFieldSlot.EramAltitude,
-            ac => ac.OwnerSectorCode = "C45",
+            ac =>
+            {
+                ac.Owner = "OAK_45_CTR";
+                ac.OwnerSectorCode = "C45";
+            },
             _ => { }
         );
         try

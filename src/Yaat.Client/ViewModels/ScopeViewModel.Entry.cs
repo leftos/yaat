@@ -167,7 +167,15 @@ public sealed partial class ScopeViewModel
     /// The owner kind of the selected track (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which picks an entry's dialect on a
     /// Mixed profile; null with no track selected.
     /// </summary>
-    private string? SelectedOwnerTemplateId => (SelectedAircraft is { } ac) ? ScopeOwnerKind.TemplateIdFor(ac) : null;
+    private string? SelectedOwnerTemplateId => (SelectedAircraft is { } ac) ? EntryOwnerTemplateId(ac) : null;
+
+    /// <summary>
+    /// The owner kind an entry reads <paramref name="ac"/>'s dialect from (<see cref="ScopeOwnerKind.TemplateIdFor"/>): an
+    /// unowned track takes the zoom band's <see cref="ScopeZoomBand.Unowned"/> on the Mixed template, as it draws, and ERAM
+    /// under any other template.
+    /// </summary>
+    private string EntryOwnerTemplateId(AircraftModel ac) =>
+        ScopeOwnerKind.TemplateIdFor(ac, (TemplateId == ScopeTemplates.MixedId) ? EffectiveBand.Unowned : ScopeTemplates.EramId);
 
     /// <summary>
     /// The entry and its caret, wrapped, the last <see cref="PreviewLineCap"/> lines; empty while nothing is typed. An entry
@@ -319,7 +327,7 @@ public sealed partial class ScopeViewModel
     /// The owner kind of the track <paramref name="callsign"/> names (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which a click on
     /// it reads the entry's dialect from on Mixed; null, the profile's own dialect, when no known aircraft has that callsign.
     /// </summary>
-    private string? OwnerTemplateIdOf(string callsign) => (FindAircraft(callsign) is { } ac) ? ScopeOwnerKind.TemplateIdFor(ac) : null;
+    private string? OwnerTemplateIdOf(string callsign) => (FindAircraft(callsign) is { } ac) ? EntryOwnerTemplateId(ac) : null;
 
     /// <summary>Appends the clicked point to the entry: <paramref name="frd"/> when known, else its ERAM lat/long.</summary>
     internal void FillPoint(LatLon point, string? frd)

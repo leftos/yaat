@@ -23,7 +23,11 @@ public enum ScopeProfileKind
 /// <param name="VectorMin">The vector length in minutes; 0 draws no vector.</param>
 /// <param name="History">How many history dots each track draws.</param>
 /// <param name="Rings">The separation ring a new ring takes: <c>jring</c> or <c>dri</c>.</param>
-public sealed record ScopeZoomBand(double? MaxNm, string OthersLevel, double VectorMin, int History, string Rings);
+/// <param name="Unowned">
+/// The template a track nobody owns draws with under the Mixed template: <c>stars</c> (<see cref="ScopeTemplates.StarsId"/>) or
+/// <c>eram</c> (<see cref="ScopeTemplates.EramId"/>).
+/// </param>
+public sealed record ScopeZoomBand(double? MaxNm, string OthersLevel, double VectorMin, int History, string Rings, string Unowned);
 
 /// <summary>
 /// One Scope profile as its file stores it: its name and kind, its zoom bands, the datablock template it opens with, and the

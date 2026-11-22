@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Tests.Views.Scope;
@@ -42,7 +43,7 @@ public class ScopeProfileStoreTests : IDisposable
     public void EditedFile_IsNotOverwritten_AndItsValuesLoad()
     {
         Directory.CreateDirectory(_root);
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("stars")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("stars")))!.AsObject();
         edited["template"] = "euroscope";
         File.WriteAllText(FileOf("stars"), edited.ToJsonString());
 
@@ -55,7 +56,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void FileMissingBands_TakesTheShippedBands()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("mixed")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
         edited.Remove("bands");
         edited["template"] = "stars";
         File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
@@ -69,7 +70,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void UnknownField_SurvivesALoad()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("eram")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("eram")))!.AsObject();
         edited["colors"] = "navy";
         File.WriteAllText(FileOf("eram"), edited.ToJsonString());
 
@@ -96,7 +97,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void DuplicateKey_BecomesBak_AndTheShippedProfileLoads()
     {
-        string shipped = File.ReadAllText(WriteShippedAndRead("stars"));
+        string shipped = File.ReadAllText(WriteShippedFilesAndGetPathOf("stars"));
         int close = shipped.LastIndexOf('}');
         string duplicated = shipped[..close] + ",\"template\":\"stars\"" + shipped[close..];
         File.WriteAllText(FileOf("stars"), duplicated);
@@ -113,7 +114,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void BandMissingAField_TakesTheShippedBands_WithAWarning_AndNoBak()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("mixed")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
         edited["bands"]![0]!.AsObject().Remove("history");
         edited["template"] = "eram";
         File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
@@ -130,7 +131,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void ExplicitNullTemplate_TakesTheShippedTemplate_AndNoBak()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("eram")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("eram")))!.AsObject();
         edited["template"] = null;
         File.WriteAllText(FileOf("eram"), edited.ToJsonString());
         _log.Warnings.Clear();
@@ -145,7 +146,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void UnknownKindWord_TakesTheShippedKind_WithAWarning()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("stars")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("stars")))!.AsObject();
         edited["kind"] = "tower";
         File.WriteAllText(FileOf("stars"), edited.ToJsonString());
         _log.Warnings.Clear();
@@ -159,7 +160,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void TopLevelFieldOfTheWrongType_BecomesBak()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("stars")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("stars")))!.AsObject();
         edited["bands"] = "none";
         File.WriteAllText(FileOf("stars"), edited.ToJsonString());
 
@@ -172,7 +173,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void BandsWithANullElement_TakeTheShippedBands_WithAWarning_AndNoBak()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("mixed")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
         edited["bands"] = new JsonArray((JsonNode?)null);
         File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
         _log.Warnings.Clear();
@@ -187,7 +188,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void BandsNull_TakeTheShippedBands()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("eram")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("eram")))!.AsObject();
         edited["bands"] = null;
         File.WriteAllText(FileOf("eram"), edited.ToJsonString());
 
@@ -200,7 +201,7 @@ public class ScopeProfileStoreTests : IDisposable
     [Fact]
     public void TemplateANumber_MovesTheFileToBak()
     {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedAndRead("stars")))!.AsObject();
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("stars")))!.AsObject();
         edited["template"] = 5;
         File.WriteAllText(FileOf("stars"), edited.ToJsonString());
 
@@ -210,8 +211,63 @@ public class ScopeProfileStoreTests : IDisposable
         Assert.True(File.Exists(FileOf("stars") + ".bak"));
     }
 
+    [Fact]
+    public void FileBandsWithoutUnowned_TakeTheShippedBandsUnowned_KeepTheirValues_AndWarnOfNothing()
+    {
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
+        foreach (JsonNode? band in edited["bands"]!.AsArray())
+        {
+            band!.AsObject().Remove("unowned");
+        }
+
+        edited["bands"]![1]!["history"] = 7;
+        File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
+        _log.Warnings.Clear();
+
+        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Mixed);
+
+        Assert.Equal([ScopeTemplates.StarsId, ScopeTemplates.StarsId, ScopeTemplates.EramId], loaded.Bands.Select(b => b.Unowned));
+        Assert.Equal(7, loaded.Bands[1].History);
+        Assert.Empty(_log.Warnings);
+    }
+
+    [Fact]
+    public void FileBandsWithTheirOwnEdges_TakeTheUnownedOfTheShippedBandEachEdgeSelects()
+    {
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
+        JsonArray bands = edited["bands"]!.AsArray();
+        double?[] edges = [60, 200, null];
+        for (int i = 0; i < bands.Count; i++)
+        {
+            bands[i]!.AsObject().Remove("unowned");
+            bands[i]!["maxNm"] = edges[i];
+        }
+
+        File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
+
+        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Mixed);
+
+        Assert.Equal([60, 200, null], loaded.Bands.Select(b => b.MaxNm));
+        Assert.Equal([ScopeTemplates.StarsId, ScopeTemplates.EramId, ScopeTemplates.EramId], loaded.Bands.Select(b => b.Unowned));
+    }
+
+    [Fact]
+    public void FileBandWithAnUnknownUnowned_TakesTheShippedBands_WithAWarning()
+    {
+        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
+        edited["bands"]![0]!["unowned"] = "bogus";
+        edited["bands"]![1]!["history"] = 7;
+        File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
+        _log.Warnings.Clear();
+
+        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Mixed);
+
+        Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands, loaded.Bands);
+        Assert.Single(_log.Warnings);
+    }
+
     /// <summary>Has a fresh store write the shipped files, and returns the path of the one named <paramref name="name"/>.</summary>
-    private string WriteShippedAndRead(string name)
+    private string WriteShippedFilesAndGetPathOf(string name)
     {
         new ScopeProfileStore(_root, _log).Get(ScopeProfileKind.Mixed);
         return FileOf(name);
