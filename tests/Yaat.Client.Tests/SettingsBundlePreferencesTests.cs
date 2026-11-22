@@ -202,6 +202,45 @@ public class SettingsBundlePreferencesTests
         }
     }
 
+    [Fact]
+    public void ScenarioEditorAircraftGrid_RoundTripsThroughTheFile_AndStaysOutOfABundle()
+    {
+        const string Key = "scenarioEditorAircraftGrid";
+        Assert.Equal("per-machine view state of the Scenario Editor's aircraft grid", UserPreferences.UnbundledPreferenceKeys[Key]);
+        Assert.DoesNotContain(Key, UserPreferences.BundledPreferenceKeys);
+
+        var preferences = new UserPreferences();
+        SavedGridLayout? before = preferences.ScenarioEditorAircraftGrid;
+        try
+        {
+            preferences.SetScenarioEditorAircraftGrid(
+                new SavedGridLayout
+                {
+                    ColumnOrder = ["Type", "Callsign"],
+                    ColumnWidths = new Dictionary<string, double> { ["Callsign"] = 123.5 },
+                    SortColumn = "Type",
+                    SortDirection = System.ComponentModel.ListSortDirection.Descending,
+                }
+            );
+
+            SavedGridLayout? read = new UserPreferences().ScenarioEditorAircraftGrid;
+            Assert.NotNull(read);
+            Assert.Equal(["Type", "Callsign"], read.ColumnOrder);
+            Assert.Equal(123.5, read.ColumnWidths?["Callsign"]);
+            Assert.Equal("Type", read.SortColumn);
+            Assert.Equal(System.ComponentModel.ListSortDirection.Descending, read.SortDirection);
+            Assert.Null(read.HiddenColumns);
+            Assert.False(preferences.ExportBundlePreferences().ContainsKey(Key));
+
+            preferences.SetScenarioEditorAircraftGrid(null);
+            Assert.Null(new UserPreferences().ScenarioEditorAircraftGrid);
+        }
+        finally
+        {
+            preferences.SetScenarioEditorAircraftGrid(before);
+        }
+    }
+
     private static string AllEntryText(byte[] bundle)
     {
         using var zip = new ZipArchive(new MemoryStream(bundle), ZipArchiveMode.Read);

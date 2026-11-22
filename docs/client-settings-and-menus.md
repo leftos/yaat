@@ -78,7 +78,11 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **The ARTCC list is what the signed-in user may edit.** `ArtccEditAccessSource` asks the hub while connected, else uses the list cached with the stored session, else the Settings ARTCC. The selector's last pick is `UserPreferences.ScenarioEditorLastArtcc` (`scenarioEditorLastArtcc`), separate from the Settings ARTCC and never carried in a settings bundle (it is in `UnbundledKeys` as session state).
 
-**The editor shows the General tab of the open copy.** Double-click, or Enter, on a browser row opens it (a single click only selects; the Open command does the same). The tab is one scrolling page of collapsible sections, each collapsing to a one-line summary. The toolbar holds Undo, Redo and Save with an unsaved-changes indicator, and a failed save shows its message in the status bar. A text field commits when it loses focus or on Enter; a picker commits on the user's pick.
+**The editor shows the General and Aircraft tabs of the open copy.** Double-click, or Enter, on a browser row opens it (a single click only selects; the Open command does the same). The tab is one scrolling page of collapsible sections, each collapsing to a one-line summary. The toolbar holds Undo, Redo and Save with an unsaved-changes indicator, and a failed save shows its message in the status bar. A text field commits when it loses focus or on Enter; a picker commits on the user's pick.
+
+**The Aircraft tab follows General.** A read-only sortable grid of the scenario's aircraft (Callsign, Type, Transponder, Spawn delay, Airport, Start, Route, Presets, Auto-track) with Add, Duplicate and Remove, each one undo step ("Add aircraft", "Duplicate aircraft", "Remove aircraft"). Undo and redo reselect the aircraft the edit touched. Sorting changes the view, never the document's order.
+
+**The grid's layout is per-machine view state.** Column order, widths and sort are saved to `UserPreferences.ScenarioEditorAircraftGrid` (`scenarioEditorAircraftGrid`, a `SavedGridLayout`) when they change and reapplied when a copy opens. It is in `UnbundledKeys`, never carried in a settings bundle, and is not an edit (no undo step, no unsaved-changes mark).
 
 **Ctrl+S saves, and it commits the field being typed first.** Closing the window commits that field too, then asks Save, Discard or Cancel when the copy has unsaved edits. An application or OS shutdown closes the window without asking and logs a warning, dropping the unsaved edits. The layout fits the window's 1100 x 700 default.
 

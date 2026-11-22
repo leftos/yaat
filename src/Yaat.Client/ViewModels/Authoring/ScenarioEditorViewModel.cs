@@ -8,7 +8,7 @@ namespace Yaat.Client.ViewModels.Authoring;
 
 /// <summary>
 /// The Scenario Editor's editing side: the one working copy open (a <see cref="ScenarioEditSession"/> over the browser's
-/// store) and its General tab, with Save, Undo and Redo. A copy opens on the browser's
+/// store) and its General and Aircraft tabs, with Save, Undo and Redo. A copy opens on the browser's
 /// <see cref="ScenarioBrowserViewModel.OpenRequested"/>; leaving it with unsaved edits (opening another, closing the
 /// window, switching ARTCC: the browser's <see cref="ScenarioBrowserViewModel.LeaveGuard"/>) asks to save, discard or
 /// cancel first. Deleting the open copy closes it without asking; an import that replaces it reloads it, asking first
@@ -33,6 +33,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private readonly Func<string, string, Task<bool>> _replaceGuard;
     private ScenarioEditSession? _session;
     private ScenarioGeneralViewModel? _general;
+    private ScenarioAircraftViewModel? _aircraft;
     private int _openSeq;
     private bool _disposed;
 
@@ -88,6 +89,13 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     {
         get => _general;
         private set => SetProperty(ref _general, value);
+    }
+
+    /// <summary>Gets the open copy's Aircraft tab; null when nothing is open.</summary>
+    public ScenarioAircraftViewModel? Aircraft
+    {
+        get => _aircraft;
+        private set => SetProperty(ref _aircraft, value);
     }
 
     /// <summary>Gets a value indicating whether a working copy is open.</summary>
@@ -219,10 +227,13 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         OpenError = null;
         var session = new ScenarioEditSession(_services.Store, artccId, id);
         var general = new ScenarioGeneralViewModel(session, _services);
+        var aircraft = new ScenarioAircraftViewModel(session, _services);
         session.DocumentReplaced += OnDocumentReplaced;
         general.Edited += OnEdited;
+        aircraft.Edited += OnEdited;
         Session = session;
         General = general;
+        Aircraft = aircraft;
     }
 
     private bool CanSave() => IsDirty;
@@ -420,7 +431,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
 
     private bool IsOpenCopy(string artccId, string id) => (Session is { } session) && (session.ArtccId == artccId) && (session.ScenarioId == id);
 
-    private void OnDocumentReplaced(object? sender, EventArgs e) => General?.Reload();
+    private void OnDocumentReplaced(object? sender, EventArgs e)
+    {
+        General?.Reload();
+        Aircraft?.Reload();
+    }
 
     private void OnEdited(object? sender, EventArgs e)
     {
@@ -441,6 +456,12 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
             general.Dispose();
         }
 
+        if (Aircraft is { } aircraft)
+        {
+            aircraft.Edited -= OnEdited;
+        }
+
+        Aircraft = null;
         General = null;
         Session = null;
         SaveMessage = null;

@@ -674,6 +674,9 @@ public sealed partial class UserPreferences
     /// <summary>The ARTCC last picked in the Scenario Editor's selector; never the room ARTCC (<see cref="ArtccId"/>).</summary>
     public string? ScenarioEditorLastArtcc => _data.ScenarioEditorLastArtcc;
 
+    /// <summary>The Scenario Editor aircraft grid's column order, widths and sort; null until the grid saved one.</summary>
+    public SavedGridLayout? ScenarioEditorAircraftGrid => _data.ScenarioEditorAircraftGrid;
+
     /// <summary>The position/airport the last live session was opened at; the picker pre-selects it.</summary>
     public LiveSessionChoice? LastLiveSession => _data.LastLiveSession;
     public string? LastWeatherFolder => _data.LastWeatherFolder;
@@ -1278,6 +1281,14 @@ public sealed partial class UserPreferences
     public void SetScenarioEditorLastArtcc(string? artccId)
     {
         _data.ScenarioEditorLastArtcc = artccId;
+        Save();
+    }
+
+    /// <summary>Remembers the Scenario Editor aircraft grid's layout: its column order, widths and sort.</summary>
+    /// <param name="layout">The layout, or null to forget it.</param>
+    public void SetScenarioEditorAircraftGrid(SavedGridLayout? layout)
+    {
+        _data.ScenarioEditorAircraftGrid = layout;
         Save();
     }
 
@@ -2658,6 +2669,7 @@ public sealed partial class UserPreferences
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             ScenarioEditorLastArtcc = GetFieldOr<string?>(obj, "scenarioEditorLastArtcc", null),
+            ScenarioEditorAircraftGrid = GetFieldOr<SavedGridLayout?>(obj, "scenarioEditorAircraftGrid", null),
             LastLiveSession = GetFieldOr<LiveSessionChoice?>(obj, "lastLiveSession", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
@@ -3087,6 +3099,7 @@ public sealed partial class UserPreferences
         public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? ScenarioEditorLastArtcc { get; set; }
+        public SavedGridLayout? ScenarioEditorAircraftGrid { get; set; }
         public LiveSessionChoice? LastLiveSession { get; set; }
         public string? LastWeatherFolder { get; set; }
         public List<SavedMacro> Macros { get; set; } = [];

@@ -205,6 +205,9 @@
           <TabItem Header="General">
             <local:ScenarioGeneralView x:Name="GeneralView" DataContext="{Binding General}" />
           </TabItem>
+          <TabItem x:Name="AircraftTab" Header="Aircraft">
+            <local:ScenarioAircraftView x:Name="AircraftView" DataContext="{Binding Aircraft}" />
+          </TabItem>
         </TabControl>
       </Panel>
       <Panel x:Name="PlaceholderPanel" Grid.Column="2">

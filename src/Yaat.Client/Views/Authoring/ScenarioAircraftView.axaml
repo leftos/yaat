@@ -1,0 +1,55 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.ScenarioAircraftView"
+  x:DataType="vm:ScenarioAircraftViewModel"
+>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <Button x:Name="AddAircraftButton" Content="Add" Padding="9,3" Command="{Binding AddAircraftCommand}" />
+        <Button x:Name="DuplicateAircraftButton" Content="Duplicate" Padding="9,3" Command="{Binding DuplicateAircraftCommand}" />
+        <Button x:Name="RemoveAircraftButton" Content="Remove" Padding="9,3" Command="{Binding RemoveAircraftCommand}" />
+      </StackPanel>
+    </Border>
+    <DataGrid
+      x:Name="AircraftGrid"
+      ItemsSource="{Binding Rows}"
+      SelectedItem="{Binding Selected, Mode=TwoWay}"
+      SelectionMode="Single"
+      IsReadOnly="True"
+      CanUserSortColumns="True"
+      CanUserReorderColumns="True"
+      CanUserResizeColumns="True"
+      GridLinesVisibility="Horizontal"
+    >
+      <DataGrid.Columns>
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Callsign" Binding="{Binding Callsign}" SortMemberPath="Callsign" />
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Type" Binding="{Binding Type}" SortMemberPath="Type" />
+        <DataGridTextColumn
+          x:DataType="vm:ScenarioAircraftRowViewModel"
+          Header="Transponder"
+          Binding="{Binding Transponder}"
+          SortMemberPath="Transponder"
+        />
+        <DataGridTextColumn
+          x:DataType="vm:ScenarioAircraftRowViewModel"
+          Header="Spawn delay"
+          Binding="{Binding SpawnDelay}"
+          SortMemberPath="SpawnDelaySeconds"
+        />
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Airport" Binding="{Binding Airport}" SortMemberPath="Airport" />
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Start" Binding="{Binding Start}" SortMemberPath="Start" />
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Route" Binding="{Binding Route}" SortMemberPath="Route" />
+        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Presets" Binding="{Binding Presets}" SortMemberPath="PresetCount" />
+        <DataGridTextColumn
+          x:DataType="vm:ScenarioAircraftRowViewModel"
+          Header="Auto-track"
+          Binding="{Binding AutoTrack}"
+          SortMemberPath="AutoTrack"
+        />
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

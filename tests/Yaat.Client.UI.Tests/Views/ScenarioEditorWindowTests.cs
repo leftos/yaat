@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -629,6 +630,161 @@ public class ScenarioEditorWindowTests
         {
             CloseNow(window);
         }
+    }
+
+    [AvaloniaFact]
+    public async Task AircraftTab_FollowsGeneral_OneRowPerAircraft_SortingLeavesTheSessionClean_ButtonsBound()
+    {
+        SavedGridLayout? savedLayout = new UserPreferences().ScenarioEditorAircraftGrid;
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            TabControl tabs = window.FindControl<TabControl>("EditorTabs")!;
+            Assert.Equal(["General", "Aircraft"], tabs.Items.OfType<TabItem>().Select(t => t.Header as string));
+
+            tabs.SelectedIndex = 1;
+            MainWindowHost.Pump();
+            ScenarioAircraftView view = window.FindControl<ScenarioAircraftView>("AircraftView")!;
+            ScenarioAircraftViewModel vm = window.Editor.Aircraft!;
+            Assert.True(view.IsEffectivelyVisible);
+            Assert.Same(vm, view.DataContext);
+            DataGrid grid = view.FindControl<DataGrid>("AircraftGrid")!;
+            ScenarioEditSession session = window.Editor.Session!;
+            Assert.Equal(session.Document.Scenario.Aircraft.Count, grid.ItemsSource!.Cast<object>().Count());
+            Assert.Equal(
+                ["Callsign", "Type", "Transponder", "Spawn delay", "Airport", "Start", "Route", "Presets", "Auto-track"],
+                grid.Columns.Select(c => c.Header as string)
+            );
+
+            string documentBefore = session.Document.Write();
+            string[] rowsBefore = [.. vm.Rows.Select(r => r.Id)];
+            grid.Columns.Single(c => (c.Header as string) == "Callsign").Sort(System.ComponentModel.ListSortDirection.Descending);
+            MainWindowHost.Pump();
+            grid.Columns.Single(c => (c.Header as string) == "Spawn delay").Sort(System.ComponentModel.ListSortDirection.Ascending);
+            MainWindowHost.Pump();
+
+            Assert.False(window.Editor.IsDirty);
+            Assert.False(session.CanUndo);
+            Assert.Equal(documentBefore, session.Document.Write());
+            Assert.Equal(rowsBefore, vm.Rows.Select(r => r.Id));
+
+            Assert.Same(vm.AddAircraftCommand, view.FindControl<Button>("AddAircraftButton")!.Command);
+            Assert.Same(vm.DuplicateAircraftCommand, view.FindControl<Button>("DuplicateAircraftButton")!.Command);
+            Assert.Same(vm.RemoveAircraftCommand, view.FindControl<Button>("RemoveAircraftButton")!.Command);
+        }
+        finally
+        {
+            CloseNow(window);
+            new UserPreferences().SetScenarioEditorAircraftGrid(savedLayout);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AircraftGrid_AppliesTheSavedSortWhenShown_AndSavesTheSortTheGridHolds()
+    {
+        var preferences = new UserPreferences();
+        SavedGridLayout? savedLayout = preferences.ScenarioEditorAircraftGrid;
+        preferences.SetScenarioEditorAircraftGrid(new SavedGridLayout { SortColumn = "Callsign", SortDirection = ListSortDirection.Descending });
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            DataGrid grid = ShowAircraftTab(window);
+
+            string[] shown = ShownCallsigns(grid);
+            Assert.Equal(window.Editor.Aircraft!.Rows.Count, shown.Length);
+            Assert.Equal(shown.OrderByDescending(c => c, StringComparer.Ordinal), shown);
+            Assert.NotEqual(window.Editor.Aircraft.Rows.Select(r => r.Callsign), shown);
+            Assert.Equal(("Callsign", ListSortDirection.Descending), StoredSort());
+
+            // The header cell's own sort, as a click on the Callsign header runs it.
+            grid.Columns.Single(c => (c.Header as string) == "Callsign").Sort();
+            MainWindowHost.Pump();
+
+            shown = ShownCallsigns(grid);
+            Assert.Equal(shown.Order(StringComparer.Ordinal), shown);
+            Assert.Equal(("Callsign", ListSortDirection.Ascending), StoredSort());
+            Assert.False(window.Editor.IsDirty);
+        }
+        finally
+        {
+            CloseNow(window);
+            preferences.SetScenarioEditorAircraftGrid(savedLayout);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AircraftGrid_AClickOnACellAfterAnOpen_RewritesNoPreferences()
+    {
+        var preferences = new UserPreferences();
+        SavedGridLayout? savedLayout = preferences.ScenarioEditorAircraftGrid;
+        preferences.SetScenarioEditorAircraftGrid(null);
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            DataGrid grid = ShowAircraftTab(window);
+            byte[] before = File.ReadAllBytes(UserPreferences.FilePath);
+            DataGridCell cell = grid.GetVisualDescendants().OfType<DataGridCell>().First(c => c.IsEffectivelyVisible);
+            Point at = cell.TranslatePoint(new Point(cell.Bounds.Width / 2, cell.Bounds.Height / 2), window)!.Value;
+
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+            MainWindowHost.Pump();
+
+            Assert.NotNull(window.Editor.Aircraft!.Selected);
+            Assert.Equal(before, File.ReadAllBytes(UserPreferences.FilePath));
+        }
+        finally
+        {
+            CloseNow(window);
+            preferences.SetScenarioEditorAircraftGrid(savedLayout);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AnAddOnTheAircraftTab_DirtiesTheEditor_AndNamesTheUndo()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            Assert.False(window.Editor.IsDirty);
+
+            window.Editor.Aircraft!.AddAircraftCommand.Execute(null);
+            MainWindowHost.Pump();
+
+            Assert.True(window.Editor.IsDirty);
+            Assert.Equal("Add aircraft", window.Editor.UndoDescription);
+            Assert.True(window.FindControl<Button>("UndoButton")!.IsEffectivelyEnabled);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    // Selects the Aircraft tab, lets it show, and returns its grid.
+    private static DataGrid ShowAircraftTab(ScenarioEditorWindow window)
+    {
+        window.FindControl<TabControl>("EditorTabs")!.SelectedIndex = 1;
+        MainWindowHost.Pump();
+        return window.FindControl<ScenarioAircraftView>("AircraftView")!.FindControl<DataGrid>("AircraftGrid")!;
+    }
+
+    // The callsigns in the order the grid's view shows them.
+    private static string[] ShownCallsigns(DataGrid grid) => [.. grid.CollectionView!.Cast<ScenarioAircraftRowViewModel>().Select(r => r.Callsign)];
+
+    // The aircraft grid's sort as the preferences file holds it.
+    private static (string? Column, ListSortDirection? Direction) StoredSort()
+    {
+        SavedGridLayout? layout = new UserPreferences().ScenarioEditorAircraftGrid;
+        return (layout?.SortColumn, layout?.SortDirection);
     }
 
     [AvaloniaFact]

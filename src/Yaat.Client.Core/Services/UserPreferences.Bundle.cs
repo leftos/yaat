@@ -191,6 +191,7 @@ public sealed partial class UserPreferences
         ["lastLiveSession"] = "session state",
         ["lastScenarioFolder"] = "a path on this machine",
         ["scenarioEditorLastArtcc"] = "session state: the Scenario Editor's last ARTCC pick",
+        ["scenarioEditorAircraftGrid"] = "per-machine view state of the Scenario Editor's aircraft grid",
         ["lastWeatherFolder"] = "a path on this machine",
         ["crcAliasDirectory"] = "a path on this machine",
         ["recentScenarios"] = "recent files on this machine",
