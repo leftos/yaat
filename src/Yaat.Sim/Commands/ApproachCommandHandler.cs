@@ -537,6 +537,7 @@ public static class ApproachCommandHandler
             {
                 aircraft.Targets.TargetAltitude = interceptCxAlt;
                 aircraft.Targets.AssignedAltitude = interceptCxAlt;
+                aircraft.NoteControllerAltitudeCommand();
             }
 
             aircraft.Phases.Add(
@@ -577,6 +578,7 @@ public static class ApproachCommandHandler
         {
             aircraft.Targets.TargetAltitude = cxAlt;
             aircraft.Targets.AssignedAltitude = cxAlt;
+            aircraft.NoteControllerAltitudeCommand();
         }
 
         // Procedure turn: insert PT phase BEFORE approach navigation. The PT flies the aircraft to its fix and
@@ -918,6 +920,7 @@ public static class ApproachCommandHandler
         aircraft.Targets.AssignedAltitude = altitude;
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
+        aircraft.NoteControllerAltitudeCommand();
         FlightCommandHandler.CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
     }
@@ -964,8 +967,9 @@ public static class ApproachCommandHandler
         }
 
         bool viaInForce = AltitudeRestrictionInForce.ViaClearanceInForce(aircraft);
-        // A VFR "at or above" / "at or below" restriction records its bound as AssignedAltitude; a bound is not an altitude to maintain
-        bool vfrBoundInForce = (aircraft.Targets.AltitudeFloor is not null) || (aircraft.Targets.AltitudeCeiling is not null);
+        // A VFR "at or above" / "at or below" restriction records its bound as AssignedAltitude; a bound is not an altitude to maintain.
+        // The pilot's own Class B cap is no controller bound.
+        bool vfrBoundInForce = (aircraft.Targets.AltitudeFloor is not null) || (aircraft.ControllerAltitudeCeiling is not null);
         if (!viaInForce && !vfrBoundInForce && (aircraft.Targets.AssignedAltitude is { } assigned))
         {
             return (int)Math.Round(assigned);
@@ -2931,6 +2935,10 @@ public static class ApproachCommandHandler
         aircraft.Procedure.StarViaTransmissionId = null;
         aircraft.Procedure.StarViaFloor = null;
 
+        // End the list being replaced, as every other approach path does, so its phases end through OnEnd (a held level-off
+        // under a Class B shelf hands its cap to the pilot's cap record there). No route to the room's active runways: this
+        // handler is not given the dispatch context.
+        aircraft.Phases?.Clear(CommandDispatcher.BuildMinimalContext(aircraft, ActiveRunways.Empty));
         aircraft.Phases = new PhaseList { AssignedRunway = pending.AssignedRunway, ActiveApproach = pending.Clearance };
         aircraft.Phases.Add(new FinalApproachPhase());
         bool isHeli = AircraftCategorization.Categorize(aircraft.AircraftType) == AircraftCategory.Helicopter;

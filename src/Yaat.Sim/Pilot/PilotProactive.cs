@@ -1166,17 +1166,7 @@ public static class PilotProactive
         Func<string, LatLon?> airportLookup
     )
     {
-        if (!scenario.SoloTrainingMode)
-        {
-            return;
-        }
-
-        if (aircraft.IsOnGround || !aircraft.FlightPlan.IsVfr)
-        {
-            return;
-        }
-
-        if (aircraft.Phases is { IsComplete: false })
+        if (!IsSoloFreeFlightVfr(aircraft, scenario))
         {
             return;
         }
@@ -1201,6 +1191,13 @@ public static class PilotProactive
             : null;
         AirspaceHoldMode mode = levelOffCeiling is null ? AirspaceHoldMode.Orbit : AirspaceHoldMode.LevelOff;
 
+        // A Class B cap that outlived its phases (a departure's, or one a skipped level-off handed over) owns the ceiling
+        // beneath its own Class B: no level-off goes on top of it. Lateral orbits and other classes hold as usual.
+        if ((mode == AirspaceHoldMode.LevelOff) && IsUnderOwnBravoCap(aircraft, volume))
+        {
+            return;
+        }
+
         AnnounceUnableAssignedAltitude(aircraft, volume, levelOffCeiling);
 
         var phase = new AirspaceBoundaryHoldPhase
@@ -1220,6 +1217,187 @@ public static class PilotProactive
         var phases = new PhaseList();
         phases.Add(phase);
         aircraft.Phases = phases;
+    }
+
+    /// <summary>Solo training, an airborne VFR aircraft, and no running phase: the free-flight boundary step's scope.</summary>
+    private static bool IsSoloFreeFlightVfr(AircraftState aircraft, SimScenarioState scenario) =>
+        scenario.SoloTrainingMode && !aircraft.IsOnGround && aircraft.FlightPlan.IsVfr && (aircraft.Phases is not { IsComplete: false });
+
+    private static bool IsUnderOwnBravoCap(AircraftState aircraft, AirspaceVolume volume) =>
+        (volume.Class == AirspaceClass.Bravo)
+        && (aircraft.BravoCap is { } cap)
+        && string.Equals(cap.AreaName, AirspaceDatabase.ClassBAreaName(volume), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The pilot's own cap beneath a Class B shelf while a phase runs, solo training only: an RPO session flies every
+    /// command as given, and a cap standing when the session stops being solo is released on its next step. An uncleared
+    /// VFR aircraft in scope (<see cref="BravoCapScope.Applies"/>) under a shelf, or entering one within
+    /// <see cref="BravoCapScope.LookaheadSeconds"/>, gets <see cref="AircraftState.BravoCap"/>, which caps the ceiling at the
+    /// level the free-flight level-off uses, lowered under a lower shelf of the same Class B ahead. A controller altitude
+    /// command ends the cap (<see cref="AircraftState.NoteControllerAltitudeCommand"/>) and it is judged afresh here; one
+    /// that still reaches the shelf draws one unable per command (AIM 5-5-6.a.3; AIM 4-4-1.b; 7110.65 §7-9-2 NOTE 1). The
+    /// cap ends on a Class B clearance, laterally clear of the Class B, IFR or on the ground.
+    /// </summary>
+    public static void TickBravoCap(AircraftState aircraft, SimScenarioState scenario, AirspaceDatabase airspace)
+    {
+        if (!scenario.SoloTrainingMode)
+        {
+            ReleaseBravoCap(aircraft, "the session is no longer solo training");
+            return;
+        }
+
+        if (aircraft.BravoCap is { } cap)
+        {
+            if (aircraft.Targets.AltitudeCeiling == cap.Ceiling)
+            {
+                TickStandingBravoCap(aircraft, cap, scenario, airspace);
+                return;
+            }
+
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign}: Class B cap {Cap} under {Area} replaced by a phase's own ceiling {Ceiling}, re-judged",
+                    aircraft.Callsign,
+                    cap.CapFtMsl,
+                    cap.AreaName,
+                    aircraft.Targets.AltitudeCeiling
+                );
+            }
+
+            aircraft.DropBravoCap();
+        }
+
+        TryStartBravoCap(aircraft, scenario, airspace);
+    }
+
+    private static void TickStandingBravoCap(AircraftState aircraft, BravoCap cap, SimScenarioState scenario, AirspaceDatabase airspace)
+    {
+        if (BravoCapScope.ReleaseReason(aircraft, cap, airspace) is { } reason)
+        {
+            ReleaseBravoCap(aircraft, reason);
+            return;
+        }
+
+        TryLowerBravoCap(aircraft, cap, scenario, airspace);
+    }
+
+    private static void ReleaseBravoCap(AircraftState aircraft, string reason)
+    {
+        if (aircraft.BravoCap is not { } cap)
+        {
+            return;
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("{Callsign}: Class B cap {Cap} under {Area} released, {Reason}", aircraft.Callsign, cap.CapFtMsl, cap.AreaName, reason);
+        }
+
+        aircraft.ReleaseBravoCap();
+    }
+
+    /// <summary>
+    /// Lowers a standing cap (never raises it) when the aircraft is under, or within the look-ahead reaches, a lower shelf
+    /// of the same Class B: the pilot descends beneath the lower shelf rather than fly into it. Only a shelf whose floor is
+    /// below the floor of the cap's own shelf counts, so a course swing never re-judges the cap under its own shelf.
+    /// </summary>
+    private static void TryLowerBravoCap(AircraftState aircraft, BravoCap cap, SimScenarioState scenario, AirspaceDatabase airspace)
+    {
+        if (airspace.FindById(cap.VolumeId) is not { } own)
+        {
+            return;
+        }
+
+        AirspaceVolume? lowest = null;
+        int lowestCap = cap.CapFtMsl;
+        foreach (AirspaceVolume volume in BravoCapScope.ShelvesAlongTrack(aircraft, cap.AreaName, airspace))
+        {
+            if ((volume.LowerFtMsl < own.LowerFtMsl) && (ResolveBravoCapFt(aircraft, volume, scenario) is { } capFt) && (capFt < lowestCap))
+            {
+                lowest = volume;
+                lowestCap = capFt;
+            }
+        }
+
+        if (lowest is null)
+        {
+            return;
+        }
+
+        aircraft.StartBravoCap(cap with { VolumeId = lowest.Id, CapFtMsl = lowestCap });
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: Class B cap lowered from {Old} to {New} under the lower shelf {Volume} (floor {Floor})",
+                aircraft.Callsign,
+                cap.CapFtMsl,
+                lowestCap,
+                lowest.Id,
+                lowest.LowerFtMsl
+            );
+        }
+    }
+
+    /// <summary>
+    /// The cap beneath <paramref name="volume"/>: the free-flight level-off's level, but never below a controller-assigned
+    /// altitude that is itself below the floor (a "maintain 3,500" under a 4,000 floor is flown at 3,500). Null under a
+    /// surface area, where there is no flyable airspace beneath.
+    /// </summary>
+    private static int? ResolveBravoCapFt(AircraftState aircraft, AirspaceVolume volume, SimScenarioState scenario)
+    {
+        if (ResolveLevelOffCeiling(aircraft, volume, scenario.MagneticModelDateUtc) is not { } levelOff)
+        {
+            return null;
+        }
+
+        return ((aircraft.Targets.AssignedAltitude is { } assigned) && (assigned < volume.LowerFtMsl) && (assigned > levelOff))
+            ? (int)assigned
+            : levelOff;
+    }
+
+    private static void TryStartBravoCap(AircraftState aircraft, SimScenarioState scenario, AirspaceDatabase airspace)
+    {
+        if (!BravoCapScope.Applies(aircraft, airspace) || (BravoCapScope.FindCappingVolume(aircraft, airspace) is not { } volume))
+        {
+            return;
+        }
+
+        if (ResolveBravoCapFt(aircraft, volume, scenario) is not { } capFt)
+        {
+            return;
+        }
+
+        int? unable = BravoCapScope.ConflictingAssignment(aircraft, volume);
+        var cap = new BravoCap(
+            AirspaceDatabase.ClassBAreaName(volume),
+            volume.Id,
+            capFt,
+            aircraft.Targets.AltitudeCeiling,
+            aircraft.Targets.TargetAltitude
+        );
+        aircraft.StartBravoCap(cap);
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "{Callsign}: Class B cap set at {Ceiling} under {Area} (floor {Floor}, phase {Phase}, unable {Unable})",
+                aircraft.Callsign,
+                cap.Ceiling,
+                cap.AreaName,
+                volume.LowerFtMsl,
+                aircraft.Phases?.CurrentPhase?.Name,
+                unable
+            );
+        }
+
+        // Once per controller command: a cap released and started again (a touch-and-go, a brief lateral clear) does not
+        // advise again for a command already answered.
+        if ((unable is { } assigned) && aircraft.IsAirspaceUnableDue)
+        {
+            PilotSpeechText line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, assigned, capFt, "bravo");
+            PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback, initialContact: false);
+            aircraft.MarkAirspaceUnableAdvised();
+        }
     }
 
     /// <summary>
@@ -1410,9 +1588,20 @@ public static class PilotProactive
             return;
         }
 
-        string airspaceName = volume.Class == AirspaceClass.Bravo ? "bravo" : "charlie";
-        PilotSpeechText line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, airspaceName);
+        // Under a Class B shelf the unable is once per controller command, shared with the in-phase cap that may take this
+        // level-off over (AircraftState.AirspaceUnableAdvisedCommand).
+        bool bravo = volume.Class == AirspaceClass.Bravo;
+        if (bravo && !aircraft.IsAirspaceUnableDue)
+        {
+            return;
+        }
+
+        PilotSpeechText line = PilotResponder.BuildUnableAirspaceAltitude(aircraft, (int)assigned, ceiling, bravo ? "bravo" : "charlie");
         PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Readback, initialContact: false);
+        if (bravo)
+        {
+            aircraft.MarkAirspaceUnableAdvised();
+        }
     }
 
     /// <summary>

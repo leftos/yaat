@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.LiveTraffic;
@@ -15,6 +16,8 @@ namespace Yaat.Sim;
 
 public class AircraftState
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AircraftState");
+
     private const int NormalizedBaseTypeCacheCap = 4096;
 
     private static readonly ConcurrentDictionary<string, string> NormalizedBaseTypeCache = new(StringComparer.Ordinal);
@@ -486,6 +489,131 @@ public class AircraftState
     /// </summary>
     public Pilot.RemainOutsideBravoState? RemainOutsideBravo { get; private set; }
 
+    /// <summary>
+    /// The pilot's own cap beneath a Class B shelf while a phase runs (<see cref="Pilot.PilotProactive.TickBravoCap"/>, solo
+    /// training only); null when there is none. Written only by <see cref="StartBravoCap"/> (a new cap, a lowered one, or
+    /// the hand-over from a free-flight level-off hold that ends skipped), <see cref="ReleaseBravoCap"/>,
+    /// <see cref="DropBravoCap"/>, <see cref="ReassertBravoCap"/>, <see cref="NoteControllerAltitudeCommand"/> and the
+    /// snapshot restore (<see cref="FromSnapshot"/>). A phase change or a list replacement never ends it.
+    /// </summary>
+    public Pilot.BravoCap? BravoCap { get; private set; }
+
+    /// <summary>
+    /// How many controller altitude commands (CM, DM, a VFR altitude restriction, PTAC, force altitude, warp) the aircraft
+    /// has been given: each one bumps it (<see cref="NoteControllerAltitudeCommand"/>), so the pilot's unable is keyed on
+    /// the command, not on the altitude or on the cap that judged it.
+    /// </summary>
+    public int ControllerAltitudeCommandCount { get; private set; }
+
+    /// <summary>
+    /// The <see cref="ControllerAltitudeCommandCount"/> the pilot last advised unable for under a Class B shelf; null when
+    /// it never has. An unable fires at most once per controller command, across a cap's release and restart.
+    /// </summary>
+    public int? AirspaceUnableAdvisedCommand { get; private set; }
+
+    /// <summary>Whether the current controller altitude command has not yet drawn an airspace unable.</summary>
+    public bool IsAirspaceUnableDue => AirspaceUnableAdvisedCommand != ControllerAltitudeCommandCount;
+
+    /// <summary>Records that the pilot advised unable for the current controller altitude command.</summary>
+    public void MarkAirspaceUnableAdvised() => AirspaceUnableAdvisedCommand = ControllerAltitudeCommandCount;
+
+    /// <summary>
+    /// A controller altitude command was applied: counts it and ends the Class B cap. A ceiling the command wrote is left
+    /// alone; while the cap's own ceiling still stands (the command wrote none) the prior ceiling is put back, so the cap
+    /// never outlives its record as a controller bound. Call it before the command writes its ceiling. The next proactive
+    /// step judges the cap afresh, with the command's bound as its prior ceiling.
+    /// </summary>
+    public void NoteControllerAltitudeCommand()
+    {
+        ControllerAltitudeCommandCount++;
+        if ((BravoCap is { } cap) && (Targets.AltitudeCeiling == cap.Ceiling))
+        {
+            Targets.AltitudeCeiling = cap.PriorCeiling;
+        }
+
+        BravoCap = null;
+    }
+
+    /// <summary>
+    /// The controller's altitude ceiling: <see cref="ControlTargets.AltitudeCeiling"/> with the Class B cap taken out, which
+    /// is a pilot self-restriction and never a controller bound.
+    /// </summary>
+    public double? ControllerAltitudeCeiling =>
+        ((BravoCap is { } cap) && (Targets.AltitudeCeiling == cap.Ceiling)) ? cap.PriorCeiling : Targets.AltitudeCeiling;
+
+    /// <summary>
+    /// The cap record a snapshot holds, or null when it holds none. Its area, volume and cap are written together, so a
+    /// partial set is corrupt: no record is restored and a warning names the aircraft.
+    /// </summary>
+    private static Pilot.BravoCap? RestoreBravoCap(AircraftSnapshotDto dto)
+    {
+        if (dto.BravoCapAreaName is not { } area)
+        {
+            return null;
+        }
+
+        if ((dto.BravoCapVolumeId is not { } volumeId) || (dto.BravoCapFtMsl is not { } capFt))
+        {
+            Log.LogWarning(
+                "{Callsign}: snapshot holds a partial Class B cap record (area {Area}, volume {Volume}, cap {Cap}); no cap restored",
+                dto.Callsign,
+                area,
+                dto.BravoCapVolumeId,
+                dto.BravoCapFtMsl
+            );
+            return null;
+        }
+
+        return new Pilot.BravoCap(area, volumeId, capFt, dto.BravoCapPriorCeiling, dto.BravoCapPriorTargetAltitude);
+    }
+
+    /// <summary>Starts <paramref name="cap"/> (or replaces the standing one) and writes its ceiling.</summary>
+    public void StartBravoCap(Pilot.BravoCap cap)
+    {
+        BravoCap = cap;
+        Targets.AltitudeCeiling = cap.Ceiling;
+    }
+
+    /// <summary>
+    /// Ends the cap and, while its ceiling still stands, puts back the prior ceiling (a controller's bound when one was in
+    /// force) and the prior target altitude that physics nulled on capture, as the level-off hold does.
+    /// </summary>
+    public void ReleaseBravoCap()
+    {
+        if (BravoCap is not { } cap)
+        {
+            return;
+        }
+
+        if (Targets.AltitudeCeiling == cap.Ceiling)
+        {
+            Targets.AltitudeCeiling = cap.PriorCeiling;
+            Targets.TargetAltitude ??= cap.PriorTargetAltitude;
+        }
+
+        BravoCap = null;
+    }
+
+    /// <summary>Ends the cap without touching the targets: a controller altitude command replaced its ceiling.</summary>
+    public void DropBravoCap() => BravoCap = null;
+
+    /// <summary>
+    /// Writes the cap again after something other than a controller altitude command nulled the ceiling (a go-around drops
+    /// every altitude restriction): the cap alone, any prior bound having gone with it, and <paramref name="targetAltitude"/>
+    /// (the go-around's own target) as the target put back on release. Returns whether a cap was re-asserted.
+    /// </summary>
+    public bool ReassertBravoCap(double? targetAltitude)
+    {
+        if (BravoCap is not { } cap)
+        {
+            return false;
+        }
+
+        BravoCap = cap with { PriorCeiling = null, PriorTargetAltitude = targetAltitude };
+        Targets.AltitudeCeiling = cap.CapFtMsl;
+        return true;
+    }
+
     /// <summary>Whether the pilot is told to remain outside the Class B named <paramref name="ident"/> (case-insensitive).</summary>
     public bool IsRemainOutsideBravo(string ident) =>
         (RemainOutsideBravo is { } remain) && string.Equals(remain.Ident, ident, StringComparison.OrdinalIgnoreCase);
@@ -772,6 +900,9 @@ public class AircraftState
                     dto.RemainOutsideBravoAskVoiced
                 )
                 : null,
+            BravoCap = RestoreBravoCap(dto),
+            ControllerAltitudeCommandCount = dto.ControllerAltitudeCommandCount,
+            AirspaceUnableAdvisedCommand = dto.AirspaceUnableAdvisedCommand,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
             PendingPilotRequest = dto.PendingPilotRequest is not null ? PilotPendingRequest.FromSnapshot(dto.PendingPilotRequest) : null,
@@ -903,6 +1034,13 @@ public class AircraftState
             RemainOutsideBravoMinutes = RemainOutsideBravo?.Minutes,
             RemainOutsideBravoAskDueSeconds = RemainOutsideBravo?.AskDueSeconds,
             RemainOutsideBravoAskVoiced = RemainOutsideBravo?.AskVoiced ?? false,
+            BravoCapAreaName = BravoCap?.AreaName,
+            BravoCapVolumeId = BravoCap?.VolumeId,
+            BravoCapFtMsl = BravoCap?.CapFtMsl,
+            BravoCapPriorCeiling = BravoCap?.PriorCeiling,
+            BravoCapPriorTargetAltitude = BravoCap?.PriorTargetAltitude,
+            ControllerAltitudeCommandCount = ControllerAltitudeCommandCount,
+            AirspaceUnableAdvisedCommand = AirspaceUnableAdvisedCommand,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,
             PendingPilotRequest = PendingPilotRequest?.ToSnapshot(),

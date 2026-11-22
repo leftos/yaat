@@ -450,7 +450,7 @@ public static class ScenarioExporter
             return null;
         }
 
-        if ((state.FlightPlan.IsVfr) && (RestrictionPreset(state.Targets, altitude) is { } restriction))
+        if ((state.FlightPlan.IsVfr) && (RestrictionPreset(state, altitude) is { } restriction))
         {
             return restriction;
         }
@@ -479,11 +479,12 @@ public static class ScenarioExporter
 
     /// <summary>
     /// The <c>CM A</c> / <c>CM B</c> form of a VFR at-or-above / at-or-below restriction, whose value is also the
-    /// assigned altitude, or null when the assigned altitude carries no floor or ceiling.
+    /// assigned altitude, or null when the assigned altitude carries no floor or ceiling. The pilot's own Class B cap is no
+    /// controller ceiling and never exports as one.
     /// </summary>
-    private static string? RestrictionPreset(ControlTargets targets, double altitude) =>
-        (targets.AltitudeFloor == altitude) ? $"CM A{Hundreds(altitude)}"
-        : (targets.AltitudeCeiling == altitude) ? $"CM B{Hundreds(altitude)}"
+    private static string? RestrictionPreset(AircraftState state, double altitude) =>
+        (state.Targets.AltitudeFloor == altitude) ? $"CM A{Hundreds(altitude)}"
+        : (state.ControllerAltitudeCeiling == altitude) ? $"CM B{Hundreds(altitude)}"
         : null;
 
     private static string Hundreds(double altitudeFt) => ((int)Math.Round(altitudeFt / 100.0)).ToString("D3", CultureInfo.InvariantCulture);

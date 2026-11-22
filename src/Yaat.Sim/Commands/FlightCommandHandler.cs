@@ -132,6 +132,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        aircraft.NoteControllerAltitudeCommand();
         SetPatternAltitudeOverride(aircraft, cmd.Altitude, groundLayout);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -227,6 +228,7 @@ internal static class FlightCommandHandler
         CancelViaClearances(aircraft);
         aircraft.Procedure.IsExpediting = false;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        aircraft.NoteControllerAltitudeCommand();
 
         switch (cmd.Modifier)
         {
@@ -254,6 +256,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        aircraft.NoteControllerAltitudeCommand();
         SetPatternAltitudeOverride(aircraft, cmd.Altitude, groundLayout);
 
         return CommandDispatcher.Ok($"{AltitudeVerb(aircraft, cmd.Altitude)} {cmd.Altitude}{prev}");
@@ -268,6 +271,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = cmd.Altitude;
+        aircraft.NoteControllerAltitudeCommand();
         return CommandDispatcher.Ok($"Force altitude {cmd.Altitude:N0}");
     }
 
@@ -1778,6 +1782,7 @@ internal static class FlightCommandHandler
         )
         {
             aircraft.Targets.AssignedAltitude = cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt;
+            aircraft.NoteControllerAltitudeCommand();
         }
 
         return (previousAlt, previousAssignedAlt);
@@ -2293,6 +2298,7 @@ internal static class FlightCommandHandler
         aircraft.Targets.AltitudeFloor = null;
         aircraft.Targets.AltitudeCeiling = null;
         aircraft.Targets.AssignedAltitude = altitude;
+        aircraft.NoteControllerAltitudeCommand();
         aircraft.Targets.TargetSpeed = speed;
         aircraft.Targets.AssignedSpeed = speed;
         aircraft.Targets.SpeedFloor = null;

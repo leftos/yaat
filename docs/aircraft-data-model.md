@@ -44,7 +44,7 @@ These live directly on the record, not in a satellite:
 | `Phases` | `PhaseList?` | Active phase state machine; `null` = free-flying. See [phases.md](phases.md). |
 
 A handful of cross-phase one-shot booleans and debrief timestamps also live at top level and **are** snapshot-serialized:
-`HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `TunedPosition`, `ClearedBravoIdent`, `HasEnteredClearedBravo`, `BravoExitSinceSeconds`, `RemainOutsideBravo`, `HasAnnouncedLinedUpReady`,
+`HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `TunedPosition`, `ClearedBravoIdent`, `HasEnteredClearedBravo`, `BravoExitSinceSeconds`, `RemainOutsideBravo`, `BravoCap`, `ControllerAltitudeCommandCount`, `AirspaceUnableAdvisedCommand`, `HasAnnouncedLinedUpReady`,
 `NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`, `LastPilotTransmission`, `PendingRepeat`, `PendingRepeatCallsignOnly`.
 
 `TunedPosition` (a `TrackOwner?`; null reads as the student's side) is written by the student's CT/FCA, the airborne or ground spawn stamp, the student's handoff accept and `**` convert, the ERAM `QT` convert, the pilot's initial call and a scripted or AI contact naming the student; the full rules are CONTEXT.md "Tuned position", and a student instruction to a pilot tuned elsewhere is not heard ([solo-training-pilot-speech.md](solo-training-pilot-speech.md)).
@@ -124,6 +124,7 @@ write the kinematics.** Phases own `ControlTargets` while active; free-flight co
 | `Declination`, `DeclinationCachePosition` | `FlightPhysics.Update` (`FlightPhysics.cs`) | Recomputed only when the aircraft has moved ~1 nm; out-of-range positions log and skip. |
 | `ControlTargets.Target*` (in-phase) | The active phase, each tick | Phases write `ctx.Targets` directly — see [phases.md](phases.md). |
 | `ControlTargets.Target*` / `Assigned*` (free-flight) | Command handlers via `CommandDispatcher.ApplyCommand` | `FlightCommandHandler`, `NavigationCommandHandler`, etc. — see [command-pipeline.md](command-pipeline.md). |
+| `ControlTargets.AltitudeCeiling` | A controller's at-or-below (`FlightCommandHandler`), the active phase's own cap (`AirspaceBoundaryHoldPhase` level-off), or the solo pilot's Class B cap, which only `AircraftState.StartBravoCap` / `ReleaseBravoCap` / `ReassertBravoCap` write (`PilotProactive.TickBravoCap`) | Read the controller's bound through `AircraftState.ControllerAltitudeCeiling`, which looks past the cap. Every controller altitude command calls `NoteControllerAltitudeCommand`, which ends the cap. See [airspace-database.md](airspace-database.md). |
 | `Procedure.*`, `Pattern.*` | Approach / departure / pattern command handlers and the phases they spawn | DSR via-mode, expedite, `LastProcedureSpeedKts`. |
 | `Approach.*`, `Clearance.*` | `ApproachCommandHandler`, `DepartureClearanceHandler` | Expectation + deferred clearance state. |
 | `Stars.*`, `Eram.*`, `HoldAnnotation.*`, `Voice.*` | STARS/ERAM display command handlers | Display-only mutations; mirrored to CRC. |

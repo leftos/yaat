@@ -1,9 +1,9 @@
 # Airspace Database & Boundary-Crossing Detection
 
 > Read this before touching anything under `src/Yaat.Sim/Data/Airspace/`, `AirspaceBoundaryHoldPhase`,
-> `PilotProactive.TickAirspaceBoundaryRespect`, or the Class B/C separation-minima path in
+> `PilotProactive.TickAirspaceBoundaryRespect`, `PilotProactive.TickBravoCap` (`Pilot/BravoCap*.cs`), or the Class B/C separation-minima path in
 > `SoloTrainingEvaluator`. This is the point-in-polygon containment engine plus its two consumers.
-> The two tick-loop call sites live in **both repos** — a change here usually has to be mirrored.
+> The proactive ticks run in the shared post-physics step, which both repos drive.
 
 ## What it is (and is not)
 
@@ -215,10 +215,29 @@ since assigned an explicit magnetic heading and has not added a new navigation r
 the release), except that a hold that held through a vector under `RMOB` resumes the assigned heading (`ResumeAssignedHeading`) and flies a held-through direct from the route it stashed, and restores the original speed only if there is no explicit speed command. In `LevelOff`
 mode it lifts its own ceiling (leaving a controller-issued "maintain VFR at or below" in place) and puts
 back the pre-hold `TargetAltitude` — `FlightPhysics.UpdateAltitude` nulls that field when the aircraft
-captures the capped goal, so without the restore the climb never resumes. `CanAcceptCommand` returns
+captures the capped goal, so without the restore the climb never resumes. A Class B level-off that ends
+Skipped (the phase list was replaced or cleared) instead hands its standing cap, saved ceiling and target to
+`AircraftState.BravoCap` in the same step, so the ceiling never loses its owner (see "In-phase Class B cap" below). `CanAcceptCommand` returns
 `Allowed` for every command (the hold never rejects controller input). See [phases.md](phases.md) for the
 phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The feature shipped as pilot-AI milestone M10.1.5
 (`docs/plans/pilot-ai-self-training/README.md`); its subplan is deleted, so git history holds the milestone record.
+
+### In-phase Class B cap
+
+The boundary hold above runs only in free flight. While a phase runs, an uncleared VFR pilot still may not climb into a Class B (14 CFR 91.131; AIM 3-2-3.b), so `PilotProactive.TickBravoCap(aircraft, scenario, airspace)` keeps a cap beneath the shelf: `AircraftState.BravoCap` (a `BravoCap` record: area name, shelf volume id, `CapFtMsl`, prior ceiling, prior target altitude), the one owner of the `Targets.AltitudeCeiling` it writes (`min(prior ceiling, cap)`). It is a pilot self-restriction, never a controller bound: `AircraftState.ControllerAltitudeCeiling` reads past it (the VFR bound test in `ApproachCommandHandler` and the scenario exporter's `CM B` preset use that, not `Targets.AltitudeCeiling`).
+
+**Solo training only.** In an RPO session nothing starts a cap and every command flies as given; a cap left standing when the session stops being solo is released on its next step (`SimulationEngine.TickPostPhysics` calls `TickBravoCap` in the solo block, ahead of `TickAirspaceBoundaryRespect`, and again for an aircraft that still holds a cap outside it).
+
+**Who and where** (`Pilot/BravoCapScope.cs`):
+
+- An airborne VFR aircraft in any running phase (pattern, approach, departure climb, go-around, low approach) except `MilitaryRoutePhase`, `AerialRefuelingAnchorPhase` and `AirspaceBoundaryHoldPhase`, which own the ceiling themselves. Free flight stays with the hold.
+- A shelf the aircraft is laterally under with its floor above it (the lowest such floor), else the volume a projected entry within 60 s reaches while the aircraft is still below its floor; an aircraft above the Class B descending into it gets none. A Class B the pilot is cleared into, or is already inside, is never capped.
+- A departure from a runway laterally inside a Class B volume whose floor is at or below the field (a surface area) is treated as cleared and never capped (7110.65 §7-9-3.c).
+- The cap level is the free-flight level-off's (`ResolveLevelOffCeiling`), but never below a controller-assigned altitude that is itself under the floor. No flyable level beneath (a surface area) means no cap.
+
+**Lifecycle.** A standing cap is lowered (never raised) under a lower shelf of the same Class B ahead (`TryLowerBravoCap`). It is released on a Class B clearance, laterally clear of the Class B now and 60 s ahead, IFR, or on the ground (`BravoCapScope.ReleaseReason`), putting back the prior ceiling and target altitude. A phase change, a list replacement or the end of a hold never ends it, and neither does the lack of a projected entry. Anything else that overwrites the ceiling with a phase's own drops the record, which the next step re-judges. A go-around nulls every altitude restriction in `GoAroundPhase.OnStart`, which re-asserts the cap through `ReassertBravoCap`; the go-around climb and the low approach's climb-out then end at the cap when it is lower than their target (`GoAroundPhase.IsLevelAtCeilingBelowTarget`; AIM 4-4-1.b) rather than hold runway heading for an altitude the pilot may not reach.
+
+**Controller altitude commands.** Every handler that applies one (CM, DM, a VFR altitude restriction, PTAC, force altitude, a CFIX or clearance altitude, a military-route altitude, a takeoff clearance's altitude) calls `AircraftState.NoteControllerAltitudeCommand`, which bumps `ControllerAltitudeCommandCount` and ends the cap without touching the targets. The next step judges the cap afresh with the command's bound as its prior ceiling. A command that would put the pilot at or above the shelf floor (a maintain, or an at-or-above) draws one `PilotResponder.BuildUnableAirspaceAltitude` call per command (AIM 5-5-6.a.3; 7110.65 §7-9-2 NOTE 1): `AirspaceUnableAdvisedCommand` records the command already answered, shared with the free-flight hold's `AnnounceUnableAssignedAltitude`, so a cap released and started again does not advise twice. An at-or-below bound draws nothing, since flying under it complies. The cap, the count and the advised-command are snapshot-serialized as optional fields ([snapshots-and-replay.md](snapshots-and-replay.md)).
 
 ### Speed under a shelf — 14 CFR 91.117(c)
 
@@ -318,16 +337,9 @@ from navdata, the outer-area check silently returns `false`.
 
 ## Tick-loop wiring (cross-repo)
 
-`TickAirspaceBoundaryRespect` is called once per aircraft in **PostPhysics** in *both* repos:
-
-- yaat: `SimulationEngine.TickPostPhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs`).
-- yaat-server: `TickProcessor` (`../yaat-server/src/Yaat.Server/Simulation/TickProcessor.cs`).
-
-Both pass `AirspaceDatabase.Default`. The separation path is wired separately in yaat-server at
+`TickAirspaceBoundaryRespect` and `TickBravoCap` are called once per aircraft in **PostPhysics** from `SimulationEngine.TickPostPhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs`), with `AirspaceDatabase.Default`; yaat-server rooms run the same step through `RoomEngine.ProcessPostPhysics` (`RunPostPhysics`), so a proactive airspace tick added there needs no server-side wiring of its own. The separation path is wired separately in yaat-server at
 `TickProcessor` (`SoloTrainingEvaluator.Evaluate(..., AirspaceDatabase.Default, ...)`). See
-[tick-loop.md](tick-loop.md) for where PostPhysics sits relative to physics sub-ticks. Adding or removing a
-proactive airspace tick must be mirrored across both call sites or solo behavior diverges between the local
-sim and server rooms.
+[tick-loop.md](tick-loop.md) for where PostPhysics sits relative to physics sub-ticks.
 
 ## Footguns & gotchas
 
@@ -359,8 +371,7 @@ sim and server rooms.
 - **`ParseRings` treats every ring as a positive ring.** `ContainsLateral` OR-combines all rings, so a true
   polygon hole (a doughnut) would be treated as solid. Fine for the current SFO/OAK fixture, but a correctness
   trap if a doughnut-shaped volume is ever added.
-- **The tick wiring is a cross-repo pair.** `SimulationEngine.TickPostPhysics` and yaat-server's
-  `TickProcessor` both call into this subsystem with `AirspaceDatabase.Default`; keep them mirrored.
+- **The airspace ticks live in the shared post-physics step.** `SimulationEngine.RunPostPhysics` runs them with `AirspaceDatabase.Default` for both the bare engine and yaat-server's `RoomEngine`; the separation path in `TickProcessor` is the one server-side call.
 
 ## Extending
 

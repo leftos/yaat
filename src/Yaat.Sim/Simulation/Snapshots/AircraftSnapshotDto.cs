@@ -196,6 +196,45 @@ public sealed class AircraftSnapshotDto
     public bool RemainOutsideBravoAskVoiced { get; init; }
 
     /// <summary>
+    /// The Class B the pilot's own shelf cap sits under (<see cref="AircraftState.BravoCap"/>), by area name; null when no
+    /// cap stands. Optional and left out of the JSON while null, as are the cap's other fields: earlier snapshots restore
+    /// none, so no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BravoCapAreaName { get; init; }
+
+    /// <summary>The id of the shelf volume the cap sits under.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BravoCapVolumeId { get; init; }
+
+    /// <summary>The cap's level beneath the shelf floor, ft MSL.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BravoCapFtMsl { get; init; }
+
+    /// <summary>The ceiling in force before the cap (a controller's bound, or none).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BravoCapPriorCeiling { get; init; }
+
+    /// <summary>The target altitude the cap puts back on release.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BravoCapPriorTargetAltitude { get; init; }
+
+    /// <summary>
+    /// How many controller altitude commands the aircraft has been given (<see cref="AircraftState.ControllerAltitudeCommandCount"/>).
+    /// Optional and left out while 0: earlier snapshots restore none, so no SnapshotSchemaMigrator step or SchemaVersion bump
+    /// is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int ControllerAltitudeCommandCount { get; init; }
+
+    /// <summary>
+    /// The controller altitude command the pilot last advised unable for under a Class B shelf
+    /// (<see cref="AircraftState.AirspaceUnableAdvisedCommand"/>); left out of the JSON while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? AirspaceUnableAdvisedCommand { get; init; }
+
+    /// <summary>
     /// Set after <c>LinedUpAndWaitingPhase</c>'s 10-second "ready" reminder has fired once.
     /// Non-required so older snapshots deserialize cleanly with the default
     /// <see langword="false"/>.

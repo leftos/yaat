@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airspace;
 using Yaat.Sim.Simulation.Snapshots;
@@ -27,6 +28,8 @@ public enum AirspaceHoldMode
 /// </summary>
 public sealed class AirspaceBoundaryHoldPhase : Phase
 {
+    private static readonly ILogger Log = SimLog.CreateLogger("AirspaceBoundaryHoldPhase");
+
     private readonly List<NavigationTarget> _originalRoute = [];
     private TrueHeading? _originalTargetHeading;
     private TurnDirection? _originalTurnDirection;
@@ -227,25 +230,54 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         return !LateralPositionStillUnderVolume(ctx.Aircraft);
     }
 
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    /// <summary>
+    /// Only the pilot's own cap is lifted: a controller "maintain VFR at or below" issued during the level-off replaced it,
+    /// and that restriction outlives the hold. A Class B level-off ended by a replaced or cleared phase list (skipped) hands
+    /// its standing cap, saved ceiling and target to <see cref="AircraftState.BravoCap"/> in the same step, so the ceiling is
+    /// never left without an owner; the record's own rules end it. Any other level-off puts the saved ceiling back.
+    /// </summary>
+    private void EndLevelOff(PhaseContext ctx, PhaseStatus endStatus)
     {
-        if (endStatus != PhaseStatus.Completed)
+        if ((LevelOffCeilingFtMsl is not { } cap) || (ctx.Targets.AltitudeCeiling is not { } ceiling) || ((int)ceiling != cap))
         {
             return;
         }
 
-        if (Mode == AirspaceHoldMode.LevelOff)
+        if ((endStatus != PhaseStatus.Completed) && (AirspaceClass == AirspaceClass.Bravo))
         {
-            // Only lift the pilot's own cap. A controller "maintain VFR at or below" issued during the
-            // level-off replaced it, and that restriction outlives the hold.
-            if (ctx.Targets.AltitudeCeiling.HasValue && (int)ctx.Targets.AltitudeCeiling.Value == LevelOffCeilingFtMsl)
+            var handedOver = new Pilot.BravoCap(Ident, VolumeId, cap, _originalAltitudeCeiling, _originalTargetAltitude);
+            ctx.Aircraft.StartBravoCap(handedOver);
+            if (Log.IsEnabled(LogLevel.Debug))
             {
-                ctx.Targets.AltitudeCeiling = _originalAltitudeCeiling;
-                // FlightPhysics clears TargetAltitude when the aircraft captures the capped goal, so the
-                // pre-hold climb target has to be put back or the aircraft never resumes it.
-                ctx.Targets.TargetAltitude ??= _originalTargetAltitude;
+                Log.LogDebug(
+                    "{Callsign}: level-off below {Area} ended {Status}, Class B cap {Cap} handed to the cap record (ceiling {Ceiling})",
+                    ctx.Aircraft.Callsign,
+                    Ident,
+                    endStatus,
+                    cap,
+                    handedOver.Ceiling
+                );
             }
 
+            return;
+        }
+
+        ctx.Targets.AltitudeCeiling = _originalAltitudeCeiling;
+        // FlightPhysics clears TargetAltitude when the aircraft captures the capped goal, so the
+        // pre-hold climb target has to be put back or the aircraft never resumes it.
+        ctx.Targets.TargetAltitude ??= _originalTargetAltitude;
+    }
+
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        if (Mode == AirspaceHoldMode.LevelOff)
+        {
+            EndLevelOff(ctx, endStatus);
+            return;
+        }
+
+        if (endStatus != PhaseStatus.Completed)
+        {
             return;
         }
 

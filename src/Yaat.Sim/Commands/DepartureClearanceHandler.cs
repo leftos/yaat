@@ -103,6 +103,7 @@ internal static class DepartureClearanceHandler
         if ((type == ClearanceType.ClearedForTakeoff) && (assignedAltitude is { } v))
         {
             aircraft.Targets.AssignedAltitude = v;
+            aircraft.NoteControllerAltitudeCommand();
             aircraft.Procedure.SidViaMode = false;
             aircraft.Procedure.ClimbViaTopFromTdls = false;
             aircraft.Procedure.SidViaCeiling = null;

@@ -493,6 +493,7 @@ internal static class NavigationCommandHandler
         if ((!restatedWithVia) && AssignsCrossingAltitude(aircraft, altRestriction, handoverPending))
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
+            aircraft.NoteControllerAltitudeCommand();
         }
 
         if (cmd.Speed is { } spdVal)

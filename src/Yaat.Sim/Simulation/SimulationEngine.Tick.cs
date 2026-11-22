@@ -267,7 +267,14 @@ public sealed partial class SimulationEngine
                 Pilot.PilotProactive.TickFurtherClearanceRequest(ac, scenario);
                 Pilot.PilotProactive.TickBravoClearanceExpiry(ac, AirspaceDatabase.Default, scenario.ElapsedSeconds);
                 Pilot.PilotProactive.TickRemainOutsideBravoAsk(ac, scenario, LookupAirportPosition);
+                Pilot.PilotProactive.TickBravoCap(ac, scenario, AirspaceDatabase.Default);
                 Pilot.PilotProactive.TickAirspaceBoundaryRespect(ac, scenario, AirspaceDatabase.Default, LookupAirportPosition);
+            }
+            else if (ac.BravoCap is not null)
+            {
+                // A Class B cap left standing when the session stopped being solo training is released (RPO sessions fly
+                // every command as given).
+                Pilot.PilotProactive.TickBravoCap(ac, scenario, AirspaceDatabase.Default);
             }
 
             Pilot.PilotProactive.TickPendingRequests(ac, scenario, LookupAirportPosition);

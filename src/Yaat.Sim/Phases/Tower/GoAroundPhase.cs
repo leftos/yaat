@@ -114,6 +114,18 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
         ctx.Targets.SpeedCeiling = null;
         ctx.Targets.AltitudeFloor = null;
         ctx.Targets.AltitudeCeiling = null;
+        // An uncleared VFR pilot under a Class B shelf still may not climb into it: the cap goes back. A cap stands only in
+        // solo training, and a controller's GA builds a context without the solo flag, so the record alone gates this.
+        if (ctx.Aircraft.ReassertBravoCap(targetAlt) && Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[GoAround] {Callsign}: Class B cap re-asserted at {Cap}ft, go-around target {Alt:F0}ft kept for its release",
+                ctx.Aircraft.Callsign,
+                ctx.Targets.AltitudeCeiling,
+                targetAlt
+            );
+        }
+
         // A go-around off the rollout inherits the ground braking rate LandingPhase writes each tick, which only its
         // handoff path clears. Left set, every deceleration on the re-flown circuit runs at braking rate instead of
         // the airborne rate.
@@ -170,7 +182,7 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
 
         double targetAgl = TargetAltitude.HasValue ? TargetAltitude.Value - _fieldElevation : SelfClearAgl;
 
-        bool complete = agl >= targetAgl;
+        bool complete = (agl >= targetAgl) || IsLevelAtCeilingBelowTarget(ctx, targetAgl + _fieldElevation);
         if (complete)
         {
             LogComplete(ctx, agl);
@@ -178,6 +190,16 @@ public sealed class GoAroundPhase : Phase, IPendingPursuitClimb
 
         return complete;
     }
+
+    /// <summary>
+    /// The climb ends at the lower of its target and a standing ceiling below it (a pilot's Class B cap, a controller's
+    /// at-or-below), as the upwind's does: the pilot flies the go-around and the circuit as high as the rules allow
+    /// (AIM 4-4-1.b), never holding runway heading for a target it may not reach. The low approach's climb-out uses it too.
+    /// </summary>
+    internal static bool IsLevelAtCeilingBelowTarget(PhaseContext ctx, double targetAltitudeFtMsl) =>
+        (ctx.Targets.AltitudeCeiling is { } ceiling)
+        && (ceiling < targetAltitudeFtMsl)
+        && (ctx.Aircraft.Altitude >= (ceiling - FlightPhysics.AltitudeSnapFt));
 
     /// <summary>Logs at Debug that the go-around reached its target altitude.</summary>
     private static void LogComplete(PhaseContext ctx, double agl)

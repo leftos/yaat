@@ -12,6 +12,7 @@
 ### Fixed
 
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
+- Solo: uncleared VFR pilots now stay under a Class B shelf in the pattern, approaches, go-arounds and departures, saying unable once per altitude into it.
 - Solo: a pattern entry or approach to an airport outside the Class B no longer clears a waiting VFR pilot into that Bravo or answers its request.
 - AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
 - Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.

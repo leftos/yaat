@@ -173,6 +173,52 @@ public class SnapshotRoundTripTests
         Assert.Equal(new RemainOutsideBravoState("SFO", 15, null, AskVoiced: true), voiced.RemainOutsideBravo);
     }
 
+    /// <summary>
+    /// The pilot's Class B cap record, the controller altitude command count and the advised command round-trip; the
+    /// restore does not recompute the ceiling from the record. An aircraft without them writes none of their fields.
+    /// </summary>
+    [Fact]
+    public void Snapshot_RoundTripsTheBravoCapRecordAndTheCommandCount()
+    {
+        var ac = new AircraftState { Callsign = "N436MS", AircraftType = "C182" };
+        JsonObject empty = JsonNode.Parse(JsonSerializer.Serialize(ac.ToSnapshot()))!.AsObject();
+        Assert.False(empty.ContainsKey("BravoCapAreaName"));
+        Assert.False(empty.ContainsKey("BravoCapFtMsl"));
+        Assert.False(empty.ContainsKey("ControllerAltitudeCommandCount"));
+        Assert.False(empty.ContainsKey("AirspaceUnableAdvisedCommand"));
+
+        ac.NoteControllerAltitudeCommand();
+        ac.NoteControllerAltitudeCommand();
+        ac.MarkAirspaceUnableAdvised();
+        var cap = new BravoCap("SFO", "SFO-B-1", 2000, 1500, 3500);
+        ac.StartBravoCap(cap);
+        ac.Targets.AltitudeCeiling = 1800;
+
+        var restored = AircraftState.FromSnapshot(ac.ToSnapshot(), null);
+
+        Assert.Equal(cap, restored.BravoCap);
+        Assert.Equal(2, restored.ControllerAltitudeCommandCount);
+        Assert.Equal(2, restored.AirspaceUnableAdvisedCommand);
+        Assert.Equal(1800, restored.Targets.AltitudeCeiling);
+    }
+
+    /// <summary>A snapshot whose cap record lacks its altitude or its volume restores no record rather than an invented one.</summary>
+    [Theory]
+    [InlineData("BravoCapFtMsl")]
+    [InlineData("BravoCapVolumeId")]
+    public void Snapshot_WithAPartialBravoCapRecord_RestoresNoRecord(string missing)
+    {
+        var ac = new AircraftState { Callsign = "N436MS", AircraftType = "C182" };
+        ac.StartBravoCap(new BravoCap("SFO", "SFO-B-1", 2000, null, 3500));
+        JsonObject json = JsonNode.Parse(JsonSerializer.Serialize(ac.ToSnapshot()))!.AsObject();
+        Assert.True(json.Remove(missing));
+        AircraftSnapshotDto partial = json.Deserialize<AircraftSnapshotDto>()!;
+
+        var restored = AircraftState.FromSnapshot(partial, null);
+
+        Assert.Null(restored.BravoCap);
+    }
+
     /// <summary>The last crossed published speed round-trips both ways: a value after a crossing, and null before any.</summary>
     [Fact]
     public void AircraftProcedure_LastCrossedPublishedSpeed_RoundTrips()

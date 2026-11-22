@@ -255,7 +255,8 @@ public sealed class LowApproachPhase : Phase
 
         // The next circuit is built when this phase completes, so the cap is the circuit just flown.
         PatternCompression.HoldClimbCap(ctx, PatternCompression.FlownCircuit(ctx.Aircraft.Phases));
-        bool complete = agl >= SelfClearAgl;
+        // A standing ceiling below the self-clear altitude (a pilot's Class B cap under a low shelf) ends the climb-out there.
+        bool complete = (agl >= SelfClearAgl) || GoAroundPhase.IsLevelAtCeilingBelowTarget(ctx, _fieldElevation + SelfClearAgl);
         if (complete && Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("[LowApproach] {Callsign}: complete at {Agl:F0}ft AGL", ctx.Aircraft.Callsign, agl);

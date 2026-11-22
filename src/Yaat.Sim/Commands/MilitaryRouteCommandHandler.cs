@@ -102,12 +102,14 @@ public static class MilitaryRouteCommandHandler
         {
             if (cmd.AtOrBelow)
             {
+                aircraft.NoteControllerAltitudeCommand();
                 aircraft.Targets.AltitudeCeiling = altitude;
                 aircraft.Targets.TargetAltitude = aircraft.Altitude > altitude ? altitude : null;
                 return CommandDispatcher.Ok($"Cleared into {route.Printed}, at or below {altitude:N0}");
             }
 
             aircraft.Targets.AssignedAltitude = altitude;
+            aircraft.NoteControllerAltitudeCommand();
             aircraft.Targets.TargetAltitude = altitude;
             aircraft.Targets.AltitudeFloor = null;
             aircraft.Targets.AltitudeCeiling = null;
@@ -331,6 +333,7 @@ public static class MilitaryRouteCommandHandler
         if (cmd.AltitudeFt is { } altitude)
         {
             aircraft.Targets.AssignedAltitude = altitude;
+            aircraft.NoteControllerAltitudeCommand();
             aircraft.Targets.TargetAltitude = altitude;
         }
 

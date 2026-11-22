@@ -73,6 +73,8 @@ The table lists only the steps with a data *transform*; the authoritative full c
 
 **Rule for adding a field**: if it defaults cleanly (`null` / `false` / `0`) and old data is correct under that default, **no migration step needed**. Just add it to the DTO. If old data needs transformation (rename, split, reinterpret), bump `SchemaVersion` and add a `Migrate()` step.
 
+`AircraftSnapshotDto.BravoCapAreaName`, `BravoCapVolumeId`, `BravoCapFtMsl`, `BravoCapPriorCeiling` and `BravoCapPriorTargetAltitude` carry the solo pilot's Class B cap (`AircraftState.BravoCap`, [airspace-database.md](airspace-database.md) "In-phase Class B cap"), each left out of the JSON while null; `ControllerAltitudeCommandCount` (left out while 0) and `AirspaceUnableAdvisedCommand` (left out while null) carry the controller altitude commands given and the one the pilot last advised unable for. An earlier snapshot restores no cap, count 0 and no advised command, so there is no schema bump. The area, volume and cap level are written together: a snapshot holding some of the three restores no cap and logs a warning naming the aircraft.
+
 **A field left out while empty keeps old snapshots byte-identical.**
 
 `PhaseListDto.GivenUpExitTaxiways` (the taxiways the crew has said "unable" to on this landing — [landing-and-runway-exit.md](landing-and-runway-exit.md) § The given-up set) is `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`: written only when the set is non-empty, and then sorted (`StringComparer.OrdinalIgnoreCase`) so two runs holding the same set in a different hash order serialize identically; absent on read means none given up.
