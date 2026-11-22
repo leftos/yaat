@@ -167,6 +167,8 @@ public sealed partial class ScenarioGeneralViewModel
         {
             StripPlacements.Add(new StripPlacementRowViewModel(_session, i, Apply));
         }
+
+        RebuildGeneratorRows();
     }
 
     private void RebuildRowOptions()
@@ -180,6 +182,8 @@ public sealed partial class ScenarioGeneralViewModel
         {
             row.UpdateOptions(_bayOptions);
         }
+
+        RebuildGeneratorRowOptions();
     }
 
     private ArtccPositionRow? FindPosition(string positionId) => _catalogRows.GetValueOrDefault(positionId);

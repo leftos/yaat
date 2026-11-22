@@ -22,7 +22,8 @@ public sealed record ScenarioPickOption(string Value, string Label);
 /// through the services' post; when it cannot load, both fall back to free text with <see cref="ConfigProblem"/>. A value
 /// the document holds that no option lists is still offered, so it is never dropped. Holds the session, never the
 /// scenario: <see cref="Reload"/> re-reads every field after undo or redo replaced the document. The ATC positions,
-/// initialization triggers and strip placements are row lists kept in the ScenarioGeneralViewModel.Lists.cs partial.
+/// initialization triggers and strip placements are row lists kept in the ScenarioGeneralViewModel.Lists.cs partial; the
+/// arrival, VFR arrival and overflight generators are row lists kept in the ScenarioGeneralViewModel.Generators.cs partial.
 /// </summary>
 public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDisposable
 {

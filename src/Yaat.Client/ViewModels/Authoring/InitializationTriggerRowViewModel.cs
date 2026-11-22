@@ -1,4 +1,3 @@
-using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -16,9 +15,6 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// </summary>
 public sealed partial class InitializationTriggerRowViewModel : ObservableObject
 {
-    /// <summary>The time error a time that does not parse shows.</summary>
-    public const string TimeErrorText = "Enter a time like 1:30, 1:02:30 or 130.";
-
     private static readonly ILogger Log = AppLog.CreateLogger<InitializationTriggerRowViewModel>();
 
     private readonly ScenarioEditSession _session;
@@ -46,7 +42,7 @@ public sealed partial class InitializationTriggerRowViewModel : ObservableObject
         InitializationTrigger trigger = session.Document.Scenario.InitializationTriggers[index];
         _item = trigger;
         _command = trigger.Command;
-        _timeText = FormatTime(trigger.TimeOffset);
+        _timeText = ScenarioFieldText.FormatTime(trigger.TimeOffset);
     }
 
     /// <summary>Gets the item's index into <see cref="Scenario.InitializationTriggers"/>.</summary>
@@ -56,9 +52,6 @@ public sealed partial class InitializationTriggerRowViewModel : ObservableObject
     public bool IsCurrent => ScenarioListRow.IsCurrent(_session.Document.Scenario.InitializationTriggers, Index, _item);
 
     private bool IsStale() => ScenarioListRow.IsStale(_session.Document.Scenario.InitializationTriggers, Index, _item, Log);
-
-    // A document's negative offset (no author typed it) is shown as its second count rather than refused.
-    private static string FormatTime(int seconds) => (seconds >= 0) ? ScenarioTime.Format(seconds) : seconds.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Writes the command, trimmed; blank is written as it is.</summary>
     [RelayCommand]
@@ -86,7 +79,7 @@ public sealed partial class InitializationTriggerRowViewModel : ObservableObject
 
         if (ScenarioTime.Parse(TimeText) is not { } seconds)
         {
-            TimeError = TimeErrorText;
+            TimeError = ScenarioFieldText.TimeErrorText;
             return;
         }
 

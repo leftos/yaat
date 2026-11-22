@@ -453,7 +453,9 @@ public sealed class ScenarioGeneralListsTests : IDisposable
     // A committed real scenario's text with its three lists written as JSON null.
     private static string RealScenarioWithNullLists()
     {
-        JsonNode root = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo-gc-scenario.json")))!;
+        JsonNode root =
+            JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo-gc-scenario.json")))
+            ?? throw new InvalidOperationException("sfo-gc-scenario.json is not a JSON object");
         root["atc"] = null;
         root["initializationTriggers"] = null;
         root["flightStripConfigurations"] = null;
