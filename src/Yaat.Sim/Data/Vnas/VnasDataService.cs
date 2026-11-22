@@ -338,6 +338,7 @@ public sealed class VnasDataService : IDisposable
         }
 
         AircraftCategorization.Initialize(lookup);
+        AircraftTypeCatalog.Initialize(AircraftSpecs);
 
         if (Log.IsEnabled(LogLevel.Information))
         {

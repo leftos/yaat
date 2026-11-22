@@ -7,11 +7,17 @@ public class AircraftSpecEntry
     [JsonPropertyName("Designator")]
     public string Designator { get; set; } = "";
 
-    [JsonPropertyName("Manufacturer")]
+    /// <summary>The manufacturer's code, e.g. <c>BOEING</c>.</summary>
+    [JsonPropertyName("ManufacturerCode")]
     public string Manufacturer { get; set; } = "";
 
-    [JsonPropertyName("TypeDescription")]
+    /// <summary>The ICAO type description, e.g. <c>L2J</c> (land plane, two engines, jet).</summary>
+    [JsonPropertyName("Description")]
     public string TypeDescription { get; set; } = "";
+
+    /// <summary>The model's full name, e.g. <c>737-800</c>; several rows of one designator name its variants.</summary>
+    [JsonPropertyName("ModelFullName")]
+    public string Model { get; set; } = "";
 
     [JsonPropertyName("EngineType")]
     public string EngineType { get; set; } = "";

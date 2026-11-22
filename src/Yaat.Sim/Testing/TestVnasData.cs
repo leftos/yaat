@@ -311,6 +311,7 @@ public static class TestVnasData
         }
 
         AircraftCategorization.Initialize(catLookup);
+        AircraftTypeCatalog.Initialize(specs);
     }
 
     private static void LoadAircraftCwt()

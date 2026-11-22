@@ -81,7 +81,7 @@ One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same int
 | Save with auto-track warning | differently: warnings come from live validation, not a save-time dialog | `ScenarioValidator`, `ScenarioEditChecks` | M1.6 |
 | Apply step, auto-apply on switch, zero-fill setting | differently: edits apply to the document as typed; Save writes the working copy | view models | M1.4, M1.5 |
 | Aircraft grid (sortable, column layout remembered) | native | `UserPreferences` | M1.5 |
-| Aircraft editor (callsign, type autocomplete, transponder, spawn delay, taxi time, airport, approach, difficulty, altitude profile, RPO note) | native | `ScenarioAircraft`, the vNAS AircraftSpecs data `VnasDataService` loads | M1.5 |
+| Aircraft editor (callsign, type autocomplete, transponder, spawn delay, taxi time, airport, approach, difficulty, altitude profile, RPO note) | native | `ScenarioAircraft`, `AircraftTypeCatalog` (the vNAS AircraftSpecs types, retained after `VnasDataService` loads them) | M1.5 |
 | Starting conditions (parking, on runway, coordinates, fix or FRD, on final) | native | `StartingConditions`, `SpawnParser`, `FrdResolver` | M1.5 |
 | Flight plan | native | `ScenarioFlightPlan`; field layout from `FlightPlanEditorWindow`; `RouteExpander` for checks | M1.5 |
 | Preset commands with time offsets, reorder, duplicate | native, with every preset parsed live | `PresetCommand`, `CommandParser.ParseCompound`, `CommandDescriber` | M1.5, M1.6 |
