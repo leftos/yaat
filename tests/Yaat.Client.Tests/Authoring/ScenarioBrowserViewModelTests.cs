@@ -866,7 +866,8 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             {
                 _roomLoads.Add((json, name, originId));
                 return Task.CompletedTask;
-            }
+            },
+            ScenarioEditorFixture.OfflineConfigs(Path.Combine(_root, "artcc"))
         );
         var vm = new ScenarioBrowserViewModel(services);
         _viewModels.Add(vm);
@@ -957,89 +958,12 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             ConflictsAsked.Add(question);
             return Task.FromResult(ConflictAnswers.Count > 0 ? ConflictAnswers.Dequeue() : new ImportConflictAnswer(ImportIdChoice.Skip, false));
         }
-    }
 
-    // The UI thread as a queue: each test runs the posted actions when, and in the order, it chooses.
-    private sealed class QueuedPost : IDisposable
-    {
-        private static readonly TimeSpan Limit = HangGuard;
+        // The browser alone never asks it: only the editor's leave guard does.
+        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName) => Task.FromResult(UnsavedChangesChoice.Cancel);
 
-        private readonly Lock _gate = new();
-        private readonly List<Action> _pending = [];
-        private readonly SemaphoreSlim _posted = new(0);
-
-        public int Count
-        {
-            get
-            {
-                lock (_gate)
-                {
-                    return _pending.Count;
-                }
-            }
-        }
-
-        public void Post(Action action)
-        {
-            lock (_gate)
-            {
-                _pending.Add(action);
-            }
-
-            _posted.Release();
-        }
-
-        public void RunAt(int index)
-        {
-            Action action;
-            lock (_gate)
-            {
-                action = _pending[index];
-                _pending.RemoveAt(index);
-            }
-
-            action();
-        }
-
-        public void Drain()
-        {
-            while (Count > 0)
-            {
-                RunAt(0);
-            }
-        }
-
-        // Runs posted actions until the task completes.
-        public async Task Run(Task task)
-        {
-            DateTime deadline = DateTime.UtcNow + Limit;
-            while (true)
-            {
-                Drain();
-                if (task.IsCompleted)
-                {
-                    break;
-                }
-
-                Assert.True(DateTime.UtcNow < deadline, "Hung: the task never completed.");
-                await Task.WhenAny(task, _posted.WaitAsync(50));
-            }
-
-            await task;
-        }
-
-        // Waits, running nothing, until at least count actions are queued.
-        public async Task WaitForPending(int count)
-        {
-            DateTime deadline = DateTime.UtcNow + Limit;
-            while (Count < count)
-            {
-                Assert.True(DateTime.UtcNow < deadline, $"Hung: {count} posted actions never arrived.");
-                await _posted.WaitAsync(50);
-            }
-        }
-
-        public void Dispose() => _posted.Dispose();
+        // Asked only through the editor's replace guard.
+        public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

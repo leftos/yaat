@@ -919,6 +919,8 @@ HemisphericAltitude.cs         # 14 CFR 91.159(a) VFR cruising altitudes: snap a
 VfrSpawnSiting.cs              # VFR spawn gates: clear of Class B/C, clear of standard radar separation; bearing/range rolls
 SpawnRequest.cs                # Spawn descriptor
 ScenarioRatingClassifier.cs    # Maps VATSIM rating short/long forms (S3 / Student3 etc.) to an ordinal;
+                               # LongFormRatings lists the long names lowest first (the Scenario Editor's
+                               # minimum-rating picker);
                                # IsRatingSufficient(rating, required) for the scenario gate and
                                # IsInstructorOrAbove(rating) for the server connection gate. Shared by the
                                # client picker filter and the server-side gating decision.

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -74,6 +73,15 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     /// </summary>
     public event EventHandler<ScenarioOpenRequestedEventArgs>? OpenRequested;
 
+    /// <summary>Raised on the UI thread once a working copy is deleted, so an editor that has it open closes it.</summary>
+    public event EventHandler<ScenarioWorkingCopyDeletedEventArgs>? WorkingCopyDeleted;
+
+    /// <summary>
+    /// Raised on the UI thread once an import that kept its id replaced a working copy's text, so an editor that has it
+    /// open reloads it.
+    /// </summary>
+    public event EventHandler<ScenarioWorkingCopyReplacedEventArgs>? WorkingCopyReplaced;
+
     /// <summary>Gets the ARTCCs the user may edit, in the access source's order.</summary>
     public IReadOnlyList<string> Artccs
     {
@@ -120,7 +128,7 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     public bool IsProgressIndeterminate => ProgressTotal == 0;
 
     /// <summary>
-    /// Gets or sets the ARTCC shown. Setting it to another listed ARTCC asks <see cref="CanSwitchArtcc"/>, remembers the
+    /// Gets or sets the ARTCC shown. Setting it to another listed ARTCC asks <see cref="CanSwitchArtccAsync"/>, remembers the
     /// pick in the editor's own preference, cancels a running resync and loads that ARTCC (<see cref="ArtccSwitch"/>).
     /// </summary>
     public string? SelectedArtcc
@@ -150,15 +158,43 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     /// <summary>Gets the latest ARTCC load, finished once its rows are applied and its resync started.</summary>
     public Task ArtccSwitch { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Whether the window may close now.</summary>
-    /// <returns>Always true.</returns>
-    [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "An instance hook the window asks before closing.")]
-    public bool CanClose() => true;
+    /// <summary>
+    /// Gets or sets what is asked before the open scenario is left (the window closing, an ARTCC switch): true to go on.
+    /// The editor sets it to its unsaved-changes question; with no editor it always answers true.
+    /// </summary>
+    public Func<Task<bool>> LeaveGuard { get; set; } = () => Task.FromResult(true);
 
-    /// <summary>Whether the browser may switch to another ARTCC now.</summary>
-    /// <returns>Always true.</returns>
-    [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "An instance hook asked before each ARTCC switch.")]
-    public bool CanSwitchArtcc() => true;
+    /// <summary>
+    /// Gets or sets what is asked, on the UI thread, before an import that keeps its id replaces a working copy (its ARTCC
+    /// and id): true to replace it, false to skip that file. The editor sets it to ask when that copy is open with unsaved
+    /// edits; with no editor it always answers true.
+    /// </summary>
+    public Func<string, string, Task<bool>> ReplaceGuard { get; set; } = (_, _) => Task.FromResult(true);
+
+    /// <summary>Whether the window may close now: the <see cref="LeaveGuard"/>'s answer.</summary>
+    /// <returns>True to close.</returns>
+    public Task<bool> CanCloseAsync() => LeaveGuard();
+
+    /// <summary>Whether the browser may switch to another ARTCC now: the <see cref="LeaveGuard"/>'s answer.</summary>
+    /// <returns>True to switch.</returns>
+    public Task<bool> CanSwitchArtccAsync() => LeaveGuard();
+
+    /// <summary>
+    /// Re-reads the rows after the editor saved a working copy, so its name and badges show; does nothing when the copy's
+    /// ARTCC is not the one shown.
+    /// </summary>
+    /// <param name="artccId">The ARTCC whose folder holds the saved copy.</param>
+    /// <param name="selectId">The id to select on the Local tab (the Save command's copy), or null to keep the selection.</param>
+    /// <returns>A task that finishes when the rows are applied.</returns>
+    public Task NotifyWorkingCopySavedAsync(string artccId, string? selectId)
+    {
+        if (_disposed || (_artcc is not { } artcc) || !string.Equals(artcc, artccId, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        return ReloadAsync(artcc, (selectId is null) ? null : new RowSelection(ScenarioBrowserTab.Local, selectId));
+    }
 
     /// <summary>
     /// Reads the ARTCCs the user may edit and shows the default one: the Settings ARTCC when listed, else the remembered
@@ -288,14 +324,51 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
             return;
         }
 
-        if (!CanSwitchArtcc())
+        Task<bool> guard = CanSwitchArtccAsync();
+        if (guard.IsCompleted)
         {
-            OnPropertyChanged(nameof(SelectedArtcc));
+            if (guard.Exception is { } failure)
+            {
+                LogFailure(failure.GetBaseException(), "asking before the ARTCC switch");
+            }
+
+            ArtccSwitch = SwitchIfAllowed(value, guard.IsCompletedSuccessfully && guard.Result);
             return;
         }
 
+        ArtccSwitch = SwitchAfterGuardAsync(value, guard);
+    }
+
+    // On the UI thread: a refused switch re-raises SelectedArtcc so the selector snaps back to the ARTCC shown.
+    private Task SwitchIfAllowed(string value, bool allowed)
+    {
+        if (_disposed || !allowed || (value == _artcc))
+        {
+            OnPropertyChanged(nameof(SelectedArtcc));
+            return Task.CompletedTask;
+        }
+
         _services.Preferences.SetScenarioEditorLastArtcc(value);
-        ArtccSwitch = SwitchToAsync(value);
+        return SwitchToAsync(value);
+    }
+
+    // A guard that asks the user: its answer is applied through the post, and a failed guard refuses the switch.
+    private async Task SwitchAfterGuardAsync(string value, Task<bool> guard)
+    {
+        bool allowed;
+        try
+        {
+            allowed = await guard.ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "asking before the ARTCC switch");
+            allowed = false;
+        }
+
+        Task switching = Task.CompletedTask;
+        await OnUiAsync(() => switching = SwitchIfAllowed(value, allowed)).ConfigureAwait(false);
+        await switching.ConfigureAwait(false);
     }
 
     // On the UI thread: cancels and disposes the old ARTCC's run, empties the lists, then loads the new ARTCC and starts
@@ -507,4 +580,28 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
 
     // The row to select after a reload: its tab and id.
     private sealed record RowSelection(ScenarioBrowserTab Tab, string Id);
+}
+
+/// <summary>A working copy the browser deleted.</summary>
+/// <param name="artccId">The ARTCC whose folder held it.</param>
+/// <param name="id">The deleted copy's id.</param>
+public sealed class ScenarioWorkingCopyDeletedEventArgs(string artccId, string id) : EventArgs
+{
+    /// <summary>Gets the ARTCC whose folder held the copy.</summary>
+    public string ArtccId { get; } = artccId;
+
+    /// <summary>Gets the deleted copy's id.</summary>
+    public string Id { get; } = id;
+}
+
+/// <summary>A working copy whose text an import replaced.</summary>
+/// <param name="artccId">The ARTCC whose folder holds it.</param>
+/// <param name="id">The replaced copy's id.</param>
+public sealed class ScenarioWorkingCopyReplacedEventArgs(string artccId, string id) : EventArgs
+{
+    /// <summary>Gets the ARTCC whose folder holds the copy.</summary>
+    public string ArtccId { get; } = artccId;
+
+    /// <summary>Gets the replaced copy's id.</summary>
+    public string Id { get; } = id;
 }

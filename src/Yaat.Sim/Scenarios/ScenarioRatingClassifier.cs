@@ -9,40 +9,47 @@ namespace Yaat.Sim.Scenarios;
 /// </summary>
 public static class ScenarioRatingClassifier
 {
-    // The vNAS data-api emits long-form rating names ("Student3", "Controller1");
-    // VATSIM Connect emits short forms ("S3", "C1"). Both are kept so scenario JSON,
-    // command arguments, and live VATSIM identity all resolve against one table.
-    private static readonly Dictionary<string, int> RatingOrdinal = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Short forms.
-        ["OBS"] = 0,
-        ["S1"] = 1,
-        ["S2"] = 2,
-        ["S3"] = 3,
-        ["C1"] = 4,
-        ["C3"] = 5,
-        ["I1"] = 6,
-        ["I2"] = 7,
-        ["I3"] = 8,
-        ["SUP"] = 9,
-        ["ADM"] = 10,
-        // Long forms (what the vNAS data-api emits).
-        ["Observer"] = 0,
-        ["Student1"] = 1,
-        ["Student2"] = 2,
-        ["Student3"] = 3,
-        ["Controller1"] = 4,
-        ["Controller3"] = 5,
-        ["Instructor1"] = 6,
-        ["Instructor2"] = 7,
-        ["Instructor3"] = 8,
-        ["Supervisor"] = 9,
-        ["Administrator"] = 10,
-    };
+    // One row per rating, lowest first; the row's index is its ordinal. The vNAS data-api emits the long form
+    // ("Student3", "Controller1"); VATSIM Connect emits the short form ("S3", "C1"). Both resolve against this one
+    // table, so scenario JSON, command arguments and live VATSIM identity agree.
+    private static readonly (string Short, string Long)[] Ratings =
+    [
+        ("OBS", "Observer"),
+        ("S1", "Student1"),
+        ("S2", "Student2"),
+        ("S3", "Student3"),
+        ("C1", "Controller1"),
+        ("C3", "Controller3"),
+        ("I1", "Instructor1"),
+        ("I2", "Instructor2"),
+        ("I3", "Instructor3"),
+        ("SUP", "Supervisor"),
+        ("ADM", "Administrator"),
+    ];
+
+    /// <summary>
+    /// Gets the long-form rating names (what the vNAS data-api emits and scenario JSON stores), lowest first: Observer
+    /// through Administrator, one per ordinal.
+    /// </summary>
+    public static IReadOnlyList<string> LongFormRatings { get; } = [.. Ratings.Select(r => r.Long)];
+
+    private static readonly Dictionary<string, int> RatingOrdinal = BuildOrdinals();
 
     // I1 (Instructor 1) is the lowest instructor rating; everything at or above it (I1/I2/I3/SUP/ADM)
     // is treated as instructor-or-above for the training-hub connection gate.
     private static readonly int InstructorThreshold = OrdinalOf("I1") ?? int.MaxValue;
+
+    private static Dictionary<string, int> BuildOrdinals()
+    {
+        var ordinals = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < Ratings.Length; i++)
+        {
+            ordinals[Ratings[i].Short] = i;
+            ordinals[Ratings[i].Long] = i;
+        }
+
+        return ordinals;
+    }
 
     /// <summary>
     /// Returns the comparable ordinal for a rating string (short or long form),

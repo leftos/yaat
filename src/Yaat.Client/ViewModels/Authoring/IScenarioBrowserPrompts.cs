@@ -26,6 +26,29 @@ public interface IScenarioBrowserPrompts
     /// <param name="question">The file, its id and what holds the id.</param>
     /// <returns>The choice, and whether it applies to the remaining files of the import.</returns>
     Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question);
+
+    /// <summary>Asks what to do with the open scenario's unsaved edits before it is closed.</summary>
+    /// <param name="scenarioName">The open scenario's name.</param>
+    /// <returns>Save them, discard them, or keep the scenario open.</returns>
+    Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName);
+
+    /// <summary>Asks whether an import may replace the working copy open with unsaved edits, losing them.</summary>
+    /// <param name="scenarioName">The open scenario's name.</param>
+    /// <returns>True to replace it; false to skip that file of the import.</returns>
+    Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName);
+}
+
+/// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/>.</summary>
+public enum UnsavedChangesChoice
+{
+    /// <summary>Save the edits, then go on.</summary>
+    Save,
+
+    /// <summary>Drop the edits and go on.</summary>
+    Discard,
+
+    /// <summary>Keep the scenario open with its edits; do not go on.</summary>
+    Cancel,
 }
 
 /// <summary>An imported file whose scenario id is already taken.</summary>

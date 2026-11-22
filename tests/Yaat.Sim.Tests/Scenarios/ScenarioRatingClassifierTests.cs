@@ -97,4 +97,16 @@ public class ScenarioRatingClassifierTests
     [InlineData("junk")]
     public void IsInstructorOrAbove_NonInstructorRatings_AreFalse(string? rating) =>
         Assert.False(ScenarioRatingClassifier.IsInstructorOrAbove(rating));
+
+    [Fact]
+    public void LongFormRatings_AreInOrdinalOrder_OnePerOrdinal()
+    {
+        IReadOnlyList<string> ratings = ScenarioRatingClassifier.LongFormRatings;
+
+        Assert.Equal(11, ratings.Count);
+        for (int i = 0; i < ratings.Count; i++)
+        {
+            Assert.Equal(i, ScenarioRatingClassifier.OrdinalOf(ratings[i]));
+        }
+    }
 }

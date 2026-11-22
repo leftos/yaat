@@ -49,6 +49,11 @@ public sealed partial class ScenarioBrowserViewModel
         }
 
         ImportIdChoice choice = await ChooseImportIdAsync(file, conflict, remaining, run).ConfigureAwait(false);
+        if (!await MayReplaceAsync(artcc, file, conflict, choice).ConfigureAwait(false))
+        {
+            return;
+        }
+
         (_, ImportResult? result) = await TryStoreAsync(file.Label, "importing", () => store.ImportScenario(artcc, file.Text, choice, NextId))
             .ConfigureAwait(false);
         if (result is not null)
@@ -56,6 +61,22 @@ public sealed partial class ScenarioBrowserViewModel
             run.LastId = result.Id ?? run.LastId;
             await OnUiAsync(() => NoteImport(artcc, file, result)).ConfigureAwait(false);
         }
+    }
+
+    // Keeping the id of a file whose working copy exists replaces that copy: the ReplaceGuard is asked first (the editor
+    // asks when it has the copy open with unsaved edits); false skips this file only.
+    private async Task<bool> MayReplaceAsync(string artcc, ImportFile file, ScenarioIdConflict? conflict, ImportIdChoice choice)
+    {
+        if (
+            (choice != ImportIdChoice.KeepId)
+            || (conflict is not (ScenarioIdConflict.WorkingCopy or ScenarioIdConflict.Both))
+            || (file.Id is not { } id)
+        )
+        {
+            return true;
+        }
+
+        return await PromptAsync(file.Label, () => ReplaceGuard(artcc, id), false).ConfigureAwait(false);
     }
 
     private static ImportFile ReadImportFile(string path)
@@ -118,6 +139,11 @@ public sealed partial class ScenarioBrowserViewModel
 
     private void NoteImport(string artcc, ImportFile file, ImportResult result)
     {
+        if ((result.Outcome == ImportOutcome.Imported) && result.Overwrote && (result.Id is { } id))
+        {
+            WorkingCopyReplaced?.Invoke(this, new ScenarioWorkingCopyReplacedEventArgs(artcc, id));
+        }
+
         if (result.Outcome == ImportOutcome.Rejected)
         {
             AddNotice($"{file.Label}: not imported: {result.Reason}");

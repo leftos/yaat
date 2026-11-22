@@ -17,6 +17,7 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <param name="CanLoadInRoom">Whether a scenario can be loaded into the room now; re-read through
 /// <see cref="ScenarioBrowserViewModel.RefreshTestInRoom"/>.</param>
 /// <param name="LoadInRoom">Loads a scenario into the room: its JSON, display name and server origin id (null when local-only).</param>
+/// <param name="Configs">The ARTCC configs the editor's position and airport pickers list their options from.</param>
 public sealed record ScenarioBrowserServices(
     UserPreferences Preferences,
     LocalScenarioStore Store,
@@ -27,12 +28,18 @@ public sealed record ScenarioBrowserServices(
     Random Random,
     Action<Action> Post,
     Func<bool> CanLoadInRoom,
-    Func<string, string, string?, Task> LoadInRoom
+    Func<string, string, string?, Task> LoadInRoom,
+    ArtccConfigSource Configs
 )
 {
+    // One client and one config source for the app's lifetime: every editor window shares the parsed configs.
+    private static readonly HttpClient ConfigHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    private static readonly ArtccConfigSource AppConfigs = new(ConfigHttp);
+
     /// <summary>
-    /// The app's services: the app-data store, the given ARTCC access, data-api, the system clock and the dispatcher; Test
-    /// in Room is off (it can never load) until a room loader is given.
+    /// The app's services: the app-data store, the given ARTCC access, data-api (scenarios and ARTCC configs),
+    /// the system clock and the dispatcher; Test in Room is off (it can never load) until a room loader is given.
     /// </summary>
     /// <param name="preferences">The user's preferences.</param>
     /// <param name="prompts">The window's dialogs and pickers.</param>
@@ -51,7 +58,8 @@ public sealed record ScenarioBrowserServices(
             Random.Shared,
             action => Dispatcher.UIThread.Post(action),
             () => false,
-            (_, _, _) => Task.CompletedTask
+            (_, _, _) => Task.CompletedTask,
+            AppConfigs
         );
     }
 

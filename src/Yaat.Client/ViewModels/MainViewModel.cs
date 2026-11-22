@@ -3595,7 +3595,7 @@ public partial class MainViewModel : ObservableObject
     {
         _isApplyingSessionSettings = true;
         ActiveAutoDeleteMode = dto.EffectiveAutoDeleteMode;
-        SessionAutoDeleteIndex = AutoDeleteModeToIndex(dto.AutoDeleteOverride);
+        SessionAutoDeleteIndex = AutoDeleteModes.ToIndex(dto.AutoDeleteOverride);
         if (!SkipPushWhilePending(SessionSettingKey.DepartureDistance))
         {
             SessionDepartureAutoDeleteDistanceNm = dto.DepartureAutoDeleteDistanceNm is { } departureDistanceNm ? (decimal)departureDistanceNm : null;
@@ -3775,7 +3775,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var mode = IndexToActiveAutoDeleteMode(value);
+        var mode = AutoDeleteModes.FromIndex(value);
         ActiveAutoDeleteMode = mode;
         _ = _connection.SetAutoDeleteModeAsync(mode);
     }
@@ -4119,24 +4119,6 @@ public partial class MainViewModel : ObservableObject
             _ = _connection.SetRpoShowPilotSpeechAsync(value);
         }
     }
-
-    private static int AutoDeleteModeToIndex(string? mode) =>
-        mode switch
-        {
-            "Never" => 1,
-            "OnLanding" => 2,
-            "Parked" => 3,
-            _ => 0,
-        };
-
-    private static string? IndexToActiveAutoDeleteMode(int index) =>
-        index switch
-        {
-            1 => "Never",
-            2 => "OnLanding",
-            3 => "Parked",
-            _ => null,
-        };
 
     private async Task SendValidateDctFixes()
     {

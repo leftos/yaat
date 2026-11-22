@@ -24,6 +24,9 @@ public partial class ScenarioEditorWindow : Window
 
     private readonly WindowGeometryHelper _geometry;
 
+    // Set once an asked close was allowed, so the close it starts again goes through.
+    private bool _closeAllowed;
+
     // Parameterless ctor for the Avalonia designer / XamlLoader: no ARTCC to edit, so it lists nothing.
     public ScenarioEditorWindow()
         : this(new UserPreferences()) { }
@@ -45,7 +48,7 @@ public partial class ScenarioEditorWindow : Window
         DataContext = Browser;
         _geometry = new WindowGeometryHelper(this, preferences, GeometryKey, 1100, 700);
         _geometry.Restore();
-        CanCloseNow = Browser.CanClose;
+        CanCloseNow = Browser.CanCloseAsync;
         Browser.PropertyChanged += OnBrowserPropertyChanged;
         Opened += OnOpened;
         Closing += OnClosing;
@@ -62,9 +65,9 @@ public partial class ScenarioEditorWindow : Window
     internal Task BrowserReady { get; private set; } = Task.CompletedTask;
 
     /// <summary>
-    /// Gets or sets whether the window may close now: the browser's <see cref="ScenarioBrowserViewModel.CanClose"/>; tests replace it.
+    /// Gets or sets whether the window may close now: the browser's <see cref="ScenarioBrowserViewModel.CanCloseAsync"/>; tests replace it.
     /// </summary>
-    internal Func<bool> CanCloseNow { get; set; }
+    internal Func<Task<bool>> CanCloseNow { get; set; }
 
     // The first load is awaited here so a failure is logged and shown in the status line, never left unobserved.
     private async void OnOpened(object? sender, EventArgs e)
@@ -98,11 +101,51 @@ public partial class ScenarioEditorWindow : Window
         }
     }
 
+    // An answer already known decides this close; one that asks the user cancels it and closes again once allowed.
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (!CanCloseNow())
+        if (_closeAllowed)
         {
-            e.Cancel = true;
+            return;
+        }
+
+        Task<bool> guard = CanCloseNow();
+        if (guard.IsCompleted)
+        {
+            if ((guard.Exception is { } failure) && Log.IsEnabled(LogLevel.Error))
+            {
+                Log.LogError(failure.GetBaseException(), "Asking before the Scenario Editor closes failed");
+            }
+
+            e.Cancel = !(guard.IsCompletedSuccessfully && guard.Result);
+            return;
+        }
+
+        e.Cancel = true;
+        _ = CloseWhenAllowedAsync(guard);
+    }
+
+    private async Task CloseWhenAllowedAsync(Task<bool> guard)
+    {
+        bool allowed;
+        try
+        {
+            allowed = await guard;
+        }
+        catch (Exception ex)
+        {
+            if (Log.IsEnabled(LogLevel.Error))
+            {
+                Log.LogError(ex, "Asking before the Scenario Editor closes failed");
+            }
+
+            allowed = false;
+        }
+
+        if (allowed)
+        {
+            _closeAllowed = true;
+            Close();
         }
     }
 

@@ -72,7 +72,7 @@ public class ScenarioEditorWindowTests
             MenuItem item = main.FindControl<MenuItem>("ScenarioEditorMenuItem")!;
             Click(item);
             opened = Assert.Single(OpenWindows.All.OfType<ScenarioEditorWindow>());
-            opened.CanCloseNow = () => false;
+            opened.CanCloseNow = () => Task.FromResult(false);
 
             opened.Close();
             MainWindowHost.Pump();
@@ -84,7 +84,7 @@ public class ScenarioEditorWindowTests
         {
             if (opened is not null)
             {
-                opened.CanCloseNow = () => true;
+                opened.CanCloseNow = () => Task.FromResult(true);
                 opened.Close();
             }
 
@@ -123,6 +123,42 @@ public class ScenarioEditorWindowTests
         }
         finally
         {
+            window.Close();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Closing_WithAPendingGuard_WaitsForItsAnswer(bool allowed)
+    {
+        ScenarioEditorWindow window = NewWindow(SeededStore(), NeverFinishes, Zoa);
+        var answer = new TaskCompletionSource<bool>();
+        int asked = 0;
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            await ShowAsync(window);
+            window.CanCloseNow = () =>
+            {
+                asked++;
+                return answer.Task;
+            };
+
+            window.Close();
+            MainWindowHost.Pump();
+            Assert.False(closed);
+
+            answer.SetResult(allowed);
+            MainWindowHost.Pump();
+
+            Assert.Equal(allowed, closed);
+            Assert.Equal(1, asked);
+        }
+        finally
+        {
+            window.CanCloseNow = () => Task.FromResult(true);
             window.Close();
         }
     }

@@ -73,7 +73,7 @@ public sealed partial class ScenarioBrowserViewModel
         }
     }
 
-    /// <summary>Deletes the selected working copy once the user confirms.</summary>
+    /// <summary>Deletes the selected working copy once the user confirms, then raises <see cref="WorkingCopyDeleted"/>.</summary>
     [RelayCommand(CanExecute = nameof(CanDelete))]
     private async Task DeleteAsync()
     {
@@ -91,6 +91,7 @@ public sealed partial class ScenarioBrowserViewModel
         LocalScenarioStore store = _services.Store;
         if (await TryDoAsync(row.Name, "deleting", () => store.DeleteWorkingCopy(artcc, row.Id)).ConfigureAwait(false))
         {
+            await OnUiAsync(() => WorkingCopyDeleted?.Invoke(this, new ScenarioWorkingCopyDeletedEventArgs(artcc, row.Id))).ConfigureAwait(false);
             await ReloadAsync(artcc, null).ConfigureAwait(false);
         }
     }
