@@ -36,6 +36,50 @@
     <Border DockPanel.Dock="Bottom" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,1,0,0" Padding="10,4" MinHeight="24">
       <TextBlock x:Name="StatusText" Classes="status" Text="{Binding StatusText}" />
     </Border>
+    <Border x:Name="PropertyPanel" DockPanel.Dock="Right" Width="300" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="1,0,0,0">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="Properties" FontWeight="SemiBold" Foreground="#E0E0E0" Margin="10,8,10,6" />
+        <Panel>
+          <TextBlock
+            x:Name="NoSelectionText"
+            Classes="status"
+            Text="No feature selected."
+            VerticalAlignment="Top"
+            Margin="10,2,10,0"
+            IsVisible="{Binding SelectedFeature, Converter={x:Static ObjectConverters.IsNull}}"
+          />
+          <ScrollViewer IsVisible="{Binding SelectedFeature, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <ItemsControl x:Name="PropertyRows" ItemsSource="{Binding SelectionRows}" Margin="10,0,10,8">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AirportEditorPropertyRow">
+                  <Grid ColumnDefinitions="96,*" Margin="0,1">
+                    <TextBlock
+                      Text="{Binding Name}"
+                      FontSize="11"
+                      Foreground="#B0B0B0"
+                      VerticalAlignment="Top"
+                      Margin="0,4,6,0"
+                      TextTrimming="CharacterEllipsis"
+                    />
+                    <TextBox
+                      Grid.Column="1"
+                      Text="{Binding Value, Mode=OneWay}"
+                      IsReadOnly="True"
+                      BorderThickness="0"
+                      Background="Transparent"
+                      TextWrapping="Wrap"
+                      FontSize="11"
+                      Padding="2"
+                      MinHeight="0"
+                    />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Panel>
+      </DockPanel>
+    </Border>
     <local:AirportEditorCanvas x:Name="MapCanvas" />
   </DockPanel>
 </Window>

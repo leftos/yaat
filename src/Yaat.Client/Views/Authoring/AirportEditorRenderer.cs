@@ -28,11 +28,15 @@ public enum AirportEditorFeatureKind
     Helipad,
 }
 
-/// <summary>One feature as the Airport Editor draws it: its kind, its positions and its label.</summary>
+/// <summary>One feature as the Airport Editor draws it: its index in the map, its kind, its positions and its label.</summary>
+/// <param name="FeatureIndex">
+/// The feature's index in <see cref="AirportMapDocument.Features"/>; a scene keeps only the features it draws, so this
+/// is not the shape's own index in the scene.
+/// </param>
 /// <param name="Kind">What the feature is.</param>
 /// <param name="Positions">The feature's positions in source order: one for a point, two or more for a line.</param>
 /// <param name="Label">The feature's <c>name</c>, or null when it has none.</param>
-public sealed record AirportEditorShape(AirportEditorFeatureKind Kind, ImmutableArray<MapPosition> Positions, string? Label);
+public sealed record AirportEditorShape(int FeatureIndex, AirportEditorFeatureKind Kind, ImmutableArray<MapPosition> Positions, string? Label);
 
 /// <summary>
 /// The drawable part of an <see cref="AirportMapDocument"/>, built once per document on the UI thread and never changed,
@@ -56,11 +60,12 @@ public sealed record AirportEditorScene(ImmutableArray<AirportEditorShape> Shape
         }
 
         ImmutableArray<AirportEditorShape>.Builder shapes = ImmutableArray.CreateBuilder<AirportEditorShape>();
-        foreach (MapFeature feature in document.Features)
+        for (int i = 0; i < document.Features.Count; i++)
         {
+            MapFeature feature = document.Features[i];
             if (KindOf(feature) is { } kind)
             {
-                shapes.Add(new AirportEditorShape(kind, feature.Coordinates, NameOf(feature)));
+                shapes.Add(new AirportEditorShape(i, kind, feature.Coordinates, NameOf(feature)));
             }
         }
 
@@ -138,19 +143,47 @@ public sealed record AirportEditorBounds(double MinLat, double MaxLat, double Mi
     }
 }
 
-/// <summary>What the render thread draws one Airport Editor frame from: the scene and the mode shown in the HUD.</summary>
+/// <summary>
+/// What the render thread draws one Airport Editor frame from: the scene, the mode shown in the HUD, the selection and
+/// what the pointer is over.
+/// </summary>
 /// <param name="Scene">The open map's scene.</param>
 /// <param name="ModeText">The canvas's mode, shown bottom-left.</param>
-public sealed record AirportEditorRenderSnapshot(AirportEditorScene Scene, string ModeText);
+/// <param name="SelectedFeatureIndex">The selected feature's index in the map, or null when nothing is selected.</param>
+/// <param name="SelectedVertexIndex">The selected vertex of the selected line, or null when none is.</param>
+/// <param name="Hover">What the pointer is over, or null when nothing is.</param>
+public sealed record AirportEditorRenderSnapshot(
+    AirportEditorScene Scene,
+    string ModeText,
+    int? SelectedFeatureIndex,
+    int? SelectedVertexIndex,
+    AirportEditorHit? Hover
+);
 
 /// <summary>
 /// Draws the Airport Editor's map on its dark background: runways, taxiways, parking, spots and helipads, then the
-/// taxiway and runway labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
+/// hovered feature's and the selection's highlights and the selected line's vertex handles, then the taxiway and runway
+/// labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
 /// </summary>
 public sealed class AirportEditorRenderer : IDisposable
 {
     private const float PointRadius = 2.6f;
     private const float HudInset = 8f;
+    private const float SelectedLineExtraWidth = 3f;
+    private const float SelectedRingExtraRadius = 4f;
+    private const float HoverExtraWidth = 2f;
+    private const float HandleRadius = 4f;
+    private const float ActiveHandleRadius = 6f;
+
+    private static readonly SKColor Amber = SKColor.Parse("#FFC107");
+
+    private readonly SKPaint _selectedLinePaint = LinePaint(Amber, 0f);
+    private readonly SKPaint _selectedRingPaint = LinePaint(Amber, 2f);
+    private readonly SKPaint _hoverLinePaint = LinePaint(SKColors.White.WithAlpha(102), 0f);
+    private readonly SKPaint _hoverFillPaint = FillPaint(SKColors.White.WithAlpha(102));
+    private readonly SKPaint _handlePaint = FillPaint(SKColors.White);
+    private readonly SKPaint _selectedHandlePaint = FillPaint(Amber);
+    private readonly SKPaint _handleOutlinePaint = LinePaint(SKColor.Parse("#1F1F1F"), 1f);
 
     private readonly SKColor _background = SKColor.Parse(GroundColorScheme.DefaultBackground);
 
@@ -190,19 +223,15 @@ public sealed class AirportEditorRenderer : IDisposable
         DrawLines(canvas, viewport, shapes, AirportEditorFeatureKind.Taxiway, _taxiwayPaint);
         foreach (AirportEditorShape shape in shapes)
         {
-            SKPaint? paint = shape.Kind switch
-            {
-                AirportEditorFeatureKind.Parking or AirportEditorFeatureKind.Helipad => _parkingPaint,
-                AirportEditorFeatureKind.Spot => _spotPaint,
-                _ => null,
-            };
-            if (paint is not null)
+            if (!AirportEditorHitTest.IsLine(shape.Kind))
             {
                 (float x, float y) = viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
-                canvas.DrawCircle(x, y, PointRadius, paint);
+                canvas.DrawCircle(x, y, PointRadius, NormalPaint(shape.Kind));
             }
         }
 
+        DrawHover(canvas, viewport, snapshot);
+        DrawSelection(canvas, viewport, snapshot);
         DrawLineLabels(canvas, viewport, shapes);
         DrawHaloText(canvas, snapshot.ModeText, new SKPoint(HudInset, viewport.PixelHeight - HudInset), SKTextAlign.Left, _hudFont, _hudPaint);
     }
@@ -217,6 +246,13 @@ public sealed class AirportEditorRenderer : IDisposable
         _taxiwayLabelPaint.Dispose();
         _runwayLabelPaint.Dispose();
         _hudPaint.Dispose();
+        _selectedLinePaint.Dispose();
+        _selectedRingPaint.Dispose();
+        _hoverLinePaint.Dispose();
+        _hoverFillPaint.Dispose();
+        _handlePaint.Dispose();
+        _selectedHandlePaint.Dispose();
+        _handleOutlinePaint.Dispose();
         _labelHaloPaint.Dispose();
         _taxiwayLabelFont.Dispose();
         _runwayLabelFont.Dispose();
@@ -253,26 +289,108 @@ public sealed class AirportEditorRenderer : IDisposable
         using var path = new SKPath();
         foreach (AirportEditorShape shape in shapes)
         {
-            if (shape.Kind != kind)
+            if (shape.Kind == kind)
             {
-                continue;
-            }
-
-            for (int i = 0; i < shape.Positions.Length; i++)
-            {
-                (float x, float y) = viewport.LatLonToScreen(shape.Positions[i].Lat, shape.Positions[i].Lon);
-                if (i == 0)
-                {
-                    path.MoveTo(x, y);
-                }
-                else
-                {
-                    path.LineTo(x, y);
-                }
+                AddLine(path, viewport, shape);
             }
         }
 
         canvas.DrawPath(path, paint);
+    }
+
+    private static void AddLine(SKPath path, MapViewport viewport, AirportEditorShape shape)
+    {
+        for (int i = 0; i < shape.Positions.Length; i++)
+        {
+            (float x, float y) = viewport.LatLonToScreen(shape.Positions[i].Lat, shape.Positions[i].Lon);
+            if (i == 0)
+            {
+                path.MoveTo(x, y);
+            }
+            else
+            {
+                path.LineTo(x, y);
+            }
+        }
+    }
+
+    private static void DrawLine(SKCanvas canvas, MapViewport viewport, AirportEditorShape shape, SKPaint paint)
+    {
+        using var path = new SKPath();
+        AddLine(path, viewport, shape);
+        canvas.DrawPath(path, paint);
+    }
+
+    private static AirportEditorShape? ShapeOf(AirportEditorScene scene, int? featureIndex) =>
+        featureIndex is int index ? scene.Shapes.FirstOrDefault(s => s.FeatureIndex == index) : null;
+
+    private SKPaint NormalPaint(AirportEditorFeatureKind kind) =>
+        kind switch
+        {
+            AirportEditorFeatureKind.Runway => _runwayPaint,
+            AirportEditorFeatureKind.Taxiway => _taxiwayPaint,
+            AirportEditorFeatureKind.Spot => _spotPaint,
+            _ => _parkingPaint,
+        };
+
+    // The feature under the pointer, when it is not the selected one: the same shape in translucent white, 2 px wider.
+    private void DrawHover(SKCanvas canvas, MapViewport viewport, AirportEditorRenderSnapshot snapshot)
+    {
+        if (
+            (snapshot.Hover is not { } hover)
+            || (hover.FeatureIndex == snapshot.SelectedFeatureIndex)
+            || (ShapeOf(snapshot.Scene, hover.FeatureIndex) is not { } shape)
+        )
+        {
+            return;
+        }
+
+        if (AirportEditorHitTest.IsLine(shape.Kind))
+        {
+            _hoverLinePaint.StrokeWidth = NormalPaint(shape.Kind).StrokeWidth + HoverExtraWidth;
+            DrawLine(canvas, viewport, shape, _hoverLinePaint);
+            return;
+        }
+
+        (float x, float y) = viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
+        canvas.DrawCircle(x, y, PointRadius + (HoverExtraWidth / 2), _hoverFillPaint);
+    }
+
+    // The selected line: an amber stroke 3 px wider under its own stroke, then its vertex handles. The selected point:
+    // an amber ring 4 px outside it.
+    private void DrawSelection(SKCanvas canvas, MapViewport viewport, AirportEditorRenderSnapshot snapshot)
+    {
+        if (ShapeOf(snapshot.Scene, snapshot.SelectedFeatureIndex) is not { } shape)
+        {
+            return;
+        }
+
+        if (!AirportEditorHitTest.IsLine(shape.Kind))
+        {
+            (float x, float y) = viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
+            canvas.DrawCircle(x, y, PointRadius + SelectedRingExtraRadius, _selectedRingPaint);
+            return;
+        }
+
+        SKPaint normal = NormalPaint(shape.Kind);
+        _selectedLinePaint.StrokeWidth = normal.StrokeWidth + SelectedLineExtraWidth;
+        DrawLine(canvas, viewport, shape, _selectedLinePaint);
+        DrawLine(canvas, viewport, shape, normal);
+        int? hovered = (snapshot.Hover is { } hover) && (hover.FeatureIndex == shape.FeatureIndex) ? hover.VertexIndex : null;
+        DrawHandles(canvas, viewport, shape, snapshot.SelectedVertexIndex, hovered);
+    }
+
+    // White handles on every vertex; the selected one larger and amber, a hovered one larger.
+    private void DrawHandles(SKCanvas canvas, MapViewport viewport, AirportEditorShape shape, int? selected, int? hovered)
+    {
+        for (int i = 0; i < shape.Positions.Length; i++)
+        {
+            (float x, float y) = viewport.LatLonToScreen(shape.Positions[i].Lat, shape.Positions[i].Lon);
+            bool isSelected = i == selected;
+            float radius = (isSelected || (i == hovered)) ? ActiveHandleRadius : HandleRadius;
+            canvas.DrawCircle(x, y, radius, isSelected ? _selectedHandlePaint : _handlePaint);
+            canvas.DrawCircle(x, y, radius, _handleOutlinePaint);
+        }
     }
 
     // Each taxiway's and runway's name at the middle of its middle segment.

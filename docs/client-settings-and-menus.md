@@ -86,9 +86,15 @@ The flyout's mechanics (the `Session*` fields, the four `ApplySessionSettingsFro
 
 **One window, no connection needed.** Tools › Airport Editor… (`AirportEditorMenuItem`) opens `Views/Authoring/AirportEditorWindow` (geometry key `"AirportEditor"`). `MainWindow` keeps one instance (`OnAirportEditorClick`), so a second click brings the open one forward, and closing it clears the reference.
 
-**It opens a map three ways.** From the vNAS cache by FAA or ICAO id (a small prompt asks for it), from a file, or from a folder holding exactly one `.geojson`; the toolbar has a command for each, and the status line along the bottom reports the outcome or why an open failed. The title carries the open map's source. There is no editing yet: the map is drawn and can be panned and zoomed.
+**It opens a map three ways.** From the vNAS cache by FAA or ICAO id (a small prompt asks for it), from a file, or from a folder holding exactly one `.geojson`; the toolbar has a command for each, and the status line along the bottom reports the outcome or why an open failed. The title carries the open map's source. There is no editing yet: the map is drawn, can be panned and zoomed, and a feature can be selected and inspected.
 
 **The canvas pans with the middle button, zooms with the wheel, and fits the map on each open.** The right button is kept for context menus.
+
+**A left click selects a raw map feature, or a vertex of the selected line.** The selection is highlighted and hovered features show translucent white. Esc, or a click on empty space, clears it. Hits are tiered: the selected line's vertices first (8 px), then points (12 px), then line segments (6 px) (`AirportEditorHitTest`).
+
+**A read-only Properties panel docks on the right.** It reads "No feature selected." until something is selected, then lists Feature N of M, Type, Geometry and Positions, the Vertex and its Position when a vertex is selected, then each property sorted by key.
+
+**Right-click opens read-only menus.** On a feature: Zoom to feature, Copy coordinates, Fit to airport. On empty space: Copy coordinates, Fit to airport.
 
 ## View menu and hotkeys
 

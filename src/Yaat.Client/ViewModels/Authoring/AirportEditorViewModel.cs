@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Sim.Authoring.AirportMap;
@@ -49,6 +52,13 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     private int? _selectedFeatureIndex;
 
     /// <summary>
+    /// The index of the selected vertex in the selected feature's positions, or null when none is; choosing another
+    /// feature or opening a map clears it.
+    /// </summary>
+    [ObservableProperty]
+    private int? _selectedVertexIndex;
+
+    /// <summary>
     /// Raised on the UI thread after each successful open, once <see cref="Document"/> holds the new map, so the view fits
     /// itself to it; a later change of the document that is not an open does not raise it.
     /// </summary>
@@ -59,6 +69,13 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         ((Document is { } document) && (SelectedFeatureIndex is int index) && (index >= 0) && (index < document.Features.Count))
             ? document.Features[index]
             : null;
+
+    /// <summary>
+    /// Gets the property panel's rows for the selection, read-only: empty when nothing is selected, else the feature's
+    /// number, type, geometry and position count, the selected vertex's number and position, then each of its properties
+    /// in ordinal key order. Rebuilt whenever the selection or the map changes.
+    /// </summary>
+    public IReadOnlyList<AirportEditorPropertyRow> SelectionRows { get; private set; } = [];
 
     /// <summary>Opens an airport's vNAS map from the cache.</summary>
     /// <param name="airportId">The airport's FAA or ICAO id.</param>
@@ -87,6 +104,26 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         _disposed = true;
         _openCts?.Cancel();
         _openCts = null;
+    }
+
+    partial void OnDocumentChanged(AirportMapDocument? value) => RebuildSelectionRows();
+
+    // Another feature's vertices are not this one's, so a change of feature drops the vertex.
+    partial void OnSelectedFeatureIndexChanged(int? value)
+    {
+        SelectedVertexIndex = null;
+        RebuildSelectionRows();
+    }
+
+    partial void OnSelectedVertexIndexChanged(int? value) => RebuildSelectionRows();
+
+    private void RebuildSelectionRows()
+    {
+        SelectionRows =
+            (SelectedFeature is { } feature) && (SelectedFeatureIndex is int index) && (Document is { } doc)
+                ? AirportEditorPropertyRows.Build(feature, index, doc.Features.Count, SelectedVertexIndex)
+                : [];
+        OnPropertyChanged(nameof(SelectionRows));
     }
 
     [RelayCommand]
@@ -156,6 +193,7 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     {
         if (outcome is AirportMapOpenOutcome.Opened opened)
         {
+            SelectedVertexIndex = null;
             SelectedFeatureIndex = null;
             Document = opened.Document;
             SourceLabel = opened.SourceLabel;
@@ -167,4 +205,61 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
             FitRequested?.Invoke(this, EventArgs.Empty);
         }
     }
+}
+
+/// <summary>One row of the Airport Editor's property panel.</summary>
+/// <param name="Name">What the row shows: a fixed heading or a property's key.</param>
+/// <param name="Value">The row's value as text.</param>
+public sealed record AirportEditorPropertyRow(string Name, string Value);
+
+/// <summary>Builds the Airport Editor's property panel rows for a selected feature.</summary>
+internal static class AirportEditorPropertyRows
+{
+    /// <summary>Builds the rows of a selected feature.</summary>
+    /// <param name="feature">The selected feature.</param>
+    /// <param name="index">Its index in the map's features.</param>
+    /// <param name="count">How many features the map has.</param>
+    /// <param name="vertex">The selected vertex's index, or null for none; one outside the positions adds no rows.</param>
+    /// <returns>The rows, in panel order.</returns>
+    public static IReadOnlyList<AirportEditorPropertyRow> Build(MapFeature feature, int index, int count, int? vertex)
+    {
+        CultureInfo inv = CultureInfo.InvariantCulture;
+        int positions = feature.Coordinates.Length;
+        List<AirportEditorPropertyRow> rows =
+        [
+            new("Feature", string.Create(inv, $"{index + 1} of {count}")),
+            new("Type", feature.FeatureType ?? "(none)"),
+            new("Geometry", feature.GeometryType ?? "(none)"),
+        ];
+        if (positions > 0)
+        {
+            rows.Add(new("Positions", positions.ToString(inv)));
+        }
+
+        if ((vertex is int v) && (v >= 0) && (v < positions))
+        {
+            MapPosition at = feature.Coordinates[v];
+            rows.Add(new("Vertex", string.Create(inv, $"{v + 1} of {positions}")));
+            rows.Add(new("Position", string.Create(inv, $"{at.Lat:F7}, {at.Lon:F7}")));
+        }
+
+        if (feature.CloneProperties() is { } properties)
+        {
+            foreach (KeyValuePair<string, JsonNode?> property in properties.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                rows.Add(new(property.Key, TextOf(property.Value)));
+            }
+        }
+
+        return rows;
+    }
+
+    // A JSON string as itself, a null as "null", anything else as its JSON text.
+    private static string TextOf(JsonNode? node) =>
+        node switch
+        {
+            null => "null",
+            JsonValue value when value.GetValueKind() == JsonValueKind.String => value.GetValue<string>(),
+            _ => node.ToJsonString(),
+        };
 }

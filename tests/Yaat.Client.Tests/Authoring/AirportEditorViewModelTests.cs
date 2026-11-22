@@ -1,3 +1,4 @@
+using System.Globalization;
 using Xunit;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring.AirportMap;
@@ -60,6 +61,89 @@ public sealed class AirportEditorViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SelectionRows_AreEmpty_WithNothingSelected()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        Assert.Empty(vm.SelectionRows);
+
+        await vm.OpenFilePathAsync(oak);
+
+        Assert.Empty(vm.SelectionRows);
+    }
+
+    [Fact]
+    public async Task SelectionRows_ForATaxiway_ListItsFeatureTypeGeometryAndPositions_ThenItsPropertiesInKeyOrder()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        await vm.OpenFilePathAsync(oak);
+        int index = FirstTaxiway(vm.Document!);
+        MapFeature taxiway = vm.Document!.Features[index];
+
+        vm.SelectedFeatureIndex = index;
+
+        AirportEditorPropertyRow[] expected =
+        [
+            new("Feature", $"{index + 1} of {AirportEditorTestFolder.OakFeatureCount}"),
+            new("Type", "taxiway"),
+            new("Geometry", "LineString"),
+            new("Positions", taxiway.Coordinates.Length.ToString(CultureInfo.InvariantCulture)),
+            new("circular", "false"),
+            new("name", "W"),
+            new("type", "taxiway"),
+        ];
+        Assert.Equal(expected, vm.SelectionRows);
+    }
+
+    [Fact]
+    public async Task SelectionRows_ForASelectedVertex_AddItsNumberAndPosition_AfterThePositionsCount()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts());
+        await vm.OpenFilePathAsync(oak);
+        int index = FirstTaxiway(vm.Document!);
+        MapFeature taxiway = vm.Document!.Features[index];
+        MapPosition vertex = taxiway.Coordinates[1];
+
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+
+        Assert.Equal("Positions", vm.SelectionRows[3].Name);
+        Assert.Equal(new AirportEditorPropertyRow("Vertex", $"2 of {taxiway.Coordinates.Length}"), vm.SelectionRows[4]);
+        string position = string.Create(CultureInfo.InvariantCulture, $"{vertex.Lat:F7}, {vertex.Lon:F7}");
+        Assert.Equal(new AirportEditorPropertyRow("Position", position), vm.SelectionRows[5]);
+        Assert.Equal("circular", vm.SelectionRows[6].Name);
+    }
+
+    [Fact]
+    public async Task TheSelectedVertex_IsClearedByAnotherFeature_AndByANewDocument_ButNotByTheSameFeatureAgain()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        string other = _folder.WriteFile(Path.Combine("other", "oak.geojson"), AirportEditorTestFolder.OakText);
+        var prompts = new FakeAirportEditorPrompts { File = oak, Folder = Path.GetDirectoryName(other) };
+        using var vm = new AirportEditorViewModel(_folder.Loader(), prompts);
+        await vm.OpenFileCommand.ExecuteAsync(null);
+        int index = FirstTaxiway(vm.Document!);
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+
+        vm.SelectedFeatureIndex = index;
+        Assert.Equal(1, vm.SelectedVertexIndex);
+
+        vm.SelectedFeatureIndex = index + 1;
+        Assert.Null(vm.SelectedVertexIndex);
+
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+        await vm.OpenFolderCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.SelectedFeatureIndex);
+        Assert.Null(vm.SelectedVertexIndex);
+        Assert.Empty(vm.SelectionRows);
+    }
+
+    [Fact]
     public async Task ASecondOpen_CancelsTheFirst_AndDropsItsOutcome()
     {
         var gate = new TaskCompletionSource<HttpResponseMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -106,6 +190,9 @@ public sealed class AirportEditorViewModelTests : IDisposable
         Assert.Equal("", vm.SourceLabel);
         Assert.Equal("", vm.StatusText);
     }
+
+    private static int FirstTaxiway(AirportMapDocument document) =>
+        document.Features.Select((f, i) => (f, i)).First(x => x.f.FeatureType == "taxiway").i;
 }
 
 /// <summary>Answers the Airport Editor's prompts with fixed values; null is a cancel.</summary>

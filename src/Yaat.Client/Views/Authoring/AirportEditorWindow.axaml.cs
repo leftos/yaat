@@ -52,6 +52,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         _geometry.Restore();
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.FitRequested += OnFitRequested;
+        MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
         Closed += OnClosed;
 
         // A view model handed in with a map already open (createViewModel may open one) shows it, fitted once the canvas
@@ -112,6 +113,10 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         {
             MapCanvas.Document = ViewModel.Document;
         }
+        else if (e.PropertyName is nameof(AirportEditorViewModel.SelectedFeatureIndex) or nameof(AirportEditorViewModel.SelectedVertexIndex))
+        {
+            MapCanvas.Selection = ViewModel.SelectedFeatureIndex is int feature ? new AirportEditorHit(feature, ViewModel.SelectedVertexIndex) : null;
+        }
         else if (e.PropertyName == nameof(AirportEditorViewModel.SourceLabel))
         {
             _geometry.SetBaseTitle(ViewModel.SourceLabel.Length > 0 ? $"{BaseTitle} — {ViewModel.SourceLabel}" : BaseTitle);
@@ -120,10 +125,19 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 
     private void OnFitRequested(object? sender, EventArgs e) => MapCanvas.FitToFeatures();
 
+    // The canvas's click selected something (or nothing): the view model holds the selection the panel shows.
+    private void OnCanvasSelectionChanged(object? sender, EventArgs e)
+    {
+        AirportEditorHit? selection = MapCanvas.Selection;
+        ViewModel.SelectedFeatureIndex = selection?.FeatureIndex;
+        ViewModel.SelectedVertexIndex = selection?.VertexIndex;
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.FitRequested -= OnFitRequested;
+        MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
         ViewModel.Dispose();
         MapCanvas.Dispose();
     }
