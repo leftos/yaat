@@ -107,12 +107,21 @@
        whole publish folder) ships them without a per-script copy. Pack="false" keeps them out of
        a NuGet package. -->
   <ItemGroup>
-    <None Include="..\..\NOTICE" Link="NOTICE" Pack="false"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="Assets\Fonts\TerminusTTF-OFL.txt" Link="licenses\TerminusTTF-OFL.txt" Pack="false"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="..\Yaat.Client.Strips\Resources\Fonts\OFL.txt" Link="licenses\JetBrainsMono-OFL.txt" Pack="false"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\NOTICE" Link="NOTICE" Pack="false" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None
+      Include="Assets\Fonts\TerminusTTF-OFL.txt"
+      Link="licenses\TerminusTTF-OFL.txt"
+      Pack="false"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="PreserveNewest"
+    />
+    <None
+      Include="..\Yaat.Client.Strips\Resources\Fonts\OFL.txt"
+      Link="licenses\JetBrainsMono-OFL.txt"
+      Pack="false"
+      CopyToOutputDirectory="PreserveNewest"
+      CopyToPublishDirectory="PreserveNewest"
+    />
   </ItemGroup>
 
   <!-- Ship the generated cheatsheet HTML next to the EXE so Help → Command Cheatsheet

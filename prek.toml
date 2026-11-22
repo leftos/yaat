@@ -61,10 +61,10 @@ stages = ["pre-commit"]
 
 [[repos.hooks]]
 id = "csharpier"
-name = "dotnet csharpier format (C# + XAML)"
+name = "dotnet csharpier format (C#, XAML, MSBuild)"
 entry = "pwsh -NoProfile -File tools/hooks/csharpier-wrapper.ps1"
 language = "system"
-files = '\.(cs|axaml)$'
+files = '\.(cs|axaml|csproj|props|targets)$'
 require_serial = true
 stages = ["pre-commit"]
 
