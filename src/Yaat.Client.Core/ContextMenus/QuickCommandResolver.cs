@@ -62,7 +62,6 @@ public static class QuickCommandResolver
         [MenuIds.GroundPushbackTo] = (ac, _) => AircraftCommandApplicability.ShowsPushback(ac),
         [MenuIds.SquawkNormal] = (ac, _) => AircraftCommandApplicability.ShowsSquawkNormal(ac),
         [MenuIds.SquawkAssigned] = (ac, _) => AircraftCommandApplicability.ShowsSquawkAssigned(ac),
-        [MenuIds.TrackAcceptHandoff] = AircraftCommandApplicability.ShowsAcceptHandoff,
         [MenuIds.TrackCancelHandoff] = AircraftCommandApplicability.ShowsCancelHandoff,
         [MenuIds.TrackAcknowledgePointout] = AircraftCommandApplicability.ShowsAcknowledgePointout,
     }.ToFrozenDictionary(StringComparer.Ordinal);

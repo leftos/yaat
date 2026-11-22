@@ -85,9 +85,9 @@ internal static class ScopeFieldMenus
     }
 
     /// <summary>
-    /// The handoff entry for the track's state as the acting position sees it, by the quick list's checks: accept a handoff in
-    /// progress to it, else cancel one from it, else initiate one on an owned track with none; else none (with no acting
-    /// position, Accept and Cancel never show, as in the right-click menu).
+    /// The handoff entry for the track by direction against the acting position: accept a handoff to it (IsHandoffToActing),
+    /// else cancel one from it (ShowsCancelHandoff), else initiate one on an owned track with none; with no acting position
+    /// the click opens neither Accept nor Cancel.
     /// </summary>
     private static string? HandoffIdFor(AircraftModel aircraft, MenuContext context)
     {
