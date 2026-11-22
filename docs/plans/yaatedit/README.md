@@ -295,7 +295,7 @@ Tests follow `tests/CLAUDE.md` and [`docs/test-harness.md`](../../test-harness.m
 
 Each is asked through an interview before the part it gates is briefed.
 
-- **Q1. Export shape for ATC Trainer: settled.** Two exports: the vNAS JSON with every field kept, and also a clean export that strips the fields YAAT does not model, as YAATEdit had.
+- **Q1. Export shape for ATC Trainer: settled.** Two exports: the vNAS JSON with every field kept, and also a clean export that strips the fields YAAT does not model, as YAATEdit had. The clean export also drops the YAAT-only parts (VFR arrival and overflight generators, `liveSession`, generator `enabled`), and its warning names each one it dropped. Exporting a copy open with unsaved edits asks Save / Discard / Cancel first, as closing the window does.
 - **Q2. Token source and publishing: settled.** YAAT does not publish to vNAS: authors export JSON and upload it on the vNAS site. No token is held, no desktop-PUT probe is run, and the publish parts are dropped.
 - **Q3. Token storage off Windows: moot.** No vNAS token is held (Q2).
 - **Q4. Push ARTCC config: moot.** YAAT never publishes to vNAS (Q2), so YAATEdit's ARTCC config push is dropped.
@@ -304,7 +304,7 @@ Each is asked through an interview before the part it gates is briefed.
 - **Q7. YAAT-only fields in an exported scenario: settled.** Export warns when the working copy uses YAAT-only parts (YAAT's own generators) and keeps them as is; if vNAS turns out to drop unknown fields on upload, the warning says so.
 - **Q8. What "near" means for the N-number finder: settled.** Distance from the owner's ZIP code centroid (an extra GeoNames download), labelled "registered near".
 - **Q9. Excel writer dependency: settled.** ClosedXML in `Yaat.Client`, its current stable version looked up when M3.15 is briefed; no spreadsheet package reaches `Yaat.Sim`.
-- **Q10. Map imagery under the editors.** YAATEdit draws satellite or OSM tiles under its maps. Options: (a) none, video maps and the vNAS map only; (b) OSM tiles under their usage policy, in the airport editor only; (c) satellite imagery, whose terms need checking. Recommendation: (a) for the route composer; for the airport editor, (b), since drawing taxiways needs a picture of the airport. Gates M3.5 and M4.3.
+- **Q10. Map imagery under the editors: settled.** Satellite imagery (Esri World Imagery) under the Airport Editor, its licence terms for a desktop app checked before M4.3 is built; no imagery under the route composer (video maps and the vNAS map only). The mock is `docs/plans/canvases/yaat-2515-imagery/`. Gates M3.5 and M4.3.
 - **Q11. Gate tags at runtime.** Should YAAT's own arrival-parking choice in the simulation also honour the new airline tags? This changes existing behaviour. Options: (a) yes, as its own item with aviation review; (b) editor-only. Recommendation: (a), booked after M4.6.
 - **Q12. Where an edited airport map goes: settled.** The editor exports GeoJSON for upload in vNAS data-admin, and writes sidecars (gate tags) into a yaat repo checkout named in Settings, for a pull request.
 - **Q13. Testing an edited map in a room: settled.** No in-room test for now; the editor's graph overlay and taxi probe stand in. A hub call that pins an uploaded map for a room's next load (a server change through `ResourcePin`) is not planned. Gates M4.5.
