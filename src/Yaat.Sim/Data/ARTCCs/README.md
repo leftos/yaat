@@ -632,6 +632,30 @@ An entry that fails at layout build is likewise skipped whole with a warning and
 
 Editing this section stales the airport's layout and push-target cache entries. Worked example: [`ZMA/Airports/mia.json`](ZMA/Airports/mia.json).
 
+### `cornerFillets`
+
+Per-corner overrides for the fillet arc a taxiway corner gets: suppress it, or set its radius, force it, or set its tangent distances. A corner is named by its apex and the two taxiway arms that meet there. The section is read, validated and carried to the fillet generator (`IFilletArcGenerator.Apply(layout, overrides)`), which does not act on it yet: an entry changes no taxiway geometry today.
+
+```json
+"cornerFillets": [
+  { "apex": [-122.3731, 37.6149], "taxiways": ["L", "F"], "bearings": [32.5, 118.0], "radiusFt": 75, "note": "Charted radius." },
+  { "apex": [-122.3742, 37.6155], "taxiways": ["A", "B"], "bearings": [10.0, 95.0], "suppress": true }
+]
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cornerFillets[].apex` | number[2] | Yes | `[lon, lat]` (GeoJSON order) of the corner's junction |
+| `cornerFillets[].taxiways` | string[2] | Yes | The two taxiway names of the arms, case-insensitive; the pair is unordered |
+| `cornerFillets[].bearings` | number[2] | Yes | True degrees in `[0, 360)` from the apex along each arm, paired with `taxiways` in order |
+| `cornerFillets[].suppress` | boolean | No | Draw no fillet at the corner. Cannot be combined with `radiusFt`, `force` or `tangentFt` |
+| `cornerFillets[].radiusFt` | number | No | Fillet radius in feet; greater than 0 |
+| `cornerFillets[].force` | boolean | No | Fillet the corner even where the generator would skip it |
+| `cornerFillets[].tangentFt` | number[2] | No | Tangent distance in feet along each arm, paired with `taxiways` in order; each greater than 0 |
+| `cornerFillets[].note` | string | No | Facility rationale. Informational only |
+
+An entry that fails a check is skipped with a warning `{file}: {AIRPORT} cornerFillets[i]: {problem}, skipping`: a missing or mistyped member, a non-finite number, a bearing outside `[0, 360)`, a radius or tangent of 0 or less, `suppress` with `radiusFt`, `force` or `tangentFt`, an unknown key, or a null entry. Two entries name the same corner when their apexes are within 1e-7 degrees, their taxiway pairs match (unordered, case-insensitive) and the bearings, paired with their taxiways, are within 1e-6 degrees; the later one wins, with the warning `duplicate of cornerFillets[j], last wins`, and across files the last file wins. The catalog hands the merged list to the layout build through `AirportSidecarCatalog.GetCornerFillets` and `LayoutInputs.CornerFillets`, and it is part of the layout sidecar hash (`AirportSidecarHash.OfLayoutSidecar`) only when the airport has an entry, so editing it stales the airport's layout cache entry.
+
 ### `asdexLandingTaxiways`
 
 The taxiways the ASDE-X safety logic raises its TAXIWAY LANDING alert on, for an airport where only some taxiways are configured for it. Absent, every taxiway of the airport's layout alerts. An empty list raises no taxiway-landing alert at all. YAAT ships no list.

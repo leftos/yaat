@@ -24,7 +24,12 @@ public static class AirportLayoutFile
             faaCode.ToLowerInvariant(),
             File.ReadAllText(geoJsonPath),
             faaCode,
-            new LayoutInputs(sidecars.GetStandLeadIns(faaCode), VideoMap: null, SpotEdges: sidecars.GetSpotEdges(faaCode))
+            new LayoutInputs(
+                sidecars.GetStandLeadIns(faaCode),
+                VideoMap: null,
+                SpotEdges: sidecars.GetSpotEdges(faaCode),
+                CornerFillets: sidecars.GetCornerFillets(faaCode)
+            )
         );
     }
 }

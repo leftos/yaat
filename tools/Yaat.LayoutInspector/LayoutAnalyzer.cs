@@ -19,7 +19,12 @@ public sealed class LayoutAnalyzer(AirportGroundLayout layout)
             airportId,
             geoJson,
             airportCode,
-            new LayoutInputs(sidecars.GetStandLeadIns(airportId), VideoMap: videoMap, SpotEdges: sidecars.GetSpotEdges(airportId)),
+            new LayoutInputs(
+                sidecars.GetStandLeadIns(airportId),
+                VideoMap: videoMap,
+                SpotEdges: sidecars.GetSpotEdges(airportId),
+                CornerFillets: sidecars.GetCornerFillets(airportId)
+            ),
             filletMode
         );
         return new LayoutAnalyzer(layout);

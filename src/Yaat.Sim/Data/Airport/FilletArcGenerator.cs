@@ -12,7 +12,8 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 
     public string DisplayName => "Standard (plan-then-execute)";
 
-    public FilletStatistics Apply(AirportGroundLayout layout)
+    /// <summary>Fillets every eligible corner of <paramref name="layout"/>; <paramref name="overrides"/> does not change the result.</summary>
+    public FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides)
     {
         HashSet<int> manualArcNodes = ManualArcDetector.Detect(layout);
         int maxNodeId = layout.Nodes.Keys.DefaultIfEmpty(0).Max();

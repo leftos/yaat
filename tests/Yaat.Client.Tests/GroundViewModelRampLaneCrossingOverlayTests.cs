@@ -32,7 +32,13 @@ public class GroundViewModelRampLaneCrossingOverlayTests
     {
         string path = Path.Combine("TestData", file);
         return File.Exists(path)
-            ? GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard)
+            ? GeoJsonParser.Parse(
+                airportId,
+                File.ReadAllText(path),
+                null,
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+                FilletMode.Standard
+            )
             : null;
     }
 

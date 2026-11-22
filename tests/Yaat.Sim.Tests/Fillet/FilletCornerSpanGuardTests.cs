@@ -45,7 +45,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var violations = new List<string>();
 
@@ -112,7 +112,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var seen = new HashSet<(int, int)>();
         var violations = new List<string>();
@@ -175,7 +175,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var byPair = new Dictionary<(int, int), List<GroundArc>>();
         foreach (GroundArc arc in layout.Arcs)
@@ -241,7 +241,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var violations = new List<string>();
         int tangentCutNodesParsed = layout.Nodes.Values.Count(n => TangentCutJunction(n) is not null);
@@ -330,7 +330,7 @@ public class FilletCornerSpanGuardTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var nodes = layout.Nodes.Values.Where(n => n.Type == GroundNodeType.TaxiwayIntersection).ToList();
         var violations = new List<string>();

@@ -13,5 +13,6 @@ public sealed class NullFilletArcGenerator : IFilletArcGenerator
 
     public string DisplayName => "None (no fillet)";
 
-    public FilletStatistics Apply(AirportGroundLayout layout) => FilletStatistics.Empty;
+    /// <summary>Leaves <paramref name="layout"/> untouched, whatever <paramref name="overrides"/> asks.</summary>
+    public FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides) => FilletStatistics.Empty;
 }

@@ -258,6 +258,9 @@ _Avoid_: determinism (determinism is the same-seed, same-world property of the s
 **Break-off** (of a follow):
 A `HOLD` given to a `FOLLOWG` follower ends the follow: the aircraft brakes to rest and holds in position, and `RES` does not resume the follow. A follower inside a runway's holding position marking holds on the crossing it was cleared across and finishes it at rest; one that comes to rest with its tail still inside a runway reports not clear of it (`FollowingPhase.BreakOff`, `HoldingInPositionPhase.AfterFollowBreakOff`, docs/ground/navigator.md).
 
+**Corner fillet override**:
+A sidecar `cornerFillets` entry that edits the fillet of one taxiway corner, named by the corner's pre-fillet apex, its two taxiways and each arm's true bearing from the apex.
+
 **Full-length band**:
 The runway's hold-short bars within 200 ft along-track of the one nearest the requested threshold; the bars `RouteMaterialiser.OrderFullLengthLineupBars` treats as full-length lineup points, ranked by the aircraft's side of the runway (docs/ground/pathfinder.md, "Full-length lineup bar order").
 

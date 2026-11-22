@@ -32,7 +32,7 @@ public class PrecomputeStoreTests
             GeoJsonMd5,
             12_345,
             SidecarHash,
-            AirportSidecarHash.OfLayoutSidecar([], []),
+            AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
             string.Empty,
             standoffInputHash: string.Empty
         );
@@ -83,7 +83,7 @@ public class PrecomputeStoreTests
                 GeoJsonMd5,
                 12_345,
                 SidecarHash,
-                AirportSidecarHash.OfLayoutSidecar([], []),
+                AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
                 string.Empty,
                 standoffInputHash: string.Empty
             ),
@@ -119,7 +119,7 @@ public class PrecomputeStoreTests
             GeoJsonMd5,
             12_345,
             SidecarHash,
-            AirportSidecarHash.OfLayoutSidecar([], []),
+            AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
             string.Empty,
             standoffInputHash: string.Empty
         );
@@ -154,7 +154,7 @@ public class PrecomputeStoreTests
             GeoJsonMd5,
             12_345,
             SidecarHash,
-            AirportSidecarHash.OfLayoutSidecar([], []),
+            AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
             string.Empty,
             standoffInputHash: string.Empty
         );
@@ -236,7 +236,7 @@ public class PrecomputeStoreTests
                 GeoJsonMd5,
                 12_345,
                 SidecarHash,
-                AirportSidecarHash.OfLayoutSidecar([], []),
+                AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
                 string.Empty,
                 standoffInputHash: string.Empty
             );
@@ -281,7 +281,7 @@ public class PrecomputeStoreTests
                 GeoJsonMd5,
                 12_345,
                 SidecarHash,
-                AirportSidecarHash.OfLayoutSidecar([], []),
+                AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
                 string.Empty,
                 standoffInputHash: string.Empty
             ),
@@ -304,7 +304,13 @@ public class PrecomputeStoreTests
     {
         var groundData = new TestAirportGroundData();
         string geoJson = groundData.GetSourceGeoJson("KOAK") ?? throw new InvalidOperationException("The KOAK test GeoJSON is missing.");
-        return GeoJsonParser.Parse("OAK", geoJson, "OAK", new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard);
+        return GeoJsonParser.Parse(
+            "OAK",
+            geoJson,
+            "OAK",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+            FilletMode.Standard
+        );
     }
 
     private static string NewRoot() => Path.Combine(Path.GetTempPath(), "precompute-" + Guid.NewGuid());

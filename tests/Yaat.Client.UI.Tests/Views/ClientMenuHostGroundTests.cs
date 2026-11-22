@@ -1120,7 +1120,7 @@ public class ClientMenuHostGroundTests(OakPushTargetSeedCopy seedCopy) : IClassF
             "OAK",
             File.ReadAllText(path),
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.Standard
         );
         GroundNode junction = layout.Nodes.Values.First(n => n.Edges.Count(e => (e.IsRunwayCenterline) && (e.MatchesRunway("30"))) >= 2);

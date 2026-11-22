@@ -32,7 +32,12 @@ public class ParallelRunwayCrossingAfterExitTests(ITestOutputHelper output)
             return null;
         }
 
-        return GeoJsonParser.Parse(airportId.ToUpperInvariant(), File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        return GeoJsonParser.Parse(
+            airportId.ToUpperInvariant(),
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
     }
 
     /// <summary>

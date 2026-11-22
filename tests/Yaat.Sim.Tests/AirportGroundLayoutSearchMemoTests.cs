@@ -30,7 +30,7 @@ public class AirportGroundLayoutSearchMemoTests
             "OAK",
             geoJson,
             "OAK",
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.Standard
         );
         Assert.NotEmpty(Assert.IsAssignableFrom<IReadOnlyList<ExitAheadDto>>(ListExitsAheadOnRollout(layout, runway)));

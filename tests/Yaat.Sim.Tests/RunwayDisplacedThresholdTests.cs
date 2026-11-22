@@ -32,7 +32,12 @@ public class RunwayDisplacedThresholdTests
     [Fact]
     public void Parse_ReadsThresholdDisplacementPerEnd()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", DisplacedRunwayGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TEST",
+            DisplacedRunwayGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundRunway rwy = layout.Runways.Single();
         Assert.Equal(1000, rwy.ThresholdDisplacementForEnd("36"));
@@ -62,7 +67,9 @@ public class RunwayDisplacedThresholdTests
             }
             """;
 
-        GroundRunway rwy = GeoJsonParser.Parse("TEST", json, null, new LayoutInputs([], VideoMap: null, SpotEdges: [])).Runways.Single();
+        GroundRunway rwy = GeoJsonParser
+            .Parse("TEST", json, null, new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None))
+            .Runways.Single();
 
         Assert.Equal(0, rwy.ThresholdDisplacementForEnd("36"));
         Assert.Equal(0, rwy.ThresholdDisplacementForEnd("18"));
@@ -71,7 +78,12 @@ public class RunwayDisplacedThresholdTests
     [Fact]
     public void LandingThresholdForEnd_ShiftsDownfieldAlongLandingCourse()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", DisplacedRunwayGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TEST",
+            DisplacedRunwayGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
         GroundRunway rwy = layout.Runways.Single();
 
         // Coordinates[0] is the south end (RWY 36's approach end, landing north).
@@ -96,7 +108,12 @@ public class RunwayDisplacedThresholdTests
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "mia.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("MIA", File.ReadAllText(path), "MIA", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "MIA",
+            File.ReadAllText(path),
+            "MIA",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // KMIA 8L/26R has "threshold": null in the vNAS map.
         GroundRunway rwy = layout.Runways.First(r => r.Name == "8L - 26R");
@@ -112,7 +129,12 @@ public class RunwayDisplacedThresholdTests
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "mia.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("MIA", File.ReadAllText(path), "MIA", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "MIA",
+            File.ReadAllText(path),
+            "MIA",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // KMIA 12/30 carries "threshold": "0 - 957" — RWY 12 undisplaced, RWY 30 displaced 957 ft.
         GroundRunway rwy = layout.Runways.First(r => r.Name == "12 - 30");
@@ -139,7 +161,12 @@ public class RunwayDisplacedThresholdTests
     public void LandingThresholdForEnd_UnknownEnd_ReturnsNull()
     {
         GroundRunway rwy = GeoJsonParser
-            .Parse("TEST", DisplacedRunwayGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []))
+            .Parse(
+                "TEST",
+                DisplacedRunwayGeoJson,
+                null,
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+            )
             .Runways.Single();
         Assert.Null(rwy.LandingThresholdForEnd("27"));
     }
@@ -162,7 +189,12 @@ public class RunwayDisplacedThresholdTests
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "mia.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("MIA", File.ReadAllText(path), "MIA", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "MIA",
+            File.ReadAllText(path),
+            "MIA",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // KMIA 9/27 carries "threshold": "1375 - 272"; "9" and "09" must resolve identically.
         GroundRunway rwy = layout.Runways.First(r => r.Name == "9 - 27");

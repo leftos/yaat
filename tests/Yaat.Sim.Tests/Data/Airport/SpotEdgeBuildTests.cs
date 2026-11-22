@@ -347,10 +347,22 @@ public class SpotEdgeBuildTests
         );
 
     private static AirportGroundLayout Parse(params SpotEdgeChain[] chains) =>
-        GeoJsonParser.Parse("TST", GeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: chains), FilletMode.None);
+        GeoJsonParser.Parse(
+            "TST",
+            GeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: chains, CornerFillets: CornerFilletOverrides.None),
+            FilletMode.None
+        );
 
     private static AirportGroundLayout ParseSfo(string geoJson, params SpotEdgeChain[] chains) =>
-        GeoJsonParser.Parse("SFO", geoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: chains), FilletMode.None);
+        GeoJsonParser.Parse(
+            "SFO",
+            geoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: chains, CornerFillets: CornerFilletOverrides.None),
+            FilletMode.None
+        );
 
     private static SpotEdgePoint Spot(string name) => new(SpotEdgePointKind.Spot, name, null, null, null, null);
 

@@ -94,7 +94,12 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            new LayoutInputs([new StandLeadIn("D12", "A", D12LeadInPoint, null)], VideoMap: null, SpotEdges: []),
+            new LayoutInputs(
+                [new StandLeadIn("D12", "A", D12LeadInPoint, null)],
+                VideoMap: null,
+                SpotEdges: [],
+                CornerFillets: CornerFilletOverrides.None
+            ),
             FilletMode.None
         );
 
@@ -129,7 +134,7 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.None
         );
         var capture = WarningLogCapture.Install();
@@ -138,7 +143,12 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            new LayoutInputs([new StandLeadIn(stand, taxiway, new LatLon(lat, lon), null)], VideoMap: null, SpotEdges: []),
+            new LayoutInputs(
+                [new StandLeadIn(stand, taxiway, new LatLon(lat, lon), null)],
+                VideoMap: null,
+                SpotEdges: [],
+                CornerFillets: CornerFilletOverrides.None
+            ),
             FilletMode.None
         );
 
@@ -168,7 +178,7 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.None
         );
         GroundEdge centreline = baseline.Edges.First(e => e.IsRunwayCenterline);
@@ -178,7 +188,12 @@ public class StandLeadInTests
             "SFO",
             geoJson,
             null,
-            new LayoutInputs([new StandLeadIn("D12", centreline.TaxiwayName, centreline.Nodes[0].Position, null)], VideoMap: null, SpotEdges: []),
+            new LayoutInputs(
+                [new StandLeadIn("D12", centreline.TaxiwayName, centreline.Nodes[0].Position, null)],
+                VideoMap: null,
+                SpotEdges: [],
+                CornerFillets: CornerFilletOverrides.None
+            ),
             FilletMode.None
         );
 
@@ -214,7 +229,7 @@ public class StandLeadInTests
             "TST",
             geoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.None
         );
         var capture = WarningLogCapture.Install();
@@ -223,7 +238,12 @@ public class StandLeadInTests
             "TST",
             geoJson,
             null,
-            new LayoutInputs([new StandLeadIn("P1", "A", new LatLon(37.7, -122.2), null)], VideoMap: null, SpotEdges: []),
+            new LayoutInputs(
+                [new StandLeadIn("P1", "A", new LatLon(37.7, -122.2), null)],
+                VideoMap: null,
+                SpotEdges: [],
+                CornerFillets: CornerFilletOverrides.None
+            ),
             FilletMode.None
         );
 

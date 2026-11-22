@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Simulation;
 
@@ -98,7 +99,7 @@ public class PrecomputeKeyTests
             "md5",
             7,
             "sidecar",
-            AirportSidecarHash.OfLayoutSidecar([], []),
+            AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None),
             string.Empty,
             standoffInputHash: string.Empty
         );
@@ -214,8 +215,14 @@ public class PrecomputeKeyTests
     {
         StandLeadIn leadIn = new("D12", "A", new LatLon(37.619622, -122.381946), "why");
 
-        Assert.Equal("ca4ba579105f36f4be57e228d868e15131c865b8ff280556153c190aa8d40502", AirportSidecarHash.OfLayoutSidecar([leadIn], []));
-        Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", AirportSidecarHash.OfLayoutSidecar([], []));
+        Assert.Equal(
+            "ca4ba579105f36f4be57e228d868e15131c865b8ff280556153c190aa8d40502",
+            AirportSidecarHash.OfLayoutSidecar([leadIn], [], CornerFilletOverrides.None)
+        );
+        Assert.Equal(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            AirportSidecarHash.OfLayoutSidecar([], [], CornerFilletOverrides.None)
+        );
     }
 
     /// <summary>
@@ -233,7 +240,14 @@ public class PrecomputeKeyTests
         string bare = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}} }""");
         string chained = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Chain}} }""");
 
-        Assert.Equal(AirportSidecarHash.OfLayoutSidecar([new StandLeadIn("D12", "A", new LatLon(37.619622, -122.381946), null)], []), bare);
+        Assert.Equal(
+            AirportSidecarHash.OfLayoutSidecar(
+                [new StandLeadIn("D12", "A", new LatLon(37.619622, -122.381946), null)],
+                [],
+                CornerFilletOverrides.None
+            ),
+            bare
+        );
         Assert.NotEqual(bare, chained);
         Assert.Equal(chained, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Renoted}} }"""));
         Assert.Equal(chained, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Chain}}, {{Other}} }"""));
@@ -247,12 +261,107 @@ public class PrecomputeKeyTests
         SpotEdgePoint spot = new(SpotEdgePointKind.Spot, "1", null, null, null, null);
         SpotEdgePoint point = new(SpotEdgePointKind.Point, null, null, null, null, new LatLon(25.79, -80.27));
         SpotEdgePoint moved = point with { Position = new LatLon(25.79, -80.2701) };
-        string chain = AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, point], null)]);
+        string chain = AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, point], null)], CornerFilletOverrides.None);
 
-        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, moved], null)]));
-        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("N8", [spot, point], null)]));
-        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [point, spot], null)]));
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [spot, moved], null)], CornerFilletOverrides.None));
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("N8", [spot, point], null)], CornerFilletOverrides.None));
+        Assert.NotEqual(chain, AirportSidecarHash.OfLayoutSidecar([], [new SpotEdgeChain("RAMP", [point, spot], null)], CornerFilletOverrides.None));
     }
+
+    /// <summary>
+    /// Adding a corner override or changing any of its fields changes the layout sidecar hash; reordering the overrides or
+    /// swapping a corner's taxiway order (its bearings and tangents with it) does not.
+    /// </summary>
+    [Fact]
+    public void LayoutSidecarHash_FollowsCornerFillets()
+    {
+        CornerFilletOverride first = new(37.7, -122.2, "A", "B", 10, 100, false, 120, true, 40, 50);
+        CornerFilletOverride second = new(37.7, -122.2, "A", "B", 190, 280, true, null, false, null, null);
+        CornerFilletOverride swapped = first with { TaxiwayA = "B", TaxiwayB = "A", BearingA = 100, BearingB = 10, TangentAFt = 50, TangentBFt = 40 };
+        string none = HashOf();
+        string both = HashOf(first, second);
+
+        Assert.NotEqual(none, HashOf(first));
+        Assert.NotEqual(HashOf(first), both);
+        Assert.Equal(both, HashOf(second, first));
+        Assert.Equal(both, HashOf(swapped, second));
+        CornerFilletOverride[] changed =
+        [
+            first with
+            {
+                ApexLat = 37.7000001,
+            },
+            first with
+            {
+                ApexLon = -122.2000001,
+            },
+            first with
+            {
+                TaxiwayA = "C",
+            },
+            first with
+            {
+                TaxiwayB = "C",
+            },
+            first with
+            {
+                BearingA = 11,
+            },
+            first with
+            {
+                BearingB = 101,
+            },
+            first with
+            {
+                Suppress = true,
+            },
+            first with
+            {
+                RadiusFt = 121,
+            },
+            first with
+            {
+                RadiusFt = null,
+            },
+            first with
+            {
+                Force = false,
+            },
+            first with
+            {
+                TangentAFt = 41,
+            },
+            first with
+            {
+                TangentBFt = null,
+            },
+        ];
+        Assert.All(changed, edit => Assert.NotEqual(both, HashOf(edit, second)));
+    }
+
+    /// <summary>Two overrides with one key but different edits hash the same in either order.</summary>
+    [Fact]
+    public void LayoutSidecarHash_OfTwoOverridesWithOneKey_IgnoresTheirOrder()
+    {
+        CornerFilletOverride first = new(37.7, -122.2, "A", "B", 10, 100, false, 120, false, null, null);
+        CornerFilletOverride second = first with { RadiusFt = null, Force = true, TangentAFt = 40, TangentBFt = 50 };
+
+        Assert.Equal(HashOf(first, second), HashOf(second, first));
+    }
+
+    /// <summary>A -0 field hashes as 0.</summary>
+    [Fact]
+    public void LayoutSidecarHash_ReadsNegativeZeroAsZero()
+    {
+        CornerFilletOverride zero = new(0, 0, "A", "B", 0, 100, false, 120, false, 40, 50);
+        CornerFilletOverride negativeZero = zero with { ApexLat = -0.0, ApexLon = -0.0, BearingA = -0.0 };
+        CornerFilletOverride other = zero with { TaxiwayB = "C" };
+
+        Assert.Equal(HashOf(zero, other), HashOf(other, negativeZero));
+    }
+
+    private static string HashOf(params CornerFilletOverride[] corners) =>
+        AirportSidecarHash.OfLayoutSidecar([], [], new CornerFilletOverrides(corners));
 
     /// <summary><see cref="AirportSidecarHash.ForLayoutSidecar"/> of SFO with <paramref name="sidecarJson"/> its one sidecar.</summary>
     private static string LayoutSidecarHashOf(string sidecarJson)

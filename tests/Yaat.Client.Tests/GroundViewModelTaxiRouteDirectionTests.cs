@@ -36,7 +36,13 @@ public class GroundViewModelTaxiRouteDirectionTests
     {
         string path = Path.Combine("TestData", "oak.geojson");
         return File.Exists(path)
-            ? GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard)
+            ? GeoJsonParser.Parse(
+                "OAK",
+                File.ReadAllText(path),
+                null,
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+                FilletMode.Standard
+            )
             : null;
     }
 

@@ -69,7 +69,12 @@ public static class PrecomputeEntryBuild
             faa.ToLowerInvariant(),
             geoJson,
             faa,
-            new LayoutInputs(context.Sidecars.GetStandLeadIns(faa), VideoMap: null, SpotEdges: context.Sidecars.GetSpotEdges(faa))
+            new LayoutInputs(
+                context.Sidecars.GetStandLeadIns(faa),
+                VideoMap: null,
+                SpotEdges: context.Sidecars.GetSpotEdges(faa),
+                CornerFillets: context.Sidecars.GetCornerFillets(faa)
+            )
         );
         IReadOnlyList<PushTargetEntry> targets = standNames is null
             ? PushTargetPlanner.Compute(layout, context.Envelopes, context.Sidecars, context.StandLoop)

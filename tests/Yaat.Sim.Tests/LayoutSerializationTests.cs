@@ -20,7 +20,12 @@ public class LayoutSerializationTests
             return;
         }
 
-        AirportGroundLayout original = GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout original = GeoJsonParser.Parse(
+            "OAK",
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(original);
         AirportGroundLayout restored = JsonSerializer.Deserialize<AirportGroundLayout>(json)!;
 

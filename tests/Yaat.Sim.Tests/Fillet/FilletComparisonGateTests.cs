@@ -9,7 +9,7 @@ public class FilletComparisonGateTests
     public void RepairCountersZero_ApplyOnThreeWay_ReturnsTrue()
     {
         AirportGroundLayout layout = BuildThreeWayLayout();
-        FilletStatistics stats = new FilletArcGenerator().Apply(layout);
+        FilletStatistics stats = new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
         Assert.True(FilletComparisonGates.RepairCountersZero(stats));
     }
 
@@ -17,7 +17,7 @@ public class FilletComparisonGateTests
     public void ValidateStructural_Simple90Filleted_IsValid()
     {
         AirportGroundLayout layout = BuildSimple90Layout();
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
         StructuralValidationResult result = FilletComparisonGates.ValidateStructural(layout);
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
     }
@@ -26,7 +26,7 @@ public class FilletComparisonGateTests
     public void IndexCornerBuckets_90Degree_ProducesBuckets()
     {
         AirportGroundLayout layout = BuildSimple90Layout();
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         IReadOnlyDictionary<CornerBucketKey, double> buckets = FilletComparisonGates.IndexCornerBuckets(layout);
 
@@ -62,7 +62,7 @@ public class FilletComparisonGateTests
         }
 
         AirportGroundLayout layout = LayoutCloner.DeepClone(preFillet);
-        FilletStatistics stats = new FilletArcGenerator().Apply(layout);
+        FilletStatistics stats = new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
         FilletGateResults gates = FilletComparisonGates.Evaluate(preFillet, layout, stats);
         Assert.True(gates.Structural.IsValid, string.Join("; ", gates.Structural.Errors.Take(3)));
     }

@@ -30,6 +30,12 @@ public class FilletComparisonTests
             return null;
         }
 
-        return GeoJsonParser.Parse(shortId, File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.None);
+        return GeoJsonParser.Parse(
+            shortId,
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+            FilletMode.None
+        );
     }
 }

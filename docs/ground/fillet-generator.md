@@ -32,7 +32,7 @@ The generator produces two things, mutating the layout in place:
 `GeoJsonParser.Parse(airportId, geoJson, runwayAirportCode, inputs, FilletMode)` is the entry point (`src/Yaat.Sim/Data/Airport/GeoJsonParser.cs`; `inputs` is the airport's `LayoutInputs`: stand lead-ins, spot-edge chains and the tower-cab videomap). After it builds nodes/edges (including the sidecar spot-edge chains, Step 6c) and rebuilds adjacency (Step 7), Step 8 runs the fillet pass **only when `filletMode != None`**; Step 9 then marks each runway bar as its runway's hold line or a short fallback bar, once every node is in its final place:
 
 ```csharp
-FilletGeneratorFactory.Create(filletMode).Apply(layout);
+FilletGeneratorFactory.Create(filletMode).Apply(layout, inputs.CornerFillets);
 ```
 
 | `FilletMode` | Factory result | Behavior |
@@ -40,7 +40,7 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout);
 | `None` | `NullFilletArcGenerator.Instance` | no-op; raw intersection graph (used by `FilletMode.None` tests + comparison baselines) |
 | `Standard` | `new FilletArcGenerator()` | plan-then-execute (this doc) |
 
-`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. The convenience overloads `Parse(..., inputs)` / `Parse(..., inputs, applyFillets: bool)` map to `Standard` / `None` — **`Standard` is the parser's default**, and `ParseWithDiagnostics` / `ParseMultiple` parse with it too. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
+`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. `Apply(layout, overrides)` takes the airport's per-corner overrides (`CornerFilletOverrides`, from the sidecar `cornerFillets`, `CornerFilletOverrides.None` for none); the generator carries them but does not act on them yet, so they change no layout. The convenience overloads `Parse(..., inputs)` / `Parse(..., inputs, applyFillets: bool)` map to `Standard` / `None` — **`Standard` is the parser's default**, and `ParseWithDiagnostics` / `ParseMultiple` parse with it too. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
 
 The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveBezier` and follows its cubic Bézier closed-form.
 
@@ -138,7 +138,7 @@ The connector itself is a `RWY…:link` edge. It is **not** a runway centerline 
 
 **2. Per-junction classification.** For each node in ID order, skip if it is a manual-arc node, ineligible, or has fewer than 2 edges. Otherwise `JunctionClassifier.Classify` (`Fillet/JunctionClassifier.cs`):
    - `TaxiwayArmBuilder.BuildArms` walks each incident edge outward (through shape points) into a `TaxiwayArm` (`Fillet/TaxiwayArm.cs`): root edge, taxiway name, bearing from the junction, available length, an `IntersectionCapFt` that bounds how far a cut may sit before overrunning the next intersection, a `TaxiwayArmTerminus` classification (OtherIntersection / ShapePoint / RunwayCenterline / HoldShort / Parking / DeadEnd), and the full `TaxiwayWalk.WalkResult`.
-   - `CornerPlanner.PlanCorners` (`Fillet/CornerPlanner.cs`) pairs arms. A pair below `CollinearThresholdDeg = 15°` turn is a **collinear pair** (a straight-through, no arc); a pair below `MinFilletAngleDeg = 15°` is skipped; otherwise it is a `CornerSpec` carrying turn angle, requested radius, ideal tangent distance, and arm bearings. The junction's `JunctionKind` is `Skip` / `Simple` / `MultiCorner` / `Preserve`.
+   - `CornerPlanner.PlanCorners` (`Fillet/CornerPlanner.cs`) pairs arms. A pair below `CollinearThresholdDeg = 15°` turn is a **collinear pair** (a straight-through, no arc); a pair below `MinFilletAngleDeg = 15°` is skipped; a **near-hairpin** pair (turn above `NearHairpinThresholdDeg`, two taxiways grazing at an acute angle) is skipped, since its fillet would collapse to an un-taxiable chord; a pair whose ideal tangent distance gives a radius under `RadiusFloorFt` is skipped; otherwise it is a `CornerSpec` carrying turn angle, requested radius, ideal tangent distance, and arm bearings. The junction's `JunctionKind` is `Skip` / `Simple` / `MultiCorner` / `Preserve`.
 
 **3. Per-junction arm-cut resolution.** `ArmCutResolver.Resolve(junction, ref nextCutId)` (`Fillet/ArmCutResolver.cs`) decides where each arm is cut:
    - For each arm, a **candidate distance** is derived from the ideal tangent distances of its corners (averaged when they cluster within the coincident threshold, else `min(max, IntersectionCapFt)`), capped at `MaxTangentDistFt = 150 ft`.
@@ -294,6 +294,7 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/Fillet/ManualArcDetector.cs` | Shape-point (manual-arc) exclusion |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | Post-execute recompute + defensive merge (no repair) |
 | `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` | Generator interface (`Id`, `DisplayName`, `Apply`) |
+| `src/Yaat.Sim/Data/Airport/CornerFilletOverrides.cs` | `CornerFilletOverride` / `CornerFilletOverrides`: the airport's sidecar per-corner overrides, passed to `Apply` (carried, not applied yet) |
 | `src/Yaat.Sim/Data/Airport/FilletMode.cs` | Enum: `None` (no-op) \| `Standard` (production) |
 | `src/Yaat.Sim/Data/Airport/FilletGeneratorFactory.cs` | Factory: `FilletMode` → `IFilletArcGenerator` |
 | `src/Yaat.Sim/Data/Airport/NullFilletArcGenerator.cs` | No-op implementation for `FilletMode.None` |

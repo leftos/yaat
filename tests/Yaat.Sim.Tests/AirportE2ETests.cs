@@ -265,7 +265,12 @@ public class AirportE2ETests
             ]
         );
 
-        return GeoJsonParser.Parse(airportId, File.ReadAllText(path), airportId, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        return GeoJsonParser.Parse(
+            airportId,
+            File.ReadAllText(path),
+            airportId,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
     }
 
     private static RunwayInfo MakeWidthRunway(string airportId, string end1, string end2, int widthFt) =>

@@ -103,7 +103,9 @@ public static partial class GeoJsonParser
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="inputs">The airport's stand lead-ins, spot-edge chains and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
+    /// <param name="inputs">
+    /// The airport's stand lead-ins, spot-edge chains, corner fillet overrides and tower-cab videomap (<see cref="LayoutInputs"/>).
+    /// </param>
     /// <returns>The layout.</returns>
     public static AirportGroundLayout Parse(string airportId, string geoJson, string? runwayAirportCode, LayoutInputs inputs) =>
         Parse(airportId, geoJson, runwayAirportCode, inputs, FilletMode.Standard);
@@ -117,7 +119,22 @@ public static partial class GeoJsonParser
         string? runwayAirportCode,
         LayoutInputs inputs,
         FilletMode filletMode
-    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, inputs), geoJson, filletMode, issues: []);
+    ) => Parse(airportId, geoJson, runwayAirportCode, inputs, FilletGeneratorFactory.Create(filletMode));
+
+    /// <summary>Parse as <see cref="Parse(string, string, string?, LayoutInputs)"/> does, filleting with <paramref name="fillets"/>.</summary>
+    /// <param name="airportId">The layout's airport id.</param>
+    /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
+    /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
+    /// <param name="inputs">The airport's per-airport inputs (<see cref="LayoutInputs"/>).</param>
+    /// <param name="fillets">The fillet generator, handed <see cref="LayoutInputs.CornerFillets"/>.</param>
+    /// <returns>The layout.</returns>
+    internal static AirportGroundLayout Parse(
+        string airportId,
+        string geoJson,
+        string? runwayAirportCode,
+        LayoutInputs inputs,
+        IFilletArcGenerator fillets
+    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, inputs), geoJson, fillets, issues: []);
 
     /// <summary>
     /// Parse as <see cref="Parse(string, string, string?, LayoutInputs)"/> does (Standard fillets) and also return the
@@ -126,7 +143,9 @@ public static partial class GeoJsonParser
     /// <param name="airportId">The layout's airport id.</param>
     /// <param name="geoJson">The map's GeoJSON FeatureCollection.</param>
     /// <param name="runwayAirportCode">The airport code runway widths are looked up by, or null for the default width.</param>
-    /// <param name="inputs">The airport's stand lead-ins, spot-edge chains and tower-cab videomap (<see cref="LayoutInputs"/>).</param>
+    /// <param name="inputs">
+    /// The airport's stand lead-ins, spot-edge chains, corner fillet overrides and tower-cab videomap (<see cref="LayoutInputs"/>).
+    /// </param>
     /// <returns>The layout and the dropped features, in feature order.</returns>
     public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues) ParseWithDiagnostics(
         string airportId,
@@ -139,7 +158,7 @@ public static partial class GeoJsonParser
         AirportGroundLayout layout = ParseCollectingIssues(
             new LayoutSource(airportId, runwayAirportCode, inputs),
             geoJson,
-            FilletMode.Standard,
+            FilletGeneratorFactory.Create(FilletMode.Standard),
             issues
         );
         return (layout, issues);
@@ -147,11 +166,16 @@ public static partial class GeoJsonParser
 
     /// <summary>
     /// What a layout is built for: its airport id, the code its runway widths are looked up by, and its per-airport inputs
-    /// (stand lead-ins, spot-edge chains and tower-cab videomap).
+    /// (stand lead-ins, spot-edge chains, corner fillet overrides and tower-cab videomap).
     /// </summary>
     private sealed record LayoutSource(string AirportId, string? RunwayAirportCode, LayoutInputs Inputs);
 
-    private static AirportGroundLayout ParseCollectingIssues(LayoutSource source, string geoJson, FilletMode filletMode, List<GroundMapIssue> issues)
+    private static AirportGroundLayout ParseCollectingIssues(
+        LayoutSource source,
+        string geoJson,
+        IFilletArcGenerator fillets,
+        List<GroundMapIssue> issues
+    )
     {
         string airportId = source.AirportId;
         string sanitized = SanitizeJson(geoJson);
@@ -164,7 +188,7 @@ public static partial class GeoJsonParser
             List<TaxiwayFeature> Taxiways,
             List<RunwayFeature> Runways
         ) classified = ClassifyFeatures(airportId, features.EnumerateArray(), issues);
-        return BuildLayout(source, classified.Parkings, classified.Helipads, classified.Spots, classified.Taxiways, classified.Runways, filletMode);
+        return BuildLayout(source, classified.Parkings, classified.Helipads, classified.Spots, classified.Taxiways, classified.Runways, fillets);
     }
 
     /// <summary>
@@ -219,7 +243,7 @@ public static partial class GeoJsonParser
             classified.Spots,
             classified.Taxiways,
             classified.Runways,
-            filletMode
+            FilletGeneratorFactory.Create(filletMode)
         );
     }
 
@@ -304,7 +328,7 @@ public static partial class GeoJsonParser
         List<SpotFeature> spots,
         List<TaxiwayFeature> taxiways,
         List<RunwayFeature> runways,
-        FilletMode filletMode
+        IFilletArcGenerator fillets
     )
     {
         string airportId = source.AirportId;
@@ -442,11 +466,8 @@ public static partial class GeoJsonParser
         // Step 7: Wire up adjacency lists
         layout.RebuildAdjacencyLists();
 
-        // Step 8: Generate fillet arcs at intersections
-        if (filletMode != FilletMode.None)
-        {
-            FilletGeneratorFactory.Create(filletMode).Apply(layout);
-        }
+        // Step 8: Generate fillet arcs at intersections (the None generator leaves the layout as it is)
+        fillets.Apply(layout, source.Inputs.CornerFillets);
 
         // Step 9: with every node in its final place, mark each runway bar as its runway's hold line or a short fallback bar
         RunwayCrossingDetector.MarkShortBars(layout, snappedBars.Select(snapped => snapped.Bar.Id).ToHashSet());

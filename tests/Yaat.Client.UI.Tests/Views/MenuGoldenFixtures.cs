@@ -61,7 +61,7 @@ internal static class MenuGoldenFixtures
                 "SFO",
                 File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")),
                 null,
-                new LayoutInputs([], VideoMap: null, SpotEdges: []),
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
                 FilletMode.Standard
             )
         )
@@ -120,7 +120,13 @@ internal static class MenuGoldenFixtures
     private static AirportGroundLayout ParseOakLayout()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson");
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard);
+        return GeoJsonParser.Parse(
+            "OAK",
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+            FilletMode.Standard
+        );
     }
 
     /// <summary>Gate 25, a named parking node.</summary>

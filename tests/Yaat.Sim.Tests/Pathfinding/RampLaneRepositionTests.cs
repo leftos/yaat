@@ -447,7 +447,7 @@ public class RampLaneRepositionTests
             "TST",
             MiniRampGeoJson(withTaxiwayBetween: true),
             "TST",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
@@ -480,7 +480,7 @@ public class RampLaneRepositionTests
             "TST",
             MiniRampGeoJson(withTaxiwayBetween: false),
             "TST",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
         GroundNode gate = layout.FindParkingByName("G")!;
         var path = new List<string> { "M9" };
@@ -525,7 +525,7 @@ public class RampLaneRepositionTests
             "TST",
             MiniLoopRampGeoJson(laneLengthFt),
             "TST",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
         GroundNode stand = layout.FindParkingByName("H")!;
         GroundNode start = layout.GetNodesOnTaxiway("M3").OrderByDescending(n => n.Position.Lat).First();

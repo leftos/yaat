@@ -391,6 +391,58 @@ public sealed record SpotEdgeChain(string Name, IReadOnlyList<SpotEdgePoint> Pat
 }
 
 /// <summary>
+/// On-disk shape of one entry of the unified per-airport sidecar's <c>cornerFillets</c> section: an edit to the fillet of
+/// one intersection corner, validated by <see cref="AirportSidecarLoader"/> into a <see cref="CornerFilletOverride"/>.
+/// Numbers also read the strings <c>"NaN"</c>, <c>"Infinity"</c> and <c>"-Infinity"</c>, so a non-finite value drops only
+/// its entry, with a warning, rather than failing the whole file.
+/// </summary>
+public sealed class CornerFilletEntry
+{
+    /// <summary>The corner's pre-fillet apex as <c>[lon, lat]</c> (GeoJSON order, as <c>point</c> and <c>near</c>). Required.</summary>
+    [JsonPropertyName("apex")]
+    [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
+    public List<double>? Apex { get; set; }
+
+    /// <summary>The corner's two taxiway names, e.g. <c>["A", "B"]</c>. Required.</summary>
+    [JsonPropertyName("taxiways")]
+    public List<string>? Taxiways { get; set; }
+
+    /// <summary>Each taxiway arm's true bearing from the apex, degrees in [0, 360), in <see cref="Taxiways"/> order. Required.</summary>
+    [JsonPropertyName("bearings")]
+    [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
+    public List<double>? Bearings { get; set; }
+
+    /// <summary>
+    /// True to remove the corner's fillet; not allowed with <see cref="RadiusFt"/>, <see cref="Force"/> or
+    /// <see cref="TangentFt"/>.
+    /// </summary>
+    [JsonPropertyName("suppress")]
+    public bool? Suppress { get; set; }
+
+    /// <summary>The radius the corner's fillet asks for, feet, above zero.</summary>
+    [JsonPropertyName("radiusFt")]
+    [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
+    public double? RadiusFt { get; set; }
+
+    /// <summary>True to fillet the corner where the generator would skip it.</summary>
+    [JsonPropertyName("force")]
+    public bool? Force { get; set; }
+
+    /// <summary>Each arm's pinned tangent distance from the apex, feet, above zero, in <see cref="Taxiways"/> order.</summary>
+    [JsonPropertyName("tangentFt")]
+    [JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)]
+    public List<double>? TangentFt { get; set; }
+
+    /// <summary>Optional human-readable rationale. Informational only; not carried into the model.</summary>
+    [JsonPropertyName("note")]
+    public string? Note { get; set; }
+
+    /// <summary>Any key the entry does not define; an entry carrying one is warned and skipped.</summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
+}
+
+/// <summary>
 /// On-disk shape of a unified per-airport ground sidecar: one airport per JSON file under
 /// <c>Data/ARTCCs/{ARTCC}/Airports/{airport}.json</c>. Consolidates the per-airport ground-routing
 /// overrides (avoided taxiways, preset taxi routes, implicit connectors) that were previously split
@@ -478,6 +530,10 @@ internal sealed class AirportSidecarFile
     [JsonPropertyName("spotEdges")]
     public List<SpotEdgeEntry> SpotEdges { get; set; } = [];
 
+    /// <summary>Per-corner fillet edits: suppress, radius, force and pinned tangents.</summary>
+    [JsonPropertyName("cornerFillets")]
+    public List<CornerFilletEntry> CornerFillets { get; set; } = [];
+
     /// <summary>
     /// Taxiways the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Absent means any taxiway; an
     /// empty list means no taxiway-landing alert at all.
@@ -549,6 +605,12 @@ public sealed record AirportSidecar(string AirportId)
     /// build reads this section and <see cref="StandLeadIns"/>.
     /// </summary>
     public IReadOnlyList<SpotEdgeChain> SpotEdges { get; init; } = [];
+
+    /// <summary>
+    /// Per-corner fillet edits (suppress, radius, force and pinned tangents) in file order, an in-file duplicate (same corner
+    /// key, <see cref="CornerFilletOverride.HasSameKey"/>) replacing the earlier one in its place.
+    /// </summary>
+    public IReadOnlyList<CornerFilletOverride> CornerFillets { get; init; } = [];
 
     /// <summary>
     /// Upper-cased taxiway names the ASDE-X safety logic alerts a landing on, as the ground layout spells them. Null when the

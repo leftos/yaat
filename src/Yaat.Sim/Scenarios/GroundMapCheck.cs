@@ -37,7 +37,12 @@ public static class GroundMapCheck
                     faaId.ToLowerInvariant(),
                     fetched.Content,
                     faaId,
-                    new LayoutInputs(sidecars.GetStandLeadIns(faaId), VideoMap: null, SpotEdges: sidecars.GetSpotEdges(faaId))
+                    new LayoutInputs(
+                        sidecars.GetStandLeadIns(faaId),
+                        VideoMap: null,
+                        SpotEdges: sidecars.GetSpotEdges(faaId),
+                        CornerFillets: sidecars.GetCornerFillets(faaId)
+                    )
                 )
                 .Issues;
             return new GroundMapCheckResult(faaId, GroundMapOutcome.Ok, Error: null, issues, Exception: null);

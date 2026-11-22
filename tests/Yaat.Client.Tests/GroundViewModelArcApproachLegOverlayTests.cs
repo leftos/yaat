@@ -52,7 +52,13 @@ public class GroundViewModelArcApproachLegOverlayTests(ITestOutputHelper output)
     {
         string path = Path.Combine("TestData", "atl.geojson");
         Assert.True(File.Exists(path), $"{path} is missing from the test output");
-        return GeoJsonParser.Parse("ATL", File.ReadAllText(path), "ATL", new LayoutInputs([], VideoMap: null, SpotEdges: []), FilletMode.Standard);
+        return GeoJsonParser.Parse(
+            "ATL",
+            File.ReadAllText(path),
+            "ATL",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
+            FilletMode.Standard
+        );
     }
 
     [Fact]

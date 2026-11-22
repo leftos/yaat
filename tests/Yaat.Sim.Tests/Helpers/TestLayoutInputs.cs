@@ -19,6 +19,11 @@ internal static class TestLayoutInputs
     {
         TestVnasData.EnsureInitialized();
         AirportSidecarCatalog catalog = NavigationDatabase.Instance.AirportSidecars;
-        return new LayoutInputs(catalog.GetStandLeadIns(airportId), videoMap, SpotEdges: catalog.GetSpotEdges(airportId));
+        return new LayoutInputs(
+            catalog.GetStandLeadIns(airportId),
+            videoMap,
+            SpotEdges: catalog.GetSpotEdges(airportId),
+            CornerFillets: catalog.GetCornerFillets(airportId)
+        );
     }
 }

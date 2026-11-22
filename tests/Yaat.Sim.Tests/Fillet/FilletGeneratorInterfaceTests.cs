@@ -14,7 +14,7 @@ public class FilletGeneratorInterfaceTests
         Assert.Equal(expectedId, generator.Id);
 
         AirportGroundLayout layout = BuildSimpleIntersectionLayout();
-        FilletStatistics stats = generator.Apply(layout);
+        FilletStatistics stats = generator.Apply(layout, CornerFilletOverrides.None);
 
         Assert.Equal(expectedArcsOnSimpleLayout, layout.Arcs.Count);
         if (mode == FilletMode.None)
@@ -38,7 +38,7 @@ public class FilletGeneratorInterfaceTests
     public void Factory_AppliesFilletOnSimpleLayout()
     {
         AirportGroundLayout layout = BuildSimpleIntersectionLayout();
-        FilletStatistics stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout);
+        FilletStatistics stats = FilletGeneratorFactory.Create(FilletMode.Standard).Apply(layout, CornerFilletOverrides.None);
         Assert.True(stats.ArcsCreated >= 1);
         Assert.Equal(0, stats.OrphansRescued);
         Assert.Equal(0, stats.DirectShortensAdded);
@@ -51,7 +51,7 @@ public class FilletGeneratorInterfaceTests
             "TEST",
             MinimalGeoJson(),
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             FilletMode.None
         );
         Assert.Empty(layout.Arcs);

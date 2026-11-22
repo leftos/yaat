@@ -34,7 +34,7 @@ public class DisplacedThresholdLandingTests
             "SJC",
             File.ReadAllText(Path.Combine("TestData", "sjc.geojson")),
             "SJC",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
     private sealed record Touchdown(double PastPavementFt, double PastLandingThresholdFt, double DisplacementFt);
@@ -185,7 +185,7 @@ public class DisplacedThresholdLandingTests
             "OAK",
             File.ReadAllText(Path.Combine("TestData", "oak.geojson")),
             "OAK",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         Touchdown withLayout = FlyApproach("KOAK", "28R", "B738", 140.0, oak);

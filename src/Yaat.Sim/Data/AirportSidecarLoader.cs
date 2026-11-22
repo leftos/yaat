@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases;
@@ -134,6 +135,7 @@ public static class AirportSidecarLoader
                 StandDepartureAreas = ParseStandDepartureAreas(file, filePath, result),
                 StandLeadIns = ParseStandLeadIns(file, filePath, result),
                 SpotEdges = ParseSpotEdges(file, filePath, result),
+                CornerFillets = ParseCornerFillets(file, filePath, airportId, result),
                 AsdexLandingTaxiways = ParseAsdexLandingTaxiways(file.AsdexLandingTaxiways, filePath, result),
             }
         );
@@ -391,6 +393,171 @@ public static class AirportSidecarLoader
 
     /// <summary>A GeoJSON-order <c>[lon, lat]</c> pair as a <see cref="LatLon"/>.</summary>
     private static LatLon ToLatLon(List<double> lonLat) => new(lonLat[1], lonLat[0]);
+
+    /// <summary>
+    /// The <c>cornerFillets</c> section, in file order: taxiway names trimmed and upper-cased, the note dropped. An entry with
+    /// any problem (<see cref="CornerFilletEntryProblem"/>) is warned, naming the airport and the entry's index, and skipped; a
+    /// second entry for the same corner (<see cref="CornerFilletOverride.HasSameKey"/>) warns and replaces the earlier one in
+    /// its place.
+    /// </summary>
+    private static List<CornerFilletOverride> ParseCornerFillets(
+        AirportSidecarFile file,
+        string filePath,
+        string airportId,
+        AirportSidecarLoadResult result
+    )
+    {
+        var overrides = new List<CornerFilletOverride>();
+        var entryIndices = new List<int>();
+        for (int i = 0; i < file.CornerFillets.Count; i++)
+        {
+            CornerFilletEntry? entry = file.CornerFillets[i];
+            string location = $"{filePath}: {airportId} cornerFillets[{i}]";
+            if (CornerFilletEntryProblem(entry) is { } problem)
+            {
+                result.Warnings.Add($"{location}: {problem}, skipping");
+                continue;
+            }
+
+            CornerFilletOverride corner = ToCornerFilletOverride(entry!);
+            int existing = overrides.FindIndex(o => o.HasSameKey(corner));
+            if (existing >= 0)
+            {
+                result.Warnings.Add($"{location}: duplicate of cornerFillets[{entryIndices[existing]}], last wins");
+                overrides[existing] = corner;
+                entryIndices[existing] = i;
+                continue;
+            }
+
+            overrides.Add(corner);
+            entryIndices.Add(i);
+        }
+
+        return overrides;
+    }
+
+    /// <summary>What is wrong with an authored corner-fillet entry, or null when it is usable.</summary>
+    private static string? CornerFilletEntryProblem(CornerFilletEntry? entry)
+    {
+        if (entry is null)
+        {
+            return "empty entry";
+        }
+
+        return CornerFilletKeyProblem(entry)
+            ?? CornerFilletEditProblem(entry)
+            ?? (entry.Unknown is { Count: > 0 } unknown ? $"has unknown key '{unknown.Keys.First()}'" : null);
+    }
+
+    /// <summary>A missing or malformed apex, taxiway pair or bearing pair.</summary>
+    private static string? CornerFilletKeyProblem(CornerFilletEntry entry)
+    {
+        // Each later check runs only once MissingKeyProblem has found all three members present.
+        return MissingKeyProblem(entry)
+            ?? TaxiwaysProblem(entry.Taxiways!)
+            ?? PairProblem(entry.Apex!, "apex", "[lon, lat]")
+            ?? PairProblem(entry.Bearings!, "bearings", "[degA, degB]")
+            ?? BearingRangeProblem(entry.Bearings!);
+    }
+
+    /// <summary>The first of apex, taxiways and bearings the entry leaves out.</summary>
+    private static string? MissingKeyProblem(CornerFilletEntry entry)
+    {
+        if (entry.Apex is null)
+        {
+            return "missing apex";
+        }
+
+        if (entry.Taxiways is null)
+        {
+            return "missing taxiways";
+        }
+
+        return entry.Bearings is null ? "missing bearings" : null;
+    }
+
+    /// <summary>A taxiway pair that is not two non-blank names.</summary>
+    private static string? TaxiwaysProblem(List<string> taxiways) =>
+        ((taxiways.Count != 2) || taxiways.Any(string.IsNullOrWhiteSpace)) ? "taxiways needs two taxiway names" : null;
+
+    /// <summary>A pair that is not two numbers, or holds a non-finite one.</summary>
+    private static string? PairProblem(List<double> pair, string member, string shape)
+    {
+        if (pair.Count != 2)
+        {
+            return $"{member} needs {shape}";
+        }
+
+        return pair.All(double.IsFinite) ? null : $"{member} has a non-finite number";
+    }
+
+    /// <summary>A bearing outside [0, 360).</summary>
+    private static string? BearingRangeProblem(List<double> bearings)
+    {
+        foreach (double bearing in bearings)
+        {
+            if ((bearing < 0.0) || (bearing >= 360.0))
+            {
+                return $"bearing {bearing.ToString(CultureInfo.InvariantCulture)} is outside [0, 360)";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A radius or tangent that is not a positive finite number, or a suppress combined with another edit.</summary>
+    private static string? CornerFilletEditProblem(CornerFilletEntry entry) =>
+        RadiusProblem(entry.RadiusFt) ?? TangentProblem(entry.TangentFt) ?? SuppressProblem(entry);
+
+    /// <summary>A radius that is not a positive finite number.</summary>
+    private static string? RadiusProblem(double? radiusFt)
+    {
+        if (radiusFt is not { } radius)
+        {
+            return null;
+        }
+
+        if (!double.IsFinite(radius))
+        {
+            return "radiusFt is not a finite number";
+        }
+
+        return (radius <= 0.0) ? "radiusFt must be above 0" : null;
+    }
+
+    /// <summary>A tangent pair that is not two positive finite numbers.</summary>
+    private static string? TangentProblem(List<double>? tangentFt)
+    {
+        if (tangentFt is null)
+        {
+            return null;
+        }
+
+        return PairProblem(tangentFt, "tangentFt", "[a, b]") ?? (tangentFt.Any(t => t <= 0.0) ? "tangentFt must be above 0" : null);
+    }
+
+    /// <summary>A suppress combined with a radius, a force or tangents.</summary>
+    private static string? SuppressProblem(CornerFilletEntry entry)
+    {
+        bool otherEdit = (entry.RadiusFt is not null) || (entry.Force == true) || (entry.TangentFt is not null);
+        return ((entry.Suppress == true) && otherEdit) ? "suppress cannot be combined with radiusFt, force or tangentFt" : null;
+    }
+
+    /// <summary>A validated override from an entry <see cref="CornerFilletEntryProblem"/> passed.</summary>
+    private static CornerFilletOverride ToCornerFilletOverride(CornerFilletEntry entry) =>
+        new(
+            ApexLat: entry.Apex![1],
+            ApexLon: entry.Apex[0],
+            TaxiwayA: entry.Taxiways![0].Trim().ToUpperInvariant(),
+            TaxiwayB: entry.Taxiways[1].Trim().ToUpperInvariant(),
+            BearingA: entry.Bearings![0],
+            BearingB: entry.Bearings[1],
+            Suppress: entry.Suppress == true,
+            RadiusFt: entry.RadiusFt,
+            Force: entry.Force == true,
+            TangentAFt: entry.TangentFt?[0],
+            TangentBFt: entry.TangentFt?[1]
+        );
 
     /// <summary>The stand-departure names a sidecar may give, quoted, for a warning.</summary>
     private static string StandDepartureNames => string.Join(", ", Enum.GetNames<StandDeparture>().Select(n => $"'{n}'"));

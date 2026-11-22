@@ -21,7 +21,12 @@ internal static class PrecomputeBuilderFixtures
 
     /// <summary>KOAK parsed as a build parses it, for entries whose push targets the check never reads.</summary>
     internal static readonly Lazy<AirportGroundLayout> OakLayout = new(() =>
-        GeoJsonParser.Parse("oak", OakGeoJson.Value, "OAK", new LayoutInputs([], VideoMap: null, SpotEdges: []))
+        GeoJsonParser.Parse(
+            "oak",
+            OakGeoJson.Value,
+            "OAK",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        )
     );
 
     internal static readonly IReadOnlySet<string> Gate26 = new HashSet<string>(StringComparer.Ordinal) { "26" };

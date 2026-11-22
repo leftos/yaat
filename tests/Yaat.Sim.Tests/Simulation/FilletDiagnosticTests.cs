@@ -65,7 +65,12 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
         string path = Path.Combine("TestData", "oak.geojson");
         return !File.Exists(path)
             ? null
-            : GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+            : GeoJsonParser.Parse(
+                "OAK",
+                File.ReadAllText(path),
+                null,
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+            );
     }
 
     // ─── Plan B: SKW3078 taxi stall ───
@@ -240,7 +245,7 @@ public class FilletDiagnosticTests(ITestOutputHelper output)
                 airport,
                 File.ReadAllText(path),
                 null,
-                new LayoutInputs([], VideoMap: null, SpotEdges: [])
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
             );
             int badCount = 0;
             int genuineTurnCount = 0;

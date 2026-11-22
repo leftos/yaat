@@ -27,7 +27,16 @@ public class PrecomputeBuilderParallelTests
             ["OAK"] = (OakGeoJson.Value, StandsNear(OakLayout.Value, "26", 3)),
             ["SFO"] = (
                 SfoGeoJson.Value,
-                StandsNear(GeoJsonParser.Parse("sfo", SfoGeoJson.Value, "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: [])), "D2", 3)
+                StandsNear(
+                    GeoJsonParser.Parse(
+                        "sfo",
+                        SfoGeoJson.Value,
+                        "SFO",
+                        new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+                    ),
+                    "D2",
+                    3
+                )
             ),
         };
         string sequentialRoot = NewRoot();

@@ -153,6 +153,14 @@ A bad entry is skipped whole with a warning at load or layout build, and an edit
 "spotEdges": [ { "name": "RAMP", "path": [ { "spot": "22" }, { "junction": ["N", "N7"] } ], "notes": "The vNAS map draws no edge to spot 22." } ]
 ```
 
+### cornerFillets
+
+Names one taxiway corner by its apex, the two taxiways that meet there and each arm's true bearing from the apex, to suppress its fillet arc or set its radius or tangent distances. YAAT reads and validates the section but does not change taxiway geometry from it yet, so an entry has no effect on the map today. An entry that fails its checks is skipped with a warning in the log. Details: [`cornerFillets`](src/Yaat.Sim/Data/ARTCCs/README.md#cornerfillets).
+
+```json
+"cornerFillets": [ { "apex": [-122.3731, 37.6149], "taxiways": ["L", "F"], "bearings": [32.5, 118.0], "radiusFt": 75, "note": "Charted radius." } ]
+```
+
 ### adw
 
 Draws the two ends of a published Arrival/Departure Window as reference marks in Ground view. Nothing else acts on them: no separation logic, no pilot behaviour, no scoring. Ranges are measured from the displaced landing threshold, so the map's `threshold` property must be right. Author an entry only from a facility directive. Details: [`adw`](src/Yaat.Sim/Data/ARTCCs/README.md#adw).

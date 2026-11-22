@@ -125,7 +125,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "fll",
             MissingTypeGeoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         GroundMapIssue issue = Assert.Single(issues);
@@ -143,7 +143,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "oak",
             MinimalGeoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         Assert.NotNull(layout.FindParkingByName("25"));
@@ -157,7 +157,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "unv",
             UnknownTypeGeoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         GroundMapIssue issue = Assert.Single(issues);
@@ -176,7 +176,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "oak",
             MalformedCoordinateGeoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         GroundMapIssue issue = Assert.Single(issues);
@@ -188,10 +188,43 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         Assert.Null(layout.FindParkingByName("40"));
     }
 
+    /// <summary>The parser hands the fillet generator the very overrides its <see cref="LayoutInputs"/> carried.</summary>
+    [Fact]
+    public void Parse_PassesTheSidecarsCornerFilletsToTheGenerator()
+    {
+        var overrides = new CornerFilletOverrides([new CornerFilletOverride(37.7, -122.2, "A", "B", 10, 100, true, null, false, null, null)]);
+        var recorder = new RecordingFilletGenerator();
+
+        GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: overrides), recorder);
+
+        Assert.Same(overrides, Assert.Single(recorder.Received));
+    }
+
+    /// <summary>A generator that fillets nothing and records the overrides each call received.</summary>
+    private sealed class RecordingFilletGenerator : IFilletArcGenerator
+    {
+        public List<CornerFilletOverrides> Received { get; } = [];
+
+        public string Id => "recording";
+
+        public string DisplayName => "Recording";
+
+        public FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides)
+        {
+            Received.Add(overrides);
+            return FilletStatistics.Empty;
+        }
+    }
+
     [Fact]
     public void Parse_MinimalGeoJson_CreatesParkingNodes()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -208,7 +241,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_CreatesSpotNode()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         bool foundSpot = false;
         foreach (GroundNode node in layout.Nodes.Values)
@@ -226,7 +264,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_CreatesTaxiwayEdges()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // Should have edges for taxiway T and TC
         bool hasT = false;
@@ -251,7 +294,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_DetectsSharedEndpoint()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // T and TC share an endpoint at [-122.215874, 37.708816]
         // After filleting, the intersection node is replaced by tangent points and arcs.
@@ -275,7 +323,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_MinimalGeoJson_ConnectsParkingToNearbyTaxiway()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? spot32 = layout.FindParkingByName("32");
         Assert.NotNull(spot32);
@@ -287,7 +340,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_SwapsLonLatToLatLon()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? spot25 = layout.FindParkingByName("25");
         Assert.NotNull(spot25);
@@ -331,7 +389,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             }
             """;
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TEST",
+            json,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // The taxiway B doesn't cross this runway geometrically in this test data
         // (they're at different positions) so this is a basic structural test
@@ -375,7 +438,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             }
             """;
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TEST", json, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TEST",
+            json,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // Should have hold-short nodes on both sides of the runway
         var hsNodes = new List<GroundNode>();
@@ -401,7 +469,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void FindNearestNode_ReturnsClosestNode()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // Query near parking 25's position
         GroundNode? nearest = layout.FindNearestNode(37.7105, -122.2120);
@@ -411,7 +484,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void FindParkingByName_CaseInsensitive()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", MinimalGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            MinimalGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         Assert.NotNull(layout.FindParkingByName("25"));
         Assert.Null(layout.FindParkingByName("NONEXISTENT"));
@@ -432,7 +510,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "oak",
+            content,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // Collect hold-short nodes for each runway that are connected to taxiway B
         var bHs28R = new List<GroundNode>();
@@ -498,7 +581,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         }
 
         string content = File.ReadAllText(geoJsonPath);
-        AirportGroundLayout layout = GeoJsonParser.Parse("oak", content, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "oak",
+            content,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         var nodes = new List<object>();
         foreach ((int id, GroundNode? node) in layout.Nodes)
@@ -544,7 +632,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "oak.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("OAK", File.ReadAllText(path), "OAK", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "OAK",
+            File.ReadAllText(path),
+            "OAK",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // OAK 28L - 10R: turnoff=right (anchored to 28L's heading), holdShortDistance=250 (ignored),
         // patternSize=0.5, patternAltitude=600. Right of 28L (heading ~282°) = north (GA parking side).
@@ -568,7 +661,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SFO",
+            File.ReadAllText(path),
+            "SFO",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         // SFO 10L - 28R: turnoff=right (anchored to 10L east), noTurnoff = [["Q", "T"], ["L", "P"]].
         // Right of 10L (~102°) = south = terminal side. Same physical side is LEFT of 28R (~282°).
@@ -590,7 +688,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         // SFO 28R: authored turnoff resolves to Left (same physical side as terminal-south of 10L).
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SFO",
+            File.ReadAllText(path),
+            "SFO",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundRunway rwy = layout.Runways.First(r => r.Name == "10L - 28R");
         Assert.Equal(ExitSide.Left, rwy.TurnoffForEnd("28R"));
@@ -636,7 +739,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         // SFO 28R noTurnoff = ['L', 'P']: landing 28R must not exit at L or P.
         // Default-search (no command-named taxiway) should never select L or P as the exit.
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SFO",
+            File.ReadAllText(path),
+            "SFO",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundRunway rwy = layout.Runways.First(r => r.Name == "10L - 28R");
         Assert.Contains("L", rwy.NoTurnoffForEnd("28R"));
@@ -673,7 +781,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         // Even though P is on noTurnoff for 28R, an explicit "EXIT P" command must still find P.
         // The forbidden filter applies only to default-search (preference.Taxiway == null).
         string path = Path.Combine("TestData", "sfo.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SFO", File.ReadAllText(path), "SFO", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SFO",
+            File.ReadAllText(path),
+            "SFO",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode centerline28R = layout.Nodes.Values.First(n => n.Edges.Any(e => e.MatchesRunway("28R")));
         var heading = new TrueHeading(282);
@@ -725,7 +838,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         // sjc.geojson has turnoff but no patternAltitude/patternSize/noTurnoff
         string path = Path.Combine("TestData", "sjc.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("SJC", File.ReadAllText(path), "SJC", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "SJC",
+            File.ReadAllText(path),
+            "SJC",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         foreach (GroundRunway rwy in layout.Runways)
         {
@@ -743,7 +861,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "CMH.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("CMH", json, "CMH", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "CMH",
+            json,
+            "CMH",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         Assert.NotNull(layout.FindParkingByName("A1"));
         Assert.Contains(layout.Nodes.Values, node => node.Type == GroundNodeType.Parking);
@@ -756,7 +879,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "LBB.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("LBB", json, "LBB", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "LBB",
+            json,
+            "LBB",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         for (int stand = 1; stand <= 9; stand++)
         {
@@ -771,7 +899,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
         TestVnasData.EnsureInitialized();
         string json = File.ReadAllText(Path.Combine("TestData", "TTN.geojson"));
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TTN", json, "TTN", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TTN",
+            json,
+            "TTN",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundRunway? runway = layout.FindRunway("6");
         Assert.NotNull(runway);
@@ -830,7 +963,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_StandHeadings_KeepsAuthoredAndDerivesTheRest()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", HeadingFixtureGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TST",
+            HeadingFixtureGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? explicitNumber = layout.FindParkingByName("P270");
         Assert.NotNull(explicitNumber);
@@ -850,7 +988,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "ROC.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("ROC", File.ReadAllText(path), "ROC", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "ROC",
+            File.ReadAllText(path),
+            "ROC",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         AssertDerivedFromNearestTaxiway(layout, "GAS1");
         Assert.NotEqual(0.0, layout.FindParkingByName("GAS1")?.TrueHeading?.Degrees ?? 0.0);
@@ -861,7 +1004,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     {
         TestVnasData.EnsureInitialized();
         string path = Path.Combine("TestData", "ASE.geojson");
-        AirportGroundLayout layout = GeoJsonParser.Parse("ASE", File.ReadAllText(path), "ASE", new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "ASE",
+            File.ReadAllText(path),
+            "ASE",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? term = layout.FindParkingByName("TERM");
         Assert.NotNull(term);
@@ -895,7 +1043,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             }
             """;
 
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", json, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TST",
+            json,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? helipad = layout.FindHelipadByName("H1");
         Assert.NotNull(helipad);
@@ -995,7 +1148,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_StandOnItsTaxiwaysLine_KeepsZero()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", StandOnLineGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TST",
+            StandOnLineGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? stand = layout.FindParkingByName("ONLINE");
         Assert.NotNull(stand);
@@ -1011,7 +1169,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "TST",
             StandWithoutTaxiwayGeoJson,
             null,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
         GroundNode? stand = layout.FindParkingByName("NOWAY");
@@ -1024,7 +1182,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_StandBeyondConnectorRange_DerivesHeadingFromTheNearestEdgeAnywhere()
     {
-        AirportGroundLayout layout = GeoJsonParser.Parse("TST", FarStandGeoJson, null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        AirportGroundLayout layout = GeoJsonParser.Parse(
+            "TST",
+            FarStandGeoJson,
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
 
         GroundNode? stand = layout.FindParkingByName("FAR");
         Assert.NotNull(stand);
@@ -1040,7 +1203,12 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void Parse_StandWithSidecarLeadIn_DerivesHeadingFromTheLeadInVertex()
     {
-        var leadIns = new LayoutInputs([new StandLeadIn("L1", "A", new LatLon(37.713103, -122.222193), null)], VideoMap: null, SpotEdges: []);
+        var leadIns = new LayoutInputs(
+            [new StandLeadIn("L1", "A", new LatLon(37.713103, -122.222193), null)],
+            VideoMap: null,
+            SpotEdges: [],
+            CornerFillets: CornerFilletOverrides.None
+        );
         AirportGroundLayout layout = GeoJsonParser.Parse("TST", LeadInStandGeoJson, null, leadIns);
 
         GroundNode? stand = layout.FindParkingByName("L1");
@@ -1060,7 +1228,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
             "ROC",
             File.ReadAllText(path),
             "ROC",
-            new LayoutInputs([], VideoMap: null, SpotEdges: []),
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None),
             applyFillets: false
         );
 

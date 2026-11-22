@@ -28,7 +28,7 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        _ = new FilletArcGenerator().Apply(layout);
+        _ = new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         var sb = new StringBuilder();
         sb.AppendLine($"=== {shortId} degenerate / near-degenerate edges ===");
@@ -65,7 +65,7 @@ public class FilletDegenerateEdgeDiagnosticTests(ITestOutputHelper output)
             FilletMode.None
         );
         AirportGroundLayout layout = LayoutCloner.DeepClone(pre);
-        _ = new FilletArcGenerator().Apply(layout);
+        _ = new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         const int nodeId = 753;
         var sb = new StringBuilder();

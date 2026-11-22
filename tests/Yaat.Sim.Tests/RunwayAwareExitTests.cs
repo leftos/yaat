@@ -12,7 +12,12 @@ public class RunwayAwareExitTests
         string path = Path.Combine(TestDataDir, $"{subdir}.geojson");
         if (File.Exists(path))
         {
-            return GeoJsonParser.Parse(airportId, File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+            return GeoJsonParser.Parse(
+                airportId,
+                File.ReadAllText(path),
+                null,
+                new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+            );
         }
 
         return null;

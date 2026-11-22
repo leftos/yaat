@@ -42,7 +42,7 @@ public class FinalApproachLandingDatumTests(ITestOutputHelper output)
             "SJC",
             File.ReadAllText(Path.Combine("TestData", "sjc.geojson")),
             "SJC",
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
     private static RunwayInfo Runway()

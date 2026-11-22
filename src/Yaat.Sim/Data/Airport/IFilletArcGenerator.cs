@@ -17,5 +17,11 @@ public interface IFilletArcGenerator
     /// <summary>
     /// Apply fillet arcs to all eligible intersection nodes. Returns per-pass tallies.
     /// </summary>
-    FilletStatistics Apply(AirportGroundLayout layout);
+    /// <param name="layout">The layout to fillet, mutated in place.</param>
+    /// <param name="overrides">
+    /// The airport's per-corner fillet overrides (<see cref="LayoutInputs.CornerFillets"/>), keyed against the pre-fillet
+    /// layout; <see cref="CornerFilletOverrides.None"/> for none.
+    /// </param>
+    /// <returns>The pass's tallies.</returns>
+    FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides);
 }

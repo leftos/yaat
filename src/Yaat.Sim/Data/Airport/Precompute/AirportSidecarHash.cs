@@ -60,21 +60,29 @@ public static class AirportSidecarHash
 
         // The load's warnings are dropped here: the sidecar catalog's own load reports them.
         var catalog = new AirportSidecarCatalog(AirportSidecarLoader.LoadFiles(SidecarFilesOf(artccsBaseDir, airportId)).Airports);
-        return OfLayoutSidecar(catalog.GetStandLeadIns(airportId), catalog.GetSpotEdges(airportId));
+        return OfLayoutSidecar(catalog.GetStandLeadIns(airportId), catalog.GetSpotEdges(airportId), catalog.GetCornerFillets(airportId));
     }
 
     /// <summary>
-    /// The SHA-256 of a canonical form of <paramref name="leadIns"/> and <paramref name="spotEdges"/>: one line per lead-in,
-    /// in order, of its stand, taxiway, latitude and longitude (round-trip invariant text), tab-separated; then, only when
-    /// there are chains, a <c>spotEdges</c> line and per chain, in order, a <c>chain</c> line with its name followed by one
-    /// tab-led line per point of its kind, spot, junction taxiways, taxiway, latitude and longitude (empty when absent).
-    /// Notes are left out, since they do not shape the layout. An airport without chains so hashes exactly as its lead-ins
-    /// alone; no lead-ins and no chains give the SHA-256 of the empty string.
+    /// The SHA-256 of a canonical form of <paramref name="leadIns"/>, <paramref name="spotEdges"/> and
+    /// <paramref name="cornerFillets"/>: one line per lead-in, in order, of its stand, taxiway, latitude and longitude
+    /// (round-trip invariant text), tab-separated; then, only when there are chains, a <c>spotEdges</c> line and per chain, in
+    /// order, a <c>chain</c> line with its name followed by one tab-led line per point of its kind, spot, junction taxiways,
+    /// taxiway, latitude and longitude (empty when absent); then, only when there are corner overrides, a
+    /// <c>cornerFillets</c> line and one <c>corner</c> line per override with every field of it, each override's taxiway pair
+    /// ordered (ordinal, then by bearing) with its bearings and tangents following, and the overrides sorted by apex latitude,
+    /// apex longitude and that ordered pair. Notes are left out, since they do not shape the layout. An airport without chains
+    /// or corner overrides so hashes exactly as its lead-ins alone; none of the three gives the SHA-256 of the empty string.
     /// </summary>
     /// <param name="leadIns">An airport's stand lead-ins (<see cref="AirportSidecarCatalog.GetStandLeadIns"/>).</param>
     /// <param name="spotEdges">An airport's spot-edge chains (<see cref="AirportSidecarCatalog.GetSpotEdges"/>).</param>
+    /// <param name="cornerFillets">An airport's per-corner fillet overrides (<see cref="AirportSidecarCatalog.GetCornerFillets"/>).</param>
     /// <returns>The hash, lowercase hex.</returns>
-    public static string OfLayoutSidecar(IReadOnlyList<StandLeadIn> leadIns, IReadOnlyList<SpotEdgeChain> spotEdges)
+    public static string OfLayoutSidecar(
+        IReadOnlyList<StandLeadIn> leadIns,
+        IReadOnlyList<SpotEdgeChain> spotEdges,
+        CornerFilletOverrides cornerFillets
+    )
     {
         var canonical = new StringBuilder();
         foreach (StandLeadIn leadIn in leadIns)
@@ -91,7 +99,78 @@ public static class AirportSidecarHash
             }
         }
 
+        if (cornerFillets.Entries.Count > 0)
+        {
+            canonical.Append("cornerFillets\n");
+            foreach (CornerFilletOverride corner in CanonicalCorners(cornerFillets))
+            {
+                AppendCorner(canonical, corner);
+            }
+        }
+
         return Sha256Hex(Encoding.UTF8.GetBytes(canonical.ToString()));
+    }
+
+    /// <summary>
+    /// The overrides, each with -0 read as 0 and its taxiway pair ordered, sorted by apex, pair and bearings and then by every
+    /// edit field, so the order is total and any input order gives the same text.
+    /// </summary>
+    private static IEnumerable<CornerFilletOverride> CanonicalCorners(CornerFilletOverrides cornerFillets) =>
+        cornerFillets
+            .Entries.Select(corner => Oriented(WithoutNegativeZero(corner)))
+            .OrderBy(corner => corner.ApexLat)
+            .ThenBy(corner => corner.ApexLon)
+            .ThenBy(corner => corner.TaxiwayA, StringComparer.Ordinal)
+            .ThenBy(corner => corner.TaxiwayB, StringComparer.Ordinal)
+            .ThenBy(corner => corner.BearingA)
+            .ThenBy(corner => corner.BearingB)
+            .ThenBy(corner => corner.Suppress)
+            .ThenBy(corner => corner.RadiusFt)
+            .ThenBy(corner => corner.Force)
+            .ThenBy(corner => corner.TangentAFt)
+            .ThenBy(corner => corner.TangentBFt);
+
+    /// <summary>The override with every -0 replaced by 0, which formats differently but means the same.</summary>
+    private static CornerFilletOverride WithoutNegativeZero(CornerFilletOverride corner) =>
+        corner with
+        {
+            ApexLat = corner.ApexLat + 0.0,
+            ApexLon = corner.ApexLon + 0.0,
+            BearingA = corner.BearingA + 0.0,
+            BearingB = corner.BearingB + 0.0,
+            RadiusFt = corner.RadiusFt + 0.0,
+            TangentAFt = corner.TangentAFt + 0.0,
+            TangentBFt = corner.TangentBFt + 0.0,
+        };
+
+    /// <summary>The override with A the ordinal-lower taxiway (the lower bearing on a tie), its bearing and tangent following it.</summary>
+    private static CornerFilletOverride Oriented(CornerFilletOverride corner)
+    {
+        int order = string.CompareOrdinal(corner.TaxiwayA, corner.TaxiwayB);
+        bool swap = (order > 0) || ((order == 0) && (corner.BearingA > corner.BearingB));
+        return swap
+            ? corner with
+            {
+                TaxiwayA = corner.TaxiwayB,
+                TaxiwayB = corner.TaxiwayA,
+                BearingA = corner.BearingB,
+                BearingB = corner.BearingA,
+                TangentAFt = corner.TangentBFt,
+                TangentBFt = corner.TangentAFt,
+            }
+            : corner;
+    }
+
+    private static void AppendCorner(StringBuilder canonical, CornerFilletOverride corner)
+    {
+        canonical.Append(
+            CultureInfo.InvariantCulture,
+            $"corner\t{corner.ApexLat:R}\t{corner.ApexLon:R}\t{corner.TaxiwayA}\t{corner.TaxiwayB}\t{corner.BearingA:R}\t{corner.BearingB:R}"
+        );
+        canonical.Append(
+            CultureInfo.InvariantCulture,
+            $"\t{corner.Suppress}\t{corner.RadiusFt:R}\t{corner.Force}\t{corner.TangentAFt:R}\t{corner.TangentBFt:R}\n"
+        );
     }
 
     private static void AppendChain(StringBuilder canonical, SpotEdgeChain chain)

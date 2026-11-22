@@ -26,7 +26,7 @@ public class LandingThresholdTests
             airportId,
             File.ReadAllText(Path.Combine("TestData", geojson)),
             airportId,
-            new LayoutInputs([], VideoMap: null, SpotEdges: [])
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
         );
 
     private static RunwayInfo Runway(string airportId, string designator)

@@ -41,6 +41,8 @@ public sealed class AirportSidecarCatalog
     private readonly Dictionary<string, List<StandDepartureArea>> _standDepartureAreasByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<StandLeadIn>> _standLeadInsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<SpotEdgeChain>> _spotEdgesByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<CornerFilletOverride>> _cornerFilletsByAirport = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CornerFilletOverrides> _cornerFilletSetsByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _asdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _emptyAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _listedAsdexLandingTaxiwaysByAirport = new(StringComparer.OrdinalIgnoreCase);
@@ -76,7 +78,13 @@ public sealed class AirportSidecarCatalog
             MergeStandDepartureAreas(key, airport.StandDepartureAreas);
             MergeStandLeadIns(key, airport.StandLeadIns);
             MergeSpotEdges(key, airport.SpotEdges);
+            MergeCornerFillets(key, airport.CornerFillets);
             MergeAsdexLandingTaxiways(key, airport);
+        }
+
+        foreach ((string key, List<CornerFilletOverride> list) in _cornerFilletsByAirport)
+        {
+            _cornerFilletSetsByAirport[key] = new CornerFilletOverrides(list);
         }
     }
 
@@ -226,6 +234,50 @@ public sealed class AirportSidecarCatalog
 
         string key = NavigationDatabase.NormalizeAirport(airportId);
         return _spotEdgesByAirport.TryGetValue(key, out List<SpotEdgeChain>? list) ? list : [];
+    }
+
+    private void MergeCornerFillets(string key, IReadOnlyList<CornerFilletOverride> overrides)
+    {
+        if (overrides.Count == 0)
+        {
+            return;
+        }
+
+        if (!_cornerFilletsByAirport.TryGetValue(key, out List<CornerFilletOverride>? list))
+        {
+            list = [];
+            _cornerFilletsByAirport[key] = list;
+        }
+
+        // An override for the same corner as one an earlier file merged replaces it in its place; others append.
+        foreach (CornerFilletOverride corner in overrides)
+        {
+            int existing = list.FindIndex(merged => merged.HasSameKey(corner));
+            if (existing >= 0)
+            {
+                list[existing] = corner;
+            }
+            else
+            {
+                list.Add(corner);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The airport sidecar's per-corner fillet overrides, in load order, one per corner key
+    /// (<see cref="CornerFilletOverride.HasSameKey"/>). Never null — returns <see cref="CornerFilletOverrides.None"/> when
+    /// the airport has none. Passed to <see cref="GeoJsonParser"/> through <see cref="LayoutInputs.CornerFillets"/>.
+    /// </summary>
+    public CornerFilletOverrides GetCornerFillets(string airportId)
+    {
+        if (string.IsNullOrWhiteSpace(airportId))
+        {
+            return CornerFilletOverrides.None;
+        }
+
+        string key = NavigationDatabase.NormalizeAirport(airportId);
+        return _cornerFilletSetsByAirport.TryGetValue(key, out CornerFilletOverrides? set) ? set : CornerFilletOverrides.None;
     }
 
     private void MergeStandDepartureAreas(string key, IReadOnlyList<StandDepartureArea> areas)

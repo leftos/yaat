@@ -155,14 +155,14 @@ public class ArmCutResolverTests
     [Fact]
     public void Apply_RepairCountersRemainZero_OnSimple90()
     {
-        FilletStatistics stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout());
+        FilletStatistics stats = new FilletArcGenerator().Apply(BuildSimpleIntersectionLayout(), CornerFilletOverrides.None);
         AssertRepairCountersZero(stats);
     }
 
     [Fact]
     public void Apply_RepairCountersRemainZero_OnThreeWayMultiCut()
     {
-        FilletStatistics stats = new FilletArcGenerator().Apply(BuildThreeWayLayout());
+        FilletStatistics stats = new FilletArcGenerator().Apply(BuildThreeWayLayout(), CornerFilletOverrides.None);
         AssertRepairCountersZero(stats);
         Assert.True(stats.ArcsCreated >= 3);
     }
@@ -171,7 +171,7 @@ public class ArmCutResolverTests
     public void Apply_YPattern_CollinearThroughConnectsStraightArmTangents()
     {
         AirportGroundLayout layout = BuildYPatternLayout();
-        new FilletArcGenerator().Apply(layout);
+        new FilletArcGenerator().Apply(layout, CornerFilletOverrides.None);
 
         // The collinear straight-through arms stay connected end-to-end after filleting.
         int straightNorth = 10;

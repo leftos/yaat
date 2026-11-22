@@ -38,7 +38,12 @@ public class LandingExitDecelTests
             return null;
         }
 
-        return GeoJsonParser.Parse("OAK", File.ReadAllText(path), null, new LayoutInputs([], VideoMap: null, SpotEdges: []));
+        return GeoJsonParser.Parse(
+            "OAK",
+            File.ReadAllText(path),
+            null,
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        );
     }
 
     private static RunwayInfo MakeRunway(string designator, double heading, double thresholdLat, double thresholdLon) =>
