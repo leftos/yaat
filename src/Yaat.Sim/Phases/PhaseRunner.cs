@@ -33,6 +33,11 @@ public static class PhaseRunner
             return;
         }
 
+        if (TryEndPairedHold(aircraft, ctx, phases, current))
+        {
+            return;
+        }
+
         TerminatorKind kind = ClassifyTerminator(current);
         StampLandingScore(aircraft, ctx, kind);
 
@@ -74,6 +79,25 @@ public static class PhaseRunner
         phases.EndHold(ctx, resume);
         StartPendingPhase(ctx, phases);
         FlightPhysics.NotifyPhaseAdvanced(aircraft);
+    }
+
+    /// <summary>
+    /// A boundary hold standing in front of a held phase that finished on its own (cleared in, or the volume can no longer be
+    /// entered) ends through <see cref="EndHold"/>, resuming the held phase as it declares: in place, or by a restart copy.
+    /// The resume is asked for before the hold's <c>OnEnd</c> runs, with the aircraft where the orbit left it. Nothing else of
+    /// the advance runs: the hold is no terminator, and the held phase was never completed. False, and nothing changes, for a
+    /// hold that is not paired (free flight, or its held phase went away), which advances as any phase does.
+    /// </summary>
+    private static bool TryEndPairedHold(AircraftState aircraft, PhaseContext ctx, PhaseList phases, Phase current)
+    {
+        if ((current is not AirspaceBoundaryHoldPhase) || (phases.HeldPhase is not { } held))
+        {
+            return false;
+        }
+
+        HoldResume resume = held.ResumeAfterBoundaryHold(ctx);
+        EndHold(aircraft, ctx, resume);
+        return true;
     }
 
     /// <summary>

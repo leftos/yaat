@@ -1430,9 +1430,22 @@ public sealed class AirspaceBoundaryHoldPhaseDto : PhaseDto
     public required double LastHeadingDeg { get; init; }
     public required bool Started { get; init; }
 
-    /// <summary>Whether the hold held through a controller vector under RMOB, so it resumes the assigned heading when it ends.</summary>
+    /// <summary>
+    /// Whether the hold held through a controller vector or direct into its Class B, so it flies that vector when it ends.
+    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool HeldThroughVector { get; init; }
+
+    /// <summary>Whether a hold in front of a held phase stashed a direct it held through, to put back when it ends.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool StashedDirect { get; init; }
+
+    /// <summary>
+    /// The assigned magnetic heading, degrees, standing when the hold first started, which a hold in front of a held phase
+    /// never reads as a new vector; null when none stood. Written only when set, so a hold with none serializes as before.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? HeadingStandingAtStartDeg { get; init; }
 }
 
 public sealed class MilitaryRoutePhaseDto : PhaseDto

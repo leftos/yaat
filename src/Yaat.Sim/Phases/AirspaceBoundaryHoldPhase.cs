@@ -40,9 +40,19 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     private TrueHeading _lastHeading;
     private bool _started;
 
-    // Whether the hold held through a controller vector under RMOB (HoldThroughVector): only then does it resume the
-    // assigned heading when it ends.
+    // Whether the hold held through a controller vector: under RMOB in free flight, or, in front of a held phase, a new
+    // heading or direct into the held Class B (PairedVectorEndsHold). A free-flight hold resumes the assigned heading when it
+    // ends only when this is set.
     private bool _heldThroughVector;
+
+    // Whether a hold in front of a held phase stashed a direct it held through in _originalRoute: only then does its end put
+    // that route back in place of the held phase's (EndPairedLateral).
+    private bool _stashedDirect;
+
+    // The assigned heading standing when the hold first started: a hold in front of a held phase does not read it as a new
+    // vector. Written at the first OnStart, and cleared the first time a new heading is seen, so every later heading is
+    // judged in its turn.
+    private MagneticHeading? _headingStandingAtStart;
 
     public AirspaceClass AirspaceClass { get; init; }
     public string Ident { get; init; } = "";
@@ -101,6 +111,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             LastHeadingDeg = _lastHeading.Degrees,
             Started = _started,
             HeldThroughVector = _heldThroughVector,
+            StashedDirect = _stashedDirect,
+            HeadingStandingAtStartDeg = _headingStandingAtStart?.Degrees,
         };
 
     public static AirspaceBoundaryHoldPhase FromSnapshot(AirspaceBoundaryHoldPhaseDto dto)
@@ -134,6 +146,8 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         phase._lastHeading = new TrueHeading(dto.LastHeadingDeg);
         phase._started = dto.Started;
         phase._heldThroughVector = dto.HeldThroughVector;
+        phase._stashedDirect = dto.StashedDirect;
+        phase._headingStandingAtStart = dto.HeadingStandingAtStartDeg is { } standingDeg ? new MagneticHeading(standingDeg) : null;
         return phase;
     }
 
@@ -148,6 +162,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             _originalTargetSpeed = ctx.Targets.TargetSpeed;
             _originalTargetAltitude = ctx.Targets.TargetAltitude;
             _originalAltitudeCeiling = ctx.Targets.AltitudeCeiling;
+            _headingStandingAtStart = ctx.Targets.AssignedMagneticHeading;
             _started = true;
         }
 
@@ -182,18 +197,9 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             return TickLevelOff(ctx);
         }
 
-        // An explicit vector or navigation command means the controller has taken responsibility for
-        // keeping the aircraft clear. Without this the orbit overwrites TargetTrueHeading every tick and
-        // the aircraft circles through the vector until it is cleared into the airspace. A pilot told to remain outside
-        // this Class B keeps holding while the vector still takes it in.
-        if ((ctx.Targets.AssignedMagneticHeading is not null) || ctx.Targets.HasRouteToFly)
+        if (VectorEndsHold(ctx))
         {
-            if (!VectorEntersRemainOutsideBravo(ctx))
-            {
-                return true;
-            }
-
-            HoldThroughVector(ctx);
+            return true;
         }
 
         if (!HeldVolumeCanStillBeEntered(ctx.Aircraft))
@@ -213,6 +219,111 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
 
         return false;
     }
+
+    /// <summary>
+    /// Whether a controller vector ends the orbit. An explicit vector or navigation command means the controller has taken
+    /// responsibility for keeping the aircraft clear; without this the orbit overwrites TargetTrueHeading every tick and the
+    /// aircraft circles through the vector until it is cleared into the airspace. A free-flight hold ends on one unless the
+    /// pilot is told to remain outside this Class B and the vector still takes it in (<see cref="HoldThroughVector"/>). A hold
+    /// in front of a held phase follows the same rule on the held Class B for a direct or a heading that is new since the
+    /// hold went in (<see cref="PairedVectorEndsHold"/>).
+    /// </summary>
+    private bool VectorEndsHold(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Phases?.HeldPhase is not null)
+        {
+            return PairedVectorEndsHold(ctx);
+        }
+
+        if ((ctx.Targets.AssignedMagneticHeading is null) && !ctx.Targets.HasRouteToFly)
+        {
+            return false;
+        }
+
+        if (!VectorEntersRemainOutsideBravo(ctx))
+        {
+            return true;
+        }
+
+        HoldThroughVector(ctx);
+        return false;
+    }
+
+    /// <summary>
+    /// A hold in front of a held phase follows the free-flight rule for a controller vector, judged on the held Class B
+    /// whether or not the pilot is told to remain outside it. A command reaches the pair through the dispatcher's lift: a
+    /// held phase that keeps itself on a heading or a direct (an initial climb, a departure procedure) leaves it standing.
+    /// A direct (any route to fly: the hold's start cleared the held phase's) that keeps the aircraft outside the Class B
+    /// ends the orbit and is flown; one that would take it in is held through, stashed for the end of the hold
+    /// (<see cref="HoldThroughVector"/>). A new heading is judged the same way; a heading that was already standing when
+    /// the hold went in (<see cref="_headingStandingAtStart"/>) is not a vector and is ignored until a new heading is seen,
+    /// after which every heading is judged in its turn.
+    /// </summary>
+    private bool PairedVectorEndsHold(PhaseContext ctx)
+    {
+        if (ctx.Targets.HasRouteToFly && (ctx.Targets.NavigationRoute.FirstOrDefault() is { } next))
+        {
+            if (!TrackEntersHeldBravo(ctx, new TrueHeading(GeoMath.BearingTo(ctx.Aircraft.Position, next.Position))))
+            {
+                return true;
+            }
+
+            HoldThroughVector(ctx);
+            _stashedDirect = true;
+            return false;
+        }
+
+        if (!HasNewHeading(ctx, out MagneticHeading assigned))
+        {
+            return false;
+        }
+
+        // From the first new heading on, every heading is judged in its turn: one given back the value that stood at the
+        // start is a vector like any other.
+        _headingStandingAtStart = null;
+        if (!TrackEntersHeldBravo(ctx, assigned.ToTrue(ctx.Aircraft.Declination)))
+        {
+            return true;
+        }
+
+        _heldThroughVector = true;
+        return false;
+    }
+
+    /// <summary>
+    /// An assigned heading standing now, <paramref name="assigned"/>, that is not the one standing when the hold went in (any
+    /// heading once a new one has been seen).
+    /// </summary>
+    private bool HasNewHeading(PhaseContext ctx, out MagneticHeading assigned)
+    {
+        if ((ctx.Targets.AssignedMagneticHeading is { } heading) && (heading != _headingStandingAtStart))
+        {
+            assigned = heading;
+            return true;
+        }
+
+        assigned = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a level track on <paramref name="track"/> at the aircraft's altitude enters the held Class B within
+    /// <see cref="Pilot.ImplicitBravoClearance.WaitingEntryLookaheadSeconds"/>: the projection
+    /// <see cref="VectorEntersRemainOutsideBravo"/> makes, whether or not the pilot is told to remain outside.
+    /// </summary>
+    private bool TrackEntersHeldBravo(PhaseContext ctx, TrueHeading track) =>
+        (AirspaceClass == AirspaceClass.Bravo)
+        && (
+            AirspaceDatabase.Default.FindLevelTrackClassBEntry(
+                ctx.Aircraft.Position,
+                ctx.Aircraft.Altitude,
+                track,
+                ctx.Aircraft.GroundSpeed,
+                Pilot.ImplicitBravoClearance.WaitingEntryLookaheadSeconds,
+                Ident
+            )
+            is not null
+        );
 
     /// <summary>
     /// The level-off holds until the shelf is behind the aircraft, the controller assigns an altitude, or
@@ -281,24 +392,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             return;
         }
 
-        // OnStart cleared the route and the hold never repopulates it, so a non-empty route here means
-        // the controller issued a direct/navigation command during the hold — preserve it rather than
-        // reverting to the pre-hold route. Likewise an assigned heading means the controller vectored.
-        if ((ctx.Targets.AssignedMagneticHeading is null) && !ctx.Targets.HasRouteToFly)
-        {
-            ctx.Targets.NavigationRoute.Clear();
-            foreach (NavigationTarget target in _originalRoute)
-            {
-                ctx.Targets.NavigationRoute.Add(CloneNavigationTarget(target));
-            }
-            ctx.Targets.TargetTrueHeading = _originalTargetHeading;
-            ctx.Targets.PreferredTurnDirection = _originalTurnDirection;
-        }
-        else if (_heldThroughVector)
-        {
-            // Only a hold that held through the vector under RMOB overwrote it; any other hold leaves the target alone.
-            ResumeAssignedHeading(ctx);
-        }
+        EndLateral(ctx);
 
         if (!ctx.Targets.HasExplicitSpeedCommand)
         {
@@ -307,6 +401,77 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     }
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.Allowed;
+
+    /// <summary>
+    /// The lateral targets an orbit that completed hands on. In front of a held phase see <see cref="EndPairedLateral"/>.
+    /// Otherwise OnStart cleared the route and the hold never repopulates it, so a non-empty route here means the controller
+    /// issued a direct/navigation command during the hold — preserve it rather than reverting to the pre-hold route. Likewise
+    /// an assigned heading means the controller vectored; only a hold that held through it under RMOB overwrote it, and
+    /// resumes it.
+    /// </summary>
+    private void EndLateral(PhaseContext ctx)
+    {
+        if (ctx.Aircraft.Phases?.HeldPhase is not null)
+        {
+            EndPairedLateral(ctx);
+        }
+        else if ((ctx.Targets.AssignedMagneticHeading is null) && !ctx.Targets.HasRouteToFly)
+        {
+            RestoreLateralTargets(ctx);
+        }
+        else if (_heldThroughVector)
+        {
+            ResumeAssignedHeading(ctx);
+        }
+    }
+
+    /// <summary>
+    /// In front of a held phase the aircraft flies what the controller gave during the hold, as the held phase would after
+    /// that command unheld: a new heading is resumed (<see cref="ResumeAssignedHeading"/>), and a direct stays standing or,
+    /// held through, is put back from the stash (<see cref="_stashedDirect"/>); either way the orbit's turn direction is
+    /// dropped and the held phase's own route is not put back. With no new heading or direct standing (a held-through heading
+    /// the controller cleared included), the held phase's route, heading and turn direction are put back.
+    /// </summary>
+    private void EndPairedLateral(PhaseContext ctx)
+    {
+        if (HasNewHeading(ctx, out _))
+        {
+            ResumeAssignedHeading(ctx);
+            ctx.Targets.PreferredTurnDirection = null;
+            return;
+        }
+
+        if (!ctx.Targets.HasRouteToFly && !_stashedDirect)
+        {
+            RestoreLateralTargets(ctx);
+            return;
+        }
+
+        if (!ctx.Targets.HasRouteToFly)
+        {
+            PutBackRoute(ctx);
+        }
+
+        ctx.Targets.PreferredTurnDirection = null;
+    }
+
+    /// <summary>Puts back the route, target heading and turn direction saved when the hold first started.</summary>
+    private void RestoreLateralTargets(PhaseContext ctx)
+    {
+        PutBackRoute(ctx);
+        ctx.Targets.TargetTrueHeading = _originalTargetHeading;
+        ctx.Targets.PreferredTurnDirection = _originalTurnDirection;
+    }
+
+    /// <summary>Puts back the route the hold saved: the one standing when it first started, or a direct it held through.</summary>
+    private void PutBackRoute(PhaseContext ctx)
+    {
+        ctx.Targets.NavigationRoute.Clear();
+        foreach (NavigationTarget target in _originalRoute)
+        {
+            ctx.Targets.NavigationRoute.Add(CloneNavigationTarget(target));
+        }
+    }
 
     private void SetHoldingTargets(PhaseContext ctx)
     {
@@ -380,10 +545,11 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     }
 
     /// <summary>
-    /// Keeps holding through a controller vector or direct into the Class B the pilot is told to remain outside, and marks
-    /// the hold as having done so. A direct is stashed for the end of the hold: its route moves into the route the hold
-    /// restores, so the orbit is not flown over by it, and the pilot flies it once cleared in. An assigned heading stays
-    /// assigned and is resumed then (<see cref="ResumeAssignedHeading"/>).
+    /// Keeps holding through a controller vector or direct into the Class B (in free flight, one the pilot is told to remain
+    /// outside; in front of a held phase, a direct into the held Class B), and marks the hold as having done so. A direct is
+    /// stashed for the end of the hold: its route replaces the route the hold restores, so the orbit is not flown over by
+    /// it, and the pilot flies it once cleared in. An assigned heading stays assigned and is resumed then
+    /// (<see cref="ResumeAssignedHeading"/>).
     /// </summary>
     private void HoldThroughVector(PhaseContext ctx)
     {

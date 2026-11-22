@@ -170,7 +170,9 @@ Phases write **directly** to `ctx.Targets` — they do not enqueue commands.
 
 A reader that drives the list itself (the `PhaseRunner` tick, `PhaseList.AdvanceToNext`), writes speed or phase state, exports, or must see the orbit reads `CurrentPhase`, the hold: the generator spacing authority and same-runway protection (an orbiting aircraft gets no speed adjustment, 7110.65 5-7-1.b.3), the scenario exporter (a held final exports at its real position) and the runway crossing gate's go-around clause (a held go-around away from the runway does not shut crossings). The engine's visual-reference loss pass (`SimulationEngine.RunWithHoldLifted`) runs its consequence inside a hold lift (`CommandDispatcher.BeginHoldLift`/`EndHoldLift`, the same lift a controller command gets, below), so the held base or final is ended as the current phase.
 
-`PhaseList.AdvanceToNext`, `InsertAfterCurrent` and `ReplaceUpcoming` throw `InvalidOperationException` while a hold stands: lift it first (`LiftHold`), or end the pair through `PhaseRunner.EndHold`. Until a paired hold's end is routed to `EndHold`, the tick's `AdvanceToNext` below throws for a pair.
+`PhaseList.AdvanceToNext`, `InsertAfterCurrent` and `ReplaceUpcoming` throw `InvalidOperationException` while a hold stands: lift it first (`LiftHold`), or end the pair through `PhaseRunner.EndHold`.
+
+`PhaseRunner.Tick` ends a paired hold through `EndHold` when the hold completes (cleared into the Bravo, or the volume can no longer be entered), before the terminator and `AdvanceToNext` steps: the held phase's `ResumeAfterBoundaryHold` is asked first, with the aircraft where the orbit left it, so a restart copy builds from there, and then the hold's `OnEnd` runs. A hold with no held phase advances as any phase does. The hold's vector rule and what it restores are in [airspace-database.md](airspace-database.md) ("A paired hold"). A resumed final keeps its pre-hold spacing ceiling.
 
 `PhaseRunner.EndHold` ends the hold with a `HoldResume`:
 

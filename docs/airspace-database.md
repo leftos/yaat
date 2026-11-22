@@ -222,11 +222,13 @@ Skipped (the phase list was replaced or cleared) instead hands its standing cap,
 phase lifecycle, `ManagesSpeed` contagion, and the snapshot contract. The feature shipped as pilot-AI milestone M10.1.5
 (`docs/plans/pilot-ai-self-training/README.md`); its subplan is deleted, so git history holds the milestone record.
 
+**A paired hold** (an `Orbit` hold standing in front of a held pattern or approach phase, [phases.md](phases.md) "A boundary hold in front of a running phase") follows the free-flight vector rule, and `PhaseRunner.EndHold` ends it. A new heading or direct that keeps the aircraft outside the Bravo ends the orbit and is flown; one into the Bravo is held through (`HeldThroughVector`) and flown once cleared. A heading standing when the hold went in is not new (`HeadingStandingAtStartDeg`) until the first new heading, after which every heading is judged. At the end the held phase's route and heading come back only when no new heading or direct arrived: a held-through direct is put back (`StashedDirect`), and a new heading clears the orbit's turn direction. Only `InitialClimbPhase` and `DepartureProcedurePhase` accept a heading or direct while held without clearing themselves.
+
 ### In-phase Class B cap
 
 The boundary hold above runs only in free flight. While a phase runs, an uncleared VFR pilot still may not climb into a Class B (14 CFR 91.131; AIM 3-2-3.b), so `PilotProactive.TickBravoCap(aircraft, scenario, airspace)` keeps a cap beneath the shelf: `AircraftState.BravoCap` (a `BravoCap` record: area name, shelf volume id, `CapFtMsl`, prior ceiling, prior target altitude), the one owner of the `Targets.AltitudeCeiling` it writes (`min(prior ceiling, cap)`). It is a pilot self-restriction, never a controller bound: `AircraftState.ControllerAltitudeCeiling` reads past it (the VFR bound test in `ApproachCommandHandler` and the scenario exporter's `CM B` preset use that, not `Targets.AltitudeCeiling`).
 
-**Solo training only.** In an RPO session nothing starts a cap and every command flies as given; a cap left standing when the session stops being solo is released on its next step (`SimulationEngine.TickPostPhysics` calls `TickBravoCap` in the solo block, ahead of `TickAirspaceBoundaryRespect`, and again for an aircraft that still holds a cap outside it).
+**Solo training only.** In an RPO session nothing starts a cap and every command flies as given; a cap left standing when the session stops being solo is released on its next step (`SimulationEngine.TickPilotProactive` calls `TickBravoCap` in the solo block, ahead of `TickAirspaceBoundaryRespect`, and again for an aircraft that still holds a cap outside it).
 
 **Who and where** (`Pilot/BravoCapScope.cs`):
 
@@ -337,7 +339,7 @@ from navdata, the outer-area check silently returns `false`.
 
 ## Tick-loop wiring (cross-repo)
 
-`TickAirspaceBoundaryRespect` and `TickBravoCap` are called once per aircraft in **PostPhysics** from `SimulationEngine.TickPostPhysics` (`src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs`), with `AirspaceDatabase.Default`; yaat-server rooms run the same step through `RoomEngine.ProcessPostPhysics` (`RunPostPhysics`), so a proactive airspace tick added there needs no server-side wiring of its own. The separation path is wired separately in yaat-server at
+`TickAirspaceBoundaryRespect` and `TickBravoCap` are called once per aircraft in **PostPhysics** from `SimulationEngine.TickPilotProactive` (`src/Yaat.Sim/Simulation/SimulationEngine.Tick.cs`), with `AirspaceDatabase.Default`; yaat-server rooms run the same step through `RoomEngine.ProcessPostPhysics` (`RunPostPhysics`), so a proactive airspace tick added there needs no server-side wiring of its own. The separation path is wired separately in yaat-server at
 `TickProcessor` (`SoloTrainingEvaluator.Evaluate(..., AirspaceDatabase.Default, ...)`). See
 [tick-loop.md](tick-loop.md) for where PostPhysics sits relative to physics sub-ticks.
 
