@@ -12,7 +12,8 @@ internal static class FilletPlanExecutor
         AirportGroundLayout layout,
         FilletPlan plan,
         IReadOnlyList<JunctionPlan> junctionPlans,
-        NextNodeIdCounter idCounter
+        NextNodeIdCounter idCounter,
+        FilletReportCollector report
     )
     {
         Dictionary<CutId, GroundNode> cutNode = MaterializeCutNodes(layout, plan, junctionPlans, idCounter);
@@ -64,6 +65,11 @@ internal static class FilletPlanExecutor
             GroundNode? tanB = ResolveEndpoint(arcOp.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
+                report.CornerDropped(
+                    arcOp.JunctionNodeId,
+                    arcOp.CornerId,
+                    ((tanA is null) || (tanB is null)) ? FilletSkipReason.UnresolvedEndpoint : FilletSkipReason.CoincidentCuts
+                );
                 continue;
             }
 
@@ -99,6 +105,7 @@ internal static class FilletPlanExecutor
             if (bez.MinRadiusFt < FilletConstants.RadiusFloorFt)
             {
                 AddEdge(layout, tanA, tanB, corner.EdgeA.TaxiwayName, $"corner-chord@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}");
+                report.ChordDegraded(arcOp.JunctionNodeId, arcOp.CornerId);
                 continue;
             }
 
@@ -121,6 +128,7 @@ internal static class FilletPlanExecutor
                 }
             );
             arcsCreated++;
+            report.ArcBuilt(arcOp.JunctionNodeId, arcOp.CornerId, bez.MinRadiusFt);
         }
 
         foreach (StraightConnectorOp op in plan.StraightConnectors)

@@ -121,7 +121,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_MissingFeatureType_ReportsAnUnknownTypeWithNoType()
     {
-        (_, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
+        (_, IReadOnlyList<GroundMapIssue> issues, _) = GeoJsonParser.ParseWithDiagnostics(
             "fll",
             MissingTypeGeoJson,
             null,
@@ -139,7 +139,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_MinimalGeoJson_ReportsNoIssues()
     {
-        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues, _) = GeoJsonParser.ParseWithDiagnostics(
             "oak",
             MinimalGeoJson,
             null,
@@ -153,7 +153,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_UnknownFeatureType_ReportsItsIndexTypeAndName()
     {
-        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues, _) = GeoJsonParser.ParseWithDiagnostics(
             "unv",
             UnknownTypeGeoJson,
             null,
@@ -172,7 +172,7 @@ public class GeoJsonParserTests(ITestOutputHelper output)
     [Fact]
     public void ParseWithDiagnostics_MalformedCoordinate_ReportsAMalformedFeature()
     {
-        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues) = GeoJsonParser.ParseWithDiagnostics(
+        (AirportGroundLayout layout, IReadOnlyList<GroundMapIssue> issues, _) = GeoJsonParser.ParseWithDiagnostics(
             "oak",
             MalformedCoordinateGeoJson,
             null,

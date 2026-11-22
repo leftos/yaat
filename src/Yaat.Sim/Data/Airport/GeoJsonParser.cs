@@ -134,7 +134,7 @@ public static partial class GeoJsonParser
         string? runwayAirportCode,
         LayoutInputs inputs,
         IFilletArcGenerator fillets
-    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, inputs), geoJson, fillets, issues: []);
+    ) => ParseCollectingIssues(new LayoutSource(airportId, runwayAirportCode, inputs), geoJson, fillets, issues: []).Layout;
 
     /// <summary>
     /// Parse as <see cref="Parse(string, string, string?, LayoutInputs)"/> does (Standard fillets) and also return the
@@ -146,8 +146,11 @@ public static partial class GeoJsonParser
     /// <param name="inputs">
     /// The airport's stand lead-ins, spot-edge chains, corner fillet overrides and tower-cab videomap (<see cref="LayoutInputs"/>).
     /// </param>
-    /// <returns>The layout and the dropped features, in feature order.</returns>
-    public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues) ParseWithDiagnostics(
+    /// <returns>
+    /// The layout, the dropped features in feature order, and the fillet pass's per-corner report (<see cref="FilletReport"/>),
+    /// which is returned only and never stored on the layout.
+    /// </returns>
+    public static (AirportGroundLayout Layout, IReadOnlyList<GroundMapIssue> Issues, FilletReport Fillets) ParseWithDiagnostics(
         string airportId,
         string geoJson,
         string? runwayAirportCode,
@@ -155,13 +158,13 @@ public static partial class GeoJsonParser
     )
     {
         var issues = new List<GroundMapIssue>();
-        AirportGroundLayout layout = ParseCollectingIssues(
+        (AirportGroundLayout layout, FilletStatistics fillets) = ParseCollectingIssues(
             new LayoutSource(airportId, runwayAirportCode, inputs),
             geoJson,
             FilletGeneratorFactory.Create(FilletMode.Standard),
             issues
         );
-        return (layout, issues);
+        return (layout, issues, fillets.Report);
     }
 
     /// <summary>
@@ -170,7 +173,7 @@ public static partial class GeoJsonParser
     /// </summary>
     private sealed record LayoutSource(string AirportId, string? RunwayAirportCode, LayoutInputs Inputs);
 
-    private static AirportGroundLayout ParseCollectingIssues(
+    private static (AirportGroundLayout Layout, FilletStatistics Fillets) ParseCollectingIssues(
         LayoutSource source,
         string geoJson,
         IFilletArcGenerator fillets,
@@ -244,7 +247,7 @@ public static partial class GeoJsonParser
             classified.Taxiways,
             classified.Runways,
             FilletGeneratorFactory.Create(filletMode)
-        );
+        ).Layout;
     }
 
     private static (
@@ -321,7 +324,7 @@ public static partial class GeoJsonParser
     /// <summary>Max distance to connect a helipad to a taxiway (nm). Larger than parking since helipads may be further from taxiways.</summary>
     private const double HelipadConnectMaxNm = 0.3;
 
-    private static AirportGroundLayout BuildLayout(
+    private static (AirportGroundLayout Layout, FilletStatistics Fillets) BuildLayout(
         LayoutSource source,
         List<ParkingFeature> parkings,
         List<ParkingFeature> helipads,
@@ -467,7 +470,7 @@ public static partial class GeoJsonParser
         layout.RebuildAdjacencyLists();
 
         // Step 8: Generate fillet arcs at intersections (the None generator leaves the layout as it is)
-        fillets.Apply(layout, source.Inputs.CornerFillets);
+        FilletStatistics filletStats = fillets.Apply(layout, source.Inputs.CornerFillets);
 
         // Step 9: with every node in its final place, mark each runway bar as its runway's hold line or a short fallback bar
         RunwayCrossingDetector.MarkShortBars(layout, snappedBars.Select(snapped => snapped.Bar.Id).ToHashSet());
@@ -485,7 +488,7 @@ public static partial class GeoJsonParser
             );
         }
 
-        return layout;
+        return (layout, filletStats);
     }
 
     /// <summary>

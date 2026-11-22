@@ -2,10 +2,10 @@ namespace Yaat.Sim.Data.Airport.Fillet;
 
 internal static class JunctionClassifier
 {
-    public static JunctionPlan Classify(GroundNode node, bool preserveNode, HashSet<int> manualArcNodes)
+    public static JunctionPlan Classify(GroundNode node, bool preserveNode, HashSet<int> manualArcNodes, FilletReportCollector report)
     {
         IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, manualArcNodes);
-        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms);
+        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms, report);
 
         JunctionKind kind;
         if (corners.Count == 0 && collinear.Count == 0)

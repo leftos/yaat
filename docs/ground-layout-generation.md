@@ -265,7 +265,7 @@ Each node's adjacency list is built from the complete edge collection (`AllEdges
 
 **Function**: `FilletArcGenerator.Apply()`
 
-Replaces eligible intersection nodes with bezier arcs at turns ≥15°. It is handed the airport's `CornerFilletOverrides` (`Apply(layout, overrides)`) but does not act on them yet. Details in [Fillet Arc Generator](#fillet-arc-generator) section.
+Replaces eligible intersection nodes with bezier arcs at turns ≥15°. It is handed the airport's `CornerFilletOverrides` (`Apply(layout, overrides)`) but does not act on them yet: it only matches each to a corner and reports the match. `Apply` also returns the per-corner `FilletReport` on `FilletStatistics.Report`. Details in [Fillet Arc Generator](#fillet-arc-generator) section.
 
 ### Step 9: Mark Short Bars
 
@@ -695,7 +695,8 @@ FilletMode.cs                  # Fillet mode enum: None (no-op pass) / Standard 
 NullFilletArcGenerator.cs      # No-op generator for FilletMode.None and raw-layout tests
 FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / Standard)
 FilletArcGeneratorRegistry.cs# Enumerates implemented generators (None, Standard)
-FilletStatistics.cs          # Per-pass fillet tallies returned by Apply
+FilletStatistics.cs          # Per-pass fillet tallies returned by Apply, plus the FilletReport (Report)
+FilletReport.cs              # FilletReport: per-corner rows (Built / ChordDegraded / Skipped, FilletSkipReason) and per-override rows (Matched / Orphaned / Ambiguous); returned only, never stored on the layout
 FilletArcGenerator.cs      # The fillet generator: classify junctions → resolve cuts → plan → execute → normalize
 Fillet/                        # Plan-then-execute fillet pipeline (edge-split connectivity)
   FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
@@ -709,6 +710,8 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
   FilletEdgeSplitPlanner.cs    # Order-independent connectivity: split each original edge once by its cuts, drop only removed-junction stubs → SurvivingEdgeOp
   FilletPlanBuilder.cs         # Assemble the immutable FilletPlan (cuts, merges, corner arcs, surviving edges, nodes/edges to remove)
   FilletPlanExecutor.cs        # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
+  FilletReportCollector.cs     # Collects the FilletReport's corner rows from the generator, planner and executor
+  FilletOverrideResolver.cs    # Match each CornerFilletOverride to a pre-fillet corner (apex within 10 ft, taxiway pair, arm bearings within 15°)
   FilletPlanCutRedirect.cs     # Union-find survivor map for tangent merges + stable-anchor binding
   (also FilletPlan/JunctionPlan/CornerSpec/ResolvedArmCut plan model + TaxiwayArm(Terminus), JunctionKind, FilletEligibility, ManualArcDetector, SharedArmTangentPass, PlanWarning, FilletConstants, FilletPlanConsistency)
 GroundLayoutSpeechNames.cs     # Static: a layout's taxiway names (no runway centerlines or ramps), gate names (parking + helipad) and spot names, sorted; shared by MainViewModel's speech context and the context-layer decoder
@@ -756,7 +759,7 @@ TugLayoutIndex.cs              # The per-layout facts the tug planner's checks r
 TugOutlineClearance.cs         # The tug planner's own GroundOutline.Clearance without the per-call segment arrays (same segments, order and arithmetic, so the same figure to the bit), for its per-pose checks — docs/ground/pushback.md
 TugTaxiwayClearance.cs         # The alley clearance: how far a tug move's outline (fuselage/wing/tailplane, GroundOutline without the tug's lead) reaches into the object-free area of the movement-area taxiways near it, against each one's AirplaneDesignGroups half-width plus a 5 ft margin (ClearanceMarginFt); a wider taxiway's centreline is clipped where a narrower one's own zone overlaps it, so a taxiway running up to and across a narrower one protects nothing past the narrower one's own zone. TaxiwaysFouledAt (which taxiways the outline already touches at a pose, exempted from later checks); Measure/Fouls scan a candidate's flown path for the deepest penetration (TugTaxiwayFouling: taxiway, TugFootprintPart, peak depth, and exposure = penetration × feet flown). Built once per layout + classification and shared by every plan at the airport; used by TugMovePlanner to keep a spot/stand/node push out of the taxiways it does not name
 TaxiwayGraphBuilder.cs         # Graph construction from GeoJSON nodes/edges
-GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode; ParseWithDiagnostics also returns the dropped features; every Parse* overload takes the airport's LayoutInputs, whose StandLeadIns Step 6 joins to a named taxiway vertex (ConnectStandLeadIn) instead of the nearest edge, then Step 6c hands the SpotEdges chains to SpotEdgeBuilder.Apply
+GeoJsonParser.cs               # GeoJSON→layout; DetectRunwayCrossings via SplitEdgeAtNode; ParseWithDiagnostics also returns the dropped features and the fillet pass's FilletReport; every Parse* overload takes the airport's LayoutInputs, whose StandLeadIns Step 6 joins to a named taxiway vertex (ConnectStandLeadIn) instead of the nearest edge, then Step 6c hands the SpotEdges chains to SpotEdgeBuilder.Apply
 SpotEdgeBuilder.cs             # SpotEdgeBuilder.Apply: resolves each sidecar spotEdges chain's points to layout nodes (a point may mint a node) and joins consecutive points by straight edges named for the chain (RAMP for a spot link, the chart name for a lane; origin Sidecar:spot-edge), after the stand connectors and before the adjacency lists; an entry that does not resolve, or touches a hold-short, parking, helipad or runway centreline node, is skipped whole with a warning
 CornerFilletOverrides.cs       # CornerFilletOverride (one validated sidecar cornerFillets entry: apex, two taxiways with their arm bearings, suppress / radius / force / tangents; HasSameKey names the corner) and CornerFilletOverrides (the airport's immutable set, None when empty), carried on LayoutInputs.CornerFillets
 LayoutInputs.cs                # LayoutInputs(StandLeadIns, VideoMap, SpotEdges, CornerFillets): the per-airport inputs a layout is built from besides its map, all required, passed to every GeoJsonParser.Parse*; SpotEdges is set at every production site from AirportSidecarCatalog.GetSpotEdges; CornerFillets from GetCornerFillets, handed to IFilletArcGenerator.Apply (not applied yet); VideoMap null = the airport has no tower-cab videomap (yaat-server passes the map it fetched; the test harness, the precompute builder, GroundMapCheck and LayoutInspector pass null)

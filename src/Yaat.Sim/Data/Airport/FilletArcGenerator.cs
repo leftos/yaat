@@ -12,7 +12,11 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
 
     public string DisplayName => "Standard (plan-then-execute)";
 
-    /// <summary>Fillets every eligible corner of <paramref name="layout"/>; <paramref name="overrides"/> does not change the result.</summary>
+    /// <summary>
+    /// Fillets every eligible corner of <paramref name="layout"/> and reports each corner's outcome and how each of
+    /// <paramref name="overrides"/> matched the pre-fillet layout (<see cref="FilletStatistics.Report"/>); the overrides do
+    /// not change the result.
+    /// </summary>
     public FilletStatistics Apply(AirportGroundLayout layout, CornerFilletOverrides overrides)
     {
         HashSet<int> manualArcNodes = ManualArcDetector.Detect(layout);
@@ -20,6 +24,8 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         var idCounter = new FilletPlanExecutor.NextNodeIdCounter { Next = maxNodeId + 1 };
 
         layout.RebuildAdjacencyLists();
+        IReadOnlyList<FilletOverrideReport> overrideRows = FilletOverrideResolver.Resolve(layout, manualArcNodes, overrides);
+        var report = new FilletReportCollector();
 
         var junctionPlans = new List<JunctionPlan>();
         var cutResults = new List<ArmCutResolver.JunctionCutResult>();
@@ -36,11 +42,13 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         {
             if (manualArcNodes.Contains(node.Id))
             {
+                report.JunctionSkipped(node, FilletSkipReason.ShapePoint);
                 continue;
             }
 
             if (!FilletEligibility.IsEligible(node, out bool preserve))
             {
+                report.JunctionSkipped(node, FilletSkipReason.Ineligible);
                 continue;
             }
 
@@ -49,15 +57,17 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
                 continue;
             }
 
-            JunctionPlan junction = JunctionClassifier.Classify(current, preserve, manualArcNodes);
+            JunctionPlan junction = JunctionClassifier.Classify(current, preserve, manualArcNodes, report);
             if (junction.Kind == JunctionKind.Skip)
             {
+                report.JunctionSkipped(current, FilletSkipReason.JunctionSkipped);
                 continue;
             }
 
-            ArmCutResolver.JunctionCutResult cutResult = ArmCutResolver.Resolve(junction, ref nextCutId);
+            ArmCutResolver.JunctionCutResult cutResult = ArmCutResolver.Resolve(junction, ref nextCutId, report);
             if ((cutResult.CornerArcs.Count == 0) && (junction.CollinearPairs.Count == 0))
             {
+                report.JunctionSkipped(current, FilletSkipReason.NoCornerPairs);
                 continue;
             }
 
@@ -65,8 +75,8 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
             cutResults.Add(cutResult);
         }
 
-        FilletPlan plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults);
-        FilletPlanExecutor.ExecuteResult exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter);
+        FilletPlan plan = FilletPlanBuilder.Build(layout, junctionPlans, cutResults, report);
+        FilletPlanExecutor.ExecuteResult exec = FilletPlanExecutor.Execute(layout, plan, junctionPlans, idCounter, report);
         int structuralCleanups = FilletGraphNormalizer.Normalize(layout);
 
         var stats = new FilletStatistics(
@@ -82,6 +92,7 @@ public sealed class FilletArcGenerator : IFilletArcGenerator
         )
         {
             Warnings = plan.Warnings,
+            Report = report.Build(plan.Warnings, overrideRows),
         };
 
         if (Log.IsEnabled(LogLevel.Information))

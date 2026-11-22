@@ -25,7 +25,7 @@ The generator produces two things, mutating the layout in place:
 1. **Corner arcs** — a `GroundArc` (cubic Bezier, played downstream as its actual curve) between two **tangent-cut** nodes on the two arms of a turn, replacing the sharp vertex with a smooth curve. A too-tight corner degrades to a straight **chord** (`GroundEdge`) instead.
 2. **An order-independent edge-split** — each original edge is split once at the cuts that land on it; the stub incident to a removed junction is dropped; every other sub-segment survives and reconnects. This is what keeps the graph connected after the junction node is deleted.
 
-`FilletStatistics` (returned, currently advisory) tallies filleted nodes, arcs, collinear merges, coincident merges, and carries the plan's `Warnings`.
+`FilletStatistics` (returned by `Apply`) tallies filleted nodes, arcs, collinear merges, coincident merges, and carries the plan's `Warnings` and a `FilletReport` (`Report`; see [The fillet report](#the-fillet-report)). Nothing in the layout build reads the tallies; `GeoJsonParser.ParseWithDiagnostics` returns the report as its third item.
 
 ### Selection & invocation
 
@@ -250,9 +250,17 @@ Every generated element stamps an `Origin` string, surfaced in LayoutInspector t
 
 ### Plan warnings are diagnostics, not failures
 
-`PlanWarning` codes (`Fillet/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `SUB_THRESHOLD_CUT_SKIPPED`, `UNCONSUMED_*` — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged.
+`PlanWarning` codes (`Fillet/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `SUB_THRESHOLD_CUT_SKIPPED` (`UNCONSUMED_INCIDENT_EDGE` and `UNCONSUMED_RECONNECT_SAFETY_NET` are defined in `PlanWarning.cs` but nothing emits them) — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged.
 
 They flag corners that couldn't be rounded as requested, not generation failures. A surge in `DEGENERATE_RADIUS` / `CORNER_DEMOTED` on a new airport is a triage signal (tight or distorted geometry), not a crash.
+
+### The fillet report
+
+`FilletStatistics.Report` is a `FilletReport` (`FilletReport.cs`), built by `FilletReportCollector` as the pass runs; it is `FilletReport.Empty` for `FilletMode.None`. It lives only on the returned statistics: nothing stores it on `AirportGroundLayout`, so it reaches no recording, snapshot or wire message.
+
+`Corners` has a row per junction-level skip of a taxiway intersection with two or more edges (an arm-less row: shape point, ineligible, no corner pairs) and per arm pair the corner loop visited, each with an outcome (`Built`, `ChordDegraded`, `Skipped`), a `FilletSkipReason` when it was not built as an arc, the requested and achieved radius, and the planner warnings raised for it. `CornerPlanner` skips a pair as same far node, collinear, below `MinFilletAngleDeg`, near-hairpin (turn over `NearHairpinThresholdDeg`) or under the radius floor; each is a skip reason.
+
+`Overrides` has a row per `CornerFilletOverride`, resolved by `FilletOverrideResolver` against the pre-fillet layout before any corner is cut. An override matches a corner when the junction is within 10 ft of its apex, the arm pair carries its two taxiway names (case-insensitive, either order) and each arm's bearing is within 15 degrees of the one it names. No corner is `Orphaned`, several is `Ambiguous`, and an override whose corner another override also names is `Ambiguous` too, so the result never depends on sidecar order. A `Matched` override is reported but not applied yet.
 
 ### `FilletStatistics` legacy-repair counters are pinned at zero
 
@@ -277,7 +285,7 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/FilletArcGenerator.cs` | Generator entry — ID seeding, per-junction loop, plan→execute→normalize |
 | `src/Yaat.Sim/Data/Airport/Fillet/JunctionClassifier.cs` | Classify a junction into arms + corners + `JunctionKind` |
 | `src/Yaat.Sim/Data/Airport/Fillet/TaxiwayArmBuilder.cs` | Walk each incident edge into a `TaxiwayArm` |
-| `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | Pair arms into `CornerSpec`s / collinear pairs |
+| `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | Pair arms into `CornerSpec`s / collinear pairs; skips a pair as same far node, collinear, below `MinFilletAngleDeg`, near-hairpin or under the radius floor, each reported to the `FilletReportCollector` |
 | `src/Yaat.Sim/Data/Airport/Fillet/ArmCutResolver.cs` | Resolve tangent-cut positions (single + ordered multi-cut) |
 | `src/Yaat.Sim/Data/Airport/Fillet/SharedArmTangentPass.cs` | Intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanBuilder.cs` | Assemble the immutable `FilletPlan` |
@@ -295,6 +303,9 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | Post-execute recompute + defensive merge (no repair) |
 | `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` | Generator interface (`Id`, `DisplayName`, `Apply`) |
 | `src/Yaat.Sim/Data/Airport/CornerFilletOverrides.cs` | `CornerFilletOverride` / `CornerFilletOverrides`: the airport's sidecar per-corner overrides, passed to `Apply` (carried, not applied yet) |
+| `src/Yaat.Sim/Data/Airport/FilletReport.cs` | `FilletReport`: per-corner rows (`Built` / `ChordDegraded` / `Skipped`, `FilletSkipReason`) and per-override rows (`Matched` / `Orphaned` / `Ambiguous`), on `FilletStatistics.Report` |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletReportCollector.cs` | Collects the report's corner rows as the planner, executor and generator run |
+| `src/Yaat.Sim/Data/Airport/Fillet/FilletOverrideResolver.cs` | Match each `CornerFilletOverride` to a pre-fillet corner (apex, taxiway pair, arm bearings) |
 | `src/Yaat.Sim/Data/Airport/FilletMode.cs` | Enum: `None` (no-op) \| `Standard` (production) |
 | `src/Yaat.Sim/Data/Airport/FilletGeneratorFactory.cs` | Factory: `FilletMode` → `IFilletArcGenerator` |
 | `src/Yaat.Sim/Data/Airport/NullFilletArcGenerator.cs` | No-op implementation for `FilletMode.None` |

@@ -63,7 +63,7 @@ public static partial class AirportMapValidation
         IReadOnlyList<GroundMapIssue> mapIssues;
         try
         {
-            (layout, mapIssues) = GeoJsonParser.ParseWithDiagnostics(airportId, document.Write(), runwayAirportCode, inputs);
+            (layout, mapIssues, _) = GeoJsonParser.ParseWithDiagnostics(airportId, document.Write(), runwayAirportCode, inputs);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

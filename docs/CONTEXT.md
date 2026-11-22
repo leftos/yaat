@@ -261,6 +261,9 @@ A `HOLD` given to a `FOLLOWG` follower ends the follow: the aircraft brakes to r
 **Corner fillet override**:
 A sidecar `cornerFillets` entry that edits the fillet of one taxiway corner, named by the corner's pre-fillet apex, its two taxiways and each arm's true bearing from the apex.
 
+**Fillet report**:
+What one fillet pass did at each corner (built, chord-degraded or skipped, with the reason and the radii) and how it matched each corner fillet override (matched, orphaned when no corner fits, ambiguous when several do); returned on `FilletStatistics.Report`, never stored on the layout (docs/ground/fillet-generator.md, "The fillet report").
+
 **Full-length band**:
 The runway's hold-short bars within 200 ft along-track of the one nearest the requested threshold; the bars `RouteMaterialiser.OrderFullLengthLineupBars` treats as full-length lineup points, ranked by the aircraft's side of the runway (docs/ground/pathfinder.md, "Full-length lineup bar order").
 

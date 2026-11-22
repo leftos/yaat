@@ -22,4 +22,7 @@ public sealed record FilletStatistics(
 
     /// <summary>Planner warnings (empty for None mode).</summary>
     public IReadOnlyList<Fillet.PlanWarning> Warnings { get; init; } = [];
+
+    /// <summary>The pass's per-corner outcomes and override matches (<see cref="FilletReport.Empty"/> for None mode).</summary>
+    public FilletReport Report { get; init; } = FilletReport.Empty;
 }

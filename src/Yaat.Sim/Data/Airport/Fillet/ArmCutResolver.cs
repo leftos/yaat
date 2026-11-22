@@ -11,7 +11,7 @@ internal static class ArmCutResolver
         IReadOnlyList<CornerSpec> SurvivingCorners
     );
 
-    public static JunctionCutResult Resolve(JunctionPlan junction, ref CutId nextCutId)
+    public static JunctionCutResult Resolve(JunctionPlan junction, ref CutId nextCutId, FilletReportCollector report)
     {
         var warnings = new List<PlanWarning>();
         if (junction.Corners.Count == 0)
@@ -171,6 +171,7 @@ internal static class ArmCutResolver
                 warnings.Add(
                     new PlanWarning(junction.JunctionNodeId, corner.CornerId, PlanWarning.NoOwningCut, "Corner has no owning cut after resolve")
                 );
+                report.CornerDropped(junction.JunctionNodeId, corner.CornerId, FilletSkipReason.NoOwningCut);
                 continue;
             }
 
@@ -190,11 +191,21 @@ internal static class ArmCutResolver
                 warnings.Add(
                     new PlanWarning(junction.JunctionNodeId, corner.CornerId, PlanWarning.DegenerateRadius, $"Effective radius {r:F1}ft below floor")
                 );
+                if (cutA == cutB)
+                {
+                    report.CornerDropped(junction.JunctionNodeId, corner.CornerId, FilletSkipReason.CoincidentCuts);
+                }
+                else
+                {
+                    report.CornerStraightened(junction.JunctionNodeId, corner.CornerId, FilletSkipReason.DegenerateRadius);
+                }
+
                 continue;
             }
 
             if (cutA == cutB)
             {
+                report.CornerDropped(junction.JunctionNodeId, corner.CornerId, FilletSkipReason.CoincidentCuts);
                 continue;
             }
 

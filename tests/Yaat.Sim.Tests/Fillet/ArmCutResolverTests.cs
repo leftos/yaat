@@ -111,9 +111,9 @@ public class ArmCutResolverTests
         JunctionPlan jp2 = PlanAt(layout, 2);
 
         var nextCutId = new CutId(1);
-        ArmCutResolver.JunctionCutResult r1 = ArmCutResolver.Resolve(jp1, ref nextCutId);
-        ArmCutResolver.JunctionCutResult r2 = ArmCutResolver.Resolve(jp2, ref nextCutId);
-        FilletPlan plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2]);
+        ArmCutResolver.JunctionCutResult r1 = ArmCutResolver.Resolve(jp1, ref nextCutId, new FilletReportCollector());
+        ArmCutResolver.JunctionCutResult r2 = ArmCutResolver.Resolve(jp2, ref nextCutId, new FilletReportCollector());
+        FilletPlan plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2], new FilletReportCollector());
 
         Assert.Contains(plan.Warnings, w => w.Code == PlanWarning.SharedArmScaled);
         Assert.NotEmpty(plan.TangentMerges);
@@ -230,7 +230,7 @@ public class ArmCutResolverTests
     private static ArmCutResolver.JunctionCutResult Resolve(JunctionPlan junction)
     {
         var nextCutId = new CutId(1);
-        return ArmCutResolver.Resolve(junction, ref nextCutId);
+        return ArmCutResolver.Resolve(junction, ref nextCutId, new FilletReportCollector());
     }
 
     private static IEnumerable<ResolvedArmCut> CutsOnArm(ArmCutResolver.JunctionCutResult result, int armId) =>
@@ -240,7 +240,11 @@ public class ArmCutResolverTests
     {
         GroundNode node = layout.Nodes[nodeId];
         IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, []);
-        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms);
+        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(
+            node,
+            arms,
+            new FilletReportCollector()
+        );
         return new JunctionPlan(nodeId, node, JunctionKind.MultiCorner, collinear.Count > 0, arms, corners, collinear);
     }
 

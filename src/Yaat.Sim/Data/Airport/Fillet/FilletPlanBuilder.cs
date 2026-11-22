@@ -5,7 +5,8 @@ internal static class FilletPlanBuilder
     public static FilletPlan Build(
         AirportGroundLayout layout,
         IReadOnlyList<JunctionPlan> junctions,
-        IReadOnlyList<ArmCutResolver.JunctionCutResult> results
+        IReadOnlyList<ArmCutResolver.JunctionCutResult> results,
+        FilletReportCollector report
     )
     {
         var cuts = new Dictionary<CutId, ResolvedArmCut>();
@@ -56,6 +57,7 @@ internal static class FilletPlanBuilder
         );
         Dictionary<CutId, ResolvedArmCut> prunedCuts = FilletPlanCutRedirect.PruneCuts(cuts, redirect);
         var redirectedCornerArcs = FilletPlanCutRedirect.RedirectCornerArcs(cornerArcs, redirect).ToList();
+        report.CornerOpsDropped(cornerArcs, redirectedCornerArcs, FilletSkipReason.CoincidentCuts);
         var redirectedStraightConnectors = FilletPlanCutRedirect.RedirectStraightConnectors(straightConnectors, redirect).ToList();
 
         // The cross-arm tangent merge collapses coincident cross-arm cuts onto one survivor, so
@@ -63,11 +65,13 @@ internal static class FilletPlanBuilder
         // pair. Keep one op per pair — preferring the single-name corner (requirement ①) — so the
         // executor emits exactly one arc per node pair and the post-execute normalizer has no
         // coincident nodes to merge.
+        List<CornerArcOp> beforeDedup = redirectedCornerArcs;
         redirectedCornerArcs = DedupByEndpointPair(
-            redirectedCornerArcs,
+            beforeDedup,
             op => (op.EndpointAtArmA, op.EndpointAtArmB),
             op => IsSingleNameCorner(op, junctions)
         );
+        report.CornerOpsDropped(beforeDedup, redirectedCornerArcs, FilletSkipReason.Deduplicated);
         redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => true);
 
         var nodesToRemoveSet = nodesToRemove.ToHashSet();
