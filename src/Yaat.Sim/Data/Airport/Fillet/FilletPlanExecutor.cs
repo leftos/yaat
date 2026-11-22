@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Yaat.Sim.Data.Airport.Fillet;
@@ -65,6 +66,11 @@ internal static class FilletPlanExecutor
             GroundNode? tanB = ResolveEndpoint(arcOp.EndpointAtArmB);
             if ((tanA is null) || (tanB is null) || (tanA.Id == tanB.Id))
             {
+                if (corner.IsForced)
+                {
+                    throw new UnreachableException($"Forced corner J{arcOp.JunctionNodeId}/{arcOp.CornerId} lost an endpoint after planning");
+                }
+
                 report.CornerDropped(
                     arcOp.JunctionNodeId,
                     arcOp.CornerId,
@@ -73,36 +79,12 @@ internal static class FilletPlanExecutor
                 continue;
             }
 
-            // Build a clean circular arc from the actual tangent geometry: size the curve to the
-            // radius the cut spacing supports (capped by the corner's policy radius), so the stored
-            // MinRadiusOfCurvatureFt is honest instead of an over-bulged requested-radius bezier.
-            double arcRadiusFt = corner.RequestedRadiusFt;
-            if (junctionPosById.TryGetValue(arcOp.JunctionNodeId, out LatLon junctionPos))
-            {
-                double taFt = GeoMath.DistanceNm(junctionPos, tanA.Position) * GeoMath.FeetPerNm;
-                double tbFt = GeoMath.DistanceNm(junctionPos, tanB.Position) * GeoMath.FeetPerNm;
-                double effectiveR = FilletGeometry.EffectiveMinRadiusFt(
-                    taFt,
-                    tbFt,
-                    corner.BearingAToJunctionDeg,
-                    corner.BearingBToJunctionDeg,
-                    tanA.Position,
-                    tanB.Position
-                );
-                arcRadiusFt = Math.Min(corner.RequestedRadiusFt, effectiveR);
-            }
-
-            FilletGeometry.BezierBuildResult bez = FilletGeometry.BuildBezier(
-                tanA.Position,
-                tanB.Position,
-                corner.BearingAToJunctionDeg,
-                corner.BearingBToJunctionDeg,
-                arcRadiusFt
-            );
+            FilletGeometry.BezierBuildResult bez = CornerBezier(corner, junctionPosById[arcOp.JunctionNodeId], tanA.Position, tanB.Position);
 
             // A too-tight fillet degrades to the sharp corner: emit the chord so the cuts stay
-            // connected rather than relying on a degenerate arc the normalizer would delete.
-            if (bez.MinRadiusFt < FilletConstants.RadiusFloorFt)
+            // connected rather than relying on a degenerate arc the normalizer would delete. A
+            // forced corner keeps its arc: planning refuses a forced arc too tight to steer.
+            if ((!corner.IsForced) && (bez.MinRadiusFt < FilletConstants.RadiusFloorFt))
             {
                 AddEdge(layout, tanA, tanB, corner.EdgeA.TaxiwayName, $"corner-chord@J{arcOp.JunctionNodeId}/{corner.EdgeA.TaxiwayName}");
                 report.ChordDegraded(arcOp.JunctionNodeId, arcOp.CornerId);
@@ -202,6 +184,32 @@ internal static class FilletPlanExecutor
 
         return cutNode;
     }
+
+    /// <summary>
+    /// The bezier the executor builds for <paramref name="corner"/> between tangent points <paramref name="tanA"/> and
+    /// <paramref name="tanB"/>: a clean circular arc sized to the radius the cut spacing supports, capped by the corner's
+    /// requested radius, so the stored MinRadiusOfCurvatureFt is honest instead of an over-bulged requested-radius bezier.
+    /// </summary>
+    internal static FilletGeometry.BezierBuildResult CornerBezier(CornerSpec corner, LatLon junctionPos, LatLon tanA, LatLon tanB)
+    {
+        double taFt = GeoMath.DistanceNm(junctionPos, tanA) * GeoMath.FeetPerNm;
+        double tbFt = GeoMath.DistanceNm(junctionPos, tanB) * GeoMath.FeetPerNm;
+        double effectiveR = FilletGeometry.EffectiveMinRadiusFt(taFt, tbFt, corner.BearingAToJunctionDeg, corner.BearingBToJunctionDeg, tanA, tanB);
+        double arcRadiusFt = Math.Min(corner.RequestedRadiusFt, effectiveR);
+        return FilletGeometry.BuildBezier(tanA, tanB, corner.BearingAToJunctionDeg, corner.BearingBToJunctionDeg, arcRadiusFt);
+    }
+
+    /// <summary>
+    /// Where <paramref name="endpoint"/> of a planned arc lands, as the executor resolves it: a surviving cut's position or a
+    /// pre-fillet node's; null when it resolves to nothing.
+    /// </summary>
+    internal static LatLon? PlannedPosition(AirportGroundLayout layout, FilletPlan plan, FilletEndpoint endpoint) =>
+        endpoint switch
+        {
+            FilletEndpoint.Cut cut => plan.Cuts.TryGetValue(cut.Id, out ResolvedArmCut? resolved) ? resolved.Position : null,
+            FilletEndpoint.Node node => layout.Nodes.TryGetValue(node.NodeId, out GroundNode? found) ? found.Position : null,
+            _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {endpoint.GetType().Name}"),
+        };
 
     private static void AddEdge(AirportGroundLayout layout, GroundNode a, GroundNode b, string taxiwayName, string origin)
     {

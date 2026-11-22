@@ -15,10 +15,7 @@ public class FilletReportTests
     public void Report_ListsEveryVisitedJunction_EachArmPairOnce_AndOneBuiltRowPerArc(string shortId)
     {
         AirportGroundLayout? pre = FilletReportLayouts.LoadPreFillet(shortId);
-        if (pre is null)
-        {
-            return;
-        }
+        Assert.NotNull(pre);
 
         FilletStatistics stats = new FilletArcGenerator().Apply(LayoutCloner.DeepClone(pre), CornerFilletOverrides.None);
         IReadOnlyList<FilletCornerReport> corners = stats.Report.Corners;
@@ -63,11 +60,7 @@ public class FilletReportTests
     [Fact]
     public void RadiusFloor_SfoJunction744_BCAY1_IsSkippedWithItsRequestedRadius()
     {
-        FilletCornerReport? row = AssertCorner("sfo", 744, "BC", "AY1", FilletCornerOutcome.Skipped, FilletSkipReason.RadiusFloor);
-        if (row is null)
-        {
-            return;
-        }
+        FilletCornerReport row = AssertCorner("sfo", 744, "BC", "AY1", FilletCornerOutcome.Skipped, FilletSkipReason.RadiusFloor);
 
         Assert.NotNull(row.RequestedRadiusFt);
     }
@@ -75,11 +68,7 @@ public class FilletReportTests
     [Fact]
     public void NoOwningCut_IahJunction229_RBRAMP_IsSkippedWithItsWarning()
     {
-        FilletCornerReport? row = AssertCorner("iah", 229, "RB", "RAMP", FilletCornerOutcome.Skipped, FilletSkipReason.NoOwningCut);
-        if (row is null)
-        {
-            return;
-        }
+        FilletCornerReport row = AssertCorner("iah", 229, "RB", "RAMP", FilletCornerOutcome.Skipped, FilletSkipReason.NoOwningCut);
 
         Assert.Contains(row.Warnings, w => w.StartsWith("NO_OWNING_CUT: ", StringComparison.Ordinal));
     }
@@ -91,11 +80,7 @@ public class FilletReportTests
     [Fact]
     public void ChordDegraded_FllJunction103_BB8_IsReportedWithNoAchievedRadius()
     {
-        FilletCornerReport? row = AssertCorner("fll", 103, "B", "B8", FilletCornerOutcome.ChordDegraded, null);
-        if (row is null)
-        {
-            return;
-        }
+        FilletCornerReport row = AssertCorner("fll", 103, "B", "B8", FilletCornerOutcome.ChordDegraded, null);
 
         Assert.Null(row.AchievedRadiusFt);
     }
@@ -103,9 +88,9 @@ public class FilletReportTests
     /// <summary>
     /// Asserts that the Standard pass at <paramref name="shortId"/> reports a row at <paramref name="junctionNodeId"/> for the
     /// arm pair <paramref name="taxiwayA"/>/<paramref name="taxiwayB"/> (null for the junction's own row) with that outcome
-    /// and reason, and returns it; null when the layout is not committed.
+    /// and reason, and returns it.
     /// </summary>
-    private static FilletCornerReport? AssertCorner(
+    private static FilletCornerReport AssertCorner(
         string shortId,
         int junctionNodeId,
         string? taxiwayA,
@@ -115,10 +100,7 @@ public class FilletReportTests
     )
     {
         FilletReport? report = FilletReportLayouts.StandardReport(shortId);
-        if (report is null)
-        {
-            return null;
-        }
+        Assert.NotNull(report);
 
         FilletCornerReport? row = report.Corners.FirstOrDefault(c =>
             (c.JunctionNodeId == junctionNodeId) && (c.TaxiwayA == taxiwayA) && (c.TaxiwayB == taxiwayB) && (c.SkipReason == reason)
@@ -131,23 +113,16 @@ public class FilletReportTests
     [Theory]
     [InlineData("oak")]
     [InlineData("sfo")]
-    public void MatchedOverrides_LeaveTheLayoutByteIdentical(string shortId)
+    public void EditFreeOverrides_LeaveTheLayoutByteIdentical(string shortId)
     {
         AirportGroundLayout? pre = FilletReportLayouts.LoadPreFillet(shortId);
-        if (pre is null)
-        {
-            return;
-        }
+        Assert.NotNull(pre);
 
         AirportGroundLayout plain = LayoutCloner.DeepClone(pre);
         FilletStatistics plainStats = new FilletArcGenerator().Apply(plain, CornerFilletOverrides.None);
         List<CornerFilletOverride> entries =
         [
-            .. plainStats
-                .Report.Corners.Where(c => c.TaxiwayA is not null)
-                .Take(40)
-                .Select((c, i) => FilletReportLayouts.OverrideFor(c) with { Suppress = (i % 4) == 0, RadiusFt = ((i % 4) == 1) ? 25.0 : null })
-                .Select(o => o with { Force = (!o.Suppress) && (o.RadiusFt is null) }),
+            .. plainStats.Report.Corners.Where(c => c.TaxiwayA is not null).Take(40).Select(FilletReportLayouts.OverrideFor),
         ];
 
         AirportGroundLayout overridden = LayoutCloner.DeepClone(pre);

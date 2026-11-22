@@ -4,6 +4,7 @@
 
 ### Added
 
+- An ARTCC's `cornerFillets` sidecar entries can remove a taxiway corner's curve, set its radius, or add one the generator skipped.
 - Tools › Scenario Editor lists the server and local scenarios of each ARTCC you may edit, and creates, duplicates, deletes, imports and saves copies of them.
 - Load Scenario's ARTCC tab can download an ARTCC's scenarios for offline use, and lists the downloaded ones when the server's list is unavailable.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.

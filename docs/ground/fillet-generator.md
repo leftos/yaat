@@ -40,7 +40,7 @@ FilletGeneratorFactory.Create(filletMode).Apply(layout, inputs.CornerFillets);
 | `None` | `NullFilletArcGenerator.Instance` | no-op; raw intersection graph (used by `FilletMode.None` tests + comparison baselines) |
 | `Standard` | `new FilletArcGenerator()` | plan-then-execute (this doc) |
 
-`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. `Apply(layout, overrides)` takes the airport's per-corner overrides (`CornerFilletOverrides`, from the sidecar `cornerFillets`, `CornerFilletOverrides.None` for none); the generator carries them but does not act on them yet, so they change no layout. The convenience overloads `Parse(..., inputs)` / `Parse(..., inputs, applyFillets: bool)` map to `Standard` / `None` — **`Standard` is the parser's default**, and `ParseWithDiagnostics` / `ParseMultiple` parse with it too. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
+`FilletMode.cs`, `FilletGeneratorFactory.cs`, and the `IFilletArcGenerator` interface (`Id`, `DisplayName`, `Apply`) form the selection surface. `Apply(layout, overrides)` takes the airport's per-corner overrides (`CornerFilletOverrides`, from the sidecar `cornerFillets`, `CornerFilletOverrides.None` for none); the generator applies each one that matches a corner (suppress, radius and force; see [Per-corner overrides](#per-corner-overrides)), except pinned `tangentFt`, which it does not apply yet. The convenience overloads `Parse(..., inputs)` / `Parse(..., inputs, applyFillets: bool)` map to `Standard` / `None` — **`Standard` is the parser's default**, and `ParseWithDiagnostics` / `ParseMultiple` parse with it too. `FilletArcGeneratorRegistry.All` lists both implementations (`None`, `Standard`) for enumeration harnesses.
 
 The downstream consumers of the filleted graph: the **[pathfinder](./pathfinder.md)** walks it to build `TaxiRoute`s, and the **[navigator](./navigator.md)** compiles each `GroundArc` into a `PathPrimitiveBezier` and follows its cubic Bézier closed-form.
 
@@ -250,7 +250,7 @@ Every generated element stamps an `Origin` string, surfaced in LayoutInspector t
 
 ### Plan warnings are diagnostics, not failures
 
-`PlanWarning` codes (`Fillet/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `SUB_THRESHOLD_CUT_SKIPPED` (`UNCONSUMED_INCIDENT_EDGE` and `UNCONSUMED_RECONNECT_SAFETY_NET` are defined in `PlanWarning.cs` but nothing emits them) — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged.
+`PlanWarning` codes (`Fillet/PlanWarning.cs`) — `DEGENERATE_RADIUS`, `SINGLE_CUT_REJECTED`, `CORNER_DEMOTED`, `SHARED_ARM_SCALED`, `COINCIDENT_CUT_MERGED`, `NO_OWNING_CUT`, `FORCED_CORNER_UNPRESERVES`, `SUB_THRESHOLD_CUT_SKIPPED` (`UNCONSUMED_INCIDENT_EDGE` and `UNCONSUMED_RECONNECT_SAFETY_NET` are defined in `PlanWarning.cs` but nothing emits them) — are collected onto `FilletPlan.Warnings` / `FilletStatistics.Warnings` and logged.
 
 They flag corners that couldn't be rounded as requested, not generation failures. A surge in `DEGENERATE_RADIUS` / `CORNER_DEMOTED` on a new airport is a triage signal (tight or distorted geometry), not a crash.
 
@@ -260,7 +260,17 @@ They flag corners that couldn't be rounded as requested, not generation failures
 
 `Corners` has a row per junction-level skip of a taxiway intersection with two or more edges (an arm-less row: shape point, ineligible, no corner pairs) and per arm pair the corner loop visited, each with an outcome (`Built`, `ChordDegraded`, `Skipped`), a `FilletSkipReason` when it was not built as an arc, the requested and achieved radius, and the planner warnings raised for it. `CornerPlanner` skips a pair as same far node, collinear, below `MinFilletAngleDeg`, near-hairpin (turn over `NearHairpinThresholdDeg`) or under the radius floor; each is a skip reason.
 
-`Overrides` has a row per `CornerFilletOverride`, resolved by `FilletOverrideResolver` against the pre-fillet layout before any corner is cut. An override matches a corner when the junction is within 10 ft of its apex, the arm pair carries its two taxiway names (case-insensitive, either order) and each arm's bearing is within 15 degrees of the one it names. No corner is `Orphaned`, several is `Ambiguous`, and an override whose corner another override also names is `Ambiguous` too, so the result never depends on sidecar order. A `Matched` override is reported but not applied yet.
+`Overrides` has a row per `CornerFilletOverride`, resolved by `FilletOverrideResolver` against the pre-fillet layout before any corner is cut. An override matches a corner when the junction is within 10 ft of its apex, the arm pair carries its two taxiway names (case-insensitive, either order) and each arm's bearing is within 15 degrees of the one it names. No corner is `Orphaned`, several is `Ambiguous`, and an override whose corner another override also names is `Ambiguous` too, so the result never depends on sidecar order. A `Matched` override is applied (next section) and its row says what that did: `Effect` is `Applied`, `NotReachable` (the pass never visits the corner: a hand-drawn arc's shape point, a junction with fewer than two edges, a runway centerline projection, or an intersection the pass does not fillet that the override does not force) or `Rejected` (a force the pass refuses; `RejectedReason` is the skip reason, `RejectedRadiusFt` the tightest radius for `Unsteerable`). `Effect` is null for an `Orphaned` or `Ambiguous` row. An override that asks for none of suppress, radius or force changes nothing and is `Applied`.
+
+### Per-corner overrides
+
+`FilletOverrideResolver.ResolveCorners` keeps the corner each matched override names, and `FilletCornerEdits` hands it to `CornerPlanner` as a lookup by junction and arm pair, so no sidecar order decides geometry. An override touches only its own corner: the junction's other corners keep the cuts they have without it.
+
+- **`suppress`**: the pair gets no fillet and skip reason `Suppressed`. The junction node and every arm's stub stay (the junction is kept like a through pair's), so the pair stays a sharp corner, and the junction's other corners are planned as if this one asked for no tangent cut.
+- **`radiusFt`**: replaces the edge types' maximum radius as the corner's requested radius. It is still a ceiling: the arc is sized to the smaller of it and what the tangent geometry allows, so a short arm gives a smaller radius than the entry names.
+- **`force`**: plans the corner past the checks that would skip it, on any taxiway intersection of two or more edges that is not a runway centerline projection: not an eligible intersection, collinear, below `MinFilletAngleDeg`, near-hairpin, under the radius floor. Where the planner would plan the corner anyway the force changes nothing in the sizing. Where only the force plans it, the corner's tangent stays out of its arms' shared sizing so the junction's other corners keep their cuts, and a through pair that is filleted loses the preserved node it had (`FORCED_CORNER_UNPRESERVES`).
+
+A few checks a force never bypasses. The generator refuses such a forced corner and plans the pass again without its force (`PlanHonouringForces`), so a refused force leaves the layout as the unforced pass builds it; the corner carries the skip reason and the override is `Rejected`. The reasons are `SameFarNode`, `NoTurn` (the pair turns under `MinForcedTurnDeg`, 1 degree), `Unsteerable` (the arc's tightest radius is under `GeometricAdmissibility.MinSteerableArcRadiusFt`, 10 ft), `SharedArmClearGap` (the tangent cut would leave less than the shared-arm clear gap to the neighbouring junction's cuts), `UnresolvedEndpoint` and `CoincidentCuts`. `ForcedCornerCheck` decides this from the plan before the executor changes the layout.
 
 ### `FilletStatistics` legacy-repair counters are pinned at zero
 
@@ -287,6 +297,7 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/Fillet/TaxiwayArmBuilder.cs` | Walk each incident edge into a `TaxiwayArm` |
 | `src/Yaat.Sim/Data/Airport/Fillet/CornerPlanner.cs` | Pair arms into `CornerSpec`s / collinear pairs; skips a pair as same far node, collinear, below `MinFilletAngleDeg`, near-hairpin or under the radius floor, each reported to the `FilletReportCollector` |
 | `src/Yaat.Sim/Data/Airport/Fillet/ArmCutResolver.cs` | Resolve tangent-cut positions (single + ordered multi-cut) |
+| `src/Yaat.Sim/Data/Airport/Fillet/ForcedCornerCheck.cs` | Decide from a plan whether a forced corner may be built (recorded skip, unresolved or coincident endpoint, `Unsteerable` arc) |
 | `src/Yaat.Sim/Data/Airport/Fillet/SharedArmTangentPass.cs` | Intra-arm coalesce + cross-arm coalesce + cross-junction shared-arm scaling/merge |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanBuilder.cs` | Assemble the immutable `FilletPlan` |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletPlanCutRedirect.cs` | Union-find survivor map + stable-anchor redirect |
@@ -302,8 +313,8 @@ The Legacy pair-based generator, its `LegacyFilletArcGenerator` adapter, and the
 | `src/Yaat.Sim/Data/Airport/Fillet/ManualArcDetector.cs` | Shape-point (manual-arc) exclusion |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletGraphNormalizer.cs` | Post-execute recompute + defensive merge (no repair) |
 | `src/Yaat.Sim/Data/Airport/IFilletArcGenerator.cs` | Generator interface (`Id`, `DisplayName`, `Apply`) |
-| `src/Yaat.Sim/Data/Airport/CornerFilletOverrides.cs` | `CornerFilletOverride` / `CornerFilletOverrides`: the airport's sidecar per-corner overrides, passed to `Apply` (carried, not applied yet) |
-| `src/Yaat.Sim/Data/Airport/FilletReport.cs` | `FilletReport`: per-corner rows (`Built` / `ChordDegraded` / `Skipped`, `FilletSkipReason`) and per-override rows (`Matched` / `Orphaned` / `Ambiguous`), on `FilletStatistics.Report` |
+| `src/Yaat.Sim/Data/Airport/CornerFilletOverrides.cs` | `CornerFilletOverride` / `CornerFilletOverrides`: the airport's sidecar per-corner overrides, passed to `Apply` (applied: suppress, radius, force) |
+| `src/Yaat.Sim/Data/Airport/FilletReport.cs` | `FilletReport`: per-corner rows (`Built` / `ChordDegraded` / `Skipped`, `FilletSkipReason`) and per-override rows (`Matched` / `Orphaned` / `Ambiguous`, and a matched one's `FilletOverrideEffect`), on `FilletStatistics.Report` |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletReportCollector.cs` | Collects the report's corner rows as the planner, executor and generator run |
 | `src/Yaat.Sim/Data/Airport/Fillet/FilletOverrideResolver.cs` | Match each `CornerFilletOverride` to a pre-fillet corner (apex, taxiway pair, arm bearings) |
 | `src/Yaat.Sim/Data/Airport/FilletMode.cs` | Enum: `None` (no-op) \| `Standard` (production) |

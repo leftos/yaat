@@ -155,7 +155,7 @@ A bad entry is skipped whole with a warning at load or layout build, and an edit
 
 ### cornerFillets
 
-Names one taxiway corner by its apex, the two taxiways that meet there and each arm's true bearing from the apex, to suppress its fillet arc or set its radius or tangent distances. YAAT reads and validates the section but does not change taxiway geometry from it yet, so an entry has no effect on the map today. An entry that fails its checks is skipped with a warning in the log. Details: [`cornerFillets`](src/Yaat.Sim/Data/ARTCCs/README.md#cornerfillets).
+Names one taxiway corner by its apex, the two taxiways that meet there and each arm's true bearing from the apex, to suppress its fillet arc or set its radius or tangent distances. `suppress` leaves the corner sharp, `radiusFt` caps the arc's radius and `force` fillets a corner YAAT would otherwise skip; each changes only the corner it names, and a force is ignored where the arc could not be steered. `tangentFt` is read and validated but does not change the map yet. An entry that fails its checks is skipped with a warning in the log. Details: [`cornerFillets`](src/Yaat.Sim/Data/ARTCCs/README.md#cornerfillets).
 
 ```json
 "cornerFillets": [ { "apex": [-122.3731, 37.6149], "taxiways": ["L", "F"], "bearings": [32.5, 118.0], "radiusFt": 75, "note": "Charted radius." } ]

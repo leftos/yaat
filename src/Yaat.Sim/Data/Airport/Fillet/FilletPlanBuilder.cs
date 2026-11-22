@@ -37,7 +37,11 @@ internal static class FilletPlanBuilder
             }
         }
 
-        merges.AddRange(SharedArmTangentPass.ApplyCrossJunction(junctions, cuts, warnings));
+        var refusedForcedCuts = new HashSet<CutId>();
+        merges.AddRange(SharedArmTangentPass.ApplyCrossJunction(junctions, cuts, warnings, refusedForcedCuts));
+        List<CornerArcOp> beforeRefusal = cornerArcs;
+        cornerArcs = [.. beforeRefusal.Where(op => !UsesAnyCut(op, refusedForcedCuts))];
+        report.CornerOpsDropped(beforeRefusal, cornerArcs, FilletSkipReason.SharedArmClearGap);
 
         // Global coincident-cut coalesce runs last so it sees the scaled positions from
         // ApplyCrossJunction. It absorbs every remaining cut-vs-cut coincidence — most importantly
@@ -66,13 +70,14 @@ internal static class FilletPlanBuilder
         // executor emits exactly one arc per node pair and the post-execute normalizer has no
         // coincident nodes to merge.
         List<CornerArcOp> beforeDedup = redirectedCornerArcs;
+        // A forced corner never wins a pair from an unforced one, so forcing leaves the other corner's arc alone.
         redirectedCornerArcs = DedupByEndpointPair(
             beforeDedup,
             op => (op.EndpointAtArmA, op.EndpointAtArmB),
-            op => IsSingleNameCorner(op, junctions)
+            op => DedupRank(CornerOf(op, junctions))
         );
         report.CornerOpsDropped(beforeDedup, redirectedCornerArcs, FilletSkipReason.Deduplicated);
-        redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => true);
+        redirectedStraightConnectors = DedupByEndpointPair(redirectedStraightConnectors, op => (op.EndpointAtArmA, op.EndpointAtArmB), _ => 0);
 
         var nodesToRemoveSet = nodesToRemove.ToHashSet();
         FilletEdgeSplitPlanner.Result split = FilletEdgeSplitPlanner.Plan(junctions, prunedCuts, redirect, nodesToRemoveSet);
@@ -103,10 +108,10 @@ internal static class FilletPlanBuilder
 
     /// <summary>
     /// Keep one op per unordered resolved-endpoint pair, preserving original order. When two ops
-    /// share a pair, the one for which <paramref name="prefer"/> is true (e.g. a single-name corner)
-    /// wins; otherwise the first-seen op is kept.
+    /// share a pair, the one of higher <paramref name="rank"/> (e.g. a single-name corner) wins;
+    /// otherwise the first-seen op is kept.
     /// </summary>
-    private static List<T> DedupByEndpointPair<T>(List<T> ops, Func<T, (FilletEndpoint A, FilletEndpoint B)> endpoints, Func<T, bool> prefer)
+    private static List<T> DedupByEndpointPair<T>(List<T> ops, Func<T, (FilletEndpoint A, FilletEndpoint B)> endpoints, Func<T, int> rank)
     {
         var chosenIndex = new Dictionary<((int, int) A, (int, int) B), int>();
         for (int i = 0; i < ops.Count; i++)
@@ -116,7 +121,7 @@ internal static class FilletPlanBuilder
             {
                 chosenIndex[key] = i;
             }
-            else if (!prefer(ops[existing]) && prefer(ops[i]))
+            else if (rank(ops[i]) > rank(ops[existing]))
             {
                 chosenIndex[key] = i;
             }
@@ -150,24 +155,24 @@ internal static class FilletPlanBuilder
             _ => throw new InvalidOperationException($"Unknown FilletEndpoint subtype: {ep.GetType().Name}"),
         };
 
-    private static bool IsSingleNameCorner(CornerArcOp op, IReadOnlyList<JunctionPlan> junctions)
+    /// <summary>
+    /// How strongly a corner holds an endpoint pair against another: an unforced corner over a forced one, then a
+    /// single-name corner over a two-name one.
+    /// </summary>
+    private static int DedupRank(CornerSpec? corner)
     {
-        foreach (JunctionPlan jp in junctions)
+        if (corner is null)
         {
-            if (jp.JunctionNodeId != op.JunctionNodeId)
-            {
-                continue;
-            }
-
-            foreach (CornerSpec corner in jp.Corners)
-            {
-                if (corner.CornerId == op.CornerId)
-                {
-                    return corner.EdgeA.SharesTaxiway(corner.EdgeB);
-                }
-            }
+            return 0;
         }
 
-        return false;
+        return (corner.IsForced ? 0 : 2) + (corner.EdgeA.SharesTaxiway(corner.EdgeB) ? 1 : 0);
     }
+
+    private static CornerSpec? CornerOf(CornerArcOp op, IReadOnlyList<JunctionPlan> junctions) =>
+        junctions.Where(jp => jp.JunctionNodeId == op.JunctionNodeId).SelectMany(jp => jp.Corners).FirstOrDefault(c => c.CornerId == op.CornerId);
+
+    private static bool UsesAnyCut(CornerArcOp op, HashSet<CutId> cutIds) =>
+        ((op.EndpointAtArmA is FilletEndpoint.Cut a) && cutIds.Contains(a.Id))
+        || ((op.EndpointAtArmB is FilletEndpoint.Cut b) && cutIds.Contains(b.Id));
 }

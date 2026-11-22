@@ -114,6 +114,27 @@ public enum FilletSkipReason
 
     /// <summary>One of the corner's arc endpoints resolved to no node when the arc was built.</summary>
     UnresolvedEndpoint,
+
+    /// <summary>
+    /// A corner fillet override suppresses the corner: suppressing keeps the junction node and every arm's stub, so the
+    /// pair stays a sharp corner, and the junction's other corners are planned as if this one asked for no tangent cut.
+    /// </summary>
+    Suppressed,
+
+    /// <summary>
+    /// A forced corner's arc would be tighter than any aircraft can steer
+    /// (<see cref="Pathfinding.GeometricAdmissibility.MinSteerableArcRadiusFt"/>), so the force is refused.
+    /// </summary>
+    Unsteerable,
+
+    /// <summary>A forced pair turns less than one degree: there is no corner to fillet, so the force is refused.</summary>
+    NoTurn,
+
+    /// <summary>
+    /// A forced corner's tangent cut would leave a straight shorter than the shared-arm clear gap to the neighbouring
+    /// junction's cuts, so the force is refused.
+    /// </summary>
+    SharedArmClearGap,
 }
 
 /// <summary>How one per-corner override matched the pre-fillet layout.</summary>
@@ -121,7 +142,49 @@ public enum FilletSkipReason
 /// <param name="Match">Whether it matched exactly one corner, none, or more than one.</param>
 /// <param name="JunctionNodeId">The matched junction's node id, or null when the override matched no single junction.</param>
 /// <param name="Detail">A human-readable account of the match.</param>
-public sealed record FilletOverrideReport(CornerFilletOverride Override, FilletOverrideMatch Match, int? JunctionNodeId, string Detail);
+/// <param name="Effect">
+/// What applying the override did, or null when <paramref name="Match"/> is not <see cref="FilletOverrideMatch.Matched"/>.
+/// </param>
+/// <param name="RejectedReason">
+/// Why the pass refused a forced corner, set only when <paramref name="Effect"/> is <see cref="FilletOverrideEffect.Rejected"/>.
+/// </param>
+/// <param name="RejectedRadiusFt">
+/// The refused forced arc's tightest radius, feet, set only when <paramref name="RejectedReason"/> is
+/// <see cref="FilletSkipReason.Unsteerable"/>.
+/// </param>
+public sealed record FilletOverrideReport(
+    CornerFilletOverride Override,
+    FilletOverrideMatch Match,
+    int? JunctionNodeId,
+    string Detail,
+    FilletOverrideEffect? Effect,
+    FilletSkipReason? RejectedReason,
+    double? RejectedRadiusFt
+);
+
+/// <summary>What applying a matched per-corner override did to its corner.</summary>
+public enum FilletOverrideEffect
+{
+    /// <summary>
+    /// The override's edits were applied (an override with no edit changes nothing and is applied too);
+    /// <see cref="FilletCornerReport"/> says what the corner became.
+    /// </summary>
+    Applied,
+
+    /// <summary>
+    /// The pass never visits the corner, so its edits cannot apply: the junction is a hand-drawn arc's shape point, has
+    /// fewer than two edges, is a runway centerline projection, or is an intersection the pass does not fillet and the
+    /// override does not force.
+    /// </summary>
+    NotReachable,
+
+    /// <summary>
+    /// The override forces the corner but a check force never bypasses still gives it no arc, or would give it one no
+    /// aircraft can steer (<see cref="FilletOverrideReport.RejectedReason"/>); the corner is planned as if the override did
+    /// not force it.
+    /// </summary>
+    Rejected,
+}
 
 /// <summary>How a per-corner override matched the pre-fillet layout.</summary>
 public enum FilletOverrideMatch

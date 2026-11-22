@@ -2,17 +2,29 @@ namespace Yaat.Sim.Data.Airport.Fillet;
 
 internal static class JunctionClassifier
 {
-    public static JunctionPlan Classify(GroundNode node, bool preserveNode, HashSet<int> manualArcNodes, FilletReportCollector report)
+    public static JunctionPlan Classify(
+        GroundNode node,
+        bool preserveNode,
+        HashSet<int> manualArcNodes,
+        FilletCornerEdits edits,
+        FilletReportCollector report
+    )
     {
         IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, manualArcNodes);
-        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(node, arms, report);
+        (IReadOnlyList<CornerSpec> corners, IReadOnlyList<(int, int)> collinear, IReadOnlyList<(int, int)> suppressed) = CornerPlanner.PlanCorners(
+            node,
+            arms,
+            edits,
+            report
+        );
 
+        bool preserve = preserveNode || (collinear.Count > 0) || (suppressed.Count > 0);
         JunctionKind kind;
-        if (corners.Count == 0 && collinear.Count == 0)
+        if ((corners.Count == 0) && (collinear.Count == 0) && (suppressed.Count == 0))
         {
             kind = JunctionKind.Skip;
         }
-        else if (preserveNode || (collinear.Count > 0))
+        else if (preserve)
         {
             kind = JunctionKind.Preserve;
         }
@@ -25,6 +37,6 @@ internal static class JunctionClassifier
             kind = JunctionKind.MultiCorner;
         }
 
-        return new JunctionPlan(node.Id, node, kind, preserveNode || (collinear.Count > 0), arms, corners, collinear);
+        return new JunctionPlan(node.Id, node, kind, preserve, arms, corners, collinear, suppressed);
     }
 }

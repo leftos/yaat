@@ -634,7 +634,7 @@ Editing this section stales the airport's layout and push-target cache entries. 
 
 ### `cornerFillets`
 
-Per-corner overrides for the fillet arc a taxiway corner gets: suppress it, or set its radius, force it, or set its tangent distances. A corner is named by its apex and the two taxiway arms that meet there. The section is read, validated and carried to the fillet generator (`IFilletArcGenerator.Apply(layout, overrides)`), which does not act on it yet: an entry changes no taxiway geometry today.
+Per-corner overrides for the fillet arc a taxiway corner gets: suppress it, or set its radius, force it, or set its tangent distances. A corner is named by its apex and the two taxiway arms that meet there. The section is read, validated and carried to the fillet generator (`IFilletArcGenerator.Apply(layout, overrides)`), which applies `suppress`, `radiusFt` and `force` to the corner each matched entry names and nothing else; `tangentFt` is carried but not applied yet.
 
 ```json
 "cornerFillets": [
@@ -656,7 +656,13 @@ Per-corner overrides for the fillet arc a taxiway corner gets: suppress it, or s
 
 An entry that fails a check is skipped with a warning `{file}: {AIRPORT} cornerFillets[i]: {problem}, skipping`: a missing or mistyped member, a non-finite number, a bearing outside `[0, 360)`, a radius or tangent of 0 or less, `suppress` with `radiusFt`, `force` or `tangentFt`, an unknown key, or a null entry. Two entries name the same corner when their apexes are within 1e-7 degrees, their taxiway pairs match (unordered, case-insensitive) and the bearings, paired with their taxiways, are within 1e-6 degrees; the later one wins, with the warning `duplicate of cornerFillets[j], last wins`, and across files the last file wins. The catalog hands the merged list to the layout build through `AirportSidecarCatalog.GetCornerFillets` and `LayoutInputs.CornerFillets`, and it is part of the layout sidecar hash (`AirportSidecarHash.OfLayoutSidecar`) only when the airport has an entry, so editing it stales the airport's layout cache entry.
 
-The fillet pass matches each entry to a corner of the map before fillets are cut: the corner's junction must be within 10 ft of `apex`, its two arms must carry the `taxiways` names (either order, case-insensitive) and each arm's true bearing from the junction must be within 15 degrees of the entry's. An entry that matches no corner is orphaned (the map moved) and one that matches several corners, or whose corner another entry also names, is ambiguous; neither is applied anywhere. The match is reported but an exact match changes no geometry yet.
+The fillet pass matches each entry to a corner of the map before fillets are cut: the corner's junction must be within 10 ft of `apex`, its two arms must carry the `taxiways` names (either order, case-insensitive) and each arm's true bearing from the junction must be within 15 degrees of the entry's. An entry that matches no corner is orphaned (the map moved) and one that matches several corners, or whose corner another entry also names, is ambiguous; neither is applied anywhere. An exact match is applied to its corner only; the junction's other corners and neighbouring junctions keep the cuts they have without it.
+
+- `suppress` leaves the pair a sharp corner: no arc, and the junction node and each arm's stub stay.
+- `radiusFt` replaces the radius the edge types would give as the arc's ceiling; a short arm still gives a smaller radius than the entry names.
+- `force` fillets the pair past the checks that would skip it (a collinear or near-straight pair, a near-hairpin, a radius under the floor, an intersection the generator does not fillet). A force is ignored, and the corner is built as if the entry did not force it, when the two arms reach the same far node, the turn is under 1 degree, the arc's tightest radius would be under 10 ft (no aircraft can steer it), or the cut would leave less than the shared-arm clear gap to a neighbouring junction's cuts. A force on a hand-drawn arc's shape point, a junction with fewer than two edges or a runway centerline projection never applies.
+
+The fillet report (`FilletStatistics.Report`) gives each matched entry an effect: applied, not reachable or rejected, with the reason and, for a corner too tight to steer, its radius.
 
 ### `asdexLandingTaxiways`
 

@@ -110,9 +110,9 @@ public class ArmCutResolverTests
         JunctionPlan jp1 = PlanAt(layout, 1);
         JunctionPlan jp2 = PlanAt(layout, 2);
 
-        var nextCutId = new CutId(1);
-        ArmCutResolver.JunctionCutResult r1 = ArmCutResolver.Resolve(jp1, ref nextCutId, new FilletReportCollector());
-        ArmCutResolver.JunctionCutResult r2 = ArmCutResolver.Resolve(jp2, ref nextCutId, new FilletReportCollector());
+        var cutIds = new ArmCutResolver.CutIds(new CutId(1), new CutId(1_000_000));
+        ArmCutResolver.JunctionCutResult r1 = ArmCutResolver.Resolve(jp1, cutIds, new FilletReportCollector());
+        ArmCutResolver.JunctionCutResult r2 = ArmCutResolver.Resolve(jp2, cutIds, new FilletReportCollector());
         FilletPlan plan = FilletPlanBuilder.Build(layout, [jp1, jp2], [r1, r2], new FilletReportCollector());
 
         Assert.Contains(plan.Warnings, w => w.Code == PlanWarning.SharedArmScaled);
@@ -227,11 +227,8 @@ public class ArmCutResolverTests
         return false;
     }
 
-    private static ArmCutResolver.JunctionCutResult Resolve(JunctionPlan junction)
-    {
-        var nextCutId = new CutId(1);
-        return ArmCutResolver.Resolve(junction, ref nextCutId, new FilletReportCollector());
-    }
+    private static ArmCutResolver.JunctionCutResult Resolve(JunctionPlan junction) =>
+        ArmCutResolver.Resolve(junction, new ArmCutResolver.CutIds(new CutId(1), new CutId(1_000_000)), new FilletReportCollector());
 
     private static IEnumerable<ResolvedArmCut> CutsOnArm(ArmCutResolver.JunctionCutResult result, int armId) =>
         result.Cuts.Values.Where(c => c.ArmId == armId);
@@ -240,12 +237,13 @@ public class ArmCutResolverTests
     {
         GroundNode node = layout.Nodes[nodeId];
         IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(node, []);
-        (IReadOnlyList<CornerSpec>? corners, IReadOnlyList<(int, int)>? collinear) = CornerPlanner.PlanCorners(
+        (IReadOnlyList<CornerSpec> corners, IReadOnlyList<(int, int)> collinear, IReadOnlyList<(int, int)> suppressed) = CornerPlanner.PlanCorners(
             node,
             arms,
+            FilletCornerEdits.From([]),
             new FilletReportCollector()
         );
-        return new JunctionPlan(nodeId, node, JunctionKind.MultiCorner, collinear.Count > 0, arms, corners, collinear);
+        return new JunctionPlan(nodeId, node, JunctionKind.MultiCorner, collinear.Count > 0, arms, corners, collinear, suppressed);
     }
 
     private static JunctionPlan BuildJunction(
@@ -330,12 +328,13 @@ public class ArmCutResolverTests
                     radius,
                     ideal,
                     a.BearingFromJunctionDeg,
-                    b.BearingFromJunctionDeg
+                    b.BearingFromJunctionDeg,
+                    CornerForce.None
                 )
             );
         }
 
-        return new JunctionPlan(0, junction, JunctionKind.MultiCorner, false, builtArms, cornerSpecs, []);
+        return new JunctionPlan(0, junction, JunctionKind.MultiCorner, false, builtArms, cornerSpecs, [], []);
     }
 
     private static JunctionPlan BuildJunctionWithExplicitIdeals(
@@ -410,12 +409,13 @@ public class ArmCutResolverTests
                     75.0,
                     ideal,
                     a.BearingFromJunctionDeg,
-                    b.BearingFromJunctionDeg
+                    b.BearingFromJunctionDeg,
+                    CornerForce.None
                 )
             );
         }
 
-        return new JunctionPlan(0, junction, JunctionKind.MultiCorner, false, builtArms, cornerSpecs, []);
+        return new JunctionPlan(0, junction, JunctionKind.MultiCorner, false, builtArms, cornerSpecs, [], []);
     }
 
     private static AirportGroundLayout BuildSharedArmLayout(double sharedLengthFt)
