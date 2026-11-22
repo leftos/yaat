@@ -404,7 +404,7 @@ public class LineUpGeometryTests(ITestOutputHelper output)
         double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet);
         double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(AircraftCategory.Jet, aircraftType: null, rolloutSpeedKts);
 
-        double lengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, headingOffDeg, swingRateDegPerSec);
+        double lengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, headingOffDeg, swingRateDegPerSec, TurnModel.Instant);
 
         double speedFtPerSec = rolloutSpeedKts * GeoMath.FeetPerNm / 3600.0;
         double rolloutSeconds = lengthFt / speedFtPerSec;
@@ -436,9 +436,9 @@ public class LineUpGeometryTests(ITestOutputHelper output)
             LineUpGeometry.ResumedRolloutSpeedKts(AircraftCategory.Jet)
         );
 
-        double alignedFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 0.0, swingRateDegPerSec);
-        double shallowFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 15.0, swingRateDegPerSec);
-        double steepFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 45.0, swingRateDegPerSec);
+        double alignedFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 0.0, swingRateDegPerSec, TurnModel.Instant);
+        double shallowFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 15.0, swingRateDegPerSec, TurnModel.Instant);
+        double steepFt = LineUpGeometry.ResumedSwingRolloutLengthFt(AircraftCategory.Jet, 45.0, swingRateDegPerSec, TurnModel.Instant);
 
         output.WriteLine($"0°={alignedFt:F1}ft 15°={shallowFt:F1}ft 45°={steepFt:F1}ft");
         Assert.Equal(LineUpGeometry.RolloutLengthFt, alignedFt, 6);

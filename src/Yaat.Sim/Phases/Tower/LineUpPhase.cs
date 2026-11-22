@@ -1355,7 +1355,7 @@ public sealed class LineUpPhase : Phase
     {
         double rolloutSpeedKts = LineUpGeometry.ResumedRolloutSpeedKts(ctx.Category);
         double swingRateDegPerSec = CategoryPerformance.GroundYawRateAtSpeed(ctx.Category, ctx.Aircraft.AircraftType, rolloutSpeedKts);
-        double swingLengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(ctx.Category, headingOffDeg, swingRateDegPerSec);
+        double swingLengthFt = LineUpGeometry.ResumedSwingRolloutLengthFt(ctx.Category, headingOffDeg, swingRateDegPerSec, ctx.TurnModel);
         double usedFt =
             GeoMath.AlongTrackDistanceNm(ctx.Aircraft.Position, new LatLon(rwy.ThresholdLatitude, rwy.ThresholdLongitude), rwy.TrueHeading)
             * GeoMath.FeetPerNm;

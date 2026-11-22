@@ -670,7 +670,7 @@ Under the ramp turn model, the time an airborne turn takes to go from wings leve
 The point where a descend via or a controller's crossing ceiling starts the aircraft down: the latest, over every in-force ceiling ahead, of the 3:1 distance (300 ft per NM, `FlightPhysics.TopOfDescentFtPerNm`) plus 1 NM per 10 kt it must slow by the ceiling's fix. Until then the aircraft holds level; a plain `DM` has none and descends at once. See `docs/flight-physics.md`, Vertical integration.
 
 **Turn model**:
-The scenario setting (`SimScenarioState.TurnModel`) for how airborne aircraft enter and leave a turn: `Instant` (the full rate from the first tick, stopping dead on the heading) or `Ramp` (a roll-in and roll-out). A fresh live load flies `Ramp`; a recording, checkpoint or rebuild keeps its own, and one made before the field existed reads `Instant`.
+The scenario setting (`SimScenarioState.TurnModel`) for how aircraft enter and leave a turn: `Instant` (the full rate from the first tick, stopping dead on the heading) or `Ramp` (a roll-in and roll-out; a rolling non-helicopter's nose-wheel steering ramps too, `CategoryPerformance.GroundSteerRampSeconds`). A fresh live load flies `Ramp`; a recording, checkpoint or rebuild keeps its own, and one made before the field existed reads `Instant`.
 
 **Vmo**:
 A type's maximum operating indicated airspeed in KCAS, from a type-certificate or OpenAP override figure or its pybada speed envelope class, raised to what the type's own profile schedule flies. See `docs/aircraft-performance.md`, Speed limits.

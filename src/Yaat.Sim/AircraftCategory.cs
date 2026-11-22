@@ -979,6 +979,78 @@ public static class CategoryPerformance
         };
     }
 
+    /// <summary>Ground steering ramp time of a jet: seconds from zero yaw rate to the <see cref="GroundTurnRate"/> ceiling.</summary>
+    public const double JetGroundSteerRampSeconds = 3.0;
+
+    /// <summary>Ground steering ramp time of a turboprop, in seconds.</summary>
+    public const double TurbopropGroundSteerRampSeconds = 2.5;
+
+    /// <summary>Ground steering ramp time of a piston aircraft, in seconds.</summary>
+    public const double PistonGroundSteerRampSeconds = 1.5;
+
+    /// <summary>
+    /// Seconds a rolling aircraft's nose-wheel steering takes, under the ramp turn model, to take the yaw rate from zero to
+    /// the category's <see cref="GroundTurnRate"/> ceiling, so the yaw acceleration is the ceiling over this time. A nose
+    /// wheel swings faster than a wing banks, so these are shorter than <see cref="RollInSeconds"/>. A judgement call, not a
+    /// published figure: neither the FAA references nor the manufacturers' airport planning documents give a tiller slew
+    /// rate. Helicopters have none: on wheels they pedal-turn instantly, so asking for one throws.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="cat"/> is <see cref="AircraftCategory.Helicopter"/>.</exception>
+    public static double GroundSteerRampSeconds(AircraftCategory cat)
+    {
+        return cat switch
+        {
+            AircraftCategory.Jet => JetGroundSteerRampSeconds,
+            AircraftCategory.Turboprop => TurbopropGroundSteerRampSeconds,
+            AircraftCategory.Piston => PistonGroundSteerRampSeconds,
+            AircraftCategory.Helicopter => throw new ArgumentOutOfRangeException(
+                nameof(cat),
+                cat,
+                "A helicopter on wheels pedal-turns instantly; it has no ground steering ramp."
+            ),
+            _ => JetGroundSteerRampSeconds,
+        };
+    }
+
+    /// <summary>
+    /// Headroom of the ground steering yaw cap over the <see cref="TaxiLateralAccelMps2"/> planning limit: the cap is
+    /// 1.25 × 0.13 g, so a corner entered at its 0.13 g planning speed (<see cref="ArcSpeedForRadiusKts"/>) still has about
+    /// 25 % more yaw rate available to correct with.
+    /// </summary>
+    public const double GroundSteerLateralAccelHeadroom = 1.25;
+
+    /// <summary>
+    /// The yaw rate (deg/sec) a rolling aircraft may steer at groundspeed <paramref name="groundSpeedKts"/> for its lateral
+    /// acceleration to stay within <see cref="GroundSteerLateralAccelHeadroom"/> × <see cref="TaxiLateralAccelMps2"/>
+    /// (1.25 × 0.13 g): ω = 1.25 a / v. About 1.8 °/s at 100 kt, 5.9 °/s at 30 kt and 11.8 °/s at 15 kt. It falls below the
+    /// <see cref="GroundTurnRate"/> ceiling, and so binds, from about 15 kt for a jet (12 °/s), 11 kt for a turboprop
+    /// (16 °/s) and 9 kt for a piston (20 °/s). Unbounded at a standstill.
+    /// </summary>
+    public static double GroundSteerYawRateCapDegPerSec(double groundSpeedKts)
+    {
+        double vMps = groundSpeedKts * KnotsToMetersPerSecond;
+        double lateralMps2 = GroundSteerLateralAccelHeadroom * TaxiLateralAccelMps2;
+        return vMps <= 0 ? double.PositiveInfinity : lateralMps2 / vMps * (180.0 / Math.PI);
+    }
+
+    /// <summary>
+    /// The full yaw rate (deg/sec) a rolling non-helicopter steers at under the ramp turn model, the one ceiling the ramped
+    /// steer, the creep below <see cref="SlowTurnSpeedKts"/> and the line-up swing sizing share: the phase's
+    /// <paramref name="rateOverrideDegPerSec"/> or the category's <see cref="GroundTurnRate"/>, capped by lateral
+    /// acceleration (<see cref="GroundSteerYawRateCapDegPerSec"/>) and by what the gear can give at this speed, v/R
+    /// (<see cref="GroundYawRateAtSpeed(AircraftCategory, string?, double)"/>).
+    /// </summary>
+    public static double GroundSteerRateCeilingDegPerSec(
+        AircraftCategory cat,
+        string? aircraftType,
+        double groundSpeedKts,
+        double? rateOverrideDegPerSec
+    )
+    {
+        double rate = Math.Min(rateOverrideDegPerSec ?? GroundTurnRate(cat), GroundSteerYawRateCapDegPerSec(groundSpeedKts));
+        return Math.Min(rate, GroundYawRateAtSpeed(cat, aircraftType, groundSpeedKts));
+    }
+
     /// <summary>
     /// Ground yaw rate (deg/sec) of <paramref name="aircraftType"/> achievable at groundspeed <paramref name="groundSpeedKts"/>:
     /// ω = v/R at the type's comfortable main-gear radius (<see cref="MainGearTurnRadiusFt(AircraftCategory, string?)"/>, the

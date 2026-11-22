@@ -12,7 +12,8 @@ using Yaat.Sim.Simulation;
 namespace Yaat.Sim;
 
 /// <summary>
-/// How an airborne aircraft enters and leaves a turn. <see cref="Instant"/> turns at the full rate from the first tick and
+/// How an aircraft enters and leaves a turn, airborne and, under <see cref="Ramp"/>, rolling on the ground at 3 kt or more
+/// (a non-helicopter's nose wheel ramps in and out the same way). <see cref="Instant"/> turns at the full rate from the first tick and
 /// stops dead on the target heading (the model every session recorded before the ramp flies, and the value wherever none
 /// is recorded); <see cref="Ramp"/> rolls in and out, ramping the applied turn rate up to the full rate and easing it out so
 /// the wings are level exactly at the target heading. Carried by the scenario (<see cref="Simulation.SimScenarioState.TurnModel"/>).
@@ -3060,24 +3061,112 @@ public static class FlightPhysics
             return;
         }
 
-        // Aircraft on the ground at zero ground speed cannot physically
-        // pivot in place. Reject rotation even if an upstream phase left a
-        // stale target heading — the physics contract is the last line of
-        // defence against "aircraft pirouettes while parked" artifacts.
-        // Airborne helicopters at zero ground speed (hover) are unaffected
-        // because IsOnGround is false.
-        if (aircraft.IsOnGround && aircraft.GroundSpeed < StationaryGroundSpeedKts)
+        if (IsStationaryOnGround(aircraft))
         {
             aircraft.BankAngle = 0;
             aircraft.AppliedTurnRateDegPerSec = null;
             return;
         }
 
-        bool ramp = (turnModel == TurnModel.Ramp) && UsesTurnRamp(aircraft, cat);
         double goal = target.Value.Degrees;
-        double diff = NormalizeAngle(goal - aircraft.TrueHeading.Degrees);
+        if (SteersOnGround(aircraft, cat, turnModel))
+        {
+            UpdateGroundSteering(aircraft, cat, deltaSeconds, goal);
+            return;
+        }
+
+        bool ramp = (turnModel == TurnModel.Ramp) && UsesTurnRamp(aircraft, cat);
+        TurnToward(aircraft, deltaSeconds, goal, ramp, DefaultTurnLimits(aircraft, cat));
+    }
+
+    /// <summary>
+    /// Whether the aircraft is on the ground at zero ground speed, where it cannot physically pivot in place: rotation is
+    /// rejected even if an upstream phase left a stale target heading — the physics contract is the last line of defence
+    /// against "aircraft pirouettes while parked" artifacts. Airborne helicopters at zero ground speed (hover) are
+    /// unaffected because IsOnGround is false.
+    /// </summary>
+    private static bool IsStationaryOnGround(AircraftState aircraft) => aircraft.IsOnGround && (aircraft.GroundSpeed < StationaryGroundSpeedKts);
+
+    /// <summary>
+    /// Whether the heading change is nose-wheel steering (<see cref="UpdateGroundSteering"/>): under
+    /// <see cref="TurnModel.Ramp"/>, on the ground, and not a helicopter (which pedal-turns instantly on its wheels).
+    /// </summary>
+    private static bool SteersOnGround(AircraftState aircraft, AircraftCategory cat, TurnModel turnModel) =>
+        (turnModel == TurnModel.Ramp) && aircraft.IsOnGround && (cat != AircraftCategory.Helicopter);
+
+    /// <summary>
+    /// The turn limits of every turn but a ramped ground steer: the full rate is the phase's override or the type's
+    /// standard rate, and the roll acceleration reaches it in the category's roll-in time.
+    /// </summary>
+    private static TurnLimits DefaultTurnLimits(AircraftState aircraft, AircraftCategory cat)
+    {
         double turnRate = aircraft.Targets.TurnRateOverride ?? AircraftPerformance.TurnRate(aircraft.AircraftType, cat);
-        var limits = new TurnLimits(turnRate, turnRate / CategoryPerformance.RollInSeconds(cat));
+        return new TurnLimits(turnRate, turnRate / CategoryPerformance.RollInSeconds(cat));
+    }
+
+    /// <summary>Within this many degrees a ground heading counts as written onto its target (floating-point equality).</summary>
+    private const double GroundSteerOnTargetDeg = 1e-9;
+
+    /// <summary>
+    /// Ground steering under <see cref="TurnModel.Ramp"/> for a non-helicopter rolling on its wheels. At or above
+    /// <see cref="CategoryPerformance.SlowTurnSpeedKts"/> the nose swings through the ramp (<see cref="GroundSteerLimits"/>):
+    /// the yaw rate builds, holds and eases out, and passes through zero before it reverses. Below it (a creep) the turn
+    /// stays the instant one, at the same ceiling the ramp steers at, and the rate it turned at, signed heading change over
+    /// the tick, is written as the applied rate, so the ramp takes over from the rate the nose already has once the aircraft
+    /// speeds up. A heading already on the target (within <see cref="GroundSteerOnTargetDeg"/>, a pose written onto it) while
+    /// more than one tick's rate step is still on is finished as it stands: the heading is not moved, so a pose a ground
+    /// navigator wrote this tick is never pushed past its target, and the rate bleeds toward zero by one rate step a tick
+    /// (never past it), so a stale rate never seeds the next turn. The tolerance is far inside
+    /// <see cref="RampFinishDeg"/> on purpose: the ramp's own roll-out comes within that with more than a step still on, and
+    /// must keep easing out rather than freeze there.
+    /// </summary>
+    private static void UpdateGroundSteering(AircraftState aircraft, AircraftCategory cat, double deltaSeconds, double goal)
+    {
+        TurnLimits limits = GroundSteerLimits(aircraft, cat);
+        if (aircraft.GroundSpeed < CategoryPerformance.SlowTurnSpeedKts)
+        {
+            double before = aircraft.TrueHeading.Degrees;
+            TurnToward(aircraft, deltaSeconds, goal, ramp: false, limits);
+            aircraft.AppliedTurnRateDegPerSec = NormalizeAngle(aircraft.TrueHeading.Degrees - before) / deltaSeconds;
+            return;
+        }
+
+        bool onTarget = Math.Abs(NormalizeAngle(goal - aircraft.TrueHeading.Degrees)) < GroundSteerOnTargetDeg;
+        double carried = aircraft.AppliedTurnRateDegPerSec ?? 0;
+        double rateStep = limits.RollAccelDegPerSec2 * deltaSeconds;
+        if (onTarget && (Math.Abs(carried) > rateStep))
+        {
+            aircraft.AppliedTurnRateDegPerSec = carried - (Math.Sign(carried) * rateStep);
+            return;
+        }
+
+        TurnToward(aircraft, deltaSeconds, goal, ramp: true, limits);
+    }
+
+    /// <summary>
+    /// A ground steer's limits: the full rate is <see cref="CategoryPerformance.GroundSteerRateCeilingDegPerSec"/> (the
+    /// phase's override or the category ceiling, capped by lateral acceleration and by v/R at the ground speed), and the yaw
+    /// acceleration reaches the category's <see cref="CategoryPerformance.GroundTurnRate"/> in
+    /// <see cref="CategoryPerformance.GroundSteerRampSeconds"/>.
+    /// </summary>
+    private static TurnLimits GroundSteerLimits(AircraftState aircraft, AircraftCategory cat)
+    {
+        double maxRate = CategoryPerformance.GroundSteerRateCeilingDegPerSec(
+            cat,
+            aircraft.AircraftType,
+            aircraft.GroundSpeed,
+            aircraft.Targets.TurnRateOverride
+        );
+        return new TurnLimits(maxRate, CategoryPerformance.GroundTurnRate(cat) / CategoryPerformance.GroundSteerRampSeconds(cat));
+    }
+
+    /// <summary>
+    /// One tick of a turn toward <paramref name="goal"/>: the snap when the turn is finished, otherwise a ramped or an
+    /// instant step within <paramref name="limits"/>.
+    /// </summary>
+    private static void TurnToward(AircraftState aircraft, double deltaSeconds, double goal, bool ramp, TurnLimits limits)
+    {
+        double diff = NormalizeAngle(goal - aircraft.TrueHeading.Degrees);
         if (IsTurnFinished(aircraft, diff, ramp, limits.RollAccelDegPerSec2 * deltaSeconds))
         {
             SnapToTarget(aircraft, goal, ramp);
@@ -3090,7 +3179,7 @@ public static class FlightPhysics
             return;
         }
 
-        ApplyInstantTurn(aircraft, deltaSeconds, diff, turnRate);
+        ApplyInstantTurn(aircraft, deltaSeconds, diff, limits.MaxRateDegPerSec);
     }
 
     /// <summary>
@@ -3169,9 +3258,10 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// Whether an aircraft's heading change rolls in and out under <see cref="TurnModel.Ramp"/>: airborne only, and not a
-    /// helicopter below <see cref="CategoryPerformance.HelicopterInstantTurnBelowIndicatedAirspeedKts"/> (hovering,
-    /// air-taxiing or slow, where the turn is a yaw rather than a banked turn).
+    /// Whether an airborne aircraft's heading change rolls in and out under <see cref="TurnModel.Ramp"/>: not a helicopter
+    /// below <see cref="CategoryPerformance.HelicopterInstantTurnBelowIndicatedAirspeedKts"/> (hovering, air-taxiing or
+    /// slow, where the turn is a yaw rather than a banked turn). On the ground it is false: a non-helicopter's nose-wheel
+    /// steering ramps in <see cref="UpdateGroundSteering"/>, and a helicopter on its wheels pedal-turns instantly.
     /// </summary>
     private static bool UsesTurnRamp(AircraftState aircraft, AircraftCategory cat)
     {
@@ -3199,12 +3289,13 @@ public static class FlightPhysics
         double remaining = Math.Abs(errDeg);
         double sign = Math.Sign(errDeg);
         double maxStep = limits.RollAccelDegPerSec2 * deltaSeconds;
-        double brakingRate = Math.Sqrt((2.0 * limits.RollAccelDegPerSec2 * remaining) + (maxStep * maxStep / 4.0)) - (maxStep / 2.0);
-        double commanded = sign * Math.Min(limits.MaxRateDegPerSec, brakingRate);
-
-        double applied = aircraft.AppliedTurnRateDegPerSec ?? 0;
-        double step = commanded - applied;
-        applied = Math.Abs(step) <= maxStep ? commanded : applied + (Math.Sign(step) * maxStep);
+        double applied = StepRampedRate(
+            aircraft.AppliedTurnRateDegPerSec ?? 0,
+            errDeg,
+            limits.MaxRateDegPerSec,
+            limits.RollAccelDegPerSec2,
+            deltaSeconds
+        );
 
         double turn = applied * deltaSeconds;
         bool reachesTarget = (Math.Abs(turn) >= remaining) && ((turn * sign) >= 0);
@@ -3214,6 +3305,36 @@ public static class FlightPhysics
 
         double tasKts = WindInterpolator.IasToTas(aircraft.IndicatedAirspeed, aircraft.Altitude);
         aircraft.BankAngle = Math.Atan(tasKts * applied * BankAngleCoeff) * (180.0 / Math.PI);
+    }
+
+    /// <summary>
+    /// The ramp's rate law, shared by the airborne roll-in and ground steering: the commanded rate is
+    /// <paramref name="maxRateDegPerSec"/>, or less near the target on the discrete braking law
+    /// sqrt(2 * alpha * remaining + (alpha * dt / 2)^2) - alpha * dt / 2, and the applied rate steps from
+    /// <paramref name="appliedDegPerSec"/> toward it by at most alpha * dt, so a reversal passes through zero.
+    /// </summary>
+    /// <param name="appliedDegPerSec">The signed rate on now, deg/s.</param>
+    /// <param name="errDeg">The signed remaining heading change, positive right.</param>
+    /// <param name="maxRateDegPerSec">The full rate the turn may reach.</param>
+    /// <param name="accelDegPerSec2">The rate acceleration alpha.</param>
+    /// <param name="deltaSeconds">The tick length.</param>
+    /// <returns>The signed rate applied this tick, deg/s.</returns>
+    internal static double StepRampedRate(
+        double appliedDegPerSec,
+        double errDeg,
+        double maxRateDegPerSec,
+        double accelDegPerSec2,
+        double deltaSeconds
+    )
+    {
+        double remaining = Math.Abs(errDeg);
+        double sign = Math.Sign(errDeg);
+        double maxStep = accelDegPerSec2 * deltaSeconds;
+        double brakingRate = Math.Sqrt((2.0 * accelDegPerSec2 * remaining) + (maxStep * maxStep / 4.0)) - (maxStep / 2.0);
+        double commanded = sign * Math.Min(maxRateDegPerSec, brakingRate);
+
+        double step = commanded - appliedDegPerSec;
+        return Math.Abs(step) <= maxStep ? commanded : appliedDegPerSec + (Math.Sign(step) * maxStep);
     }
 
     private static void UpdateAltitude(AircraftState aircraft, AircraftCategory cat, double deltaSeconds)

@@ -429,17 +429,48 @@ public static class LineUpGeometry
     /// not an FAA figure: nothing in 7110.65 or the AIM says how far an aircraft rolls to line up, only that it
     /// ends aligned on the centerline.
     /// </para>
+    ///
+    /// <para>
+    /// Under <see cref="TurnModel.Ramp"/> a non-helicopter's nose does not swing at the full rate from the start: the yaw
+    /// rate builds at α = <see cref="CategoryPerformance.GroundTurnRate"/> / <see cref="CategoryPerformance.GroundSteerRampSeconds"/>
+    /// and eases out the same way, up to the ceiling physics steers at
+    /// (<see cref="CategoryPerformance.GroundSteerRateCeilingDegPerSec"/> with the swing rate as the override). The swing then
+    /// takes <c>θ/ω + ω/α</c> seconds when θ ≥ ω²/α (the full rate is reached), otherwise <c>2√(θ/α)</c>. A helicopter
+    /// pedal-turns instantly on its wheels, so its swing stays <c>θ/ω</c>.
+    /// </para>
     /// </summary>
-    public static double ResumedSwingRolloutLengthFt(AircraftCategory category, double headingOffDeg, double swingRateDegPerSec)
+    public static double ResumedSwingRolloutLengthFt(AircraftCategory category, double headingOffDeg, double swingRateDegPerSec, TurnModel turnModel)
     {
         if (swingRateDegPerSec <= 0.0)
         {
             return RolloutLengthFt;
         }
 
-        double swingSeconds = Math.Abs(headingOffDeg) / swingRateDegPerSec;
-        double swingFt = swingSeconds * ResumedRolloutSpeedKts(category) * GeoMath.FeetPerNm / 3600.0;
+        double speedKts = ResumedRolloutSpeedKts(category);
+        double thetaDeg = Math.Abs(headingOffDeg);
+        bool ramped = (turnModel == TurnModel.Ramp) && (category != AircraftCategory.Helicopter);
+        double swingSeconds = ramped
+            ? RampedSwingSeconds(
+                category,
+                thetaDeg,
+                CategoryPerformance.GroundSteerRateCeilingDegPerSec(category, aircraftType: null, speedKts, swingRateDegPerSec)
+            )
+            : thetaDeg / swingRateDegPerSec;
+        double swingFt = swingSeconds * speedKts * GeoMath.FeetPerNm / 3600.0;
         return RolloutLengthFt + swingFt;
+    }
+
+    /// <summary>
+    /// Seconds a ramped ground steer takes to turn <paramref name="thetaDeg"/> with a full rate of
+    /// <paramref name="rateDegPerSec"/>: <c>θ/ω + ω/α</c> when the full rate is reached (θ ≥ ω²/α), otherwise
+    /// <c>2√(θ/α)</c>, with α the category's ground steering acceleration.
+    /// </summary>
+    private static double RampedSwingSeconds(AircraftCategory category, double thetaDeg, double rateDegPerSec)
+    {
+        double alpha = CategoryPerformance.GroundTurnRate(category) / CategoryPerformance.GroundSteerRampSeconds(category);
+        return thetaDeg >= (rateDegPerSec * rateDegPerSec / alpha)
+            ? (thetaDeg / rateDegPerSec) + (rateDegPerSec / alpha)
+            : 2.0 * Math.Sqrt(thetaDeg / alpha);
     }
 
     // ---- Plan builders ----

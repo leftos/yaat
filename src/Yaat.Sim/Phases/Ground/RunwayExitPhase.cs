@@ -589,7 +589,7 @@ public sealed class RunwayExitPhase : Phase
         // Use ground rollout decel (category-specific, 5 kt/s jet, 2 kt/s
         // piston) rather than the airborne default from AircraftPerformance.DecelRate.
         ctx.Targets.DesiredDecelRate = CategoryPerformance.TaxiDecelRate(ctx.Category);
-        // Use ground turn rate (20 deg/s jet, 35 deg/s piston) rather than the
+        // Use ground turn rate (12 deg/s jet, 20 deg/s piston) rather than the
         // airborne turn rate (~2.5 deg/s). On the ground FlightPhysics uses this
         // override via TurnRateOverride; V1 achieved the same effect by writing
         // Aircraft.TrueHeading directly with GroundTurnRate.

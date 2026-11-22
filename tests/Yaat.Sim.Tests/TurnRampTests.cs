@@ -357,27 +357,26 @@ public class TurnRampTests
     }
 
     [Fact]
-    public void OnGround_TurnsExactlyAsTheInstantModel()
+    public void OnGround_RollingAboveCreepSpeed_RampsTheNoseWheelSteering()
     {
         AircraftState ramp = MakeAircraft("B738", heading: 90, ias: 10, altitude: 10);
         AircraftState instant = MakeAircraft("B738", heading: 90, ias: 10, altitude: 10);
-        foreach (AircraftState ac in new[] { ramp, instant })
+        AircraftState[] pair = [ramp, instant];
+        foreach (AircraftState ac in pair)
         {
             ac.IsOnGround = true;
             ac.Targets.TargetTrueHeading = new TrueHeading(120);
             ac.Targets.TurnRateOverride = 10;
         }
 
-        for (int i = 0; i < 8; i++)
-        {
-            Tick(ramp, RampOptions);
-            Tick(instant, PhysicsTickOptions.Default);
-            Assert.Equal(instant.TrueHeading.Degrees, ramp.TrueHeading.Degrees);
-            Assert.Equal(instant.BankAngle, ramp.BankAngle);
-            Assert.Null(ramp.AppliedTurnRateDegPerSec);
-        }
+        Tick(ramp, RampOptions);
+        Tick(instant, PhysicsTickOptions.Default);
 
-        Assert.NotEqual(90, ramp.TrueHeading.Degrees);
+        double alphaStep = CategoryPerformance.GroundTurnRate(AircraftCategory.Jet) / CategoryPerformance.JetGroundSteerRampSeconds * Dt;
+        Assert.Equal(alphaStep, Assert.NotNull(ramp.AppliedTurnRateDegPerSec), 1e-9);
+        Assert.Equal(90 + (alphaStep * Dt), ramp.TrueHeading.Degrees, 1e-9);
+        Assert.Equal(90 + (10 * Dt), instant.TrueHeading.Degrees, 1e-9);
+        Assert.Null(instant.AppliedTurnRateDegPerSec);
     }
 
     [Fact]
