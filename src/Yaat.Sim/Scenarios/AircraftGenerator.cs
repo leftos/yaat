@@ -624,7 +624,6 @@ public static class AircraftGenerator
     /// </summary>
     private static double ComputeDefaultEstablishmentAltitude(AircraftState state, Dictionary<string, int> altByFix, string airport)
     {
-        const double GradientFtPerNm = 300.0; // ~3:1; AIM 5-4-2.b descent window is 250–350 ft/nm
         const double FloorFt = 4000.0;
         const double CapFt = 24000.0; // typical top-of-descent ceiling (FL240) for the derived estimate
 
@@ -644,7 +643,7 @@ public static class AircraftGenerator
             cumulativeNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
             if (altByFix.TryGetValue(route[i].Name, out int crossing))
             {
-                derived = crossing + (cumulativeNm * GradientFtPerNm);
+                derived = crossing + (cumulativeNm * FlightPhysics.TopOfDescentFtPerNm);
                 break;
             }
         }
@@ -662,7 +661,7 @@ public static class AircraftGenerator
                 airportPos is not null && route.Count > 0
                     ? GeoMath.DistanceNm(route[0].Position, new LatLon(airportPos.Value.Lat, airportPos.Value.Lon))
                     : 30.0;
-            result = distNm * GradientFtPerNm;
+            result = distNm * FlightPhysics.TopOfDescentFtPerNm;
         }
 
         result = Math.Clamp(result, FloorFt, CapFt);

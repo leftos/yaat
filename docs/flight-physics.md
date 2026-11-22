@@ -269,7 +269,7 @@ The climb scan (`FlightPhysics.PlanClimbScan`, shared by `UpdateClimbPlanning`, 
 - **Nothing acts.** When no bound acts the planner leaves the target alone, so an aircraft level at an approach floor is not sent back up.
 - **Past a ceiling's fix.** `ReleaseClimbCeilingPastFix` resumes the climb at once to the cleared altitude, even without a CFIX revert, and logs "past {Fix}, climb resumes to {Target}" at Debug on the FlightPhysics category.
 
-The descent scan (`FlightPhysics.PlanDescentScan`, shared by `UpdateDescentPlanning`, the descending path of `ApplyFixAltitudeConstraint` and `ReleaseDescentFloorPastFix`) is the mirror of the climb scan, off a descend via and a SID. Descend via is unchanged: `UpdateDescendViaPlanning` still steps to the next depicted altitude one constraint at a time (`PlanDescendViaFix`). The scan walks the route from the cleared altitude:
+The descent scan (`FlightPhysics.PlanDescentScan`, shared by `UpdateDescentPlanning`, the descending path of `ApplyFixAltitudeConstraint` and `ReleaseDescentFloorPastFix`) is the mirror of the climb scan, off a descend via and a SID. A descend via is planned by `UpdateDescendViaPlanning`: the target is the next depicted altitude that calls for a descent (`DescendViaTarget`), and the rate comes from the top-of-descent planner below. The scan walks the route from the cleared altitude:
 
 - **Floors.** Every in-force floor still ahead, met or not (an at-or-above, a window's bottom, an at, a glideslope intercept), is a lower limit: the aircraft never goes below it and climbs back (AIM 4-4-10.e). A floor above the target raises and binds it, but never above a nearer ceiling or At, which is met first (AIM 4-4-10.a).
 - **Ceilings.** A ceiling or At (an at-or-below, a window's top, an at) lowers the target to itself, never below an earlier floor, which then binds; a window below the assigned altitude targets its top. Ceilings beyond the binding bound wait until its fix sequences.
@@ -279,6 +279,14 @@ The descent scan (`FlightPhysics.PlanDescentScan`, shared by `UpdateDescentPlann
 - **Nothing acts.** The planner leaves the target alone.
 - **Fix sequencing.** The descending case of `ApplyFixAltitudeConstraint` goes through the same scan, so a met bound no longer ends the descent while a floor lies ahead.
 - **Past a floor's fix.** `ReleaseDescentFloorPastFix` returns the aircraft at once to its assigned altitude, above the floors left on the route, when that is below the present altitude, and only where the fix carries no revert. It logs "past {Fix}, descent resumes to {Target}" at Debug on the FlightPhysics category.
+
+**Top of descent** (`FlightPhysics.TopOfDescentRate`) decides when a descend via or a controller's crossing (`CFIX X Y`, `CFIX X B<alt>`) starts down. The aircraft holds level, target altitude standing and `PlannedVerticalRate` 0, until a 3:1 top of descent: the latest, over every in-force ceiling ahead, of (altitude − ceiling) / `TopOfDescentFtPerNm` NM plus 1 NM per 10 kt it must slow by the ceiling's fix, each measured to the ceiling's sequencing point. The slowdown counts the published speed restrictions up to the fix, and 250 kt when the path crosses 10,000 ft from above (`CeilingSpeedKts`).
+
+- **The descent.** Inside the top of descent the rate is the greater of `TopOfDescentFtPerNm` × groundspeed / 60 and the steepest rate any ceiling ahead needs, capped at 2× standard rate, with no minimum rate.
+- **Floors.** An at-or-above only bounds the target and never triggers the descent, and counts only when it is at or below the aircraft. Under a descend via, the via's own at-or-above bottom altitude (`ViaTargetCeiling`) counts as a ceiling.
+- **Hold band.** `TopOfDescentHoldBandNm` (1 NM) keeps an aircraft already descending in the descent, so a small drift off the path does not toggle it on and off.
+- **Still prompt.** A plain `DM`, and a `DM` after a crossing or a descend via, descends at profile rate from the start (`CrossingTopOfDescentRate` returns null when the cleared altitude is below every crossing). Climbs are unchanged.
+- **Vertical speed.** A level aircraft reports 0, never -0 (`DescentRateSigned`).
 
 ## Speed integration (`UpdateSpeed`) + look-ahead planning
 
@@ -536,6 +544,7 @@ If `Position` is non-finite or out of range (`|lat| > 90`, `|lon| > 180`), the W
   When the aircraft is on that profile and either test fails, nothing is handed back, and the instructor's answer says so: `Resume normal speed — already on its final approach speed profile, no change` instead of the plain `Resume normal speed` every other case gets (the pilot readback is the same either way; `ResumeNormalSpeedOnFinalTests`).
 
   Re-accelerating it a few miles before the phase slows it again is what §5-7-1's lead ("Avoid adjustments requiring alternate decreases and increases") and §5-7-1.a.3(e) rule out, and AIM 4-4-12.f scopes "resume normal speed" to before an approach clearance.
+- **The 3:1 descent gradient is one constant in two places.** `FlightPhysics.TopOfDescentFtPerNm` (300 ft/NM) sets where a cleared descend via or crossing starts down, and `AircraftGenerator` projects a STAR arrival's establishment altitude up the same gradient, so a spawned and a cleared arrival fly one profile. Changing it for one moves the other; a spawn that no longer sits on the path would start out of step with the planner and level or dive on its first tick.
 
   Both restores are one-shot writes, and one write is enough under a lower regulatory cap (a Class B shelf's 200 kt, 91.117(c)): the restored target stays standing at the cap and the aircraft takes it up once the cap lifts (the 91.117 bullet above).
 - **There are FOUR aircraft categories — Jet, Turboprop, Piston, Helicopter.** A summary that lists only the first three is incomplete; the Helicopter

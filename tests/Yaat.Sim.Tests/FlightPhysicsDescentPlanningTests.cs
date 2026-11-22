@@ -84,20 +84,38 @@ public sealed class FlightPhysicsDescentPlanningTests
 
     private static double ProfileDescentRate(double altitudeFt) => AircraftPerformance.DescentRate(AircraftType, AircraftCategory.Jet, altitudeFt);
 
+    /// <summary>
+    /// "Cross SANGO at 11,000" 70 nm out is at the pilot's discretion until SANGO (AIM 4-4-10.e): the planner holds the
+    /// aircraft level (a zero planned rate) until its top of descent, 11,000 ft at 300 ft per NM (no published speed to slow
+    /// to), then descends and crosses SANGO at 11,000.
+    /// </summary>
     [Fact]
-    public void CrossingRestrictionFarOut_DescendsAtTheComputedGentleRate()
+    public void CrossingRestrictionFarOut_HoldsLevelUntilTopOfDescent()
     {
         AircraftState aircraft = MakeArrivalCrossingFix();
 
         Tick(aircraft, 5);
 
-        double profileRate = ProfileDescentRate(aircraft.Altitude);
-        Assert.NotNull(aircraft.Targets.PlannedVerticalRate);
-        Assert.True(aircraft.Targets.PlannedVerticalRate < 0, $"planner rate {aircraft.Targets.PlannedVerticalRate} should be a descent");
-        Assert.True(
-            Math.Abs(aircraft.VerticalSpeed) < profileRate * 0.6,
-            $"expected a gentle planned descent well below the {profileRate:F0} fpm profile rate, got {aircraft.VerticalSpeed:F0} fpm"
-        );
+        Assert.Equal(0, aircraft.Targets.PlannedVerticalRate);
+        Assert.False(double.IsNegative(aircraft.Targets.PlannedVerticalRate!.Value), "the planned rate reads -0");
+        Assert.True((aircraft.VerticalSpeed == 0) && !double.IsNegative(aircraft.VerticalSpeed), $"VS {aircraft.VerticalSpeed} while held level");
+
+        double todNm = (CruiseAltitudeFt - CrossingAltitudeFt) / 300.0;
+        LatLon fixPosition = aircraft.Targets.NavigationRoute[0].Position;
+        double startNm = 0;
+        for (int t = 0; (t < 1200) && (aircraft.Altitude >= CruiseAltitudeFt - FlightPhysics.AltitudeSnapFt); t++)
+        {
+            startNm = GeoMath.DistanceNm(aircraft.Position, fixPosition);
+            Tick(aircraft, 1);
+        }
+
+        Assert.True(startNm <= todNm * 1.25, $"The descent began {startNm:F1} nm before {FixName}, before its {todNm:F1} nm top of descent");
+        for (int t = 0; (t < 1200) && (aircraft.Targets.NavigationRoute.Count > 0); t++)
+        {
+            Tick(aircraft, 1);
+        }
+
+        Assert.InRange(aircraft.Altitude, CrossingAltitudeFt - FlightPhysics.AltitudeSnapFt, CrossingAltitudeFt + FlightPhysics.AltitudeSnapFt);
     }
 
     [Fact]

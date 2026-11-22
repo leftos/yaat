@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Arrivals cleared to descend via a STAR, or to cross a fix at an altitude, stay level until a normal top of descent instead of starting a shallow descent at once.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
 - Solo: uncleared VFR pilots now stay under a Class B shelf in the pattern, approaches, go-arounds and departures, saying unable once per altitude into it.
 - Solo: a pattern entry or approach to an airport outside the Class B no longer clears a waiting VFR pilot into that Bravo or answers its request.

@@ -372,11 +372,12 @@ public class CrossingBoundMetByClearanceTests
 
     /// <summary>
     /// A plain "CFIX TOOOL at or below 120" from 16,000 with the fix far ahead assigns 12,000, which then equals the bound:
-    /// that is not a clearance beyond the bound, so the planner keeps planning the crossing itself and descends at the
-    /// gentle rate that arrives at the fix, well below the standard descent rate.
+    /// that is not a clearance beyond the bound, so the planner keeps planning the crossing itself. The crossing is at the
+    /// pilot's discretion until the fix (AIM 4-4-10.e), so the aircraft holds 16,000 until its top of descent, 4,000 ft at
+    /// 300 ft per NM plus 1 NM per 10 kt it must slow by TOOOL, then descends and crosses TOOOL at or below 12,000.
     /// </summary>
     [Fact]
-    public void PlainAtOrBelowFromAbove_FarFix_KeepsTheGentlePlannedRate()
+    public void PlainAtOrBelowFromAbove_FarFix_HoldsLevelUntilTopOfDescent()
     {
         if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
@@ -390,23 +391,46 @@ public class CrossingBoundMetByClearanceTests
         SendOk(harness, $"CFIX {fixName} B120");
         Assert.Equal(12000, aircraft.Targets.AssignedAltitude);
 
-        for (int t = 0; t < 10; t++)
+        double slowestKts = double.MaxValue;
+        foreach (NavigationTarget fix in aircraft.Targets.NavigationRoute.TakeWhile(f => f.Name != fixName).Append(FixOnRoute(aircraft, fixName)))
         {
-            harness.Engine.TickOneSecond();
+            slowestKts =
+                (fix.SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove } speed) ? Math.Min(slowestKts, speed.SpeedKts) : slowestKts;
         }
 
-        double standardFpm = AircraftPerformance.DescentRate(
-            aircraft.AircraftType,
-            AircraftCategorization.Categorize(aircraft.AircraftType),
-            aircraft.Altitude
-        );
-        _output.WriteLine($"Vertical speed {aircraft.VerticalSpeed:F0} fpm, standard descent {standardFpm:F0} fpm");
-        Assert.True(aircraft.VerticalSpeed < 0, $"The aircraft is not descending: {aircraft.VerticalSpeed:F0} fpm");
-        // 4,000 ft over the ~47 nm to TOOOL plans a few hundred fpm, well under half the standard rate
-        Assert.True(
-            -aircraft.VerticalSpeed < standardFpm / 2,
-            $"Descending at {-aircraft.VerticalSpeed:F0} fpm, not the gentle planned rate (standard {standardFpm:F0})"
-        );
+        double todNm = (4000 / 300.0) + (Math.Max(0, aircraft.IndicatedAirspeed - slowestKts) / 10.0);
+        double? startNm = null;
+        for (int t = 0; (t < 1200) && aircraft.Targets.NavigationRoute.Exists(f => f.Name == fixName); t++)
+        {
+            double toFixNm = AlongRouteNm(aircraft, fixName);
+            harness.Engine.TickOneSecond();
+            if ((startNm is null) && (aircraft.Altitude < 16000 - FlightPhysics.AltitudeSnapFt))
+            {
+                startNm = toFixNm;
+            }
+        }
+
+        _output.WriteLine($"Top of descent {todNm:F1} nm; descent began {startNm:F1} nm before {fixName}; crossed at {aircraft.Altitude:F0}");
+        Assert.NotNull(startNm);
+        Assert.True(startNm <= todNm * 1.25, $"The descent began {startNm:F1} nm before {fixName}, before its {todNm:F1} nm top of descent");
+        Assert.True(aircraft.Altitude <= 12000 + FlightPhysics.AltitudeSnapFt, $"Crossed {fixName} at {aircraft.Altitude:F0}");
+    }
+
+    private static NavigationTarget FixOnRoute(AircraftState aircraft, string fixName) =>
+        aircraft.Targets.NavigationRoute.First(f => f.Name == fixName);
+
+    /// <summary>The along-route NM from the aircraft to <paramref name="fixName"/>.</summary>
+    private static double AlongRouteNm(AircraftState aircraft, string fixName)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int k = route.FindIndex(f => f.Name == fixName);
+        double d = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+        for (int i = 1; i <= k; i++)
+        {
+            d += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
+        }
+
+        return d;
     }
 
     /// <summary>

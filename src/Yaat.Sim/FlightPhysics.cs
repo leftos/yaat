@@ -539,75 +539,311 @@ public static class FlightPhysics
         if ((plan.TargetFt is { } target) && (target < aircraft.Altitude))
         {
             aircraft.Targets.TargetAltitude = target;
-            aircraft.Targets.PlannedVerticalRate = -plan.RateFpm;
+            double? rate = CrossingTopOfDescentRate(aircraft, cat, route, plan.RateFpm) ?? plan.RateFpm;
+            aircraft.Targets.PlannedVerticalRate = DescentRateSigned(rate);
         }
     }
 
     /// <summary>
-    /// Step-descent planning under a descend via. Finds the next altitude constraint in the route and computes the descent
-    /// rate required to meet it at the sequencing point, adjusting the rate (steeper or shallower) rather than using a fixed
-    /// rate with a distance-based trigger: one constraint at a time.
+    /// The 3:1 rule: a descent loses 300 ft per NM flown, three NM per 1,000 ft (AIM 5-4-2.b's 250-350 ft per NM window). The
+    /// top-of-descent planner (<see cref="TopOfDescentRate"/>) flies it, and the generator projects a STAR arrival's
+    /// establishment altitude up the same gradient, so spawned and cleared arrivals fly one profile.
+    /// </summary>
+    internal const double TopOfDescentFtPerNm = 300;
+
+    /// <summary>The top of descent moves one NM earlier per 10 kt the descent must slow by its ceiling's fix.</summary>
+    private const double DecelNmPer10Kt = 1;
+
+    /// <summary>
+    /// How far below the 3:1 path an aircraft already descending keeps descending rather than levelling, so a small drift
+    /// below the path (a groundspeed or sequencing-point change) does not flicker the descent on and off.
+    /// </summary>
+    private const double TopOfDescentHoldBandNm = 1;
+
+    /// <summary>The most ceilings the top-of-descent scan holds on the stack; a longer route uses the heap.</summary>
+    private const int TopOfDescentStackCeilings = 64;
+
+    /// <summary>
+    /// One in-force ceiling ahead for the top-of-descent planner (<see cref="TopOfDescentRate"/>): its altitude, the
+    /// along-track NM to where its fix sequences (<see cref="SequencingDistanceNm"/>), and the speed the aircraft must be at
+    /// by then (<see cref="CeilingSpeedKts"/>; <see cref="double.MaxValue"/> for none).
+    /// </summary>
+    private readonly record struct TopOfDescentCeiling(double AltitudeFt, double SequencingDistNm, double SpeedKts);
+
+    /// <summary>
+    /// The descent rate magnitude (fpm) the top-of-descent planner flies, or 0 to hold level. Each ceiling below the aircraft
+    /// puts its top of descent its drop at <see cref="TopOfDescentFtPerNm"/> plus <see cref="DecelNmPer10Kt"/> per 10 kt of
+    /// deceleration before where its fix sequences; the aircraft holds level until it is inside the earliest one (within
+    /// <see cref="TopOfDescentHoldBandNm"/> while it is already descending). Inside it descends at
+    /// <see cref="TopOfDescentFtPerNm"/> over the ground, at least the rate any ceiling needs to be met, capped at twice
+    /// <paramref name="standardRate"/>, with no minimum: a descent from inside the top of descent starts at once. Floors only
+    /// bound the target and never trigger a descent, and with no ceiling below the aircraft it holds level.
+    /// </summary>
+    private static double TopOfDescentRate(
+        AircraftState aircraft,
+        ReadOnlySpan<TopOfDescentCeiling> ceilings,
+        double groundSpeedKts,
+        double standardRate
+    )
+    {
+        double marginNm = double.PositiveInfinity;
+        double neededFpm = 0;
+        foreach (TopOfDescentCeiling ceiling in ceilings)
+        {
+            double loseFt = aircraft.Altitude - ceiling.AltitudeFt;
+            if (loseFt <= AltitudeSnapFt)
+            {
+                continue;
+            }
+
+            double decelNm = Math.Max(0, aircraft.IndicatedAirspeed - ceiling.SpeedKts) / 10.0 * DecelNmPer10Kt;
+            marginNm = Math.Min(marginNm, ceiling.SequencingDistNm - (loseFt / TopOfDescentFtPerNm) - decelNm);
+            neededFpm = Math.Max(neededFpm, NeededClimbRate(loseFt, ceiling.SequencingDistNm, groundSpeedKts, standardRate) ?? 0);
+        }
+
+        double holdBandNm = (aircraft.VerticalSpeed < 0) ? TopOfDescentHoldBandNm : 0;
+        if (marginNm > holdBandNm)
+        {
+            return 0;
+        }
+
+        double pathFpm = TopOfDescentFtPerNm * groundSpeedKts / 60.0;
+        return Math.Min(Math.Max(pathFpm, neededFpm), standardRate * 2.0);
+    }
+
+    /// <summary>
+    /// The speed the aircraft must be at by a ceiling at <paramref name="ceilingFt"/>: the lowest published speed at or
+    /// before its fix (<paramref name="publishedKts"/>), and 250 kt when the descent to it crosses 10,000 ft from above and
+    /// 14 CFR 91.117(a) is not waived.
+    /// </summary>
+    private static double CeilingSpeedKts(AircraftState aircraft, double ceilingFt, double publishedKts)
+    {
+        bool crossesTenThousand = (ceilingFt < TenThousandFt) && (aircraft.Altitude > TenThousandFt) && !IsSpeedLimitWaived(aircraft);
+        return crossesTenThousand ? Math.Min(publishedKts, SpeedLimitBelow10kKts) : publishedKts;
+    }
+
+    /// <summary>
+    /// The lowest of <paramref name="lowestKts"/> and <paramref name="fix"/>'s published speed, when that applies
+    /// (<see cref="PublishedSpeedApplies"/>) and is not a minimum: the speed a descent must slow to by the fix.
+    /// </summary>
+    private static double LowestSpeedThrough(AircraftState aircraft, NavigationTarget fix, double lowestKts)
+    {
+        bool applies = PublishedSpeedApplies(fix, aircraft.Targets.HasExplicitSpeedCommand, aircraft.Procedure.SpeedRestrictionsDeleted);
+        return (applies && (fix.SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove } speed))
+            ? Math.Min(lowestKts, speed.SpeedKts)
+            : lowestKts;
+    }
+
+    /// <summary>
+    /// A planned descent rate magnitude as the signed <see cref="ControlTargets.PlannedVerticalRate"/>: 0, never -0, to hold
+    /// level.
+    /// </summary>
+    private static double? DescentRateSigned(double? rateFpm) => rateFpm is { } rate ? ((rate > 0) ? -rate : 0) : null;
+
+    /// <summary>
+    /// The top-of-descent rate (<see cref="TopOfDescentRate"/>) for a descent off a via toward a controller's crossing, or
+    /// null for a prompt descent (<see cref="CrossingClearedMarginFt"/>). Every in-force ceiling ahead plans the top of
+    /// descent (AIM 4-4-10.e: pilot's discretion until the fix); an "at or above" only bounds. With no ceiling below the
+    /// aircraft and a cleared altitude above every crossing, the descent to the cleared altitude is prompt; inside the top
+    /// of descent the steeper of the top-of-descent rate and <paramref name="scanRateFpm"/> (the scan's) is flown.
+    /// </summary>
+    private static double? CrossingTopOfDescentRate(AircraftState aircraft, AircraftCategory cat, List<NavigationTarget> route, double? scanRateFpm)
+    {
+        if (CrossingClearedMarginFt(aircraft, route) is not { } clearedAboveFt)
+        {
+            return null;
+        }
+
+        Span<TopOfDescentCeiling> buffer =
+            (route.Count <= TopOfDescentStackCeilings) ? stackalloc TopOfDescentCeiling[route.Count] : new TopOfDescentCeiling[route.Count];
+        ReadOnlySpan<TopOfDescentCeiling> ceilings = buffer[..CollectCeilings(aircraft, route, buffer)];
+        if ((clearedAboveFt > AltitudeSnapFt) && !HasCeilingBelow(aircraft, ceilings))
+        {
+            return null;
+        }
+
+        double standardRate = AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
+        double rate = TopOfDescentRate(aircraft, ceilings, aircraft.GroundSpeed, standardRate);
+        return (rate > 0) ? Math.Max(rate, scanRateFpm ?? 0) : 0;
+    }
+
+    /// <summary>
+    /// How far the cleared altitude (<see cref="NavigationCommandHandler.ClearedAltitude"/>) is above the lowest crossing on
+    /// <paramref name="route"/> (<see cref="LowestCrossingFt"/>), 0 with no cleared altitude; null for a prompt descent: no
+    /// crossing ahead, or a cleared altitude below every crossing (a descend and maintain).
+    /// </summary>
+    private static double? CrossingClearedMarginFt(AircraftState aircraft, List<NavigationTarget> route)
+    {
+        if (LowestCrossingFt(route) is not { } lowestFt)
+        {
+            return null;
+        }
+
+        double marginFt = (NavigationCommandHandler.ClearedAltitude(aircraft) is { } cleared) ? cleared - lowestFt : 0;
+        return (marginFt < -AltitudeSnapFt) ? null : marginFt;
+    }
+
+    /// <summary>The lowest altitude a controller's crossing on <paramref name="route"/> allows (its floor, else its value); null for none.</summary>
+    private static double? LowestCrossingFt(List<NavigationTarget> route)
+    {
+        double? lowestFt = null;
+        foreach (NavigationTarget fix in route)
+        {
+            if (fix.AltitudeRestriction is { Source: CifpAltitudeRestrictionSource.Atc } crossing)
+            {
+                lowestFt = Math.Min(lowestFt ?? double.MaxValue, DescentFloorFt(crossing) ?? crossing.Altitude1Ft);
+            }
+        }
+
+        return lowestFt;
+    }
+
+    /// <summary>Whether any of <paramref name="ceilings"/> lies more than <see cref="AltitudeSnapFt"/> below the aircraft.</summary>
+    private static bool HasCeilingBelow(AircraftState aircraft, ReadOnlySpan<TopOfDescentCeiling> ceilings)
+    {
+        foreach (TopOfDescentCeiling ceiling in ceilings)
+        {
+            if (ceiling.AltitudeFt < aircraft.Altitude - AltitudeSnapFt)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Writes the in-force ceilings on <paramref name="route"/> (an at, an at-or-below, a window's top, a glideslope
+    /// intercept) into <paramref name="ceilings"/> in route order,
+    /// each no lower than a descend via's floor (<see cref="AircraftProcedure.StarViaFloor"/>), and returns how many.
+    /// </summary>
+    private static int CollectCeilings(AircraftState aircraft, List<NavigationTarget> route, Span<TopOfDescentCeiling> ceilings)
+    {
+        int count = 0;
+        double cumulativeDistNm = 0;
+        double publishedKts = double.MaxValue;
+        for (int i = 0; i < route.Count; i++)
+        {
+            cumulativeDistNm += GeoMath.DistanceNm((i == 0) ? aircraft.Position : route[i - 1].Position, route[i].Position);
+            publishedKts = LowestSpeedThrough(aircraft, route[i], publishedKts);
+            if (TopOfDescentCeilingFt(aircraft, route[i]) is not { } altitudeFt)
+            {
+                continue;
+            }
+
+            double sequencingDistNm = SequencingDistanceNm(aircraft, route, i, cumulativeDistNm);
+            ceilings[count++] = new TopOfDescentCeiling(altitudeFt, sequencingDistNm, CeilingSpeedKts(aircraft, altitudeFt, publishedKts));
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// The ceiling <paramref name="fix"/>'s in-force restriction puts over a top of descent (<see cref="DescentCeilingFt"/>),
+    /// no lower than a descend via's floor; null for none, a floor only, or one not a controller's with
+    /// <paramref name="crossingsOnly"/>.
+    /// </summary>
+    private static double? TopOfDescentCeilingFt(AircraftState aircraft, NavigationTarget fix)
+    {
+        if (
+            (fix.AltitudeRestriction is not { } restriction)
+            || (DescentCeilingFt(restriction) is not { } ceilingFt)
+            || !AltitudeRestrictionInForce.IsInForce(aircraft, restriction)
+        )
+        {
+            return null;
+        }
+
+        return Math.Max(ceilingFt, aircraft.Procedure.StarViaFloor ?? ceilingFt);
+    }
+
+    /// <summary>
+    /// Step-descent planning under a descend via. The target is the next depicted altitude that calls for a descent
+    /// (<see cref="DescendViaTarget"/>), never below a floor still ahead of it, so a window's floor holds until its fix
+    /// sequences; the rate is the top-of-descent planner's (<see cref="TopOfDescentRate"/>) over every in-force ceiling ahead,
+    /// so the aircraft holds its altitude until the controlling ceiling's top of descent and has no level segment at the top
+    /// of a window on the way down (AIM 5-4-1.a.2(a)(1): the descent is at the pilot's discretion).
     /// </summary>
     private static void UpdateDescendViaPlanning(AircraftState aircraft, AircraftCategory cat, List<NavigationTarget> route)
     {
-        double cumulativeDistNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+        if (DescendViaTarget(aircraft, route) is not { } target)
+        {
+            return;
+        }
 
+        aircraft.Targets.TargetAltitude = target.AltitudeFt;
+        int capacity = route.Count + 1;
+        Span<TopOfDescentCeiling> buffer =
+            (capacity <= TopOfDescentStackCeilings) ? stackalloc TopOfDescentCeiling[capacity] : new TopOfDescentCeiling[capacity];
+        int count = CollectCeilings(aircraft, route, buffer);
+
+        // The via descends to an at-or-above's altitude (the procedure's bottom), so that target plans a top of descent too
+        if (route[target.Index].AltitudeRestriction is { Type: CifpAltitudeRestrictionType.AtOrAbove })
+        {
+            buffer[count++] = ViaTargetCeiling(aircraft, route, target.Index, target.AltitudeFt);
+        }
+
+        double standardRate = AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
+        aircraft.Targets.PlannedVerticalRate = DescentRateSigned(TopOfDescentRate(aircraft, buffer[..count], aircraft.GroundSpeed, standardRate));
+    }
+
+    /// <summary>
+    /// The depicted altitude the first in-force restriction on <paramref name="route"/> that calls for a descent resolves to
+    /// under a descend via, never below the via's floor (<see cref="AircraftProcedure.StarViaFloor"/>) nor below the highest
+    /// floor (<see cref="DescentFloorFt"/>) not above the aircraft of an in-force restriction before it, whose fix has not
+    /// sequenced. A via clearance flies to the depicted altitudes, so the cleared altitude never meets a bound
+    /// (<see cref="ClearedAltitudeMeetingBound"/>) and each restriction resolves as a descent. Returns that altitude and the
+    /// route index of its fix; null when none calls for a descent below the aircraft.
+    /// </summary>
+    private static (double AltitudeFt, int Index)? DescendViaTarget(AircraftState aircraft, List<NavigationTarget> route)
+    {
+        double floorFt = aircraft.Procedure.StarViaFloor ?? double.MinValue;
         for (int i = 0; i < route.Count; i++)
         {
-            if (i > 0)
-            {
-                cumulativeDistNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
-            }
-
             if ((route[i].AltitudeRestriction is not { } restriction) || !AltitudeRestrictionInForce.IsInForce(aircraft, restriction))
             {
                 continue;
             }
 
-            if (PlanDescendViaFix(aircraft, cat, restriction, SequencingDistanceNm(aircraft, route, i, cumulativeDistNm)))
+            double targetAlt = Math.Max(ResolveAltitudeRestriction(aircraft, restriction, isDescending: true) ?? double.MaxValue, floorFt);
+            if (targetAlt < aircraft.Altitude)
             {
-                break; // Step descent: only target the next constraint
+                return (targetAlt, i);
             }
+
+            floorFt = RaisedViaFloor(aircraft, restriction, floorFt);
         }
+
+        return null;
     }
 
     /// <summary>
-    /// Targets the depicted altitude <paramref name="restriction"/> calls for under a descend via, never below the via's
-    /// floor (<see cref="AircraftProcedure.StarViaFloor"/>), at the rate that reaches it where the fix sequences,
-    /// <paramref name="sequencingDistNm"/> ahead. A via clearance flies to the depicted altitudes, so the cleared altitude
-    /// never meets a bound (<see cref="ClearedAltitudeMeetingBound"/>) and each restriction resolves as a descent. False when
-    /// the restriction calls for no descent, and the step descent looks at the next one.
+    /// <paramref name="floorFt"/> raised to <paramref name="restriction"/>'s floor (<see cref="DescentFloorFt"/>) when that
+    /// is not above the aircraft: a floor above it is one it is already under, which bounds nothing it could still descend
+    /// through.
     /// </summary>
-    private static bool PlanDescendViaFix(AircraftState aircraft, AircraftCategory cat, CifpAltitudeRestriction restriction, double sequencingDistNm)
+    private static double RaisedViaFloor(AircraftState aircraft, CifpAltitudeRestriction restriction, double floorFt) =>
+        ((DescentFloorFt(restriction) is { } restrictionFloorFt) && (restrictionFloorFt <= aircraft.Altitude + AltitudeSnapFt))
+            ? Math.Max(floorFt, restrictionFloorFt)
+            : floorFt;
+
+    /// <summary>
+    /// The descend via's own at-or-above target at <paramref name="route"/>[<paramref name="index"/>] as a top-of-descent
+    /// ceiling at <paramref name="altitudeFt"/>: a via clears the pilot down to that altitude, so the path is planned to it as
+    /// to the last constraint, measured to where its fix sequences, with the speed the aircraft must be at by then.
+    /// </summary>
+    private static TopOfDescentCeiling ViaTargetCeiling(AircraftState aircraft, List<NavigationTarget> route, int index, double altitudeFt)
     {
-        // Only a descent is planned: a depicted altitude at or above the aircraft calls for none
-        if ((ResolveAltitudeRestriction(aircraft, restriction, isDescending: true) is not { } targetAlt) || (targetAlt >= aircraft.Altitude))
+        double cumulativeDistNm = 0;
+        double publishedKts = double.MaxValue;
+        for (int i = 0; i <= index; i++)
         {
-            return false;
+            cumulativeDistNm += GeoMath.DistanceNm((i == 0) ? aircraft.Position : route[i - 1].Position, route[i].Position);
+            publishedKts = LowestSpeedThrough(aircraft, route[i], publishedKts);
         }
 
-        if (aircraft.Procedure.StarViaFloor is { } floor)
-        {
-            targetAlt = Math.Max(targetAlt, floor);
-        }
-
-        double altDelta = aircraft.Altitude - targetAlt;
-        if (altDelta <= 0)
-        {
-            return false;
-        }
-
-        aircraft.Targets.TargetAltitude = targetAlt;
-
-        // Compute the descent rate required to reach targetAlt where the fix sequences
-        double standardRate = AircraftPerformance.DescentRate(aircraft.AircraftType, cat, aircraft.Altitude);
-        double timeMinutes = sequencingDistNm / (aircraft.GroundSpeed / 60.0);
-
-        // Cap at 2× standard rate; no minimum — use a gentle rate if there's plenty of distance. Almost at the
-        // sequencing point the time is floored at one physics tick: on track the required rate holds steady and arrives on
-        // the last tick, never steepening into the level-off.
-        aircraft.Targets.PlannedVerticalRate = -Math.Min(altDelta / Math.Max(timeMinutes, 1.0 / 60), standardRate * 2.0);
-        return true;
+        double sequencingDistNm = SequencingDistanceNm(aircraft, route, index, cumulativeDistNm);
+        return new TopOfDescentCeiling(altitudeFt, sequencingDistNm, CeilingSpeedKts(aircraft, altitudeFt, publishedKts));
     }
 
     /// <summary>
@@ -3049,8 +3285,9 @@ public static class FlightPhysics
         }
         else
         {
+            // A planner's level hold flies a zero rate toward a lower target: it reads 0, never -0
             aircraft.Altitude -= change;
-            aircraft.VerticalSpeed = -rate;
+            aircraft.VerticalSpeed = (rate > 0) ? -rate : 0;
         }
     }
 

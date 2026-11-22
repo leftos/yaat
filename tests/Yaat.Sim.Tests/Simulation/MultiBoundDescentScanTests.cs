@@ -33,19 +33,23 @@ public class MultiBoundDescentScanTests
 
     /// <summary>
     /// What a descend via flies on the OAKES3 harness over <see cref="DescendViaTicks"/> seconds: each target change with
-    /// the planned rate then, and the altitude crossed at each sequenced fix, recorded on the base tree (b72c91769), before
-    /// the off-via descent scan.
+    /// the planned rate then, and the altitude crossed at each sequenced fix. The top-of-descent planner holds 16,000 (rate
+    /// 0) until FFIST's top of descent, so FFIST is crossed inside its 9,000-7,000 window and 7,000 is reached past it. Each
+    /// "crossed KOAK" is the holding pattern at the clearance limit sequencing its fix: on the tick the hold starts it puts
+    /// KOAK back on the route, which sequences that tick or the next depending on where in the tick the aircraft arrives,
+    /// so the entry logs a crossing here and the lap 260 s later logs another.
     /// </summary>
     private static readonly string[] DescendViaBaseEvents =
     [
-        "0 crossed OAKES at 15986",
-        "0 target 7000 rate -814",
-        "252 crossed GRUDG at 12658",
-        "368 crossed BANND at 11279",
-        "523 crossed TOOOL at 9499",
-        "757 target null rate null",
-        "758 crossed FFIST at 7000",
-        "1443 crossed KOAK at 7000",
+        "0 crossed OAKES at 16000",
+        "0 target 7000 rate 0",
+        "246 crossed GRUDG at 16000",
+        "355 crossed BANND at 16000",
+        "499 crossed TOOOL at 12614",
+        "724 crossed FFIST at 8959",
+        "828 target null rate null",
+        "1148 crossed KOAK at 7000",
+        "1408 crossed KOAK at 7000",
     ];
 
     private readonly ITestOutputHelper _output;
@@ -420,6 +424,30 @@ public class MultiBoundDescentScanTests
 
         _output.WriteLine($"events: [{string.Join(", ", events.Select(e => $"\"{e}\""))}]");
         Assert.Equal(DescendViaBaseEvents, events);
+    }
+
+    /// <summary>
+    /// A controller's "cross at 6,000" at the second approach fix, with a published approach ceiling (at or below 8,000) in
+    /// force at the first, from 10,000 cleared to 6,000: the crossing descent's top of descent is planned over every in-force
+    /// ceiling ahead, the approach one included, so the aircraft is at or below 8,000 where the first fix sequences.
+    /// </summary>
+    [Fact]
+    public void CrossingDescent_ApproachCeilingBeforeTheCrossing_IsMetToo()
+    {
+        AircraftState ac = ApproachRoute(
+            10000,
+            6000,
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.AtOrBelow, 8000),
+            new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, 6000)
+        );
+        List<NavigationTarget> route = ac.Targets.NavigationRoute;
+        route[1].AltitudeRestriction = route[1].AltitudeRestriction! with { Source = CifpAltitudeRestrictionSource.Atc };
+        string first = route[0].Name;
+
+        double atFirst = AltitudeWhereFixSequences(ac, first, 600);
+
+        _output.WriteLine($"{first} sequenced at {atFirst:F0}");
+        Assert.True(atFirst <= 8000 + FlightPhysics.AltitudeSnapFt, $"{first} sequenced at {atFirst:F0}, above its 8,000 ceiling");
     }
 
     /// <summary>Cleared to 8,000 at 14,000, an at 7,000 crossing at the next fix and an at-or-above 9,000 at the one after.</summary>

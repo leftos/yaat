@@ -666,6 +666,9 @@ A type's maximum operating Mach number (`AircraftPerformance.MaxOperatingMach`),
 **Roll-in (turn)**:
 Under the ramp turn model, the time an airborne turn takes to go from wings level to its full turn rate (`CategoryPerformance.RollInSeconds`: jet 5 s, turboprop 4 s, piston 3 s, helicopter 2 s, judgement values). The roll-out mirrors it, so the wings are level on the target heading; a turn-start point moves back by the lead the roll-in costs (`TurnShape.LeadNm`). Not the stand roll-in (the last leg into a parking stand, under Ground movement). See `docs/flight-physics.md`, Heading integration.
 
+**Top of descent**:
+The point where a descend via or a controller's crossing ceiling starts the aircraft down: the latest, over every in-force ceiling ahead, of the 3:1 distance (300 ft per NM, `FlightPhysics.TopOfDescentFtPerNm`) plus 1 NM per 10 kt it must slow by the ceiling's fix. Until then the aircraft holds level; a plain `DM` has none and descends at once. See `docs/flight-physics.md`, Vertical integration.
+
 **Turn model**:
 The scenario setting (`SimScenarioState.TurnModel`) for how airborne aircraft enter and leave a turn: `Instant` (the full rate from the first tick, stopping dead on the heading) or `Ramp` (a roll-in and roll-out). A fresh live load flies `Ramp`; a recording, checkpoint or rebuild keeps its own, and one made before the field existed reads `Instant`.
 

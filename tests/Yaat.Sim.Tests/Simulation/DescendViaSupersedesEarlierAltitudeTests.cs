@@ -920,12 +920,58 @@ public class DescendViaSupersedesEarlierAltitudeTests
         );
         Assert.NotNull(target);
         Assert.True(target <= bound, $"the target altitude is {target}, above the {bound} ft published at {next.Name}");
-        for (int t = 0; (t < 120) && (aircraft.Altitude >= start); t++)
+
+        // The descent waits for its top of descent (AIM 5-4-1.a.2(a)(1): a descend via is at the pilot's discretion): for each
+        // ceiling below the aircraft, the drop at 300 ft per NM plus 1 NM per 10 kt the aircraft must slow by its fix, before
+        // that fix. The controlling ceiling is the one whose top of descent comes first along the route.
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        (NavigationTarget Fix, int CeilingFt, double TodNm, double AlongNm)? controlling = null;
+        double along = 0;
+        int slowestKts = int.MaxValue;
+        for (int i = 0; i < route.Count; i++)
+        {
+            along += GeoMath.DistanceNm((i == 0) ? aircraft.Position : route[i - 1].Position, route[i].Position);
+            if (route[i].SpeedRestriction is { Type: not CifpSpeedRestrictionType.AtOrAbove } speed)
+            {
+                slowestKts = Math.Min(slowestKts, speed.SpeedKts);
+            }
+
+            if (route[i].AltitudeRestriction is not { Type: not CifpAltitudeRestrictionType.AtOrAbove } ceiling || (ceiling.Altitude1Ft >= start))
+            {
+                continue;
+            }
+
+            double bySpeed = (ceiling.Altitude1Ft < 10000) && (start > 10000) ? Math.Min(250, slowestKts) : slowestKts;
+            double tod = ((start - ceiling.Altitude1Ft) / 300.0) + (Math.Max(0, aircraft.IndicatedAirspeed - bySpeed) / 10.0);
+            if ((controlling is not { } best) || (along - tod < best.AlongNm - best.TodNm))
+            {
+                controlling = (route[i], ceiling.Altitude1Ft, tod, along);
+            }
+        }
+
+        Assert.True(controlling is not null, "setup: no ceiling below the aircraft on the route");
+        (NavigationTarget ceilingFix, int ceilingFt, double todNm, _) = controlling.Value;
+        double startNm = 0;
+        for (int t = 0; (t < 1800) && (aircraft.Altitude >= start) && route.Contains(ceilingFix); t++)
+        {
+            startNm = GeoMath.DistanceNm(aircraft.Position, route[0].Position);
+            for (int i = 1; i <= route.IndexOf(ceilingFix); i++)
+            {
+                startNm += GeoMath.DistanceNm(route[i - 1].Position, route[i].Position);
+            }
+
+            harness.Engine.TickOneSecond();
+        }
+
+        _output.WriteLine($"descent began {startNm:F1} nm before {ceilingFix.Name} ({ceilingFt}), top of descent {todNm:F1} nm");
+        Assert.True(aircraft.Altitude < start, $"the aircraft is still at {aircraft.Altitude:F0} ft, level with the {start:F0} ft it held");
+        Assert.True(startNm <= todNm * 1.25, $"the descent began {startNm:F1} nm before {ceilingFix.Name}, before its {todNm:F1} nm top of descent");
+        for (int t = 0; (t < 1800) && route.Contains(ceilingFix); t++)
         {
             harness.Engine.TickOneSecond();
         }
 
-        Assert.True(aircraft.Altitude < start, $"the aircraft is still at {aircraft.Altitude:F0} ft, level with the {start:F0} ft it held");
+        Assert.True(aircraft.Altitude <= ceilingFt + FlightPhysics.AltitudeSnapFt, $"{ceilingFix.Name} sequenced at {aircraft.Altitude:F0} ft");
     }
 
     [Fact]
