@@ -1855,9 +1855,9 @@ public sealed class SoloTrainingEvaluator
         double? ActualVerticalFt
     );
 
-    private sealed record RunwayEvaluationResult(IReadOnlyList<RunwayEventSample> RunwayEvents, IReadOnlyList<WakeDirectiveContext> WakeContexts);
+    internal sealed record RunwayEvaluationResult(IReadOnlyList<RunwayEventSample> RunwayEvents, IReadOnlyList<WakeDirectiveContext> WakeContexts);
 
-    private sealed record RunwayEventSample(TrainingEventSample Sample, WakeDirectiveContext? WakeContext);
+    internal sealed record RunwayEventSample(TrainingEventSample Sample, WakeDirectiveContext? WakeContext);
 
     private sealed class WakeAdvisoryProof(string recipientCallsign, double scenarioElapsedSeconds, string? sourceEventId)
     {
@@ -1895,7 +1895,7 @@ public sealed class SoloTrainingEvaluator
         public bool NoteRecorded { get; set; }
     }
 
-    private sealed record TrainingEventSample(
+    internal sealed record TrainingEventSample(
         string Id,
         SoloTrainingEventCategory Category,
         SoloTrainingEventSeverity Severity,
@@ -1992,7 +1992,7 @@ public sealed class SoloTrainingEvaluator
             );
     }
 
-    private sealed class SameRunwaySeparationTracker
+    internal sealed class SameRunwaySeparationTracker
     {
         private readonly Dictionary<string, AircraftRunwayState> _previousStates = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, RunwayOperation> _lastOperationByRunway = new(StringComparer.OrdinalIgnoreCase);
@@ -2179,7 +2179,7 @@ public sealed class SoloTrainingEvaluator
             return states;
         }
 
-        private static AircraftRunwayState? TryBuildState(AircraftState aircraft)
+        internal static AircraftRunwayState? TryBuildState(AircraftState aircraft)
         {
             RunwayInfo? runway = aircraft.Phases?.AssignedRunway;
             RunwayUseKind? runwayUse = RunwayOccupancy.ClassifyByPhase(aircraft, runway: null);
@@ -2202,7 +2202,7 @@ public sealed class SoloTrainingEvaluator
             double alongPavementFt = AlongPavementFt(aircraft.Position, runway);
             GroundRunway? authoredRunway = aircraft.Ground.Layout?.FindRunway(runway.Designator);
             double displacementFt = LandingThreshold.DisplacementFt(runway, authoredRunway);
-            Phase? phase = aircraft.Phases?.CurrentPhase;
+            Phase? phase = aircraft.Phases?.EffectivePhase;
             string runwayKey = BuildRunwayKey(runway);
             bool restrictedLowApproach =
                 (phase is LowApproachPhase) && !aircraft.IsOnGround && ((aircraft.Altitude - runway.ElevationFt) >= RestrictedLowApproachFloorAglFt);
@@ -4205,7 +4205,7 @@ public sealed class SoloTrainingEvaluator
         /// <param name="IsRestrictedLowApproach">
         /// A low approach at or above <see cref="RestrictedLowApproachFloorAglFt"/> (7110.65 3-10-10).
         /// </param>
-        private sealed record AircraftRunwayState(
+        internal sealed record AircraftRunwayState(
             RunwayInfo OwnRunway,
             bool IsRestrictedLowApproach,
             string Callsign,

@@ -193,7 +193,7 @@ public sealed partial class VfrFollowPhase
         }
 
         bool leadOnStraightInFinal =
-            !lead.IsOnGround && (lead.Phases is { CurrentPhase: FinalApproachPhase or LandingPhase, AssignedRunway: not null });
+            !lead.IsOnGround && (lead.Phases is { EffectivePhase: FinalApproachPhase or LandingPhase, AssignedRunway: not null });
         return leadOnStraightInFinal
             ? RequiredFinalInTrailNm(ctx, lead)
             : AirborneFollowHelper.FreeFlightDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
@@ -224,7 +224,7 @@ public sealed partial class VfrFollowPhase
 
     /// <summary>The lead's circuit while it flies a pattern leg or a pattern entry with a runway and direction; otherwise null.</summary>
     private static FollowCircuit? LeadCircuit(AircraftState lead) =>
-        (lead.Phases is { CurrentPhase: PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase } phases)
+        (lead.Phases is { EffectivePhase: PatternEntryPhase or UpwindPhase or CrosswindPhase or DownwindPhase or BasePhase } phases)
         && (phases.AssignedRunway is { } runway)
         && (phases.TrafficDirection is { } direction)
             ? new FollowCircuit(runway, direction)
@@ -236,7 +236,7 @@ public sealed partial class VfrFollowPhase
     /// </summary>
     private void RememberLeadBase(AircraftState follower, AircraftState lead)
     {
-        if ((lead.Phases?.CurrentPhase is not BasePhase { Waypoints: { } waypoints } leadBase) || (lead.Phases.AssignedRunway is not { } runway))
+        if ((lead.Phases?.EffectivePhase is not BasePhase { Waypoints: { } waypoints } leadBase) || (lead.Phases.AssignedRunway is not { } runway))
         {
             return;
         }
@@ -267,7 +267,9 @@ public sealed partial class VfrFollowPhase
 
     /// <summary>The remembered lead base while the lead is still airborne on that base, its final or its landing; otherwise null.</summary>
     private LeadBaseJoin? ActiveLeadBase(AircraftState lead) =>
-        ((_leadBase is { } join) && !lead.IsOnGround && (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase or LandingPhase)) ? join : null;
+        ((_leadBase is { } join) && !lead.IsOnGround && (lead.Phases?.EffectivePhase is BasePhase or FinalApproachPhase or LandingPhase))
+            ? join
+            : null;
 
     /// <summary>
     /// How far (nm) the follower is past the lead's base start point along the leg the lead flew into it, when it is within

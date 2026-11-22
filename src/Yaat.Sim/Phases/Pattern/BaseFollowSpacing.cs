@@ -111,7 +111,7 @@ internal static class BaseFollowSpacing
     /// </summary>
     internal static double ProjectedBaseGapNm(PhaseContext ctx, AircraftState lead, RunwayInfo runway)
     {
-        var scope = new LeadScope(lead, AirborneFollowHelper.LeadRemainingPathNm(lead, runway), lead.Phases?.CurrentPhase is LandingPhase);
+        var scope = new LeadScope(lead, AirborneFollowHelper.LeadRemainingPathNm(lead, runway), lead.Phases?.EffectivePhase is LandingPhase);
         var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
         return Project(ctx, scope, threshold, runway.TrueHeading).EffectiveGapNm;
     }
@@ -211,18 +211,18 @@ internal static class BaseFollowSpacing
         }
 
         double leadRemainingNm = AirborneFollowHelper.LeadRemainingPathNm(lead, runway);
-        if (lead.Phases.CurrentPhase is LandingPhase)
+        if (lead.Phases.EffectivePhase is LandingPhase)
         {
             return new LeadScope(lead, leadRemainingNm, OccupancyOnly: true);
         }
 
-        if ((lead.Phases.CurrentPhase is FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway))
+        if ((lead.Phases.EffectivePhase is FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway))
         {
             return new LeadScope(lead, leadRemainingNm, OccupancyOnly: false);
         }
 
         bool baseAhead =
-            (lead.Phases.CurrentPhase is BasePhase)
+            (lead.Phases.EffectivePhase is BasePhase)
             && (AirborneFollowHelper.RemainingPatternPathNm(lead, waypoints) < AirborneFollowHelper.RemainingPatternPathNm(ctx.Aircraft, waypoints));
         return baseAhead ? new LeadScope(lead, leadRemainingNm, OccupancyOnly: false) : null;
     }

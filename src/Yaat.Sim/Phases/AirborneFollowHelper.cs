@@ -341,7 +341,7 @@ public static class AirborneFollowHelper
             return true;
         }
 
-        if (IsOnApproachBeforeFinal(follower.Phases?.CurrentPhase) && IsGoingAround(lead))
+        if (IsOnApproachBeforeFinal(follower.Phases?.EffectivePhase) && IsGoingAround(lead))
         {
             if (Log.IsEnabled(LogLevel.Debug))
             {
@@ -426,8 +426,8 @@ public static class AirborneFollowHelper
     /// (<see cref="IsOnApproachBeforeFinal"/>), or the final of an approach it is cleared for.
     /// </summary>
     private static bool IsOnKeptApproach(AircraftState aircraft) =>
-        IsOnApproachBeforeFinal(aircraft.Phases?.CurrentPhase)
-        || ((aircraft.Phases?.CurrentPhase is FinalApproachPhase) && (aircraft.Phases.ActiveApproach is not null));
+        IsOnApproachBeforeFinal(aircraft.Phases?.EffectivePhase)
+        || ((aircraft.Phases?.EffectivePhase is FinalApproachPhase) && (aircraft.Phases.ActiveApproach is not null));
 
     /// <summary>True when <paramref name="phase"/> is an approach's course reversal: a procedure turn or a hold-in-lieu of one.</summary>
     private static bool IsApproachCourseReversal(Phase? phase) => phase is ProcedureTurnPhase or HoldingPatternPhase { IsHoldInLieu: true };
@@ -470,7 +470,7 @@ public static class AirborneFollowHelper
     /// an aircraft that has reached it has flown the missed approach.
     /// </summary>
     internal static bool IsGoingAround(AircraftState aircraft) =>
-        (aircraft.Phases?.CurrentPhase is GoAroundPhase) || (aircraft.Phases?.CurrentPhase is ApproachNavigationPhase { IsMissedApproach: true });
+        (aircraft.Phases?.EffectivePhase is GoAroundPhase) || (aircraft.Phases?.EffectivePhase is ApproachNavigationPhase { IsMissedApproach: true });
 
     /// <summary>
     /// Clear the follow target on a follower without holding its pattern leg — for cases where
@@ -567,7 +567,7 @@ public static class AirborneFollowHelper
     /// a pattern entry.
     /// </summary>
     internal static int? PatternLegIndex(AircraftState aircraft) =>
-        aircraft.Phases?.CurrentPhase switch
+        aircraft.Phases?.EffectivePhase switch
         {
             // Wrong-side crossing/teardrop entries are pattern feeders like PatternEntryPhase:
             // a lead still on one of them is a leg BEHIND any follower already on a numbered
@@ -602,7 +602,7 @@ public static class AirborneFollowHelper
     /// </summary>
     private static int? SequenceLegIndex(AircraftState aircraft)
     {
-        Phase? phase = aircraft.Phases?.CurrentPhase;
+        Phase? phase = aircraft.Phases?.EffectivePhase;
         if (IsOnMissedApproach(phase))
         {
             return null;
@@ -677,12 +677,12 @@ public static class AirborneFollowHelper
         && (phases.AssignedRunway is { } patternRunway)
         && Data.NavigationDatabase.AirportIdsMatch(flown.AirportId, patternRunway.AirportId)
         && !IsSameRunway(flown, patternRunway)
-        && phases.CurrentPhase switch
+        && phases.EffectivePhase switch
         {
             TakeoffPhase { Departure: ClosedTrafficDeparture } => NextUpwindHandsToCrossing(phases),
             // The off-centerline fallback covers a transition upwind whose crossing is no longer next (the queue behind it was
             // changed); with no crossing queued, EntryRemainingPathNm is +∞ like any entrant without a path to measure.
-            UpwindPhase upwind => (phases.Phases.ElementAtOrDefault(phases.CurrentIndex + 1) is MidfieldCrossingPhase)
+            UpwindPhase upwind => (phases.Phases.ElementAtOrDefault(phases.EffectiveIndex + 1) is MidfieldCrossingPhase)
                 || IsOffPatternRunwayUpwind(upwind, patternRunway),
             _ => false,
         };
@@ -690,7 +690,7 @@ public static class AirborneFollowHelper
     /// <summary>True when the first <see cref="UpwindPhase"/> queued after the current phase is followed by a crossing.</summary>
     private static bool NextUpwindHandsToCrossing(PhaseList phases)
     {
-        int upwindIndex = phases.Phases.FindIndex(phases.CurrentIndex + 1, phase => phase is UpwindPhase);
+        int upwindIndex = phases.Phases.FindIndex(phases.EffectiveIndex + 1, phase => phase is UpwindPhase);
         return (upwindIndex >= 0) && (phases.Phases.ElementAtOrDefault(upwindIndex + 1) is MidfieldCrossingPhase);
     }
 
@@ -712,7 +712,7 @@ public static class AirborneFollowHelper
 
     /// <summary>The first <see cref="MidfieldCrossingPhase"/> queued after the current phase; null when none is.</summary>
     private static MidfieldCrossingPhase? QueuedMidfieldCrossing(PhaseList phases) =>
-        phases.Phases.Skip(phases.CurrentIndex + 1).OfType<MidfieldCrossingPhase>().FirstOrDefault();
+        phases.Phases.Skip(phases.EffectiveIndex + 1).OfType<MidfieldCrossingPhase>().FirstOrDefault();
 
     /// <summary>
     /// True when both aircraft are flying patterns to the same runway and the
@@ -836,7 +836,7 @@ public static class AirborneFollowHelper
     /// would put it ahead too early.
     /// </summary>
     private static int? FollowerLegIndex(AircraftState follower) =>
-        IsApproachCourseReversal(follower.Phases?.CurrentPhase) ? FinalLegIndex : PatternLegIndex(follower);
+        IsApproachCourseReversal(follower.Phases?.EffectivePhase) ? FinalLegIndex : PatternLegIndex(follower);
 
     /// <summary>
     /// Remaining path (nm) from <paramref name="ac"/> to <paramref name="runway"/>'s threshold on its own pattern geometry
@@ -878,7 +878,7 @@ public static class AirborneFollowHelper
 
         // A straight-in entrant carries no pattern waypoints (its circuit is the entry, the final and the landing), so its
         // join to the final is measured from the runway.
-        if ((ac.Phases?.CurrentPhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex))
+        if ((ac.Phases?.EffectivePhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex))
         {
             var join = new LatLon(entry.EntryLat, entry.EntryLon);
             var threshold = new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude);
@@ -894,7 +894,7 @@ public static class AirborneFollowHelper
     /// hold-in-lieu it is flying (<see cref="CourseReversalPathNm"/>), and otherwise (a course intercept) in a straight line.
     /// </summary>
     private static double InboundApproachPathNm(AircraftState ac, RunwayInfo runway) =>
-        ac.Phases?.CurrentPhase switch
+        ac.Phases?.EffectivePhase switch
         {
             ApproachNavigationPhase navigation => ApproachPathNm(ac.Position, navigation.Fixes, navigation.CurrentFixIndex, runway),
             ProcedureTurnPhase turn => CourseReversalPathNm(ac, turn.InboundJoin, runway),
@@ -937,7 +937,7 @@ public static class AirborneFollowHelper
             return null;
         }
 
-        for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+        for (int i = phases.EffectiveIndex + 1; i < phases.Phases.Count; i++)
         {
             if (phases.Phases[i] is ApproachNavigationPhase { IsMissedApproach: false } navigation)
             {
@@ -969,7 +969,7 @@ public static class AirborneFollowHelper
     /// (<see cref="IsOnFinalByGeometry"/>).
     /// </summary>
     private static bool IsOnFinalForSequence(AircraftState ac, int? leg, RunwayInfo runway) =>
-        (ac.Phases?.CurrentPhase is FinalApproachPhase) || (leg == TerminalLegIndex) || IsOnFinalByGeometry(ac, runway);
+        (ac.Phases?.EffectivePhase is FinalApproachPhase) || (leg == TerminalLegIndex) || IsOnFinalByGeometry(ac, runway);
 
     /// <summary>
     /// The pattern geometry <paramref name="ac"/> flies: its current leg's waypoints, else those of the first leg in its phase
@@ -978,7 +978,7 @@ public static class AirborneFollowHelper
     /// (<see cref="CrossingTransitionWaypoints"/>), not the upwind's own frame on the runway flown. Null when it has none.
     /// </summary>
     private static PatternWaypoints? SequenceWaypoints(AircraftState ac) =>
-        CrossingTransitionWaypoints(ac.Phases) ?? PatternWaypointsOf(ac.Phases?.CurrentPhase) ?? FirstPatternWaypoints(ac.Phases);
+        CrossingTransitionWaypoints(ac.Phases) ?? PatternWaypointsOf(ac.Phases?.EffectivePhase) ?? FirstPatternWaypoints(ac.Phases);
 
     /// <summary>
     /// The waypoints of the circuit <paramref name="phases"/> flies: a crossing transition's queued crossing
@@ -1044,7 +1044,7 @@ public static class AirborneFollowHelper
     /// </summary>
     private static bool IsLeadHoldingSharedLeg(AircraftState lead)
     {
-        Phase? phase = lead.Phases?.CurrentPhase;
+        Phase? phase = lead.Phases?.EffectivePhase;
         if (IsExtendedPatternLeg(phase))
         {
             return true;
@@ -1412,8 +1412,8 @@ public static class AirborneFollowHelper
     /// its downwind for spacing (<see cref="ShouldHoldForSameDownwindSpacing"/>) rather than cancelling.
     /// </summary>
     internal static bool IsSameDownwindLeadAhead(AircraftState follower, AircraftState lead) =>
-        (follower.Phases?.CurrentPhase is DownwindPhase)
-        && (lead.Phases?.CurrentPhase is DownwindPhase)
+        (follower.Phases?.EffectivePhase is DownwindPhase)
+        && (lead.Phases?.EffectivePhase is DownwindPhase)
         && (follower.Phases.AssignedRunway is { } runway)
         && (lead.Phases.AssignedRunway is { } leadRunway)
         && IsSameRunway(runway, leadRunway)
@@ -1461,7 +1461,7 @@ public static class AirborneFollowHelper
             return false;
         }
 
-        return lead.Phases.CurrentPhase switch
+        return lead.Phases.EffectivePhase switch
         {
             BasePhase or FinalApproachPhase or LandingPhase => true,
             DownwindPhase { IsExtended: false } downwind => downwind.HasReachedBaseTurnPoint(lead, ctx.TurnModel),
@@ -1471,7 +1471,7 @@ public static class AirborneFollowHelper
 
     /// <summary>True when the follow target of <paramref name="ctx"/>'s aircraft flies an extended (<c>EXT</c>) downwind.</summary>
     internal static bool IsFollowingExtendedDownwindLead(PhaseContext ctx) =>
-        FollowTarget(ctx)?.Phases?.CurrentPhase is DownwindPhase { IsExtended: true };
+        FollowTarget(ctx)?.Phases?.EffectivePhase is DownwindPhase { IsExtended: true };
 
     private static AircraftState? FollowTarget(PhaseContext ctx) =>
         ctx.Aircraft.Approach.FollowingCallsign is { } target ? ctx.AircraftLookup?.Invoke(target) : null;
@@ -1899,7 +1899,7 @@ public static class AirborneFollowHelper
     /// nowhere and cannot be measured.
     /// </summary>
     private static double EntryRemainingPathNm(AircraftState ac, PatternFrame frame) =>
-        ac.Phases?.CurrentPhase switch
+        ac.Phases?.EffectivePhase switch
         {
             PatternEntryPhase entry => PatternEntryPathNm(ac, entry, frame),
             MidfieldCrossingPhase { Waypoints: { } waypoints } => MidfieldCrossingPathNm(ac, waypoints, frame),
@@ -1942,7 +1942,7 @@ public static class AirborneFollowHelper
     /// <see cref="PatternEntryPhase.Kind"/> names (<see cref="JoinedLegOfKind"/>).
     /// </summary>
     private static int EntryJoinedLeg(AircraftState ac, PatternEntryPhase entry) =>
-        ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.CurrentIndex + 1) switch
+        ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.EffectiveIndex + 1) switch
         {
             UpwindPhase => UpwindLegIndex,
             CrosswindPhase => CrosswindLegIndex,
@@ -1957,7 +1957,7 @@ public static class AirborneFollowHelper
     /// (<see cref="EntryJoinedLeg"/>).
     /// </summary>
     internal static bool IsStraightInEntry(AircraftState ac) =>
-        (ac.Phases?.CurrentPhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex);
+        (ac.Phases?.EffectivePhase is PatternEntryPhase entry) && (EntryJoinedLeg(ac, entry) == FinalLegIndex);
 
     /// <summary>
     /// How far (nm) along the downwind a follower may be past an entrant's downwind join point and still be told to follow
@@ -1975,7 +1975,7 @@ public static class AirborneFollowHelper
     /// </summary>
     internal static bool IsFollowerPastEntrantJoin(AircraftState follower, AircraftState lead)
     {
-        if ((follower.Phases?.CurrentPhase is not DownwindPhase { Waypoints: { } wp }) || (EntryDownwindJoinPoint(lead) is not { } join))
+        if ((follower.Phases?.EffectivePhase is not DownwindPhase { Waypoints: { } wp }) || (EntryDownwindJoinPoint(lead) is not { } join))
         {
             return false;
         }
@@ -1992,7 +1992,7 @@ public static class AirborneFollowHelper
     /// joins, so the same pair keeps one join point across the hand-over to the crossing. Null otherwise.
     /// </summary>
     private static LatLon? EntryDownwindJoinPoint(AircraftState ac) =>
-        ac.Phases?.CurrentPhase switch
+        ac.Phases?.EffectivePhase switch
         {
             PatternEntryPhase entry when EntryJoinedLeg(ac, entry) == DownwindLegIndex => new LatLon(entry.EntryLat, entry.EntryLon),
             MidfieldCrossingPhase { Waypoints: { } waypoints } crossing => CrossingJoinPoint(ac.Phases, crossing, waypoints),
@@ -2068,7 +2068,7 @@ public static class AirborneFollowHelper
     /// </summary>
     private static double MidfieldCrossingPathNm(AircraftState ac, PatternWaypoints waypoints, PatternFrame frame)
     {
-        if (ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.CurrentIndex + 1) is not TeardropReentryPhase teardrop)
+        if (ac.Phases?.Phases.ElementAtOrDefault(ac.Phases.EffectiveIndex + 1) is not TeardropReentryPhase teardrop)
         {
             return MidfieldDirectPathNm(ac, waypoints, frame);
         }
@@ -2354,7 +2354,7 @@ public static class AirborneFollowHelper
     /// </summary>
     internal static double LeadRemainingPathNm(AircraftState lead, RunwayInfo runway)
     {
-        if (lead.Phases?.CurrentPhase is BasePhase { Waypoints: { } waypoints })
+        if (lead.Phases?.EffectivePhase is BasePhase { Waypoints: { } waypoints })
         {
             return RemainingPatternPathNm(lead, waypoints);
         }
@@ -2371,7 +2371,7 @@ public static class AirborneFollowHelper
     /// </summary>
     internal static bool IsOnFinalByGeometry(AircraftState lead, RunwayInfo runway)
     {
-        if (lead.IsOnGround || (lead.Phases is not { AssignedRunway: { } leadRunway } phases) || (phases.CurrentPhase is GoAroundPhase))
+        if (lead.IsOnGround || (lead.Phases is not { AssignedRunway: { } leadRunway } phases) || (phases.EffectivePhase is GoAroundPhase))
         {
             return false;
         }

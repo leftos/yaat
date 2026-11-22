@@ -1180,7 +1180,7 @@ public sealed partial class SimulationEngine
     /// downwind or base is 90°-plus off the final course, and a track-derived datum would measure it to the
     /// reciprocal threshold and sort it to the front of the stream.
     /// </summary>
-    private List<List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)>> BuildRunwayArrivalStreams()
+    internal List<List<(double DistanceNm, AircraftState Aircraft, RunwayInfo Runway, bool PreClearance)>> BuildRunwayArrivalStreams()
     {
         var groups =
             new Dictionary<

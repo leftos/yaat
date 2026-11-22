@@ -6509,7 +6509,7 @@ public static class CommandDispatcher
         // with no parallel runway's final in between. There the in-trail join
         // (VfrFollowPhase → TryJoinLeadFinal) is the right shape; a full downwind
         // circuit would loop an aircraft that is effectively number two on the approach.
-        bool leadOnFinal = establishedLead.Phases.CurrentPhase is FinalApproachPhase or LandingPhase;
+        bool leadOnFinal = establishedLead.Phases.EffectivePhase is FinalApproachPhase or LandingPhase;
         if (leadOnFinal && CanJoinLeadFinalDirectly(aircraft, leadRunway))
         {
             return null;
@@ -6941,7 +6941,7 @@ public static class CommandDispatcher
     /// (<see cref="HoldingPatternPhase.IsMissedApproachHold"/>); a go-around or the missed-approach fixes name the go-around.
     /// </summary>
     private static string OutOfSequenceLeadRefusalText(AircraftState lead, string target) =>
-        lead.Phases?.CurrentPhase is HoldingPatternPhase { IsMissedApproachHold: true }
+        lead.Phases?.EffectivePhase is HoldingPatternPhase { IsMissedApproachHold: true }
             ? $"Unable, {target} is holding, request vectors"
             : $"Unable, {target} is going around, request vectors";
 
@@ -6964,7 +6964,7 @@ public static class CommandDispatcher
     /// published missed approach — its fixes or the hold they end in (<see cref="AirborneFollowHelper.IsOnMissedApproach"/>).
     /// The refusal names a lead in that hold as holding (<see cref="OutOfSequenceLeadRefusalText"/>).
     /// </summary>
-    private static bool IsLeavingSequence(AircraftState lead) => IsOnOwnMissedApproach(lead.Phases?.CurrentPhase);
+    private static bool IsLeavingSequence(AircraftState lead) => IsOnOwnMissedApproach(lead.Phases?.EffectivePhase);
 
     /// <summary>
     /// The ground and elsewhere lead guards for a follower that is not on a pattern leg: a lead on the ground is refused
@@ -7249,7 +7249,7 @@ public static class CommandDispatcher
     /// </summary>
     private static bool IsEstablishedTowardRunway(AircraftState lead) =>
         (lead.Phases?.AssignedRunway is not null)
-        && lead.Phases.CurrentPhase
+        && lead.Phases.EffectivePhase
             is PatternEntryPhase
                 or MidfieldCrossingPhase
                 or TeardropReentryPhase

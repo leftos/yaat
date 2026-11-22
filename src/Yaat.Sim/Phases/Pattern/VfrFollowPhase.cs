@@ -625,7 +625,7 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     {
         if (
             (lead is { IsOnGround: false })
-            && (lead.Phases?.CurrentPhase is FinalApproachPhase or LandingPhase)
+            && (lead.Phases?.EffectivePhase is FinalApproachPhase or LandingPhase)
             && (lead.Phases.AssignedRunway is { } leadRunway)
         )
         {

@@ -85,7 +85,7 @@ public sealed partial class VfrFollowPhase
     /// <paramref name="runway"/>, its own assigned runway.
     /// </summary>
     private static bool IsOnBaseOrFinalLeg(AircraftState lead, RunwayInfo runway) =>
-        (lead.Phases?.CurrentPhase is BasePhase or FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway);
+        (lead.Phases?.EffectivePhase is BasePhase or FinalApproachPhase) || AirborneFollowHelper.IsOnFinalByGeometry(lead, runway);
 
     /// <summary>
     /// The traffic direction of a turn-out circuit this pursuit did not come from: the lead's; else, at an airport with a tower
@@ -304,7 +304,7 @@ public sealed partial class VfrFollowPhase
         !lead.IsOnGround
         && (lead.Phases?.AssignedRunway is { } leadRunway)
         && AirborneFollowHelper.IsSameRunway(leadRunway, runway)
-        && ((lead.Phases.CurrentPhase is LandingPhase) || IsOnBaseOrFinalLeg(lead, runway));
+        && ((lead.Phases.EffectivePhase is LandingPhase) || IsOnBaseOrFinalLeg(lead, runway));
 
     /// <summary>
     /// Flies the turned-out downwind: turns base behind the lead once the reversal is done, the exit holds

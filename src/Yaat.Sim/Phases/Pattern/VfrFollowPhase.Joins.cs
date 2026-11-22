@@ -216,7 +216,7 @@ public sealed partial class VfrFollowPhase
         }
 
         if (
-            (lead.Phases?.CurrentPhase is not BasePhase)
+            (lead.Phases?.EffectivePhase is not BasePhase)
             || !CanJoinLeadBase(ctx.Aircraft, join, gapToLeadNm, AirborneFollowHelper.PatternSpacingNm(lead))
         )
         {
@@ -404,7 +404,7 @@ public sealed partial class VfrFollowPhase
         {
             return false;
         }
-        if (lead.Phases?.CurrentPhase is not (FinalApproachPhase or LandingPhase))
+        if (lead.Phases?.EffectivePhase is not (FinalApproachPhase or LandingPhase))
         {
             return false;
         }
@@ -876,7 +876,7 @@ public sealed partial class VfrFollowPhase
     /// </summary>
     private static PatternWaypoints? ExtractPatternWaypoints(AircraftState lead)
     {
-        Phase? current = lead.Phases?.CurrentPhase;
+        Phase? current = lead.Phases?.EffectivePhase;
         PatternWaypoints? fromCurrent = WaypointsOf(current);
         if (fromCurrent is not null)
         {
@@ -890,7 +890,7 @@ public sealed partial class VfrFollowPhase
 
         if (current is PatternEntryPhase)
         {
-            for (int i = phases.CurrentIndex + 1; i < phases.Phases.Count; i++)
+            for (int i = phases.EffectiveIndex + 1; i < phases.Phases.Count; i++)
             {
                 PatternWaypoints? waypoints = WaypointsOf(phases.Phases[i]);
                 if (waypoints is not null)

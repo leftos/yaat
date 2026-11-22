@@ -299,7 +299,7 @@ public static class AsdexRunwayUsers
     }
 
     private static AsdexRunwayUserRole PhaseRole(AircraftState aircraft) =>
-        aircraft.Phases?.CurrentPhase switch
+        aircraft.Phases?.EffectivePhase switch
         {
             TouchAndGoPhase { IsReaccelerating: true } or StopAndGoPhase { IsReaccelerating: true } => AsdexRunwayUserRole.Departure,
             FinalApproachPhase
