@@ -4,6 +4,7 @@
 
 ## Triage
 
+- [?] YAAT-2735 Descend via except maintain (speed)/dvxm (speed) until (fix)
 - [?] YAAT-2732 Descent planning: a 'descend and maintain' to exactly an ATC at-or-above crossing's altitude leaves the aircraft stuck at cruise (CrossingTopOfDescentRate over-holds; regression from acb90180b/#1395)
 
 ## YAATEdit in YAAT
@@ -155,7 +156,6 @@
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
-- [/] YAAT-2727 Hold STAR speed until the restriction under descend via instead of changing speed at once (#1395 follow-up) · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -472,7 +472,7 @@
 - [ ] YAAT-1993 Arm the nose-at-spot stop early enough when the last two legs are shorter than half the aircraft
 - [ ] YAAT-2276 UnableStopCapKts reads a bar scan an AT-node arrival made stale the same sub-tick
 
-### 2 Refinements and rulings (2/19 done)
+### 2 Refinements and rulings (2/20 done)
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
 - [ ] YAAT-744 Turn heavies through sub-135° corners on their own turn radius
 - [ ] YAAT-745 Turn a just-pushed heavy about on its own radius, toward the stand side
@@ -490,6 +490,7 @@
 - [ ] YAAT-2129 Round unfilleted 45-90 degree corners on a deflection-scaled radius
 - [ ] YAAT-2130 Cap taxi speed on ramps and taxilanes (AC 150/5300-13B 13 kt)
 - [ ] YAAT-2131 Brake to a rounded ramp reversal's arc speed before it
+- [ ] YAAT-2737 Settle the ramped taxi steer's final window and its speed input
 
 ### 3 Hygiene and tests (1/8 done)
 - [ ] YAAT-404 Split TaxiingPhase.OnTick under the 100-line limit
@@ -643,7 +644,7 @@
 - [ ] YAAT-2032 Skip parking stops outside the destination's reach in SelectBestParkingStop
 - [ ] YAAT-2162 Refuse a taxi route that reaches the cleared taxiways out of clearance order
 
-### 3 Hygiene and tests (2/12 done)
+### 3 Hygiene and tests (2/13 done)
 - [ ] YAAT-898 Pass SegmentExpander's walk state as a SegmentWalk record
 - [ ] YAAT-939 Tidy YAAT-899's detour ranking: pair by index, split RankBridges, try farther joins
 - [ ] YAAT-873 Split GeoJsonParser.BuildLayout under the 100-line limit
@@ -654,6 +655,7 @@
 - [ ] YAAT-2143 Test that a sidecar spot edge reaches the server-built ground layout
 - [ ] YAAT-2149 Rebuild SpotEdgeBuildTests on a committed airport layout instead of invented taxiways
 - [ ] YAAT-2167 Split SegmentExpander.RankBridges under the complexity limit; stop BridgePavementCost allocating per candidate
+- [ ] YAAT-2738 Remove the unreachable fillet skip branches and route junction-less plan warnings
 
 ### No milestone
 - [ ] YAAT-1516 Point the remaining :link literal checks at GroundEdge.IsRunwayCrossingLinkName
@@ -939,7 +941,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (29/51 done)
+### 1 Defects (29/52 done)
 - [ ] YAAT-2446 Fly an FM leg as a course over the ground, not a heading
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
 - [ ] YAAT-1484 Parse TDLS initial altitudes written as 'MAINTAIN 5000FT' (every ZLA SID's hold is off)
@@ -962,8 +964,9 @@
 - [ ] YAAT-1870 Hold a SID departure under an ATC ceiling below its altitude instead of climbing on
 - [ ] YAAT-1871 Apply a coded-leg CFIX's altitude revert when the departure procedure is abandoned
 - [ ] YAAT-2361 STAR spawn route drops the published fly-over flag on its fixes
+- [ ] YAAT-2740 Let a departure accelerate past its last SID speed restriction
 
-### 2 Refinements and rulings (1/20 done)
+### 2 Refinements and rulings (1/21 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
@@ -983,6 +986,7 @@
 - [ ] YAAT-1922 State a TDLS maintain in the pilot's vertical-state wording when no SID is active
 - [ ] YAAT-2147 Let a PDC sent after LUAW or after a ground CM govern the departure climb
 - [ ] YAAT-2652 Hold the deferred departure turn below the IFR 400 ft gate when DCT or OC arrives in InitialClimbPhase
+- [ ] YAAT-2734 Keep planning past a higher published at-or-below speed on a STAR
 
 ### 3 Hygiene and tests (0/8 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
@@ -1077,7 +1081,7 @@
 - [ ] YAAT-2257 CTO MRC then CM ... OR BELOW: the departure never turns crosswind (turn gate ignores the altitude ceiling)
 - [ ] YAAT-2273 FOLLOW turn-out's base turn behind the lead starts too close to the final and overshoots toward the parallel
 
-### 2 Refinements and rulings (7/18 done)
+### 2 Refinements and rulings (7/19 done)
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
 - [ ] YAAT-332 VFR departure direction: skip heliports and private strips, prefer the 91.159 direction
 - [ ] YAAT-1642 Plan each compressed-pattern turn with its own tailwind component, not the full wind speed
@@ -1089,6 +1093,7 @@
 - [ ] YAAT-2163 Restore the follow spacing ceiling when a follow ends on an approach for any reason
 - [ ] YAAT-2275 Check a FOLLOW long-final join far above the glidepath (CanSequenceOntoFinal has no altitude test)
 - [ ] YAAT-2653 OC on upwind or crosswind should depart the pattern per AIM 4-3-3
+- [ ] YAAT-2736 Keep a VFR follower spaced behind a lead orbiting at the Class B boundary
 
 ### 3 Hygiene and tests (6/12 done)
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
@@ -1113,7 +1118,7 @@
 
 ## Navigation data and route geometry
 
-### 1 Defects (3/14 done)
+### 1 Defects (3/15 done)
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-2021 Check the runway width YAAT derives for SFO (ADG ceiling comes out V, SFO runways are 200 ft)
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
@@ -1125,6 +1130,7 @@
 - [ ] YAAT-953 Make GeoMath's point projection agree with its great-circle distance
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 - [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
+- [ ] YAAT-2739 Keep published at-or-below STAR speeds on the spawned route (ARYEL, DYAMD)
 
 ### 2 Refinements and rulings (5/11 done)
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
