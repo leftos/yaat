@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.19.2-beta [2026/11/22]
+
+### Fixed
+
+- vStrips and vTDLS in CRC download a compressed copy of their program once and keep it, instead of the full 33 MB on every load.
+
 ## v0.19.1-beta [2026/11/21]
 
 ### Added
