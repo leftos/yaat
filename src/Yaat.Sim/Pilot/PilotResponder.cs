@@ -3928,6 +3928,23 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// Pilot advisory when a follower level with or ahead of the traffic it was told to follow turns out to fall in behind it
+    /// (AIM 4-3-5 — a pilot advises the controller before a major maneuver for spacing). Spoken and solo terminal forms say
+    /// "the traffic"; the RPO terminal names the lead as a diagnostic.
+    /// </summary>
+    public static PilotSpeechText BuildFallingInBehind(AircraftState aircraft, string targetCallsign)
+    {
+        string spoken = SpokenOwnCallsign(aircraft);
+        return new PilotSpeechText(
+            "We're ahead of the traffic, turning out to fall in behind.",
+            $"{spoken}, we're ahead of the traffic, turning out to fall in behind."
+        )
+        {
+            RpoTerminal = $"We're ahead of {targetCallsign}, turning out to fall in behind.",
+        };
+    }
+
+    /// <summary>
     /// Pilot advisory when a follower already extending the traffic's pre-base leg along the downwind starts a spacing
     /// excursion: it names the maneuver it flies, the extended downwind, rather than an S-turn (AIM 4-3-5 — pilots
     /// maneuvering for spacing advise the controller). Spoken and solo terminal forms say "the traffic"; the RPO terminal

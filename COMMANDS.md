@@ -1476,7 +1476,11 @@ A follower already **on base** that would roll out too close behind the traffic 
 
 When it would roll out level with or ahead of the traffic, or a widen cannot build the spacing, it turns out to the downwind heading, says "turning downwind for spacing behind the traffic, request base turn", and turns base again behind the traffic once it has passed (or holds the downwind heading for your `TB`/`ERB`/`ELB` if it runs out of room; too close to the final turn to turn out, it goes around instead).
 
-A follower flying free behind traffic it has caught up with does the same. One that can no longer keep spacing behind traffic on base or final within 5 NM of the runway warns "unable to maintain separation" and breaks off the same way, turning away from the field; farther out it re-enters by the downwind.
+A follower flying free behind traffic it has caught up with does the same.
+
+A free follower level with or ahead of traffic that is not yet on base or final makes no S-turn: it turns out to the side of the traffic's track it is on (never across it), holds parallel at its slowest speed until the traffic passes, then follows in behind. When the turn is more than 92° it says "we're ahead of the traffic, turning out to fall in behind" once. It does not join the traffic's pattern while ahead of it or too close, nor, with the traffic on base or final, from past the downwind abeam point off the downwind.
+
+A free follower that can no longer keep spacing behind traffic on base or final within 5 NM of the runway warns "unable to maintain separation" and breaks off the same way, turning away from the field; farther out it re-enters by the downwind.
 
 When the traffic disappears while the follower is already lined up on the final, it keeps flying the final at any distance instead of entering the downwind.
 

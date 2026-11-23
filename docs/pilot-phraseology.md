@@ -348,6 +348,8 @@ Grouped by trigger. All return `PilotSpeechText`; follow/traffic builders set `R
 
   `BuildUnableToFollowExtendingDownwind` ("unable to follow the traffic, extending downwind, request base turn": a follower that could not build spacing 2 nm past the lead's base turn, or nearing the final, or a downwind follower that passed an entrant lead's join point before it joined, or one held 2 nm past its base point behind a lead on base, final, landing or holding its own downwind (RPO text "unable to follow {lead}, …"), ends the follow and holds an extended downwind — AIM §5-5-12.a.2, it cannot keep its own separation).
 
+  `BuildFallingInBehind` is the one call of a follower level with or ahead of its lead that turns out to fall in behind it (more than 92° of turn, once per encounter): Terminal "We're ahead of the traffic, turning out to fall in behind." (spoken "{callsign}, we're ahead of the traffic, turning out to fall in behind."); the RPO terminal names the lead: "We're ahead of {lead}, turning out to fall in behind." (AIM 4-3-5).
+
   `BuildTurningDownwindForSpacing` is the one call of a follower level with or ahead of its lead on base or final, or stalled alongside it, or breaking off its own base for spacing, as it turns out to the downwind heading: Terminal "turning downwind for spacing behind the traffic, request base turn.", Tts "{callsign}, turning downwind for spacing behind the traffic, request base turn.", RpoTerminal "turning downwind for spacing behind {lead}, request base turn."
 
   The maneuver comes first, then the request, AIM §4-3-5 — a pilot maneuvering for spacing advises the controller — and §4-3-4, no cutting in on final; "behind the traffic" because the lead may still be level or behind when the turn starts.

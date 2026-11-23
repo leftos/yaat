@@ -29,6 +29,8 @@
 - An aircraft given a route that turns back on itself at a fix now flies to the fix before turning, instead of turning up to 5 nm short.
 - Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
 - Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.
+- A FOLLOW pilot no longer turns back against the downwind when its lead turns base from a fix.
+- A FOLLOW pilot ahead of its lead now turns out to fall in behind, instead of S-turning and cutting the lead off.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 
 ## v0.19.2-beta [2026/11/22]

@@ -2113,6 +2113,21 @@ public sealed class VfrFollowPhaseDto : PhaseDto
     /// <summary>Free-pursuit widen excursion side: +1 right of the lead's track, -1 left.</summary>
     public int WidenSide { get; init; }
 
+    /// <summary>
+    /// The side a follower ahead of its lead turns out to while falling in behind it: +1 right of the lead's track, -1 left;
+    /// null when not falling in and in older snapshots.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? FallInSide { get; init; }
+
+    /// <summary>The fall-in call has been made this encounter; null (read as false) when not and in older snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? FallInCalled { get; init; }
+
+    /// <summary>The fall-in is established near its offset line; null (read as false) when not and in older snapshots.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? FallInEstablished { get; init; }
+
     /// <summary>The circuit a pursuit started from a pattern leg returns to; null for any other pursuit and in older snapshots.</summary>
     public FollowPatternReturnDto? PatternReturn { get; init; }
 

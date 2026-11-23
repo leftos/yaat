@@ -82,24 +82,7 @@ public sealed partial class VfrFollowPhase
             return false;
         }
 
-        // Gate 1: follower must be close to the lead's downwind abeam point.
-        double distToEntry = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon));
-        if (distToEntry > JoinRangeNm)
-        {
-            return false;
-        }
-
-        // Gate 2: and reasonably close to the lead itself. Guards against joining
-        // a stale pattern fix when the lead has already moved on (e.g., turning base).
-        if (gapToLeadNm > MaxJoinGapNm)
-        {
-            return false;
-        }
-
-        // Gate 3: follower must be on the pattern side of the runway centerline.
-        // A follower on the opposite side would have to cross final to reach
-        // the abeam point — a real pilot would refuse, so reject the auto-join.
-        if (!IsOnPatternSide(ctx.Aircraft, leadRunway, leadWaypoints.Direction))
+        if (PatternJoinDistanceNm(ctx, lead, leadWaypoints, leadRunway, gapToLeadNm) is not { } distToEntry)
         {
             return false;
         }
@@ -147,6 +130,143 @@ public sealed partial class VfrFollowPhase
     }
 
     /// <summary>
+    /// The follower's distance (nm) to the lead's downwind abeam point when every pattern-join gate passes, otherwise null:
+    /// within <see cref="JoinRangeNm"/> of the abeam point, within <see cref="MaxJoinGapNm"/> of the lead, on the pattern side
+    /// of the centerline, and not refused by <see cref="PatternJoinRefusal"/>.
+    /// </summary>
+    private double? PatternJoinDistanceNm(
+        PhaseContext ctx,
+        AircraftState lead,
+        PatternWaypoints leadWaypoints,
+        RunwayInfo leadRunway,
+        double gapToLeadNm
+    )
+    {
+        // Gate 1: follower must be close to the lead's downwind abeam point.
+        double distToEntry = GeoMath.DistanceNm(ctx.Aircraft.Position, new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon));
+        if (distToEntry > JoinRangeNm)
+        {
+            return null;
+        }
+
+        // Gate 2: and reasonably close to the lead itself. Guards against joining
+        // a stale pattern fix when the lead has already moved on (e.g., turning base).
+        if (gapToLeadNm > MaxJoinGapNm)
+        {
+            return null;
+        }
+
+        // Gate 3: follower must be on the pattern side of the runway centerline.
+        // A follower on the opposite side would have to cross final to reach
+        // the abeam point — a real pilot would refuse, so reject the auto-join.
+        if (!IsOnPatternSide(ctx.Aircraft, leadRunway, leadWaypoints.Direction))
+        {
+            return null;
+        }
+
+        double projectedGapNm = _leadPath.Project(ctx.Aircraft.Position, lead.Position, lead.TrueTrack).GapNm;
+        if (PatternJoinRefusal(ctx.Aircraft, lead, leadWaypoints, projectedGapNm) is { } refusal)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("[VfrFollow] {Callsign}: no pattern join behind {Lead}: {Reason}", ctx.Aircraft.Callsign, TargetCallsign, refusal);
+            }
+            return null;
+        }
+
+        return distToEntry;
+    }
+
+    /// <summary>
+    /// Why the follower may not join the lead's downwind, or null when it may. Refused when the follower is ahead of the lead
+    /// along the lead's path (<paramref name="projectedGapNm"/> below zero): joining the lead's pattern entry from there puts
+    /// it in the circuit ahead of the aircraft it follows. Refused while the follower is too close to keep following in the
+    /// pattern (<see cref="AirborneFollowHelper.TooCloseToKeepFollowing"/> against <see cref="JoinedFollowDesiredNm"/>): at
+    /// its speed floor the joined leg's speed loop would cancel the follow at once, or, for a join onto the downwind the
+    /// follower is established on, hold it at the floor behind a lead whose pattern flow lies ahead
+    /// (<c>IsLeadPatternFlowAhead</c>, <c>CanExtendBehindSameDownwindLead</c>); free pursuit behind the lead widens the gap
+    /// and the join is retried each tick. Refused too when the lead is already on its base, final or landing, or on a pattern
+    /// entry to its base or final (<see cref="IsLeadOnBaseOrFinal"/>), and the follower is past the downwind abeam point
+    /// (<see cref="PastDownwindAbeamNm"/>) without being established on the downwind (<see cref="IsEstablishedOnDownwind"/>):
+    /// the pattern entry <see cref="DownwindJoinEntry"/> would build from
+    /// there turns it back against the downwind to the abeam point behind it; the turn-out puts it on the downwind behind the
+    /// lead instead. A follower already on the downwind joins as before, its circuit's DownwindPhase engaging directly.
+    /// </summary>
+    internal static string? PatternJoinRefusal(AircraftState follower, AircraftState lead, PatternWaypoints leadWaypoints, double projectedGapNm)
+    {
+        if (projectedGapNm < 0.0)
+        {
+            return $"the follower is {-projectedGapNm:F2} nm ahead of the lead along its path";
+        }
+
+        double distanceNm = GeoMath.DistanceNm(follower.Position, lead.Position);
+        double desiredNm = JoinedFollowDesiredNm(follower, lead, leadWaypoints);
+        if (AirborneFollowHelper.TooCloseToKeepFollowing(distanceNm, desiredNm))
+        {
+            return $"the follower is {distanceNm:F2} nm from the lead, inside half the {desiredNm:F1} nm spacing the joined leg keeps";
+        }
+
+        if (
+            IsLeadOnBaseOrFinal(lead)
+            && (PastDownwindAbeamNm(follower.Position, leadWaypoints) >= 0.0)
+            && !IsEstablishedOnDownwind(follower, leadWaypoints)
+        )
+        {
+            return "the lead is on base or final and the follower is past the downwind abeam point, off the downwind";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// True when the lead is on its base, final or landing, or on a pattern entry whose kind joins it at its base or final
+    /// (<see cref="PatternEntryKind.Base"/>, <see cref="PatternEntryKind.Final"/>): it turns onto the final ahead of a
+    /// follower still short of that point either way.
+    /// </summary>
+    private static bool IsLeadOnBaseOrFinal(AircraftState lead) =>
+        lead.Phases?.EffectivePhase
+            is BasePhase
+                or FinalApproachPhase
+                or LandingPhase
+                or PatternEntryPhase { Kind: PatternEntryKind.Base or PatternEntryKind.Final };
+
+    /// <summary>
+    /// The spacing the speed loop of the leg a join installs keeps behind the lead, so its cancel and the join's too-close gate
+    /// judge alike: a follower that needs a pattern entry (<see cref="DownwindJoinEntry"/>) gets a
+    /// <see cref="PatternEntryPhase"/>, which holds the free-flight distance
+    /// (<see cref="AirborneFollowHelper.FreeFlightDistanceForLeader"/>); one already established on the downwind
+    /// (<see cref="IsEstablishedOnDownwind"/>) gets the circuit's DownwindPhase, which holds the pattern spacing
+    /// (<see cref="AirborneFollowHelper.PatternSpacingNm"/>).
+    /// </summary>
+    private static double JoinedFollowDesiredNm(AircraftState follower, AircraftState lead, PatternWaypoints leadWaypoints) =>
+        IsEstablishedOnDownwind(follower, leadWaypoints)
+            ? AirborneFollowHelper.PatternSpacingNm(lead)
+            : AirborneFollowHelper.FreeFlightDistanceForLeader(AircraftCategorization.Categorize(lead.AircraftType));
+
+    /// <summary>
+    /// True when the follower is established on the lead's downwind: its track within 30° of the downwind heading and at or
+    /// past the abeam point (<see cref="PastDownwindAbeamNm"/>). <see cref="DownwindJoinEntry"/> builds no entry for it.
+    /// </summary>
+    private static bool IsEstablishedOnDownwind(AircraftState follower, PatternWaypoints leadWaypoints) =>
+        (follower.TrueTrack.AbsAngleTo(leadWaypoints.DownwindHeading) <= 30.0) && (PastDownwindAbeamNm(follower.Position, leadWaypoints) >= 0.0);
+
+    /// <summary>
+    /// How far (nm) <paramref name="position"/> lies past the lead's downwind abeam point, measured along the downwind heading
+    /// from the threshold: negative before the abeam point, zero or more at or past it.
+    /// </summary>
+    private static double PastDownwindAbeamNm(LatLon position, PatternWaypoints leadWaypoints)
+    {
+        var threshold = new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon);
+        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(position, threshold, leadWaypoints.DownwindHeading);
+        double abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
+            new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon),
+            threshold,
+            leadWaypoints.DownwindHeading
+        );
+        return aircraftAlongTrack - abeamAlongTrack;
+    }
+
+    /// <summary>
     /// The pattern entry that leads a follower joining the lead's pattern to the downwind abeam point, with a
     /// lead-in a mile before it on the downwind course; null when the follower is already established on the
     /// downwind leg (track aligned with the downwind heading and past the abeam point), where the circuit's
@@ -161,18 +281,7 @@ public sealed partial class VfrFollowPhase
         double patternAltitudeFt
     )
     {
-        double trackToDownwindDelta = follower.TrueTrack.AbsAngleTo(leadWaypoints.DownwindHeading);
-        double aircraftAlongTrack = GeoMath.AlongTrackDistanceNm(
-            follower.Position,
-            new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon),
-            leadWaypoints.DownwindHeading
-        );
-        double abeamAlongTrack = GeoMath.AlongTrackDistanceNm(
-            new LatLon(leadWaypoints.DownwindAbeamLat, leadWaypoints.DownwindAbeamLon),
-            new LatLon(leadWaypoints.ThresholdLat, leadWaypoints.ThresholdLon),
-            leadWaypoints.DownwindHeading
-        );
-        if ((trackToDownwindDelta <= 30.0) && (aircraftAlongTrack >= abeamAlongTrack))
+        if (IsEstablishedOnDownwind(follower, leadWaypoints))
         {
             return null;
         }

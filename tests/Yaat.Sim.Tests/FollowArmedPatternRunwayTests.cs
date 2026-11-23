@@ -447,6 +447,9 @@ public class FollowArmedPatternRunwayTests
         TrueHeading convergingHeading = arranged.LeadWaypoints.DownwindHeading + 45.0;
         arranged.Follower.TrueHeading = convergingHeading;
         arranged.Follower.TrueTrack = convergingHeading;
+        // 0.8 nm behind the lead rather than the arrangement's 0.5: a join through an entry is refused inside half the entry
+        // leg's free-flight spacing (0.75 nm behind a C172), where that leg's speed loop would cancel the follow.
+        arranged.Follower.Position = GeoMath.ProjectPoint(arranged.Follower.Position, arranged.LeadWaypoints.DownwindHeading.ToReciprocal(), 0.3);
 
         AircraftState joined = Join(arranged);
 

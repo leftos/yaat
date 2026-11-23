@@ -69,6 +69,18 @@ public static class AirborneFollowHelper
     /// </summary>
     public const double TrailGapHysteresisNm = 0.1;
 
+    /// <summary>
+    /// How close (nm) to its offset line a follower falling in behind a lead it is ahead of counts as established there,
+    /// from where it holds the lead's track parallel while the lead passes.
+    /// </summary>
+    private const double FallInEstablishedNm = 0.1;
+
+    /// <summary>
+    /// The fraction of the offset cap below which an established fall-in, drifting back toward the lead's track, turns out
+    /// again; above it a shallow correction carries it back to its line.
+    /// </summary>
+    private const double FallInReenterCapFraction = 0.5;
+
     /// <summary>Spacing excursion heading off the lead's track (deg): a shallow S-turn (AIM 4-3-5).</summary>
     public const double TrailExcursionDeg = 30.0;
 
@@ -1342,7 +1354,7 @@ public static class AirborneFollowHelper
 
         // Speed clamped to minimum AND too close — the follower can't maintain
         // separation by speed alone.
-        if ((adjusted < minSpeed) && (distance < desired * 0.5))
+        if ((adjusted < minSpeed) && TooCloseToKeepFollowing(distance, desired))
         {
             // If the follower still has a lateral option — it is on an earlier pattern
             // leg than a flow-ahead lead on the same runway, or behind a lead on its own
@@ -1363,6 +1375,13 @@ public static class AirborneFollowHelper
 
         return clamped;
     }
+
+    /// <summary>
+    /// True when a follower <paramref name="distanceNm"/> from its lead (straight distance) is inside half the
+    /// <paramref name="desiredNm"/> spacing: at its speed floor there, the follow is cancelled as unable to maintain separation,
+    /// and a pattern join is refused (<see cref="Pattern.VfrFollowPhase.PatternJoinRefusal"/>) so no join lands it there.
+    /// </summary>
+    internal static bool TooCloseToKeepFollowing(double distanceNm, double desiredNm) => distanceNm < desiredNm * 0.5;
 
     /// <summary>
     /// True when a follower too close at its speed floor behind a lead on its own downwind (<see cref="IsSameDownwindLeadAhead"/>)
@@ -2456,15 +2475,200 @@ public static class AirborneFollowHelper
         if (lead.GroundSpeed < TrailMinLeadGroundSpeedKt)
         {
             widen.Active = false;
+            EndFallIn(follower, widen, "the lead is too slow to track");
             return new TrueHeading(GeoMath.BearingTo(follower.Position, lead.Position));
         }
 
         LeadPathProjection projection = path.Project(follower.Position, lead.Position, lead.TrueTrack);
+        if ((spacing.ExtendedLeg is null) && (projection.GapNm <= 0.0))
+        {
+            EndExcursionToFallIn(follower, projection, widen);
+            return FallInSteer(follower, spacing, projection, widen);
+        }
+
+        EndFallIn(follower, widen, "the lead has passed, falling in behind it");
         ExcursionReference reference = ExcursionReferenceFor(follower.Position, spacing, projection);
         UpdateExcursion(follower, spacing, reference, projection.OffPathNm, widen);
         return widen.Active
             ? ExcursionSteer(spacing, reference, widen)
             : ChainHeading(follower, lead, spacing.Excursion.OffsetCapNm, path, projection);
+    }
+
+    /// <summary>
+    /// Ends a running excursion as the follower comes level with or ahead of its lead: an S-turn only lengthens a gap that
+    /// already exists.
+    /// </summary>
+    private static void EndExcursionToFallIn(AircraftState follower, LeadPathProjection projection, FollowWidenState widen)
+    {
+        if (!widen.Active)
+        {
+            return;
+        }
+
+        widen.Active = false;
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: spacing excursion ended, gap {Gap:F2} nm along the lead's path, {Off:F2} nm off it: level with or ahead of it",
+                follower.Callsign,
+                projection.GapNm,
+                projection.OffPathNm
+            );
+        }
+    }
+
+    /// <summary>
+    /// A follower level with or ahead of its lead along the lead's path (gap at or below zero), with no extended leg, falls in
+    /// behind (AIM 4-3-5: a negative gap needs a major maneuver, flown after advising the controller). It turns out to the
+    /// side <see cref="ChooseFallInSide"/> latches for the encounter (serialized with the phase), aiming at the point on the
+    /// lead's track abeam it, offset to that side by the excursion's offset cap (<see cref="FollowExcursionLimits.OffsetCapNm"/>)
+    /// (<see cref="FallInTurnOutSteer"/>). Once within <see cref="FallInEstablishedNm"/> of that offset line, or beyond it, it
+    /// is established and holds the lead's track while the lead passes, correcting back toward the line
+    /// (<see cref="FallInEstablishedSteer"/>); only a drift below <see cref="FallInReenterCapFraction"/> of the cap turns it
+    /// out again. It never crosses the lead's track, except a follower within the cap of it inside a circuit, which takes the
+    /// pattern's outside by design. Should its cross-track change sign once established, the fall-in ends and the side is
+    /// chosen again. With both sides closed by parallel finals it holds the lead's track.
+    /// </summary>
+    private static TrueHeading FallInSteer(AircraftState follower, FreePursuitSpacing spacing, LeadPathProjection projection, FollowWidenState widen)
+    {
+        if (widen.FallInEstablished && ((widen.FallInSide * projection.CrossNm) < 0.0))
+        {
+            widen.FallInSide = 0;
+            widen.FallInEstablished = false;
+            LogFallIn(follower, projection, "crossed the lead's track, choosing the side again");
+        }
+
+        if (widen.FallInSide == 0)
+        {
+            if (ChooseFallInSide(follower.Position, spacing, projection) is not { } chosen)
+            {
+                follower.Targets.PreferredTurnDirection = null;
+                return projection.Track;
+            }
+
+            widen.FallInSide = chosen;
+            LogFallIn(follower, projection, chosen > 0 ? "turning out right to fall in behind" : "turning out left to fall in behind");
+        }
+
+        double capNm = spacing.Excursion.OffsetCapNm;
+        double outsideNm = widen.FallInSide * projection.CrossNm;
+        UpdateFallInEstablished(follower, projection, widen, outsideNm, capNm);
+        if (widen.FallInEstablished)
+        {
+            follower.Targets.PreferredTurnDirection = null;
+            return FallInEstablishedSteer(spacing, projection, widen.FallInSide, outsideNm);
+        }
+
+        return FallInTurnOutSteer(follower, projection, widen.FallInSide, capNm - outsideNm);
+    }
+
+    /// <summary>
+    /// Latches the fall-in as established once the follower is within <see cref="FallInEstablishedNm"/> of its offset line
+    /// (or beyond it), and releases it only when it drifts below <see cref="FallInReenterCapFraction"/> of the cap.
+    /// </summary>
+    private static void UpdateFallInEstablished(
+        AircraftState follower,
+        LeadPathProjection projection,
+        FollowWidenState widen,
+        double outsideNm,
+        double capNm
+    )
+    {
+        if (!widen.FallInEstablished && (outsideNm >= capNm - FallInEstablishedNm))
+        {
+            widen.FallInEstablished = true;
+            LogFallIn(follower, projection, "established off the lead's track, holding it while the lead passes");
+        }
+        else if (widen.FallInEstablished && (outsideNm < capNm * FallInReenterCapFraction))
+        {
+            widen.FallInEstablished = false;
+            LogFallIn(follower, projection, "drifted back toward the lead's track, turning out again");
+        }
+    }
+
+    /// <summary>
+    /// The established fall-in's heading: the lead's track at or beyond the band of the offset line, otherwise the lead's track
+    /// corrected toward the line by the shallow excursion angle (<see cref="TrailExcursionDeg"/>, no more than the excursion's
+    /// largest turn off the track), the same form <see cref="ExcursionSteer"/> flies.
+    /// </summary>
+    private static TrueHeading FallInEstablishedSteer(FreePursuitSpacing spacing, LeadPathProjection projection, int side, double outsideNm) =>
+        outsideNm >= spacing.Excursion.OffsetCapNm - FallInEstablishedNm
+            ? projection.Track
+            : projection.Track + (side * Math.Min(TrailExcursionDeg, spacing.Excursion.MaxOffTrackDeg));
+
+    /// <summary>
+    /// The fall-in's turn-out heading: perpendicular off the lead's track toward the point <paramref name="toLineNm"/> to
+    /// <paramref name="side"/>. The turn is forced that way (<see cref="ControlTargets.PreferredTurnDirection"/>) only while the
+    /// follower tracks within 90° of the lead's track; past that the shorter turn stays on the follower's side of the track.
+    /// </summary>
+    private static TrueHeading FallInTurnOutSteer(AircraftState follower, LeadPathProjection projection, int side, double toLineNm)
+    {
+        LatLon offsetPoint = GeoMath.ProjectPoint(follower.Position, projection.Track + (90.0 * side), toLineNm);
+        var heading = new TrueHeading(GeoMath.BearingTo(follower.Position, offsetPoint));
+        bool pastPerpendicular = Math.Abs(projection.Track.SignedAngleTo(follower.TrueTrack)) >= 90.0;
+        follower.Targets.PreferredTurnDirection = pastPerpendicular ? null : (side > 0 ? TurnDirection.Right : TurnDirection.Left);
+        return heading;
+    }
+
+    /// <summary>One fall-in debug line, written when its state changes rather than every sub-tick.</summary>
+    private static void LogFallIn(AircraftState follower, LeadPathProjection projection, string what)
+    {
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[Follow] {Callsign}: ahead of the lead (gap {Gap:F2} nm, {Cross:F2} nm right of its track), {What}",
+                follower.Callsign,
+                projection.GapNm,
+                projection.CrossNm,
+                what
+            );
+        }
+    }
+
+    /// <summary>
+    /// The side (+1 right of the lead's track, -1 left) a follower ahead of its lead turns out to, or null when parallel finals
+    /// close both: away from the lead's track, the side it is already on, so it never steers toward the lead's track. Only
+    /// within the offset cap of that track, inside a circuit, the pattern's outside (<see cref="CircuitExcursionSide"/>);
+    /// outside a circuit and exactly on the track, the right. A side toward a parallel final is closed
+    /// (<see cref="OpenExcursionSide"/>) unless the follower is already at or beyond its offset line there; the other side is
+    /// taken instead only within the cap of the track outside a circuit.
+    /// </summary>
+    private static int? ChooseFallInSide(LatLon position, FreePursuitSpacing spacing, LeadPathProjection projection)
+    {
+        double capNm = spacing.Excursion.OffsetCapNm;
+        bool withinCap = Math.Abs(projection.CrossNm) <= capNm;
+        int preferred =
+            (spacing.Circuit is { } circuit) && withinCap
+                ? CircuitExcursionSide(position, projection.Track, circuit, capNm)
+                : (projection.CrossNm >= 0 ? 1 : -1);
+        if ((preferred * projection.CrossNm) >= capNm - FallInEstablishedNm)
+        {
+            // Already at or beyond its offset line on that side: it only holds the lead's track, coming no nearer any parallel.
+            return preferred;
+        }
+
+        return OpenExcursionSide(position, spacing, projection.Track, preferred, withinCap && (spacing.Circuit is null));
+    }
+
+    /// <summary>
+    /// Ends a fall-in (the gap is positive again, or the follow phase ends): the side, the established latch and the call latch
+    /// reset for the next encounter, and the turn-out's forced turn direction is released.
+    /// </summary>
+    internal static void EndFallIn(AircraftState follower, FollowWidenState widen, string why)
+    {
+        if ((widen.FallInSide == 0) && !widen.FallInEstablished && !widen.FallInCalled)
+        {
+            return;
+        }
+
+        widen.FallInSide = 0;
+        widen.FallInEstablished = false;
+        widen.FallInCalled = false;
+        follower.Targets.PreferredTurnDirection = null;
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("[Follow] {Callsign}: fall-in ended: {Why}", follower.Callsign, why);
+        }
     }
 
     /// <summary>
@@ -2537,19 +2741,29 @@ public static class AirborneFollowHelper
         int preferred = spacing.Circuit is { } circuit
             ? CircuitExcursionSide(position, reference.Track, circuit, spacing.Excursion.OffsetCapNm)
             : (reference.CrossNm >= 0 ? 1 : -1);
+        return OpenExcursionSide(position, spacing, reference.Track, preferred, spacing.Circuit is null);
+    }
+
+    /// <summary>
+    /// <paramref name="preferred"/> unless an excursion to it from <paramref name="position"/> off <paramref name="track"/>
+    /// would come within the offset cap + <see cref="TrailParallelFinalMarginNm"/> of a parallel runway's extended centerline
+    /// (<see cref="Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal"/>); then the other side when
+    /// <paramref name="otherSideAllowed"/> and it is open, else null. Shared by the spacing excursion and the fall-in.
+    /// </summary>
+    private static int? OpenExcursionSide(LatLon position, FreePursuitSpacing spacing, TrueHeading track, int preferred, bool otherSideAllowed)
+    {
         if (spacing.ParallelsOf is not { } runway)
         {
             return preferred;
         }
 
         double reachNm = spacing.Excursion.OffsetCapNm + TrailParallelFinalMarginNm;
-        if (!Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, reference.Track, preferred, runway, reachNm))
+        if (!Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, track, preferred, runway, reachNm))
         {
             return preferred;
         }
 
-        bool otherSideOpen =
-            (spacing.Circuit is null) && !Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, reference.Track, -preferred, runway, reachNm);
+        bool otherSideOpen = otherSideAllowed && !Pattern.VfrFollowPhase.ExcursionMeetsParallelFinal(position, track, -preferred, runway, reachNm);
         return otherSideOpen ? -preferred : null;
     }
 
@@ -2700,6 +2914,18 @@ public sealed class FollowWidenState
 
     /// <summary>Excursion side: +1 = right of the lead's track, -1 = left.</summary>
     public int Side { get; set; }
+
+    /// <summary>
+    /// While the follower is level with or ahead of its lead and falling in behind it, the side it turns out to (+1 right of
+    /// the lead's track, -1 left); 0 otherwise. Serialized with the follow phase (VfrFollowPhaseDto.FallInSide).
+    /// </summary>
+    public int FallInSide { get; set; }
+
+    /// <summary>True once the fall-in call has been made this encounter; reset when the gap turns positive.</summary>
+    public bool FallInCalled { get; set; }
+
+    /// <summary>True once the fall-in is established near its offset line; it then holds the lead's track while the lead passes.</summary>
+    public bool FallInEstablished { get; set; }
 }
 
 /// <summary>Where a follower sits against its lead's recorded path (<see cref="LeadPathTrail.Project"/>).</summary>

@@ -135,6 +135,8 @@ These `AircraftProcedureDto` fields carry the via clearances and the speed memor
 
 `VfrFollowPhaseDto.BreakOffBankFlown` (`bool?`, true while the turn-out flies the spacing-loss break-off bank) and `BreakOffReplacedTurnRateOverride` (`double?`, deg/s: the turn-rate override the bank replaced, restored when the turn-out ends) are written only when set and absent on older snapshots, which restore no bank; no schema bump.
 
+`VfrFollowPhaseDto.FallInSide` (`int?`, +1 right of the lead's track, -1 left), `FallInCalled` and `FallInEstablished` (`bool?`) carry a follower's fall-in behind a lead it is ahead of; each is written only when set and absent on older snapshots, which restore no fall-in; no schema bump.
+
 `AirspaceBoundaryHoldPhaseDto.OriginalDesiredVerticalRate` and `AltitudeCommandCountAtStart` (additive, not written while null, no schema bump) keep what a hold in front of a held phase puts back at its end: the vertical rate standing when it started and the controller altitude command count then, so a restored hold still gives the phase its descent back, and leaves a controller's altitude alone.
 
 `UpwindPhaseDto.RejoinCenterline`, `SeenAssignedAltitudeFt` and `AssignedAltitudeBaselineRecorded`, `CrosswindPhaseDto.SeenAssignedAltitudeFt` and `AssignedAltitudeBaselineRecorded`, and `TeardropReentryPhaseDto.CompleteAtAbeamOnResume` (additive, not written while null, no schema bump) keep a boundary-hold resume copy's centerline rejoin, the controller altitude a leg was given, and the teardrop's complete-at-abeam latch across a restore.

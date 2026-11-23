@@ -1205,6 +1205,14 @@ Why the pursuit builds spacing this way. A follower close behind a lead often si
 
 The S-turn is shallow and never a 360 or a 90° turn-out, because an unannounced maneuver in the pattern must stay minor (AIM §4-3-5).
 
+**Fall-in behind the lead** (`AirborneFollowHelper.FallInSteer`, `VfrFollowPhase.AnnounceFallIn`). A follower level with or ahead of its lead along the lead's path (gap at or below zero) with no extended leg makes no S-turn, which only lengthens a gap that exists: any running excursion ends and it turns out to the side of the lead's track it is on, aiming at the point abeam the lead offset by the excursion's offset cap (`ChooseFallInSide`).
+
+The side never crosses the lead's track. Only within the cap of that track inside a circuit it is the pattern's outside; exactly on the track, the right; a side toward a parallel final is closed as for the S-turn (the other side only within the cap of the track outside a circuit), and with both closed it holds the lead's track. The turn is forced that way (`PreferredTurnDirection`) only while the follower tracks within 90° of the lead's, and ending the follow clears it (`EndFallIn`).
+
+Within `FallInEstablishedNm = 0.1` of its offset line it is established: it holds parallel at its speed floor until the lead passes, correcting back toward the line, and turns out again only when it drifts below half the cap. Once the gap is positive again the normal pursuit resumes. A stalled established fall-in counts toward the stall turn-out's `StallWindowSeconds` (`IsParallelHold`).
+
+It makes one call per encounter when the turn exceeds 92° (`FallInCallMinTurnDeg` plus a 2° tolerance): "{callsign}, we're ahead of the traffic, turning out to fall in behind." (`PilotResponder.BuildFallingInBehind`). The state (`FallInSide`, `FallInCalled`, `FallInEstablished` on `FollowWidenState`) is snapshotted on `VfrFollowPhaseDto`.
+
 There is one gap target (the join's pattern spacing plus ~0.1 nm hysteresis, measured along the lead's recorded path), so the excursion, the base join and the chain agree on when the follower is spaced.
 
 Once spaced it flies the lead's ground track through the lead's turns, because pure pursuit cuts the corner and loses up to ~0.3 nm; in trail is what AIM §5-5-12.a.1 asks. At the extension limit it keeps flying the extended leg and asks for a base turn rather than re-entering by a downwind entry, which would reverse it against the downwind flow (AIM §4-3-5).
@@ -1217,7 +1225,7 @@ The S-turn's "no 360, no 90° turn-out" binds only the unannounced S-turn, not t
 
 - **Trigger**, checked each pursuit tick: the lead is airborne on base or final to a runway (final by phase or by geometry, `IsOnFinalByGeometry`, straight-in finals included) and the follower is on that runway's pattern side within `TurnOutRangeNm = 5` of its threshold.
 
-  In addition, either the follower is level or ahead by path (its shortest path to the threshold, a turn to final in the pattern direction at `BasePhase.TurnRadiusNm`, `ShortestPathToThresholdNm`, is no longer than the lead's remaining path), or the S-turn excursion has stalled alongside the lead, or a base break-off requested it (`RequestTurnOut`), or the pursuit lost spacing ("unable to maintain separation") with the same range, side and lead-on-base-or-final conditions, which needs neither level-or-ahead nor a stall. Beyond the range, or with no turn-out circuit, a spacing loss keeps the re-entry via the downwind.
+  In addition, either the follower is level or ahead by path (its shortest path to the threshold, a turn to final in the pattern direction at `BasePhase.TurnRadiusNm`, `ShortestPathToThresholdNm`, is no longer than the lead's remaining path), or the S-turn excursion has stalled alongside the lead, or a base break-off requested it (`RequestTurnOut`), or the pursuit lost spacing ("unable to maintain separation") with the same range, side and lead-on-base-or-final conditions, which needs neither level-or-ahead nor a stall. Beyond the range, or with no turn-out circuit, a spacing loss keeps the re-entry via the downwind. A follower level with or ahead of a lead that is not yet on base or final falls in behind it instead (*Fall-in behind the lead* above).
 
   The excursion has stalled when it is at the offset cap, more than `StallShortfallNm = 0.1` short of the gap, and the gap grew by less than `StallMinGrowthNm = 0.05` over `StallWindowSeconds = 20` (`ParallelHoldStalled`).
 
@@ -1246,6 +1254,8 @@ When the lead is in a pattern, `VfrFollowPhase.TryJoinLeadPattern` rebuilds the 
 1. follower within `JoinRangeNm = 3.0` of the lead's downwind abeam point,
 2. follower within `MaxJoinGapNm = 5.0` of the lead itself (guards against a stale pattern), and
 3. follower on the **pattern side** of the runway centerline (`VfrFollowPhase.IsOnPatternSide`, which uses the positive-is-right cross-track convention).
+
+A join is also refused (`VfrFollowPhase.PatternJoinRefusal`, debug-logged, retried each tick) while the follower is ahead of the lead along the lead's path, or inside half the spacing the joined leg keeps (`AirborneFollowHelper.TooCloseToKeepFollowing`, the test the follow cancel shares), or while the lead is on base, final or landing, or on a base or final pattern entry, and the follower is past the downwind abeam point without being established on the downwind (the entry would turn it back against the downwind flow; the turn-out puts it behind the lead instead).
 
 On join it preserves `FollowingCallsign` so the pattern phases keep adjusting spacing, and skips `PatternEntryPhase`
 if the follower is already established on the downwind leg.

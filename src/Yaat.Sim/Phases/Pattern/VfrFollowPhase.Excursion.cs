@@ -55,6 +55,7 @@ public sealed partial class VfrFollowPhase
         }
 
         AnnounceNewExcursion(ctx, spacing, wasWidening);
+        AnnounceFallIn(ctx);
         ctx.Targets.TargetSpeed = PursuitSpeed(ctx.Aircraft, lead, spacing, minSpeed, adjusted.Value);
         return false;
     }
@@ -67,14 +68,20 @@ public sealed partial class VfrFollowPhase
     private bool ParallelHoldStalled(PhaseContext ctx, AircraftState lead, FreePursuitSpacing spacing)
     {
         LeadPathProjection projection = _leadPath.Project(ctx.Aircraft.Position, lead.Position, lead.TrueTrack);
-        bool holding =
-            _widen.Active
-            && (spacing.ExtendedLeg is null)
-            && (projection.OffPathNm >= (spacing.Excursion.OffsetCapNm - StallCapToleranceNm))
-            && ((spacing.DesiredNm - projection.GapNm) > StallShortfallNm);
+        bool holding = IsParallelHold(_widen, spacing, projection);
         _parallelHold = AdvanceParallelHoldWindow(_parallelHold, holding, projection.GapNm, ctx.DeltaSeconds, out bool stalled);
         return stalled;
     }
+
+    /// <summary>
+    /// True while the follower holds alongside its lead short of the gap with no extended leg: a spacing excursion at its
+    /// offset cap, or an established fall-in (<see cref="FollowWidenState.FallInEstablished"/>), which a lead slower than the
+    /// follower's speed floor would otherwise keep alongside forever.
+    /// </summary>
+    internal static bool IsParallelHold(FollowWidenState widen, FreePursuitSpacing spacing, LeadPathProjection projection) =>
+        (spacing.ExtendedLeg is null)
+        && ((spacing.DesiredNm - projection.GapNm) > StallShortfallNm)
+        && ((widen.Active && (projection.OffPathNm >= (spacing.Excursion.OffsetCapNm - StallCapToleranceNm))) || widen.FallInEstablished);
 
     /// <summary>
     /// Advances the parallel-hold window: closed (null) while the follower is not <paramref name="holding"/>, opened at the
@@ -113,8 +120,9 @@ public sealed partial class VfrFollowPhase
 
     /// <summary>
     /// The pursuit's target speed. While the S-turn builds the gap, or the follower extends the lead's pre-base leg until it
-    /// can turn base, it slows as far as it can: the speed loop measures the straight-line distance, which the excursion's
-    /// own offset lengthens and the extension shortens. For the same reason a follower more than
+    /// can turn base, or it is level with or ahead of the lead along its path (falling in behind it), it slows as far as it
+    /// can: the speed loop measures the straight-line distance, which the excursion's own offset lengthens and the extension
+    /// shortens. For the same reason a follower more than
     /// <see cref="SpeedCapOffPathNm"/> off the lead's path flies no faster than the lead, so an ended excursion does not
     /// close the gap it built and start another.
     /// </summary>
@@ -125,7 +133,13 @@ public sealed partial class VfrFollowPhase
             return minSpeed;
         }
 
-        double offPathNm = _leadPath.Project(follower.Position, lead.Position, lead.TrueTrack).OffPathNm;
+        LeadPathProjection projection = _leadPath.Project(follower.Position, lead.Position, lead.TrueTrack);
+        if (projection.GapNm <= 0.0)
+        {
+            return minSpeed;
+        }
+
+        double offPathNm = projection.OffPathNm;
         return offPathNm > SpeedCapOffPathNm ? Math.Min(adjusted, Math.Max(lead.IndicatedAirspeed, minSpeed)) : adjusted;
     }
 
@@ -148,6 +162,46 @@ public sealed partial class VfrFollowPhase
             ? Pilot.PilotResponder.BuildExtendingDownwindForSpacing(ctx.Aircraft, TargetCallsign)
             : Pilot.PilotResponder.BuildSTurnsForSpacing(ctx.Aircraft, TargetCallsign);
         Pilot.PilotResponder.RouteByTunedPosition(ctx.Aircraft, Pilot.PilotReportRouting.From(ctx), call);
+    }
+
+    /// <summary>The turn (deg) from the follower's track to its fall-in steer beyond which it advises the controller.</summary>
+    private const double FallInCallMinTurnDeg = 90.0;
+
+    /// <summary>
+    /// How far (deg) past <see cref="FallInCallMinTurnDeg"/> the turn must go before the call is made: the plain turn-out
+    /// perpendicular to the lead's track sits on 90° by construction, and this keeps it silent under wind and rounding.
+    /// </summary>
+    private const double FallInCallToleranceDeg = 2.0;
+
+    /// <summary>
+    /// Tell the controller, once per encounter, that a follower ahead of its lead is turning out to fall in behind it
+    /// (AIM 4-3-5: a negative gap needs a major maneuver, which a pilot flies after advising the controller), when the turn
+    /// from its track to the fall-in steer (<see cref="AirborneFollowHelper.ComputeFreePursuitHeading"/>), made the way its
+    /// preferred turn direction says, exceeds <see cref="FallInCallMinTurnDeg"/> + <see cref="FallInCallToleranceDeg"/>. The
+    /// latch resets when the lead has passed.
+    /// </summary>
+    private void AnnounceFallIn(PhaseContext ctx)
+    {
+        if ((_widen.FallInSide == 0) || _widen.FallInCalled || (ctx.Targets.TargetTrueHeading is not { } steer))
+        {
+            return;
+        }
+
+        TrueHeading track = ctx.Aircraft.TrueTrack;
+        double turnDeg = ctx.Targets.PreferredTurnDirection is { } direction
+            ? (((direction == TurnDirection.Right ? 1.0 : -1.0) * track.SignedAngleTo(steer)) + 360.0) % 360.0
+            : track.AbsAngleTo(steer);
+        if (turnDeg <= FallInCallMinTurnDeg + FallInCallToleranceDeg)
+        {
+            return;
+        }
+
+        _widen.FallInCalled = true;
+        Pilot.PilotResponder.RouteByTunedPosition(
+            ctx.Aircraft,
+            Pilot.PilotReportRouting.From(ctx),
+            Pilot.PilotResponder.BuildFallingInBehind(ctx.Aircraft, TargetCallsign)
+        );
     }
 
     /// <summary>

@@ -408,7 +408,11 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
     }
 
     /// <summary>Gives back the break-off bank's turn rate however the phase ends (<see cref="RestoreBreakOffTurnRate"/>).</summary>
-    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus) => RestoreBreakOffTurnRate(ctx.Targets);
+    public override void OnEnd(PhaseContext ctx, PhaseStatus endStatus)
+    {
+        RestoreBreakOffTurnRate(ctx.Targets);
+        AirborneFollowHelper.EndFallIn(ctx.Aircraft, _widen, "the follow phase ended");
+    }
 
     public override bool OnTick(PhaseContext ctx)
     {
@@ -1011,6 +1015,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
             LeadLandingRunway = _leadLandingRunway?.ToSnapshot(),
             WidenActive = _widen.Active,
             WidenSide = _widen.Side,
+            FallInSide = _widen.FallInSide != 0 ? _widen.FallInSide : null,
+            FallInCalled = _widen.FallInCalled ? true : null,
+            FallInEstablished = _widen.FallInEstablished ? true : null,
             STurnCallCooldownSeconds = _sTurnCallCooldownSeconds,
             PatternReturn = PatternReturn is { } patternReturn
                 ? new FollowPatternReturnDto
@@ -1187,6 +1194,9 @@ public sealed partial class VfrFollowPhase(string targetCallsign, FollowPatternR
         }
         phase._widen.Active = dto.WidenActive;
         phase._widen.Side = dto.WidenSide;
+        phase._widen.FallInSide = dto.FallInSide ?? 0;
+        phase._widen.FallInCalled = dto.FallInCalled ?? false;
+        phase._widen.FallInEstablished = dto.FallInEstablished ?? false;
         phase._sTurnCallCooldownSeconds = dto.STurnCallCooldownSeconds;
         phase._leadPath.RestoreSnapshot(dto.LeadPath);
         phase.RestoreTurnOutState(dto);
