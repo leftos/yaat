@@ -220,11 +220,17 @@
                     <TextBox
                       x:Name="PresetCommandBox"
                       Grid.Column="0"
-                      Watermark="Command"
+                      PlaceholderText="Command"
                       Text="{Binding Command}"
                       Tag="{Binding CommitCommandCommand}"
                     />
-                    <TextBox x:Name="PresetOffsetBox" Grid.Column="2" Watermark="0:00" Text="{Binding Offset}" Tag="{Binding CommitOffsetCommand}" />
+                    <TextBox
+                      x:Name="PresetOffsetBox"
+                      Grid.Column="2"
+                      PlaceholderText="0:00"
+                      Text="{Binding Offset}"
+                      Tag="{Binding CommitOffsetCommand}"
+                    />
                   </Grid>
                   <TextBlock
                     Classes="err"

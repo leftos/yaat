@@ -539,6 +539,43 @@ public class ScenarioEditorWindowTests
     }
 
     [AvaloniaFact]
+    public async Task CtrlS_SavesAPresetCommandStillBeingTypedIn()
+    {
+        LocalScenarioStore store = OakStore();
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            window.Editor.Aircraft!.Selected = window.Editor.Aircraft.Rows[0];
+            MainWindowHost.Pump();
+            Assert.True(window.Editor.Aircraft.AddPresetCommand.CanExecute(null));
+            window.Editor.Aircraft.AddPresetCommand.Execute(null);
+            MainWindowHost.Pump();
+
+            ItemsControl presetList = view.FindControl<ItemsControl>("PresetList")!;
+            TextBox command = presetList.GetVisualDescendants().OfType<TextBox>().Last(b => b.Name == "PresetCommandBox");
+            command.Focus();
+            command.Text = "SQ 1200";
+            MainWindowHost.Pump();
+            Assert.Equal("Add preset", window.Editor.Session!.UndoDescription);
+            window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.Control);
+            await AwaitSaveAsync(window);
+
+            JsonNode saved = JsonNode.Parse(File.ReadAllText(store.GetWorkingCopyPath(Zoa, OakId)))!;
+            JsonNode savedPreset = saved["aircraft"]![0]!["presetCommands"]!.AsArray()[^1]!;
+            Assert.Equal("SQ 1200", (string?)savedPreset["command"]);
+            Assert.False(window.Editor.IsDirty);
+            Assert.Equal("Edit preset command", window.Editor.Session!.UndoDescription);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task AircraftDetailPanel_ShowsOnlyWithASelection()
     {
         ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
