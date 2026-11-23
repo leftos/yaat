@@ -264,7 +264,7 @@ They flag corners that couldn't be rounded as requested, not generation failures
 
 ### Per-corner overrides
 
-`FilletOverrideResolver.ResolveCorners` keeps the corner each matched override names, and `FilletCornerEdits` hands it to `CornerPlanner` as a lookup by junction and arm pair, so no sidecar order decides geometry. An override touches only its own corner: the junction's other corners keep the cuts they have without it.
+`FilletOverrideResolver.ResolveCorners` keeps the corner each matched override names, and `FilletCornerEdits` hands it to `CornerPlanner` as a lookup by junction and arm pair, so no sidecar order decides geometry. An override touches only its own corner: the junction's other corners keep the cuts they have without it. The same sidecar builds the same arcs byte for byte on one machine; x64 and arm64 can differ in the last bits, so the tests pin radii within 1e-6 ft.
 
 - **`suppress`**: the pair gets no fillet and skip reason `Suppressed`. The junction node and every arm's stub stay (the junction is kept like a through pair's), so the pair stays a sharp corner, and the junction's other corners are planned as if this one asked for no tangent cut.
 - **`radiusFt`**: replaces the edge types' maximum radius as the corner's requested radius. It is still a ceiling: the arc is sized to the smaller of it and what the tangent geometry allows, so a short arm gives a smaller radius than the entry names.

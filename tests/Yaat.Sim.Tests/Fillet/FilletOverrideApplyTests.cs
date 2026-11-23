@@ -24,7 +24,9 @@ public class FilletOverrideApplyTests
         // of its junction carries: then no arc of that Origin may remain.
         FilletReport standard = Standard("oak");
         FilletCornerReport built = standard.Corners.First(c =>
-            (c.TaxiwayA is not null) && (c.Outcome == FilletCornerOutcome.Built) && (standard.Corners.Count(o => SamePair(o, c)) == 1)
+            (c.TaxiwayA is not null)
+            && (c.Outcome == FilletCornerOutcome.Built)
+            && (standard.Corners.Count(o => SidecarFilletOverrides.SamePair(o, c)) == 1)
         );
         (AirportGroundLayout layout, FilletReport report) = Run(pre, FilletReportLayouts.OverrideFor(built) with { Suppress = true });
 
@@ -193,6 +195,32 @@ public class FilletOverrideApplyTests
         Assert.Equal(GroundLayoutSerializer.Serialize(first), GroundLayoutSerializer.Serialize(second));
     }
 
+    /// <summary>
+    /// The same sidecar overrides build the same layout byte for byte whatever order the section lists them in: the
+    /// resolver matches every entry against every corner and applies each to its own, so order reaches neither the graph
+    /// nor the arc geometry.
+    /// </summary>
+    [Fact]
+    public void Parse_WithTheSameSidecarOverrides_BuildsByteIdenticalLayouts()
+    {
+        string geoJson = File.ReadAllText(Path.Combine("TestData", "oak.geojson"));
+        LayoutInputs inputs = TestLayoutInputs.For("OAK", videoMap: null);
+        CornerFilletOverride[] entries = SidecarFilletOverrides.Entries();
+
+        AirportGroundLayout listed = GeoJsonParser.Parse("OAK", geoJson, null, inputs with { CornerFillets = new CornerFilletOverrides(entries) });
+        AirportGroundLayout reversed = GeoJsonParser.Parse(
+            "OAK",
+            geoJson,
+            null,
+            inputs with
+            {
+                CornerFillets = new CornerFilletOverrides([.. entries.Reverse()]),
+            }
+        );
+
+        Assert.Equal(GroundLayoutSerializer.Serialize(listed), GroundLayoutSerializer.Serialize(reversed));
+    }
+
     /// <summary>What a force's override row reports: its effect, rejection reason, and the pinned radius (achieved or refused).</summary>
     private sealed record Expected(FilletOverrideEffect Effect, FilletSkipReason? Reason, double? RadiusFt);
 
@@ -312,15 +340,9 @@ public class FilletOverrideApplyTests
         return row;
     }
 
-    /// <summary>True when both rows are arm pairs of one junction with the same two taxiway names, in either order.</summary>
-    private static bool SamePair(FilletCornerReport first, FilletCornerReport second) =>
-        (first.JunctionNodeId == second.JunctionNodeId)
-        && (
-            ((first.TaxiwayA == second.TaxiwayA) && (first.TaxiwayB == second.TaxiwayB))
-            || ((first.TaxiwayA == second.TaxiwayB) && (first.TaxiwayB == second.TaxiwayA))
-        );
-
-    /// <summary>The row of <paramref name="report"/> for the same corner as <paramref name="like"/> (junction, names, bearings).</summary>
+    /// <summary>
+    /// The row of <paramref name="report"/> for the same corner as <paramref name="like"/> (junction, names, bearings).
+    /// </summary>
     private static FilletCornerReport RowLike(FilletReport report, FilletCornerReport like)
     {
         FilletCornerReport? row = report.Corners.FirstOrDefault(c =>
@@ -332,5 +354,118 @@ public class FilletOverrideApplyTests
         );
         Assert.True(row is not null, $"J{like.JunctionNodeId} {like.TaxiwayA}/{like.TaxiwayB}: no row");
         return row;
+    }
+}
+
+/// <summary>
+/// The four edits an airport sidecar's <c>cornerFillets</c> section can carry (a suppress, a radius, a force and a pair of
+/// pinned tangents), each on its own junction of the committed OAK layout, where the Standard pass applies it.
+/// </summary>
+internal static class SidecarFilletOverrides
+{
+    /// <summary>OAK's junction whose collinear W/W2 pair a force builds.</summary>
+    private const int ForcedJunction = 16;
+
+    /// <summary>The four entries, in section order: suppress, radiusFt, force, tangentFt, each applied by the OAK parse.</summary>
+    public static CornerFilletOverride[] Entries()
+    {
+        AirportGroundLayout pre = FilletReportLayouts.LoadPreFillet("oak") ?? throw new InvalidOperationException("oak layout not committed");
+        FilletReport standard = FilletReportLayouts.StandardReport("oak") ?? throw new InvalidOperationException("no oak standard report");
+        pre.RebuildAdjacencyLists();
+        HashSet<int> manualArcNodes = ManualArcDetector.Detect(pre);
+        List<FilletCornerReport> built =
+        [
+            .. standard.Corners.Where(c =>
+                (c.JunctionNodeId != ForcedJunction)
+                && (c.TaxiwayA is not null)
+                && (c.Outcome == FilletCornerOutcome.Built)
+                && UniquePair(standard, c)
+            ),
+        ];
+
+        FilletCornerReport pinned = built.First(c => PinFits(pre, manualArcNodes, c, 40.0, 45.0));
+        FilletCornerReport suppressed = built.First(c => c.JunctionNodeId != pinned.JunctionNodeId);
+        FilletCornerReport radius = built.First(c => (c.JunctionNodeId != pinned.JunctionNodeId) && (c.JunctionNodeId != suppressed.JunctionNodeId));
+        List<FilletCornerReport> forced =
+        [
+            .. standard.Corners.Where(c => (c.JunctionNodeId == ForcedJunction) && ((c.TaxiwayA, c.TaxiwayB) is ("W", "W2") or ("W2", "W"))),
+        ];
+        Assert.True(forced.Count == 1, $"OAK J{ForcedJunction} has {forced.Count} W/W2 rows, expected one");
+
+        CornerFilletOverride[] entries =
+        [
+            FilletReportLayouts.OverrideFor(suppressed) with
+            {
+                Suppress = true,
+            },
+            FilletReportLayouts.OverrideFor(radius) with
+            {
+                RadiusFt = 25.0,
+            },
+            FilletReportLayouts.OverrideFor(Assert.Single(forced)) with
+            {
+                Force = true,
+            },
+            FilletReportLayouts.OverrideFor(pinned) with
+            {
+                TangentAFt = 40.0,
+                TangentBFt = 45.0,
+            },
+        ];
+        AssertAllApplied(entries);
+        return entries;
+    }
+
+    /// <summary>
+    /// True when both rows are arm pairs of one junction with the same two taxiway names, in either order.
+    /// </summary>
+    internal static bool SamePair(FilletCornerReport first, FilletCornerReport second) =>
+        (first.JunctionNodeId == second.JunctionNodeId)
+        && (
+            ((first.TaxiwayA == second.TaxiwayA) && (first.TaxiwayB == second.TaxiwayB))
+            || ((first.TaxiwayA == second.TaxiwayB) && (first.TaxiwayB == second.TaxiwayA))
+        );
+
+    /// <summary>Asserts the committed OAK parse reports all four entries applied, so an edit the pass never reaches fails here.</summary>
+    private static void AssertAllApplied(CornerFilletOverride[] entries)
+    {
+        string geoJson = File.ReadAllText(Path.Combine("TestData", "oak.geojson"));
+        LayoutInputs inputs = TestLayoutInputs.For("OAK", videoMap: null) with { CornerFillets = new CornerFilletOverrides(entries) };
+        (_, _, FilletReport report) = GeoJsonParser.ParseWithDiagnostics("OAK", geoJson, null, inputs);
+
+        Assert.Equal(4, report.Overrides.Count);
+        Assert.All(report.Overrides, row => Assert.Equal(FilletOverrideEffect.Applied, row.Effect));
+    }
+
+    /// <summary>True when no other arm pair of <paramref name="corner"/>'s junction carries its taxiway pair.</summary>
+    private static bool UniquePair(FilletReport report, FilletCornerReport corner) => report.Corners.Count(o => SamePair(o, corner)) == 1;
+
+    /// <summary>
+    /// True when a pin of <paramref name="a"/> and <paramref name="b"/> feet on the corner's arms is within the
+    /// pinned-tangent rules.
+    /// </summary>
+    private static bool PinFits(AirportGroundLayout pre, HashSet<int> manualArcNodes, FilletCornerReport corner, double a, double b)
+    {
+        double turn = FilletGeometry.ComputeTurnAngle(Assert.NotNull(corner.BearingA), Assert.NotNull(corner.BearingB));
+        if ((turn < 45.0) || (turn > 135.0))
+        {
+            return false;
+        }
+
+        (TaxiwayArm armA, TaxiwayArm armB) = Arms(pre, manualArcNodes, corner);
+        return (a >= CornerPlanner.MinPinnedTangentFt)
+            && (a <= CornerPlanner.PinFarLimitFt(armA))
+            && (b >= CornerPlanner.MinPinnedTangentFt)
+            && (b <= CornerPlanner.PinFarLimitFt(armB))
+            && (armB.LengthFt >= 80.0);
+    }
+
+    /// <summary>The corner's two pre-fillet arms, the first the one <see cref="FilletCornerReport.TaxiwayA"/> names.</summary>
+    private static (TaxiwayArm A, TaxiwayArm B) Arms(AirportGroundLayout pre, HashSet<int> manualArcNodes, FilletCornerReport corner)
+    {
+        IReadOnlyList<TaxiwayArm> arms = TaxiwayArmBuilder.BuildArms(pre.Nodes[corner.JunctionNodeId], manualArcNodes);
+        TaxiwayArm armA = arms.First(x => (x.TaxiwayName == corner.TaxiwayA) && (x.BearingFromJunctionDeg == corner.BearingA));
+        TaxiwayArm armB = arms.First(x => (x.TaxiwayName == corner.TaxiwayB) && (x.BearingFromJunctionDeg == corner.BearingB) && (x.Id != armA.Id));
+        return (armA, armB);
     }
 }

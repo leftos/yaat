@@ -360,6 +360,82 @@ public class PrecomputeKeyTests
         Assert.Equal(HashOf(zero, other), HashOf(other, negativeZero));
     }
 
+    /// <summary>
+    /// A sidecar file's cornerFillets section reaches the layout sidecar hash through the catalog: an entry moves the hash,
+    /// its note does not, its radius does, the entry listed with its taxiway pair and bearings swapped does not, and an
+    /// entry the loader drops (it has no apex) leaves the hash as if the section were absent.
+    /// </summary>
+    [Fact]
+    public void LayoutSidecarHash_FollowsACornerFilletsSection_OfTheSidecarFile()
+    {
+        const string LeadIns = """ "standLeadIns": [{ "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622] }] """;
+        const string Section = """
+            "cornerFillets": [{ "apex": [-122.38, 37.62], "taxiways": ["A", "B"], "bearings": [10, 100], "radiusFt": 60, "note": "x" }]
+            """;
+        const string Renoted = """
+            "cornerFillets": [{ "apex": [-122.38, 37.62], "taxiways": ["A", "B"], "bearings": [10, 100], "radiusFt": 60, "note": "y" }]
+            """;
+        const string WiderRadius = """
+            "cornerFillets": [{ "apex": [-122.38, 37.62], "taxiways": ["A", "B"], "bearings": [10, 100], "radiusFt": 61, "note": "x" }]
+            """;
+        const string Swapped = """
+            "cornerFillets": [{ "apex": [-122.38, 37.62], "taxiways": ["B", "A"], "bearings": [100, 10], "radiusFt": 60, "note": "x" }]
+            """;
+        const string Apexless = """ "cornerFillets": [{ "taxiways": ["A", "B"], "bearings": [10, 100], "radiusFt": 60 }] """;
+
+        string bare = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}} }""");
+        string sectioned = LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Section}} }""");
+
+        Assert.NotEqual(bare, sectioned);
+        Assert.Equal(sectioned, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Renoted}} }"""));
+        Assert.NotEqual(sectioned, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{WiderRadius}} }"""));
+        Assert.Equal(sectioned, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Swapped}} }"""));
+        Assert.Equal(bare, LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Apexless}} }"""));
+    }
+
+    /// <summary>
+    /// A cornerFillets entry added to an airport's sidecar stales both halves of its precompute key, since the layout it
+    /// builds moves; two keys built from the same sidecar still match.
+    /// </summary>
+    [Fact]
+    public void CornerFilletsChange_BreaksBothMatches()
+    {
+        const string LeadIns = """ "standLeadIns": [{ "stand": "D12", "taxiway": "A", "point": [-122.381946, 37.619622] }] """;
+        const string Section = """
+            "cornerFillets": [{ "apex": [-122.38, 37.62], "taxiways": ["A", "B"], "bearings": [10, 100], "radiusFt": 60 }]
+            """;
+
+        var stored = PrecomputeKey.Current(
+            "md5",
+            7,
+            "sidecar",
+            LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}} }"""),
+            string.Empty,
+            standoffInputHash: string.Empty
+        );
+        var current = PrecomputeKey.Current(
+            "md5",
+            7,
+            "sidecar",
+            LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}}, {{Section}} }"""),
+            string.Empty,
+            standoffInputHash: string.Empty
+        );
+        var same = PrecomputeKey.Current(
+            "md5",
+            7,
+            "sidecar",
+            LayoutSidecarHashOf($$"""{ "airportId": "KSFO", {{LeadIns}} }"""),
+            string.Empty,
+            standoffInputHash: string.Empty
+        );
+
+        Assert.False(current.LayoutMatches(stored));
+        Assert.False(current.PushTargetsMatch(stored));
+        Assert.True(current.PushTargetsMatchOffline(stored));
+        Assert.True(same.LayoutMatches(stored));
+    }
+
     private static string HashOf(params CornerFilletOverride[] corners) =>
         AirportSidecarHash.OfLayoutSidecar([], [], new CornerFilletOverrides(corners));
 

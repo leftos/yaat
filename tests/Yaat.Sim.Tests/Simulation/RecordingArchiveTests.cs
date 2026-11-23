@@ -6,6 +6,7 @@ using Xunit;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Snapshots;
+using Yaat.Sim.Tests.Fillet;
 using Yaat.Sim.Tests.Weather;
 using Yaat.Sim.Weather;
 
@@ -542,6 +543,76 @@ public class RecordingArchiveTests
         }
 
         Assert.True(routed > 0, "no sampled pair routed");
+    }
+
+    /// <summary>
+    /// A layout built with sidecar corner fillet overrides is recorded as built and replays as built: the archive round trip
+    /// returns the overridden graph byte for byte, with the same node ids and arc turn geometry, so neither the pre-override
+    /// layout nor an override the pass did not apply can reach a recording's airport.
+    /// </summary>
+    [Fact]
+    public void ReadLayout_OfAnOverriddenLayout_IsTheLayoutThatWasRecorded()
+    {
+        string geoJson = File.ReadAllText(Path.Combine("TestData", "oak.geojson"));
+        LayoutInputs plain = TestLayoutInputs.For("OAK", videoMap: null);
+        LayoutInputs overridden = plain with { CornerFillets = new CornerFilletOverrides(SidecarFilletOverrides.Entries()) };
+
+        AirportGroundLayout parsed = GeoJsonParser.Parse("OAK", geoJson, null, overridden);
+        AirportGroundLayout restored = WriteAndReadLayout(parsed);
+
+        // Origin is a build-time label the archive does not keep: GroundEdge.Origin is [JsonIgnore] but is written through
+        // the IGroundEdge contract of the layout's Edges list, and every read edge comes back with it null.
+        Assert.Equal(SerializedWithoutEdgeOrigins(parsed), SerializedWithoutEdgeOrigins(restored));
+        Assert.Equal(parsed.Nodes.Keys.Order(), restored.Nodes.Keys.Order());
+
+        var restoredArcs = restored.Arcs.ToDictionary(a => (a.Nodes[0].Id, a.Nodes[1].Id));
+        Assert.Equal(parsed.Arcs.Count, restoredArcs.Count);
+        foreach (GroundArc arc in parsed.Arcs)
+        {
+            GroundArc read = restoredArcs[(arc.Nodes[0].Id, arc.Nodes[1].Id)];
+            Assert.Equal(arc.TurnAngleDeg, read.TurnAngleDeg);
+            Assert.Equal(arc.EdgeBearingAtNode0Deg, read.EdgeBearingAtNode0Deg);
+            Assert.Equal(arc.EdgeBearingAtNode1Deg, read.EdgeBearingAtNode1Deg);
+        }
+
+        AirportGroundLayout plainParsed = GeoJsonParser.Parse("OAK", geoJson, null, plain);
+        Assert.NotEqual(GroundLayoutSerializer.Serialize(plainParsed), GroundLayoutSerializer.Serialize(parsed));
+    }
+
+    /// <summary>The layout's serialized JSON with every edge's build-time <see cref="IGroundEdge.Origin"/> removed.</summary>
+    private static string SerializedWithoutEdgeOrigins(AirportGroundLayout layout)
+    {
+        JsonNode root = JsonNode.Parse(GroundLayoutSerializer.Serialize(layout)) ?? throw new InvalidOperationException("layout serialized to null");
+        StripOrigins(root);
+        return root.ToJsonString();
+    }
+
+    private static void StripOrigins(JsonNode node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                obj.Remove("Origin");
+                foreach (JsonNode? child in obj.Select(property => property.Value))
+                {
+                    if (child is not null)
+                    {
+                        StripOrigins(child);
+                    }
+                }
+
+                break;
+            case JsonArray array:
+                foreach (JsonNode? item in array)
+                {
+                    if (item is not null)
+                    {
+                        StripOrigins(item);
+                    }
+                }
+
+                break;
+        }
     }
 
     private static AirportGroundLayout WriteAndReadLayout(AirportGroundLayout layout)

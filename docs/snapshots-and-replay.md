@@ -390,6 +390,8 @@ For those legacy recordings, the live host's playback pump (`LiveRoomHost.ApplyP
 
 **`layouts/` and `airport-geojson/`** hold every airport the room had pinned (`TrainingRoom.ResourcePin`), whether or not an aircraft referenced it, each under the layout's own `AirportId` (`LayoutAirportIds`, `AirportGeoJsonIds`; null when there is none). A server export and a soak run write them through `RecordingLayoutBundler.WritePinnedLayouts` over `ILayoutBundleWriter`, the path a room checkpoint uses too; a room with no pin bundles none.
 
+A recording bundles the built layout, sidecar `cornerFillets` overrides included, and replay never reads the sidecar, so a later sidecar edit cannot change a recorded airport's arcs.
+
 `MissingLayoutAirportIds` lists the FAA codes the room had pinned with no map (empty in archives written before it), so a load pins them with none instead of falling through to the live map.
 
 `LayoutFormatVersion` is `RecordingArchive.CurrentLayoutFormatVersion` when written (null in older archives), and a server load reads bundled layouts only in that format. A layout in format 1 carries its runway coordinates, edge shapes (value tuples, so `GroundLayoutSerializer.Options` includes fields) and the runway-end turnoff, no-turnoff and threshold-displacement maps.

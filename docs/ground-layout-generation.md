@@ -223,7 +223,7 @@ Spots are existing nodes (created in Step 2) and get no connector. For each park
 
 A parking stand's departure (`StandDepartures.Classify`) is then classified from the foot of the perpendicular onto the edge its connector joined, or from the lead-in vertex.
 
-After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` and `spotEdges`, and carries `cornerFillets` to the fillet pass, which does not apply them yet; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
+After all the parking nodes and helipads, `ConnectGateGroupsToAnchors()` adds `GeoJson:gate-group-connector` RAMP edges joining each gate to the connected anchor of its gate group. The layout build reads the sidecar's `standLeadIns` and `spotEdges`, and carries `cornerFillets` to the fillet pass (Step 8), which applies them; see [`standLeadIns`](../src/Yaat.Sim/Data/ARTCCs/README.md#standleadins).
 
 **RAMP edges**: Edges with `TaxiwayName = "RAMP"`. Used for parking connections, not part of normal taxi routes.
 
@@ -265,7 +265,7 @@ Each node's adjacency list is built from the complete edge collection (`AllEdges
 
 **Function**: `FilletArcGenerator.Apply()`
 
-Replaces eligible intersection nodes with bezier arcs at turns ≥15°. It is handed the airport's `CornerFilletOverrides` (`Apply(layout, overrides)`) but does not act on them yet: it only matches each to a corner and reports the match. `Apply` also returns the per-corner `FilletReport` on `FilletStatistics.Report`. Details in [Fillet Arc Generator](#fillet-arc-generator) section.
+Replaces eligible intersection nodes with bezier arcs at turns ≥15°. It is handed the airport's `CornerFilletOverrides` (`Apply(layout, overrides)`), matches each to a corner and applies its edits: `suppress` (no fillet), `radiusFt` (the requested radius), `force` (plan a corner the checks would skip) and `tangentFt` (pin both tangent cuts). Each override's effect is `Applied`, `NotReachable` or `Rejected` (a refused force or pin). `Apply` also returns the per-corner `FilletReport` on `FilletStatistics.Report`. Details in [fillet-generator.md, "Per-corner overrides"](ground/fillet-generator.md#per-corner-overrides) and the [Fillet Arc Generator](#fillet-arc-generator) section.
 
 ### Step 9: Mark Short Bars
 
@@ -696,7 +696,7 @@ NullFilletArcGenerator.cs      # No-op generator for FilletMode.None and raw-lay
 FilletGeneratorFactory.cs    # FilletMode → IFilletArcGenerator (None / Standard)
 FilletArcGeneratorRegistry.cs# Enumerates implemented generators (None, Standard)
 FilletStatistics.cs          # Per-pass fillet tallies returned by Apply, plus the FilletReport (Report)
-FilletReport.cs              # FilletReport: per-corner rows (Built / ChordDegraded / Skipped, FilletSkipReason) and per-override rows (Matched / Orphaned / Ambiguous); returned only, never stored on the layout
+FilletReport.cs              # FilletReport: per-corner rows (Built / ChordDegraded / Skipped, FilletSkipReason) and per-override rows (Matched / Orphaned / Ambiguous, and a FilletOverrideEffect: Applied / NotReachable / Rejected); returned only, never stored on the layout
 FilletArcGenerator.cs      # The fillet generator: classify junctions → resolve cuts → plan → execute → normalize
 Fillet/                        # Plan-then-execute fillet pipeline (edge-split connectivity)
   FilletGeometry.cs            # Turn angle, ideal tangent, cubic-bezier build (control points project toward the junction)
@@ -712,6 +712,8 @@ Fillet/                        # Plan-then-execute fillet pipeline (edge-split c
   FilletPlanExecutor.cs        # Materialize cut nodes + surviving edges + corner arcs (degenerate arc → straight chord) in one pass; remove consumed edges + removed junctions
   FilletReportCollector.cs     # Collects the FilletReport's corner rows from the generator, planner and executor
   FilletOverrideResolver.cs    # Match each CornerFilletOverride to a pre-fillet corner (apex within 10 ft, taxiway pair, arm bearings within 15°)
+  ForcedCornerCheck.cs         # Refuses a forced corner the plan cannot honour (SameFarNode, NoTurn, Unsteerable, ...) before the executor runs
+  PinnedCornerCheck.cs         # Refuses a pinned corner whose built arc is not honoured
   FilletPlanCutRedirect.cs     # Union-find survivor map for tangent merges + stable-anchor binding
   (also FilletPlan/JunctionPlan/CornerSpec/ResolvedArmCut plan model + TaxiwayArm(Terminus), JunctionKind, FilletEligibility, ManualArcDetector, SharedArmTangentPass, PlanWarning, FilletConstants, FilletPlanConsistency)
 GroundLayoutSpeechNames.cs     # Static: a layout's taxiway names (no runway centerlines or ramps), gate names (parking + helipad) and spot names, sorted; shared by MainViewModel's speech context and the context-layer decoder

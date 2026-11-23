@@ -17,7 +17,7 @@ Run from the repo; every command takes `--airport <id>` (repeatable) to work on 
 - `-- --refresh-airports` rewrites `airports.txt`.
 - `-- --refresh-envelopes` rewrites `design-group-envelopes.json` and the pinned test copy of the FAA data.
 
-An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its layout sidecar hash (the key field `LayoutSidecarHash`, `AirportSidecarHash.ForLayoutSidecar`), which covers the sidecar `standLeadIns` and `spotEdges` sections and stales the layout too, since the layout build connects those stands and adds those chains. An edit to either section, notes aside, stales the layout and push halves alike; an airport with no `spotEdges` hashes as its lead-ins alone.
+An entry's key carries the airport's sidecar hash, which stales the push targets alone, and its layout sidecar hash (the key field `LayoutSidecarHash`, `AirportSidecarHash.ForLayoutSidecar`), which covers the sidecar `standLeadIns` and `spotEdges` sections, and `cornerFillets` when the airport has entries, and stales the layout too, since the layout build connects those stands, adds those chains and applies those fillet edits. An edit to any of them, notes aside, stales the layout and push halves alike; an airport with no `spotEdges` hashes as its lead-ins alone, and one with no `cornerFillets` hashes as before.
 
 An entry stored under the former key field `standLeadInHash` reads as layout-stale until the cache is regenerated.
 

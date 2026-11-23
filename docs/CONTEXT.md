@@ -259,10 +259,13 @@ _Avoid_: determinism (determinism is the same-seed, same-world property of the s
 A `HOLD` given to a `FOLLOWG` follower ends the follow: the aircraft brakes to rest and holds in position, and `RES` does not resume the follow. A follower inside a runway's holding position marking holds on the crossing it was cleared across and finishes it at rest; one that comes to rest with its tail still inside a runway reports not clear of it (`FollowingPhase.BreakOff`, `HoldingInPositionPhase.AfterFollowBreakOff`, docs/ground/navigator.md).
 
 **Corner fillet override**:
-A sidecar `cornerFillets` entry that edits the fillet of one taxiway corner, named by the corner's pre-fillet apex, its two taxiways and each arm's true bearing from the apex.
+A sidecar `cornerFillets` entry that edits the fillet of one taxiway corner, named by the corner's pre-fillet apex, its two taxiways and each arm's true bearing from the apex. It carries up to four edits: `suppress`, `radiusFt`, `force` and `tangentFt` (docs/ground/fillet-generator.md, "Per-corner overrides").
 
 **Fillet report**:
-What one fillet pass did at each corner (built, chord-degraded or skipped, with the reason and the radii) and how it matched each corner fillet override (matched, orphaned when no corner fits, ambiguous when several do); returned on `FilletStatistics.Report`, never stored on the layout (docs/ground/fillet-generator.md, "The fillet report").
+What one fillet pass did at each corner (built, chord-degraded or skipped, with the reason and the radii) and how it matched each corner fillet override (matched, orphaned when no corner fits, ambiguous when several do) and what effect it had (an override effect); returned on `FilletStatistics.Report`, never stored on the layout (docs/ground/fillet-generator.md, "The fillet report").
+
+**Forced corner**:
+A corner a corner fillet override's `force` plans past the checks that would skip it; refused, and the override `Rejected`, where the arc could not be steered (`ForcedCornerCheck`, docs/ground/fillet-generator.md, "Per-corner overrides").
 
 **Full-length band**:
 The runway's hold-short bars within 200 ft along-track of the one nearest the requested threshold; the bars `RouteMaterialiser.OrderFullLengthLineupBars` treats as full-length lineup points, ranked by the aircraft's side of the runway (docs/ground/pathfinder.md, "Full-length lineup bar order").
@@ -278,6 +281,12 @@ _Avoid_: check-in (a check-in is the call on a frequency change), initial contac
 **Intersection departure**:
 A takeoff from a taxiway's hold line on the runway, short of the full runway length, in place of the runway end's entry. A `CTO` given while holding short of a taxiway makes one: the aircraft is re-cleared onto that taxiway to the runway's hold line on it, and the readback names it ("cleared for takeoff runway 28R at echo"). A taxiway that does not reach the assigned runway keeps the hold (`TaxiwayHoldTakeoffOutcome`). Classified per runway end by `RunwayEntryPoint`.
 _Avoid_: intersection takeoff (the AIM's term for the same departure; the code and docs say departure)
+
+**Override effect**:
+What a matched corner fillet override did to the layout, one per override in the fillet report (`FilletOverrideEffect`): `Applied` (the edits shaped the corner), `NotReachable` (the junction has fewer than two edges, is a runway centerline projection, or is one the pass does not fillet and the override does not force) or `Rejected` (a force or pin was refused and the pass planned again without it).
+
+**Pinned tangent**:
+A corner fillet override's `tangentFt`: the two distances, one per arm, from the corner's apex at which the arc's tangent points are fixed, so the arc's radius is the one the pins allow; refused, and the override `Rejected`, when the geometry cannot honour them (docs/ground/fillet-generator.md, "The pinned-tangent pass").
 
 **Pre-clear**:
 A clearance for a hold short still ahead of a rolling aircraft, set before it reaches the bar so it taxis through without stopping: `CROSS` for a runway crossing, a bare `RES` for the next taxiway or spot bar (`GroundCommandHandler.TryPreClearNextTaxiwayHoldShort`, docs/command-handlers.md). Only the one bar named is cleared; later bars stay armed.
