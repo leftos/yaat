@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Phases.Approach;
 
@@ -78,6 +79,80 @@ public class TurnAnticipationTests
         double left = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, 0, 270);
         double right = FlightPhysics.ComputeAnticipationDistanceNm(250, 2.5, 0, 90);
         Assert.Equal(right, left, precision: 6);
+    }
+
+    // --- SequencingThreshold: the fly-by / fly-over boundary ---
+
+    /// <summary>
+    /// The sequencer's threshold at a fix whose legs turn by <paramref name="courseChangeDeg"/> (right positive). The legs
+    /// are <see cref="GeoMath.ProjectPoint"/> offsets, whose flat projection makes the realised course change a few
+    /// thousandths of a degree short of the heading it is built at, so each test asserts the realised value it flies.
+    /// </summary>
+    private static (double RealisedChangeDeg, double ThresholdNm, double AnticipationNm) SequencingThresholdAtCourseChange(double courseChangeDeg)
+    {
+        var legStart = new LatLon(37.0, -122.0);
+        LatLon fix = GeoMath.ProjectPoint(legStart, new TrueHeading(0), 10.0);
+        LatLon next = GeoMath.ProjectPoint(fix, new TrueHeading(courseChangeDeg), 0.1);
+        AircraftState aircraft = CreateAircraft(heading: 0, groundSpeed: 120, altitude: 0);
+        aircraft.AircraftType = "SR22";
+        double realisedChangeDeg = NormalizeAngle(GeoMath.BearingTo(fix, next) - GeoMath.BearingTo(legStart, fix));
+        (double thresholdNm, double anticipationNm) = FlightPhysics.SequencingThreshold(
+            aircraft,
+            legStart,
+            new NavigationTarget { Name = "FIXA", Position = fix },
+            new NavigationTarget { Name = "FIXB", Position = next },
+            TurnModel.Instant
+        );
+        return (realisedChangeDeg, thresholdNm, anticipationNm);
+    }
+
+    [Fact]
+    public void SequencingThreshold_CourseChange119_IsFlyBy()
+    {
+        (double realisedDeg, _, double anticipationNm) = SequencingThresholdAtCourseChange(119.0);
+
+        Assert.InRange(realisedDeg, 119.0 - 0.002, 119.0 + 0.002);
+        Assert.True(anticipationNm > 0, $"A 119 degree course change should be flown fly-by, got anticipation {anticipationNm:F3} nm");
+    }
+
+    [Fact]
+    public void SequencingThreshold_CourseChange120_IsFlyBy()
+    {
+        (double realisedDeg, _, double anticipationNm) = SequencingThresholdAtCourseChange(120.0);
+
+        // 120 is the limit and stays fly-by; the flat projection realises it 0.0007 degrees short.
+        Assert.InRange(realisedDeg, 119.998, 120.002);
+        Assert.True(anticipationNm > 0, $"A 120 degree course change should be flown fly-by, got anticipation {anticipationNm:F3} nm");
+    }
+
+    [Fact]
+    public void SequencingThreshold_CourseChangeJustAbove120_IsFlyOver()
+    {
+        (double realisedDeg, double thresholdNm, double anticipationNm) = SequencingThresholdAtCourseChange(120.0015);
+
+        Assert.InRange(realisedDeg, 120.0005, 120.002);
+        Assert.Equal(0.5, thresholdNm);
+        Assert.Equal(0.0, anticipationNm);
+    }
+
+    [Fact]
+    public void SequencingThreshold_CourseChange121_IsFlyOver()
+    {
+        (double realisedDeg, double thresholdNm, double anticipationNm) = SequencingThresholdAtCourseChange(121.0);
+
+        Assert.InRange(realisedDeg, 121.0 - 0.002, 121.0 + 0.002);
+        Assert.Equal(0.5, thresholdNm);
+        Assert.Equal(0.0, anticipationNm);
+    }
+
+    [Fact]
+    public void SequencingThreshold_LeftReversal150_IsFlyOver()
+    {
+        (double realisedDeg, double thresholdNm, double anticipationNm) = SequencingThresholdAtCourseChange(-150.0);
+
+        Assert.InRange(realisedDeg, -150.0 - 0.002, -150.0 + 0.002);
+        Assert.Equal(0.5, thresholdNm);
+        Assert.Equal(0.0, anticipationNm);
     }
 
     // --- UpdateNavigation: fly-by vs fly-over ---
@@ -169,6 +244,36 @@ public class TurnAnticipationTests
         // With ~0° course change, anticipation is 0 → threshold stays at 0.5nm
         Assert.Equal(2, aircraft.Targets.NavigationRoute.Count);
         Assert.Equal("WP1", aircraft.Targets.NavigationRoute[0].Name);
+    }
+
+    [Fact]
+    public void UpdateNav_CourseReversalFix_IsFlownToTheFix()
+    {
+        TestVnasData.EnsureInitialized();
+        (double Lat, double Lon) vpmorPos = NavigationDatabase.Instance.GetFixPosition("VPMOR")!.Value;
+        (double Lat, double Lon) vpcbtPos = NavigationDatabase.Instance.GetFixPosition("VPCBT")!.Value;
+        var vpmor = new LatLon(vpmorPos.Lat, vpmorPos.Lon);
+        var vpcbt = new LatLon(vpcbtPos.Lat, vpcbtPos.Lon);
+
+        AircraftState aircraft = CreateAircraft(heading: GeoMath.BearingTo(vpcbt, vpmor), groundSpeed: 120, altitude: 6000);
+        aircraft.AircraftType = "SR22";
+        aircraft.Position = vpcbt;
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "VPMOR", Position = vpmor });
+        aircraft.Targets.NavigationRoute.Add(new NavigationTarget { Name = "VPCBT", Position = vpcbt });
+
+        int seconds = 0;
+        while ((seconds < 1200) && (aircraft.Targets.NavigationRoute.Count > 0) && (aircraft.Targets.NavigationRoute[0].Name == "VPMOR"))
+        {
+            FlightPhysics.Update(aircraft, 1.0);
+            seconds++;
+        }
+
+        Assert.True(
+            (aircraft.Targets.NavigationRoute.Count > 0) && (aircraft.Targets.NavigationRoute[0].Name != "VPMOR"),
+            $"hung: VPMOR was still the first route fix after {seconds} s"
+        );
+        double distanceNm = GeoMath.DistanceNm(aircraft.Position, vpmor);
+        Assert.True(distanceNm <= 0.6, $"VPMOR sequenced {distanceNm:F2} nm from the fix; the reversal is flown fly-over, so it sequences at 0.5 nm");
     }
 
     [Fact]

@@ -2098,11 +2098,18 @@ public static class FlightPhysics
     }
 
     /// <summary>
+    /// The largest course change, in degrees, flown fly-by at a route fix; a larger one is flown fly-over (a judgement
+    /// call: no FAA source sets a limit).
+    /// </summary>
+    internal const double MaxFlyByCourseChangeDeg = 120.0;
+
+    /// <summary>
     /// The distance before <paramref name="fix"/>, flown from <paramref name="legStart"/>, at which the sequencer starts
     /// the turn, or sequences the fix: for a fly-by fix with <paramref name="nextFix"/> after it the larger of its turn
-    /// anticipation and <see cref="NavArrivalNm"/>, for a fly-over or last fix <see cref="NavArrivalNm"/> alone. Also
-    /// returns the anticipation distance (0 for the latter). Under <see cref="TurnModel.Ramp"/> the anticipation includes
-    /// the roll-in lead (<see cref="TurnShape.LeadNm"/>).
+    /// anticipation and <see cref="NavArrivalNm"/>; for a fly-over or last fix, and for a fix whose course change exceeds
+    /// <see cref="MaxFlyByCourseChangeDeg"/>, <see cref="NavArrivalNm"/> alone. Also returns the anticipation distance
+    /// (0 alongside <see cref="NavArrivalNm"/>). Under <see cref="TurnModel.Ramp"/> the anticipation includes the roll-in
+    /// lead (<see cref="TurnShape.LeadNm"/>).
     /// </summary>
     internal static (double ThresholdNm, double AnticipationNm) SequencingThreshold(
         AircraftState aircraft,
@@ -2119,6 +2126,13 @@ public static class FlightPhysics
 
         double currentLegBearing = GeoMath.BearingTo(legStart, fix.Position);
         double nextLegBearing = GeoMath.BearingTo(fix.Position, nextFix.Position);
+
+        // A change larger than a fly-by turn can take is flown fly-over: reach the fix, then turn.
+        if (Math.Abs(NormalizeAngle(nextLegBearing - currentLegBearing)) > MaxFlyByCourseChangeDeg)
+        {
+            return (NavArrivalNm, 0);
+        }
+
         FlyByTurn turn = FlyByTurnFor(aircraft, currentLegBearing, nextLegBearing, turnModel);
 
         // Whether the fix is flown as an arc is decided without the roll-in lead: a turn whose bare anticipation is inside

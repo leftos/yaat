@@ -679,7 +679,7 @@ gate (see scoring below). VFR, visual (`VIS…`), and pattern traffic skip the �
 - **Fly-by anticipation vs fly-over** (`ApproachNavigationPhase.cs:57`): a fly-by fix with a following fix uses
   `FlightPhysics.ComputeAnticipationDistanceNm` to start the turn early; inside the anticipation zone it sequences
   once the aircraft is along-track *past* the waypoint toward the next fix. A fly-over fix
-  (`IsFlyOver`) sequences only on physical arrival within `FixArrivalThresholdNm = 0.5`.
+  (`IsFlyOver`) sequences only on physical arrival within `FixArrivalThresholdNm = 0.5`. This phase keeps its own CIFP fly-by logic and does not apply the 120° `FlightPhysics.MaxFlyByCourseChangeDeg` limit that route navigation does.
 - **Continuous descent** (`ApplyContinuousDescentTarget`, `ApproachNavigationPhase.cs:151`): each tick it sets
   `TargetAltitude` to the published 3°/6° glideslope altitude at the current distance from threshold, **bounded
   below** by the highest remaining `AtOrAbove`/`At`/`GlideSlopeIntercept` constraint (and the lower bound of a
