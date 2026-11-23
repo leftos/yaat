@@ -4,8 +4,7 @@
 
 ## YAATEdit in YAAT
 
-### M1 Scenario editor (5/9 done)
-- [/] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor (sub-issue of YAAT-1989) · release vNext
+### M1 Scenario editor (6/9 done)
 - [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2493 YAATEdit M1.7: Parking picker (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide (sub-issue of YAAT-1989) · release vNext
@@ -37,7 +36,6 @@
 
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
-  - [/] YAAT-2491 YAATEdit M1.5: Aircraft grid and editor · release vNext
   - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
   - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext
   - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide · release vNext
@@ -73,6 +71,7 @@
   - [ ] YAAT-2763 Warn on a tight or lopsided pinned fillet corner (PINNED_TIGHT_RADIUS, pin asymmetry)
   - [ ] YAAT-2768 Airport Editor imagery: free replaced tower-cab images; FAA ids for Alaska and Hawaii
   - [ ] YAAT-2780 A click outside an open Scenario Editor drop-down is swallowed
+- [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?"
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -551,6 +550,9 @@
 
 ### No milestone
 - [ ] YAAT-2016 Break the tie when a pushing and a taxiing aircraft yield to each other for good
+- [ ] YAAT-2785 Let an in-trail FOLLOW join a lead's base turned from a fix
+- [ ] YAAT-2786 Say holding parallel, not S-turning, when a FOLLOW excursion sits at its offset cap
+- [ ] YAAT-2789 Don't cancel a FOLLOW for spacing while it holds parallel in a fall-in
 
 ## Pushback, tug moves and stands
 
@@ -1203,10 +1205,8 @@
 
 ## Solo training: simulated controllers and call-ups
 
-### 1 Defects (7/23 done)
-- [ ] YAAT-175 Solo Class B leftovers: reset the clearance, remain-outside command · release vNext
-  - [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
-    - [/] YAAT-2701 Judge Class B entry along the pattern or approach path and release the hold when the path clears · release vNext
+### 1 Defects (9/23 done)
+- [ ] YAAT-2668 Keep uncleared VFR pattern entries and approaches out of Class B (shelf cap, orbit in front of the phase) · release vNext
 - [ ] YAAT-337 Solo release auto-takeoff depends on the release request object surviving the jitter window · release vNext
 - [ ] YAAT-1179 Spawn-on-final arrivals check in with tower at 20 nm; hold the call until 15-10 nm · release vNext
 - [ ] YAAT-1198 SQVFR answers an IFR flight's clearance request · release vNext
@@ -1260,6 +1260,8 @@
 - [ ] YAAT-2752 Drop a Class B hold's stashed direct when a later heading replaces it
 - [ ] YAAT-2764 Paired Class B orbit: vertical restore vs non-altitude commands, late advisory wording
 - [ ] YAAT-2767 VFR check-in polish: APP landing call names the airport, model-level type names, CTR order
+- [ ] YAAT-2790 Solo: advise "that'll take us into the bravo" at clearance dispatch from the path test · release vNext
+- [ ] YAAT-2791 Solo: put the Class B shelf cap on the path predictor · release vNext
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1597,6 +1599,7 @@
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
 - [ ] YAAT-1950 Add a bug_bundle.py remap subcommand that moves a recording's node ids onto a new ground graph
 - [ ] YAAT-2572 Recording kill reports a false unreachable child for an elevated older process listed under cmd's pid
+- [ ] YAAT-2787 Make AircraftPerformance's profile-database state independent of test order
 
 ## Docs, agent tooling and repo hygiene
 
@@ -1748,7 +1751,7 @@
 - [README.md](README.md) — YAAT-1013
 - [asdex-safety-logic-parity.md](asdex-safety-logic-parity.md) — ASDE-X alert parity (feat/asdex-safety-logic)
 - [canvases/tts-benchmark/RECIPE.md](canvases/tts-benchmark/RECIPE.md) — YAAT-1617
-- [class-b-in-phase-hold.md](class-b-in-phase-hold.md) — YAAT-2701
+- [class-b-in-phase-hold.md](class-b-in-phase-hold.md) — YAAT-2790, YAAT-2791
 - [context-menu-builder-refactor.md](context-menu-builder-refactor.md) — YAAT-2169, Context-menu quick commands (#471)
 - [context-menu-quick-commands.md](context-menu-quick-commands.md) — YAAT-329, YAAT-2169, Context-menu quick commands (#471)
 - [controller-ai/02-positions-and-handoffs.md](controller-ai/02-positions-and-handoffs.md) — YAAT-804, YAAT-1539
@@ -1770,4 +1773,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2491, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
