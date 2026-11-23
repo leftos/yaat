@@ -57,6 +57,10 @@ public sealed class NavigationTargetDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double? ArrivalTrueCourse { get; init; }
 
+    // Additive, no schema bump: written only when true; an older snapshot has none and restores false.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ForceFlyBy { get; init; }
+
     public double? RevertAltitude { get; init; }
     public double? RevertAssignedAltitude { get; init; }
     public double? RevertSpeed { get; init; }

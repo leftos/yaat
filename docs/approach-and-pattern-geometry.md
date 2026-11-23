@@ -391,7 +391,7 @@ runway-heading cross-track by the pattern sign (`Right ⇒ +1`, `Left ⇒ −1`)
 
 A downwind entry (`ERD`/`ELD`) normally routes through a `PatternEntryPhase` targeting the abeam entry point with a
 lead-in chosen by `ChooseDownwindLeadIn` — a 45° midfield intercept (AIM 4-3-3) vs a straight-in join to the extended
-downwind, scored by total heading change with a penalty on any single turn > 120°. **Both lead-in candidates project
+downwind, scored by total heading change with a penalty on any single turn > 120°. The lead-in's `PTN-LEADIN` fix carries `NavigationTarget.ForceFlyBy`, so it is always sequenced fly-by whatever its course change (the 120° fly-over rule applies to every other fix). **Both lead-in candidates project
 behind the abeam point**, so an aircraft already alongside the downwind — at/past the entry point along-track (with
 `PresentPositionJoinAlongTrackToleranceNm = 0.25` slack), no further than ~1 nm past the base turn
 (`PresentPositionJoinBeyondBaseTurnNm`), and laterally within `PresentPositionJoinLateralWidthFactor = 1.5` × pattern

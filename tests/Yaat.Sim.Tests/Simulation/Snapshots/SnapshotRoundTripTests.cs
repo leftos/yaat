@@ -259,6 +259,27 @@ public class SnapshotRoundTripTests
     }
 
     /// <summary>
+    /// The fly-by mark a phase puts on its own lead-in point round-trips through the recording serializer, and a fix
+    /// without it writes no field for it.
+    /// </summary>
+    [Fact]
+    public void NavigationTarget_ForceFlyBy_RoundTripsThroughJson_AndIsOmittedWhileFalse()
+    {
+        var forced = new NavigationTarget
+        {
+            Name = "PTN-LEADIN",
+            Position = new LatLon(37.6, -121.9),
+            ForceFlyBy = true,
+        };
+        var plain = new NavigationTarget { Name = "GRUDG", Position = new LatLon(37.6, -121.9) };
+
+        Assert.True(RoundTripThroughJson(forced).ForceFlyBy);
+        Assert.False(RoundTripThroughJson(plain).ForceFlyBy);
+        string plainJson = JsonSerializer.Serialize(plain.ToSnapshot(), RecordingJsonOptions.Default);
+        Assert.DoesNotContain("ForceFlyBy", plainJson, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The transition an approach clearance selected round-trips through the recording serializer, and a clearance that
     /// selected none writes no transition and comes back with none.
     /// </summary>

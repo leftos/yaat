@@ -306,6 +306,13 @@ public class NavigationTarget
     public bool IsFlyOver { get; init; }
 
     /// <summary>
+    /// True when the fix is sequenced as a fly-by whatever its course change. A phase's own synthetic lead-in point
+    /// shapes a turn the aircraft is meant to fly continuously rather than a fix a pilot flies over, so the
+    /// fly-over limit on the course change (<see cref="FlightPhysics.SequencingThreshold"/>) does not apply to it.
+    /// </summary>
+    public bool ForceFlyBy { get; init; }
+
+    /// <summary>
     /// The direct to the cleared destination a pilot flies when its route ran out (<see cref="AircraftState.ClearedDestination"/>).
     /// Readers that ask whether the cleared navigation is done treat a route holding only this target as empty
     /// (<see cref="ControlTargets.HasRouteToFly"/>), and a fix appended to the route goes in its place
@@ -412,6 +419,7 @@ public class NavigationTarget
                 ? new SpeedRestrictionDto { Type = SpeedRestrictionDto.ToTypeCode(SpeedRestriction.Type), Speed = SpeedRestriction.SpeedKts }
                 : null,
             IsFlyOver = IsFlyOver,
+            ForceFlyBy = ForceFlyBy,
             IsClearanceLimitDirect = IsClearanceLimitDirect,
             ArrivalTrueCourse = ArrivalTrueCourse,
             RevertAltitude = RevertAltitude,
@@ -448,6 +456,7 @@ public class NavigationTarget
                 ? new CifpSpeedRestriction(dto.SpeedRestriction.Speed, SpeedRestrictionDto.FromTypeCode(dto.SpeedRestriction.Type))
                 : null,
             IsFlyOver = dto.IsFlyOver,
+            ForceFlyBy = dto.ForceFlyBy,
             IsClearanceLimitDirect = dto.IsClearanceLimitDirect,
             ArrivalTrueCourse = dto.ArrivalTrueCourse,
             RevertAltitude = dto.RevertAltitude,

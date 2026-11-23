@@ -448,7 +448,8 @@ public static class SnapshotSchemaMigrator
         //   appended last. AircraftProcedureDto.SentPdcAltitudeKind and SentPdcAltitudeFt added, optional and written only
         //   when set; an older snapshot reads None/null, the facility default.
         // V56 (no bump): PilotPendingRequestKind.InitialContact appended last, so every earlier kind keeps its number; an older
-        //   snapshot never holds it.
+        //   snapshot never holds it. NavigationTargetDto.ForceFlyBy added, marking a phase's own lead-in point as flown
+        //   fly-by whatever its course change; written only when true, and an older snapshot reads false.
         if (snapshot.SchemaVersion < 53)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

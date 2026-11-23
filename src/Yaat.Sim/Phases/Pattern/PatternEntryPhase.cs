@@ -102,8 +102,15 @@ public sealed class PatternEntryPhase : Phase
 
         if (LeadInLat is not null && LeadInLon is not null)
         {
+            // The lead-in shapes the turn onto the leg being joined, so it is always flown fly-by, however sharp the
+            // heading change it asks for.
             ctx.Targets.NavigationRoute.Add(
-                new NavigationTarget { Position = new LatLon(LeadInLat.Value, LeadInLon.Value), Name = LeadInTargetName }
+                new NavigationTarget
+                {
+                    Position = new LatLon(LeadInLat.Value, LeadInLon.Value),
+                    Name = LeadInTargetName,
+                    ForceFlyBy = true,
+                }
             );
         }
 

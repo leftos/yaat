@@ -1684,6 +1684,21 @@
     "Solo": false
   },
   {
+    "File": "s2-oak3-follow-recording.zip",
+    "Commands": 102,
+    "ByKind": {
+      "ActiveRunways": 1,
+      "Compound": 64,
+      "Delete": 6,
+      "SetActivePosition": 2,
+      "Strip": 29
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 0,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "s2-oak3-follow-runaway-ias-recording.yaat-bug-report-bundle.zip",
     "Commands": 19,
     "ByKind": {

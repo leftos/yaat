@@ -2107,9 +2107,10 @@ public static class FlightPhysics
     /// The distance before <paramref name="fix"/>, flown from <paramref name="legStart"/>, at which the sequencer starts
     /// the turn, or sequences the fix: for a fly-by fix with <paramref name="nextFix"/> after it the larger of its turn
     /// anticipation and <see cref="NavArrivalNm"/>; for a fly-over or last fix, and for a fix whose course change exceeds
-    /// <see cref="MaxFlyByCourseChangeDeg"/>, <see cref="NavArrivalNm"/> alone. Also returns the anticipation distance
-    /// (0 alongside <see cref="NavArrivalNm"/>). Under <see cref="TurnModel.Ramp"/> the anticipation includes the roll-in
-    /// lead (<see cref="TurnShape.LeadNm"/>).
+    /// <see cref="MaxFlyByCourseChangeDeg"/>, <see cref="NavArrivalNm"/> alone — except a fix marked
+    /// <see cref="NavigationTarget.ForceFlyBy"/>, flown fly-by whatever its course change. Also returns the anticipation
+    /// distance (0 alongside <see cref="NavArrivalNm"/>). Under <see cref="TurnModel.Ramp"/> the anticipation includes the
+    /// roll-in lead (<see cref="TurnShape.LeadNm"/>).
     /// </summary>
     internal static (double ThresholdNm, double AnticipationNm) SequencingThreshold(
         AircraftState aircraft,
@@ -2127,8 +2128,9 @@ public static class FlightPhysics
         double currentLegBearing = GeoMath.BearingTo(legStart, fix.Position);
         double nextLegBearing = GeoMath.BearingTo(fix.Position, nextFix.Position);
 
-        // A change larger than a fly-by turn can take is flown fly-over: reach the fix, then turn.
-        if (Math.Abs(NormalizeAngle(nextLegBearing - currentLegBearing)) > MaxFlyByCourseChangeDeg)
+        // A change larger than a fly-by turn can take is flown fly-over: reach the fix, then turn. A fix marked
+        // ForceFlyBy is exempt: a phase's own lead-in point shapes a turn, not a gate to fly over.
+        if ((!fix.ForceFlyBy) && (Math.Abs(NormalizeAngle(nextLegBearing - currentLegBearing)) > MaxFlyByCourseChangeDeg))
         {
             return (NavArrivalNm, 0);
         }
