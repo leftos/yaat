@@ -9,5 +9,6 @@ public sealed class NoAirportImagery : IAirportImagerySource
     private NoAirportImagery() { }
 
     /// <inheritdoc />
-    public Task<TowerCabImage?> GetAsync(string artccId, string airportId, CancellationToken ct) => Task.FromResult<TowerCabImage?>(null);
+    public Task<TowerCabImage?> GetAsync(string artccId, string airportId, IProgress<TowerCabDownloadProgress>? progress, CancellationToken ct) =>
+        Task.FromResult<TowerCabImage?>(null);
 }

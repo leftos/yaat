@@ -3578,7 +3578,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        _airportEditorWindow = new AirportEditorWindow(vm.Preferences, vm.TowerCabImages, vm.VnasConfig);
+        _airportEditorWindow = new AirportEditorWindow(vm.Preferences, vm.AirportEditorImagery);
         _airportEditorWindow.Closed += (_, _) => _airportEditorWindow = null;
         _airportEditorWindow.Show();
     }

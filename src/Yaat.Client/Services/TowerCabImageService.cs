@@ -18,6 +18,20 @@ namespace Yaat.Client.Services;
 /// </summary>
 public sealed record TowerCabImage(SKImage Image, double BottomLeftLat, double BottomLeftLon, double TopRightLat, double TopRightLon);
 
+/// <summary>How much of a tower-cab image's body has downloaded.</summary>
+/// <param name="BytesRead">The bytes read so far.</param>
+/// <param name="TotalBytes">The body's length when the response gives it, else null.</param>
+public sealed record TowerCabDownloadProgress(long BytesRead, long? TotalBytes);
+
+// One image's download: where from, where to, what to log it as, and who hears its progress.
+internal readonly record struct TowerCabImageRequest(
+    string Url,
+    string CachePath,
+    string AirportId,
+    string Resolution,
+    IProgress<TowerCabDownloadProgress>? Progress
+);
+
 /// <summary>
 /// Downloads, caches, and decodes tower cab background JPEG images from vNAS.
 /// Uses CRC-style conditional HTTP (If-Modified-Since / HEAD check) for freshness.
@@ -25,26 +39,54 @@ public sealed record TowerCabImage(SKImage Image, double BottomLeftLat, double B
 /// </summary>
 public sealed class TowerCabImageService : IDisposable
 {
-    private static readonly string CacheDir = YaatPaths.Combine("cache", "towercab");
+    // Progress is reported each time this many more bytes have arrived, and once at the end.
+    private const long ProgressStepBytes = 512 * 1024;
+
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(60);
 
     private readonly ILogger _log = AppLog.CreateLogger<TowerCabImageService>();
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };
+    private readonly HttpClient _http;
+    private readonly TimeProvider _time;
+    private readonly string _cacheDir;
+
+    /// <summary>Creates the app's service: its own HTTP client, the system clock and the per-user tower-cab cache.</summary>
+    public TowerCabImageService()
+        : this(new HttpClientHandler(), TimeProvider.System, YaatPaths.Combine("cache", "towercab")) { }
+
+    /// <summary>Creates a service over an HTTP handler, a clock for the download timeout and a cache folder. Test seam.</summary>
+    internal TowerCabImageService(HttpMessageHandler handler, TimeProvider time, string cacheDir)
+    {
+        _http = new HttpClient(handler) { Timeout = RequestTimeout };
+        _time = time;
+        _cacheDir = cacheDir;
+    }
 
     /// <summary>
     /// Downloads (if needed) and decodes a tower cab background image.
     /// Returns null if the image is unavailable or has no EXIF GPS data.
     /// </summary>
-    public async Task<TowerCabImage?> GetImageAsync(string towerCabImagesBaseUrl, string artccId, string airportId, bool highRes)
+    /// <param name="towerCabImagesBaseUrl">The vNAS tower-cab images' base URL.</param>
+    /// <param name="artccId">The ARTCC whose folder holds the image.</param>
+    /// <param name="airportId">The airport's id.</param>
+    /// <param name="highRes">True for the high-res image.</param>
+    /// <param name="progress">Told how much of the image's body has arrived while it downloads (never on a cache hit), or null.</param>
+    public async Task<TowerCabImage?> GetImageAsync(
+        string towerCabImagesBaseUrl,
+        string artccId,
+        string airportId,
+        bool highRes,
+        IProgress<TowerCabDownloadProgress>? progress
+    )
     {
         string resolution = highRes ? "High" : "Low";
         string fileName = $"{airportId}-{resolution}Res.jpg";
-        string artccCacheDir = Path.Combine(CacheDir, artccId);
+        string artccCacheDir = Path.Combine(_cacheDir, artccId);
         Directory.CreateDirectory(artccCacheDir);
         string cachePath = Path.Combine(artccCacheDir, fileName);
 
         string url = $"{towerCabImagesBaseUrl}/{artccId}/{fileName}";
 
-        await EnsureFreshAsync(url, cachePath, airportId, resolution);
+        await EnsureFreshAsync(new TowerCabImageRequest(url, cachePath, airportId, resolution, progress));
 
         if (!File.Exists(cachePath))
         {
@@ -54,8 +96,37 @@ public sealed class TowerCabImageService : IDisposable
         return DecodeImage(cachePath, airportId);
     }
 
-    private async Task EnsureFreshAsync(string url, string cachePath, string airportId, string resolution)
+    private static async Task<byte[]> ReadBodyAsync(HttpContent content, IProgress<TowerCabDownloadProgress>? progress, CancellationToken ct)
     {
+        long? total = content.Headers.ContentLength;
+        await using Stream body = await content.ReadAsStreamAsync(ct);
+        using MemoryStream buffer = total is > 0 and <= int.MaxValue ? new MemoryStream((int)total.Value) : new MemoryStream();
+        byte[] chunk = new byte[81920];
+        long read = 0;
+        long reportedAt = 0;
+        int n;
+        while ((n = await body.ReadAsync(chunk, ct)) > 0)
+        {
+            buffer.Write(chunk, 0, n);
+            read += n;
+            if (read - reportedAt >= ProgressStepBytes)
+            {
+                reportedAt = read;
+                progress?.Report(new TowerCabDownloadProgress(read, total));
+            }
+        }
+
+        if (read != reportedAt)
+        {
+            progress?.Report(new TowerCabDownloadProgress(read, total));
+        }
+
+        return buffer.ToArray();
+    }
+
+    private async Task EnsureFreshAsync(TowerCabImageRequest request)
+    {
+        (string url, string cachePath, string airportId, string resolution, _) = request;
         // Freshness check: the vNAS data-api (Cloudflare origin) returns 200 OK on HEAD requests
         // regardless of If-Modified-Since, so we compare Last-Modified against the cached file's
         // mtime ourselves instead of relying on 304 responses.
@@ -95,7 +166,7 @@ public sealed class TowerCabImageService : IDisposable
                         _log.LogDebug("Tower cab image {AirportId} {Res}Res has been updated, re-downloading", airportId, resolution);
                     }
 
-                    await DownloadAsync(url, cachePath, airportId, resolution, serverLastModified);
+                    await DownloadAsync(request, serverLastModified);
                     return;
                 }
 
@@ -108,7 +179,7 @@ public sealed class TowerCabImageService : IDisposable
                 return;
             }
 
-            await DownloadAsync(url, cachePath, airportId, resolution, serverLastModified: null);
+            await DownloadAsync(request, serverLastModified: null);
         }
         catch (Exception ex)
         {
@@ -116,14 +187,18 @@ public sealed class TowerCabImageService : IDisposable
         }
     }
 
-    private async Task DownloadAsync(string url, string cachePath, string airportId, string resolution, DateTime? serverLastModified)
+    private async Task DownloadAsync(TowerCabImageRequest request, DateTime? serverLastModified)
     {
+        (string url, string cachePath, string airportId, string resolution, _) = request;
         if (_log.IsEnabled(LogLevel.Information))
         {
             _log.LogInformation("Downloading tower cab image {AirportId} {Res}Res from {Url}", airportId, resolution, url);
         }
 
-        using HttpResponseMessage response = await _http.GetAsync(url);
+        // ResponseHeadersRead ends the client's own timeout at the headers, so the body is timed here: a stalled body
+        // throws, and the caller's failure path keeps the cached copy.
+        using var timeout = new CancellationTokenSource(RequestTimeout, _time);
+        using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             if (_log.IsEnabled(LogLevel.Debug))
@@ -135,7 +210,7 @@ public sealed class TowerCabImageService : IDisposable
         }
 
         response.EnsureSuccessStatusCode();
-        byte[] bytes = await response.Content.ReadAsByteArrayAsync();
+        byte[] bytes = await ReadBodyAsync(response.Content, request.Progress, timeout.Token);
         await File.WriteAllBytesAsync(cachePath, bytes);
 
         DateTime? stamp = serverLastModified ?? response.Content.Headers.LastModified?.UtcDateTime;

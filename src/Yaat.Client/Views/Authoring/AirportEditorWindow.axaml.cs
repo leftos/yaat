@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Imagery;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Data.Airport;
 
@@ -11,8 +12,8 @@ namespace Yaat.Client.Views.Authoring;
 /// Tools › Airport Editor: a non-modal window over an <see cref="AirportEditorViewModel"/> with the commands that open a
 /// map from the vNAS cache, a file or a folder in a toolbar, the map on an <see cref="AirportEditorCanvas"/>, and the
 /// status line along the bottom. It answers the view model's questions itself: the app's file and folder pickers and a
-/// small prompt for the airport. The toolbar's Imagery toggle shows the airport's vNAS tower-cab image under the map.
-/// Closing it cancels an open and an image request in flight.
+/// small prompt for the airport. The toolbar's Imagery toggle shows the airport's vNAS tower-cab image under the map, or
+/// the USGS NAIPPlus tiles once vNAS has none. Closing it cancels an open, an image request and the tile fetches in flight.
 /// </summary>
 public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 {
@@ -31,35 +32,44 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
     private readonly IFilePickerService _filePicker;
     private readonly UserPreferences _preferences;
 
+    private readonly UsgsImageryTileCache _tiles;
+
     // Parameterless ctor for the Avalonia designer / XamlLoader.
     public AirportEditorWindow()
         : this(
             new UserPreferences(),
-            prompts => new AirportEditorViewModel(new AirportMapSourceLoader(SharedDownloader.Value), prompts, NoAirportImagery.Instance, null)
+            prompts => new AirportEditorViewModel(new AirportMapSourceLoader(SharedDownloader.Value), prompts, NoAirportImagery.Instance, null),
+            UsgsImageryTileCache.CreateForApp
         ) { }
 
     /// <summary>Creates the window over the app's vNAS cache, drawing each airport's vNAS tower-cab image under its map.</summary>
     /// <param name="preferences">Keeps the window's position and size, the imagery toggle and its brightness.</param>
-    /// <param name="towerCabImages">The app's tower-cab image service (one HTTP client, one disk cache).</param>
-    /// <param name="vnasConfig">The app's vNAS config, which gives the tower-cab images' base URL.</param>
-    public AirportEditorWindow(UserPreferences preferences, TowerCabImageService towerCabImages, VnasConfigService vnasConfig)
+    /// <param name="towerCabImagery">
+    /// The app's one tower-cab image source, shared by every editor window so a request in flight survives a close.
+    /// </param>
+    public AirportEditorWindow(UserPreferences preferences, TowerCabAirportImagerySource towerCabImagery)
         : this(
             preferences,
-            prompts => new AirportEditorViewModel(
-                new AirportMapSourceLoader(SharedDownloader.Value),
-                prompts,
-                new TowerCabAirportImagerySource(towerCabImages, vnasConfig),
-                preferences.ArtccId
-            )
+            prompts => new AirportEditorViewModel(new AirportMapSourceLoader(SharedDownloader.Value), prompts, towerCabImagery, preferences.ArtccId),
+            UsgsImageryTileCache.CreateForApp
         ) { }
 
     /// <summary>Creates the window.</summary>
     /// <param name="preferences">Keeps the window's position and size, the imagery toggle and its brightness.</param>
     /// <param name="createViewModel">Builds the view model over the window's own prompts.</param>
-    public AirportEditorWindow(UserPreferences preferences, Func<IAirportEditorPrompts, AirportEditorViewModel> createViewModel)
+    /// <param name="createTileCache">
+    /// Builds the USGS tile cache over the callback that repaints the canvas when a tile arrives; the window owns the cache
+    /// and disposes it on close.
+    /// </param>
+    public AirportEditorWindow(
+        UserPreferences preferences,
+        Func<IAirportEditorPrompts, AirportEditorViewModel> createViewModel,
+        Func<Action, UsgsImageryTileCache> createTileCache
+    )
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(createViewModel);
+        ArgumentNullException.ThrowIfNull(createTileCache);
         InitializeComponent();
         _preferences = preferences;
         _filePicker = FilePickerFactory.Create(this);
@@ -68,6 +78,8 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         DataContext = ViewModel;
         _geometry = new WindowGeometryHelper(this, preferences, GeometryKey, 1100, 700);
         _geometry.Restore();
+        _tiles = createTileCache(MapCanvas.MarkDirty);
+        MapCanvas.TileCache = _tiles;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.FitRequested += OnFitRequested;
         MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
@@ -76,6 +88,8 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         MapCanvas.ShowImagery = ViewModel.ShowImagery;
         MapCanvas.ImageryBrightness = preferences.AirportEditorImageryBrightness;
         MapCanvas.Image = ViewModel.Image;
+        MapCanvas.ImageryProgressText = ViewModel.ImageryProgressText;
+        ApplyTilesActive();
 
         // A view model handed in with a map already open (createViewModel may open one) shows it, fitted once the canvas
         // has a size; a fresh one has none, so this does nothing.
@@ -152,6 +166,23 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
             MapCanvas.ShowImagery = ViewModel.ShowImagery;
             _preferences.SetAirportEditorShowImagery(ViewModel.ShowImagery);
         }
+        else if (e.PropertyName == nameof(AirportEditorViewModel.ImageryProgressText))
+        {
+            MapCanvas.ImageryProgressText = ViewModel.ImageryProgressText;
+        }
+        else if (e.PropertyName == nameof(AirportEditorViewModel.TilesActive))
+        {
+            ApplyTilesActive();
+        }
+    }
+
+    // The one place the tile cache is turned on or off: off cancels its fetches, so nothing is fetched while vNAS is
+    // pending or has an image, or while imagery is off.
+    private void ApplyTilesActive()
+    {
+        bool active = ViewModel.TilesActive;
+        _tiles.SetActive(active);
+        MapCanvas.TilesActive = active;
     }
 
     // The toggle and the brightness are Settings fields: read again whenever the window comes forward, as it does after
@@ -178,7 +209,11 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.FitRequested -= OnFitRequested;
         MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
         Activated -= OnActivated;
-        ViewModel.Dispose();
+
+        // The canvas first: its Dispose waits out a frame in progress, so no frame draws once the view model and the
+        // cache let go of their images (which are dropped, never disposed: a published SKImage stays valid).
         MapCanvas.Dispose();
+        ViewModel.Dispose();
+        _tiles.Dispose();
     }
 }

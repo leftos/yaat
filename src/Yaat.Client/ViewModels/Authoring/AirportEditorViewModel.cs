@@ -65,17 +65,47 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     private TowerCabImage? _image;
 
-    /// <summary>Whether imagery is shown; while off, no image is asked for.</summary>
+    /// <summary>Whether imagery is shown; while off, no image is asked for and no tile is fetched.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TilesActive))]
     private bool _showImagery = true;
+
+    /// <summary>
+    /// What vNAS answered for the open map's tower-cab image; the map's open resets it, and a request the toggle cancelled
+    /// leaves it <see cref="AirportEditorVnasAnswer.Pending"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TilesActive))]
+    private AirportEditorVnasAnswer _vnasAnswer = AirportEditorVnasAnswer.Unaskable;
+
+    /// <summary>
+    /// The vNAS download's progress line (<c>Downloading vNAS imagery: 40%</c>, or <c>… 12 MB</c> when the length is not
+    /// given), or null when nothing is downloading.
+    /// </summary>
+    [ObservableProperty]
+    private string? _imageryProgressText;
 
     /// <summary>Gets the latest image request, completed once its image is applied or dropped. Test seam.</summary>
     internal Task ImageryLoad { get; private set; } = Task.CompletedTask;
 
+    /// <summary>
+    /// Gets how a download's progress reaches the UI thread, or null for a <see cref="Progress{T}"/> made on the thread
+    /// that asks (the UI thread). Test seam.
+    /// </summary>
+    internal Action<Action>? ProgressPost { get; init; }
+
     /// <summary>The open map, or null before the first successful open: one immutable value, replaced whole.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedFeature))]
+    [NotifyPropertyChangedFor(nameof(TilesActive))]
     private AirportMapDocument? _document;
+
+    /// <summary>
+    /// Gets a value indicating whether the USGS tiles are drawn and fetched: imagery on, a map open, and vNAS either cannot
+    /// be asked or answered with no image.
+    /// </summary>
+    public bool TilesActive =>
+        (ShowImagery) && (Document is not null) && (VnasAnswer is AirportEditorVnasAnswer.Unaskable or AirportEditorVnasAnswer.None);
 
     /// <summary>Where the open map came from: <c>{FAA} (vNAS cache)</c> or the file's path; empty before the first open.</summary>
     [ObservableProperty]
@@ -149,15 +179,17 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
 
     partial void OnDocumentChanged(AirportMapDocument? value) => RebuildSelectionRows();
 
-    // Turned on, the open airport's image is asked for if it has not arrived; turned off, a request in flight is dropped.
+    // Turned on, vNAS is asked again only when it has not answered (the toggle cancelled the request); turned off, a
+    // request in flight is dropped with its progress line.
     partial void OnShowImageryChanged(bool value)
     {
         if (!value)
         {
             _imageryCts?.Cancel();
             _imageryCts = null;
+            ImageryProgressText = null;
         }
-        else if (Image is null)
+        else if (VnasAnswer == AirportEditorVnasAnswer.Pending)
         {
             StartImageryRequest();
         }
@@ -271,38 +303,57 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         AirportId = AirportEditorAirportId.Infer(opened.FaaCode, opened.SourceLabel, centre);
         _imageryArtccId = centre is { } at ? AirportEditorArtccResolver.Resolve(at, _preferredArtccId) : null;
         Image = null;
+        ImageryProgressText = null;
+        bool askable = (AirportId is not null) && (_imageryArtccId is not null);
+        VnasAnswer = askable ? AirportEditorVnasAnswer.Pending : AirportEditorVnasAnswer.Unaskable;
         StartImageryRequest();
     }
 
-    // A newer request cancels the older one, whose late image is then dropped; nothing is asked while imagery is off or
-    // the map has no airport or ARTCC.
+    // A newer request cancels the older one, whose late image is then dropped; nothing is asked while imagery is off, vNAS
+    // has answered, or the map has no airport or ARTCC.
     private void StartImageryRequest()
     {
         _imageryCts?.Cancel();
         _imageryCts = null;
-        if ((_disposed) || (!ShowImagery) || (AirportId is not { } airportId) || (_imageryArtccId is not { } artccId))
+        if ((_disposed) || (!ShowImagery) || (VnasAnswer != AirportEditorVnasAnswer.Pending))
+        {
+            return;
+        }
+
+        if ((AirportId is not { } airportId) || (_imageryArtccId is not { } artccId))
         {
             return;
         }
 
         var cts = new CancellationTokenSource();
         _imageryCts = cts;
-        ImageryLoad = LoadImageryAsync(artccId, airportId, cts);
+        void onProgress(TowerCabDownloadProgress p) => OnImageryProgress(cts, p);
+        IProgress<TowerCabDownloadProgress> progress = ProgressPost is { } post
+            ? new PostedProgress(post, onProgress)
+            : new Progress<TowerCabDownloadProgress>(onProgress);
+        ImageryLoad = LoadImageryAsync(artccId, airportId, cts, progress);
     }
 
-    private async Task LoadImageryAsync(string artccId, string airportId, CancellationTokenSource cts)
+    // Only the current request's progress shows; a report posted after its answer or its cancel is dropped.
+    private void OnImageryProgress(CancellationTokenSource cts, TowerCabDownloadProgress progress)
     {
+        if ((ReferenceEquals(_imageryCts, cts)) && (!cts.IsCancellationRequested))
+        {
+            ImageryProgressText = AirportEditorImageryProgress.Text(progress);
+        }
+    }
+
+    // The answer, unless a newer open, the toggle or the window's close dropped the request; a failure counts as None.
+    private async Task LoadImageryAsync(string artccId, string airportId, CancellationTokenSource cts, IProgress<TowerCabDownloadProgress> progress)
+    {
+        TowerCabImage? image = null;
         try
         {
-            TowerCabImage? image = await _imagery.GetAsync(artccId, airportId, cts.Token);
-            if (!cts.IsCancellationRequested)
-            {
-                Image = image;
-            }
+            image = await _imagery.GetAsync(artccId, airportId, progress, cts.Token);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
-            // A newer open, the toggle or the window's close dropped it.
+            return;
         }
         catch (Exception ex)
         {
@@ -316,7 +367,50 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
             // Not disposed: a source with no timer holds nothing, and a later Cancel on a disposed one would throw.
             Interlocked.CompareExchange(ref _imageryCts, null, cts);
         }
+
+        if (!cts.IsCancellationRequested)
+        {
+            Image = image;
+            ImageryProgressText = null;
+            VnasAnswer = image is null ? AirportEditorVnasAnswer.None : AirportEditorVnasAnswer.Image;
+        }
     }
+
+    // Runs each report through the post seam.
+    private sealed class PostedProgress(Action<Action> post, Action<TowerCabDownloadProgress> handler) : IProgress<TowerCabDownloadProgress>
+    {
+        public void Report(TowerCabDownloadProgress value) => post(() => handler(value));
+    }
+}
+
+/// <summary>What vNAS answered for an Airport Editor map's tower-cab image.</summary>
+public enum AirportEditorVnasAnswer
+{
+    /// <summary>No request can be made: the map has no airport id or no ARTCC.</summary>
+    Unaskable,
+
+    /// <summary>Asked (or to be asked once imagery is on), no answer yet.</summary>
+    Pending,
+
+    /// <summary>vNAS has an image for the airport.</summary>
+    Image,
+
+    /// <summary>vNAS has no image for the airport, or the request failed.</summary>
+    None,
+}
+
+/// <summary>The Airport Editor's vNAS download progress line.</summary>
+internal static class AirportEditorImageryProgress
+{
+    private const long BytesPerMegabyte = 1024 * 1024;
+
+    /// <summary>The line for a progress report: a percentage when the length is known, else whole megabytes.</summary>
+    /// <param name="progress">The report.</param>
+    /// <returns>The line.</returns>
+    public static string Text(TowerCabDownloadProgress progress) =>
+        progress.TotalBytes is long total and > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"Downloading vNAS imagery: {Math.Min(100, progress.BytesRead * 100 / total)}%")
+            : string.Create(CultureInfo.InvariantCulture, $"Downloading vNAS imagery: {progress.BytesRead / BytesPerMegabyte} MB");
 }
 
 /// <summary>One row of the Airport Editor's property panel.</summary>

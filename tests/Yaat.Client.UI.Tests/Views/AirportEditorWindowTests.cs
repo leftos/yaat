@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Imagery;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Client.Views;
@@ -102,9 +103,11 @@ public class AirportEditorWindowTests
         bool show = preferences.AirportEditorShowImagery;
         int brightness = preferences.AirportEditorImageryBrightness;
         using var downloader = new AirportLayoutDownloader();
+        var tiles = new TileStub(serveFirst: 0);
         var window = new AirportEditorWindow(
             preferences,
-            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), NoAirportImagery.Instance, null)
+            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), NoAirportImagery.Instance, null),
+            tiles.CreateCache
         );
         try
         {
@@ -586,11 +589,243 @@ public class AirportEditorWindowTests
         return count;
     }
 
+    // The vNAS answer is pending: no tiles; None: the tiles show with the credit; the next map's pending answer turns
+    // the cache off (its request in flight is cancelled); its late image replaces the tiles.
+    [AvaloniaFact]
+    public async Task ALateImage_ReplacesTheTiles_AndTheCacheIsTurnedOff()
+    {
+        var source = new HeldImagerySource();
+        var tiles = new TileStub(serveFirst: 1);
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader, source, tiles);
+        try
+        {
+            window.Width = 1100;
+            window.Height = 700;
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            Assert.Empty(canvas.SnapshotForTesting()!.Tiles);
+            Assert.Equal(0, tiles.Requests);
+
+            source.Answers[0].SetResult(null);
+            await window.ViewModel.ImageryLoad;
+            MainWindowHost.Pump();
+            Assert.Empty(canvas.SnapshotForTesting()!.Tiles);
+            CancellationToken inFlight = await tiles.Hanging.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            await tiles.Arrived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            MainWindowHost.Pump();
+            AirportEditorRenderSnapshot withTiles = canvas.SnapshotForTesting()!;
+            Assert.NotEmpty(withTiles.Tiles);
+            Assert.True(withTiles.ShowCredit);
+
+            await ShowAndOpenOakAsync(window);
+            Assert.True(inFlight.IsCancellationRequested);
+            Assert.Empty(canvas.SnapshotForTesting()!.Tiles);
+
+            source.Answers[1].SetResult(NewImage());
+            await window.ViewModel.ImageryLoad;
+            MainWindowHost.Pump();
+            AirportEditorRenderSnapshot withImage = canvas.SnapshotForTesting()!;
+            Assert.NotNull(withImage.Image);
+            Assert.Empty(withImage.Tiles);
+            Assert.False(withImage.ShowCredit);
+        }
+        finally
+        {
+            window.Close();
+            tiles.DeleteRoot();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TurningImageryOff_TurnsTheCacheOff_AndClearsTheStatusLine()
+    {
+        var source = new HeldImagerySource();
+        var tiles = new TileStub(serveFirst: 0);
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader, source, tiles);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            source.Answers[0].SetResult(null);
+            await window.ViewModel.ImageryLoad;
+            MainWindowHost.Pump();
+            canvas.SnapshotForTesting();
+            CancellationToken inFlight = await tiles.Hanging.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            canvas.Viewport.Zoom = 0.01;
+            Assert.Equal(AirportEditorImageryStatus.ZoomIn, canvas.SnapshotForTesting()!.StatusLine);
+
+            window.ViewModel.ShowImagery = false;
+
+            Assert.True(inFlight.IsCancellationRequested);
+            Assert.Null(canvas.SnapshotForTesting()!.StatusLine);
+        }
+        finally
+        {
+            window.Close();
+            tiles.DeleteRoot();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Closing_DisposesTheCanvas_BeforeTheViewModelCancelsItsRequest()
+    {
+        var source = new HeldImagerySource();
+        var tiles = new TileStub(serveFirst: 0);
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader, source, tiles);
+        AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+        bool? canvasDisposedAtCancel = null;
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            using CancellationTokenRegistration registration = source.Tokens[0].Register(() => canvasDisposedAtCancel = canvas.IsDisposed);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.True(canvasDisposedAtCancel);
+        }
+        finally
+        {
+            window.Close();
+            tiles.DeleteRoot();
+        }
+    }
+
+    // The download's progress is the canvas's status line until the answer; a report that comes after it shows nothing.
+    [AvaloniaFact]
+    public async Task DownloadProgress_IsTheStatusLine_AndALateReportShowsNothing()
+    {
+        var source = new HeldImagerySource();
+        var tiles = new TileStub(serveFirst: 0);
+        using var downloader = new AirportLayoutDownloader();
+        var window = new AirportEditorWindow(
+            new UserPreferences(),
+            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), source, null)
+            {
+                ProgressPost = action => action(),
+            },
+            tiles.CreateCache
+        );
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            IProgress<TowerCabDownloadProgress> progress = source.Progress[0]!;
+
+            progress.Report(new TowerCabDownloadProgress(40, 100));
+            Assert.Equal("Downloading vNAS imagery: 40%", canvas.SnapshotForTesting()!.StatusLine);
+
+            source.Answers[0].SetResult(NewImage());
+            await window.ViewModel.ImageryLoad;
+            MainWindowHost.Pump();
+            progress.Report(new TowerCabDownloadProgress(90, 100));
+
+            Assert.Null(window.ViewModel.ImageryProgressText);
+            Assert.Null(canvas.SnapshotForTesting()!.StatusLine);
+        }
+        finally
+        {
+            window.Close();
+            tiles.DeleteRoot();
+        }
+    }
+
+    private static TowerCabImage NewImage()
+    {
+        using var bitmap = new SKBitmap(4, 4);
+        bitmap.Erase(SKColors.Red);
+        return new TowerCabImage(SKImage.FromBitmap(bitmap), 37.70, -122.25, 37.74, -122.19);
+    }
+
     private static AirportEditorWindow NewWindow(AirportLayoutDownloader downloader) =>
+        NewWindow(downloader, NoAirportImagery.Instance, new TileStub(serveFirst: 0));
+
+    private static AirportEditorWindow NewWindow(AirportLayoutDownloader downloader, IAirportImagerySource imagery, TileStub tiles) =>
         new(
             new UserPreferences(),
-            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), NoAirportImagery.Instance, null)
+            _ => new AirportEditorViewModel(new AirportMapSourceLoader(downloader), new OakPrompts(), imagery, null),
+            tiles.CreateCache
         );
+
+    // Holds every vNAS request until the test answers it.
+    private sealed class HeldImagerySource : IAirportImagerySource
+    {
+        public List<TaskCompletionSource<TowerCabImage?>> Answers { get; } = [];
+
+        public List<CancellationToken> Tokens { get; } = [];
+
+        public List<IProgress<TowerCabDownloadProgress>?> Progress { get; } = [];
+
+        public Task<TowerCabImage?> GetAsync(string artccId, string airportId, IProgress<TowerCabDownloadProgress>? progress, CancellationToken ct)
+        {
+            var answer = new TaskCompletionSource<TowerCabImage?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Answers.Add(answer);
+            Tokens.Add(ct);
+            Progress.Add(progress);
+            return answer.Task;
+        }
+    }
+
+    // USGS for the tests: answers the first requests with a two-colour tile and holds every later one until it is
+    // cancelled; the cache's disk root is a fresh temp folder.
+    private sealed class TileStub(int serveFirst) : HttpMessageHandler
+    {
+        private readonly string _root = Path.Combine(Path.GetTempPath(), "yaat-tiles-" + Guid.NewGuid().ToString("N"));
+        private int _requests;
+
+        public int Requests => Volatile.Read(ref _requests);
+
+        public TaskCompletionSource<CancellationToken> Hanging { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Arrived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public UsgsImageryTileCache CreateCache(Action onTileArrived) =>
+            new(
+                this,
+                _root,
+                TimeProvider.System,
+                action => Avalonia.Threading.Dispatcher.UIThread.Post(action),
+                () =>
+                {
+                    onTileArrived();
+                    Arrived.TrySetResult();
+                }
+            );
+
+        public void DeleteRoot()
+        {
+            if (Directory.Exists(_root))
+            {
+                Directory.Delete(_root, recursive: true);
+            }
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _requests) <= serveFirst)
+            {
+                return TileResponse();
+            }
+
+            Hanging.TrySetResult(cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("unreachable");
+        }
+
+        private static HttpResponseMessage TileResponse()
+        {
+            using var bitmap = new SKBitmap(256, 256);
+            bitmap.Erase(SKColors.DarkGreen);
+            bitmap.SetPixel(0, 0, SKColors.White);
+            using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            var content = new ByteArrayContent(png.ToArray());
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content };
+        }
+    }
 
     private static async Task ShowAndOpenOakAsync(AirportEditorWindow window)
     {

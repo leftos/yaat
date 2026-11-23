@@ -4,8 +4,10 @@ using System.Text.Json.Nodes;
 using SkiaSharp;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Imagery;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Authoring.AirportMap;
+using Yaat.Sim.Authoring.Imagery;
 
 namespace Yaat.Client.Views.Authoring;
 
@@ -168,10 +170,20 @@ public sealed record AirportEditorRenderSnapshot(
 
     /// <summary>Gets the image's opacity, 0 to 100, as the Ground View applies its satellite image's.</summary>
     public required int ImageryBrightness { get; init; }
+
+    /// <summary>Gets the USGS tiles drawn when the frame has no tower-cab image; never disposed while a frame may draw one.</summary>
+    public ImmutableArray<ImageryTile> Tiles { get; init; } = [];
+
+    /// <summary>Gets a value indicating whether the USGS credit line is drawn (a tile is drawn).</summary>
+    public bool ShowCredit { get; init; }
+
+    /// <summary>Gets the imagery status line drawn above the mode label, or null for none.</summary>
+    public string? StatusLine { get; init; }
 }
 
 /// <summary>
-/// Draws the Airport Editor's map on its dark background, over the tower-cab image when the frame has one: runways,
+/// Draws the Airport Editor's map on its dark background, over the tower-cab image when the frame has one or else its USGS
+/// tiles (with the USGS credit bottom-right): runways,
 /// taxiways, parking, spots and helipads, then the hovered feature's and the selection's highlights and the selected
 /// line's vertex handles, then the taxiway and runway labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
 /// </summary>
@@ -179,6 +191,7 @@ public sealed class AirportEditorRenderer : IDisposable
 {
     private const float PointRadius = 2.6f;
     private const float HudInset = 8f;
+    private const float HudLineGap = 4f;
     private const float SelectedLineExtraWidth = 3f;
     private const float SelectedRingExtraRadius = 4f;
     private const float HoverExtraWidth = 2f;
@@ -217,6 +230,7 @@ public sealed class AirportEditorRenderer : IDisposable
     private readonly SKFont _taxiwayLabelFont = PlatformHelper.MonospaceFontBold(10);
     private readonly SKFont _runwayLabelFont = PlatformHelper.MonospaceFontBold(11);
     private readonly SKFont _hudFont = PlatformHelper.MonospaceFontBold(11);
+    private readonly SKFont _creditFont = PlatformHelper.MonospaceFont(9);
 
     /// <summary>Draws one frame.</summary>
     /// <param name="canvas">The canvas to draw on.</param>
@@ -228,11 +242,7 @@ public sealed class AirportEditorRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(viewport);
         ArgumentNullException.ThrowIfNull(snapshot);
         canvas.Clear(_background);
-        if ((snapshot.ShowImagery) && (snapshot.Image is { } image))
-        {
-            GeoImageDrawing.Draw(canvas, viewport, image, snapshot.ImageryBrightness);
-        }
-
+        DrawImagery(canvas, viewport, snapshot);
         ImmutableArray<AirportEditorShape> shapes = snapshot.Scene.Shapes;
         DrawLines(canvas, viewport, shapes, AirportEditorFeatureKind.Runway, _runwayPaint);
         DrawLines(canvas, viewport, shapes, AirportEditorFeatureKind.Taxiway, _taxiwayPaint);
@@ -248,7 +258,50 @@ public sealed class AirportEditorRenderer : IDisposable
         DrawHover(canvas, viewport, snapshot);
         DrawSelection(canvas, viewport, snapshot);
         DrawLineLabels(canvas, viewport, shapes);
-        DrawHaloText(canvas, snapshot.ModeText, new SKPoint(HudInset, viewport.PixelHeight - HudInset), SKTextAlign.Left, _hudFont, _hudPaint);
+        DrawHud(canvas, viewport, snapshot);
+    }
+
+    // The tower-cab image when the frame has one, else the USGS tiles, at the imagery brightness.
+    private static void DrawImagery(SKCanvas canvas, MapViewport viewport, AirportEditorRenderSnapshot snapshot)
+    {
+        if (!snapshot.ShowImagery)
+        {
+            return;
+        }
+
+        if (snapshot.Image is { } image)
+        {
+            GeoImageDrawing.Draw(canvas, viewport, image, snapshot.ImageryBrightness);
+            return;
+        }
+
+        foreach (ImageryTile tile in snapshot.Tiles)
+        {
+            GeoImageDrawing.Draw(
+                canvas,
+                viewport,
+                tile.Image,
+                new TileBounds(tile.South, tile.West, tile.North, tile.East),
+                snapshot.ImageryBrightness
+            );
+        }
+    }
+
+    // Bottom-left the imagery status line over the mode label; bottom-right the USGS credit while tiles show.
+    private void DrawHud(SKCanvas canvas, MapViewport viewport, AirportEditorRenderSnapshot snapshot)
+    {
+        float baseline = viewport.PixelHeight - HudInset;
+        DrawHaloText(canvas, snapshot.ModeText, new SKPoint(HudInset, baseline), SKTextAlign.Left, _hudFont, _hudPaint);
+        if (snapshot.StatusLine is { } status)
+        {
+            DrawHaloText(canvas, status, new SKPoint(HudInset, baseline - _hudFont.Size - HudLineGap), SKTextAlign.Left, _hudFont, _hudPaint);
+        }
+
+        if (snapshot.ShowCredit)
+        {
+            var at = new SKPoint(viewport.PixelWidth - HudInset, baseline);
+            DrawHaloText(canvas, UsgsImageryTileCache.Credit, at, SKTextAlign.Right, _creditFont, _hudPaint);
+        }
     }
 
     /// <inheritdoc />
@@ -272,6 +325,7 @@ public sealed class AirportEditorRenderer : IDisposable
         _taxiwayLabelFont.Dispose();
         _runwayLabelFont.Dispose();
         _hudFont.Dispose();
+        _creditFont.Dispose();
     }
 
     private static SKPaint LinePaint(SKColor color, float width) =>

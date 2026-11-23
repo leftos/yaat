@@ -1,5 +1,6 @@
 using SkiaSharp;
 using Yaat.Client.Services;
+using Yaat.Sim.Authoring.Imagery;
 
 namespace Yaat.Client.Views.Map;
 
@@ -14,15 +15,24 @@ internal static class GeoImageDrawing
     /// <param name="vp">The view, copied for this frame.</param>
     /// <param name="image">The image and its box.</param>
     /// <param name="brightness">The image's opacity, 0 to 100.</param>
-    public static void Draw(SKCanvas canvas, MapViewport vp, TowerCabImage image, int brightness)
+    public static void Draw(SKCanvas canvas, MapViewport vp, TowerCabImage image, int brightness) =>
+        Draw(canvas, vp, image.Image, new TileBounds(image.BottomLeftLat, image.BottomLeftLon, image.TopRightLat, image.TopRightLon), brightness);
+
+    /// <summary>Draws an image at a lat/lon box, white-tinted at the brightness's alpha.</summary>
+    /// <param name="canvas">The canvas to draw on.</param>
+    /// <param name="vp">The view, copied for this frame.</param>
+    /// <param name="image">The image: its top edge is the box's north edge.</param>
+    /// <param name="box">The image's corners as a south/west/north/east box.</param>
+    /// <param name="brightness">The image's opacity, 0 to 100.</param>
+    public static void Draw(SKCanvas canvas, MapViewport vp, SKImage image, TileBounds box, int brightness)
     {
         // Project all 4 corners through the viewport (handles rotation)
-        (float blX, float blY) = vp.LatLonToScreen(image.BottomLeftLat, image.BottomLeftLon);
-        (float trX, float trY) = vp.LatLonToScreen(image.TopRightLat, image.TopRightLon);
-        (float tlX, float tlY) = vp.LatLonToScreen(image.TopRightLat, image.BottomLeftLon);
+        (float blX, float blY) = vp.LatLonToScreen(box.South, box.West);
+        (float trX, float trY) = vp.LatLonToScreen(box.North, box.East);
+        (float tlX, float tlY) = vp.LatLonToScreen(box.North, box.West);
 
         // Source: image rectangle
-        var srcRect = new SKRect(0, 0, image.Image.Width, image.Image.Height);
+        var srcRect = new SKRect(0, 0, image.Width, image.Height);
 
         // Destination: the 4 projected screen corners
         // Image top-left → screen top-left, top-right → screen top-right, etc.
@@ -40,7 +50,7 @@ internal static class GeoImageDrawing
 
         canvas.Save();
         canvas.Concat(in matrix);
-        canvas.DrawImage(image.Image, 0, 0, sampling, paint);
+        canvas.DrawImage(image, 0, 0, sampling, paint);
         canvas.Restore();
     }
 

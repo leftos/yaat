@@ -427,7 +427,8 @@ public partial class GroundViewModel : ObservableObject
                     _vnasConfigService.TowerCabImagesBaseUrl,
                     artccId,
                     airportId,
-                    highRes: true
+                    highRes: true,
+                    progress: null
                 );
                 BackgroundImage = image;
                 if ((image is not null) && _log.IsEnabled(LogLevel.Information))

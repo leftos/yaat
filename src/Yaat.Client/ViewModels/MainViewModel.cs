@@ -52,6 +52,7 @@ public partial class MainViewModel : ObservableObject
     private readonly VideoMapService _videoMapService = new();
     private readonly VnasConfigService _vnasConfigService = new();
     private readonly TowerCabImageService _towerCabImageService = new();
+    private TowerCabAirportImagerySource? _airportEditorImagery;
     private readonly TowerCabMapDownloader _towerCabMapDownloader = new(http: null, cacheRoot: null);
     private readonly PilotSpeechAlertService _pilotSpeechAlerts;
     private readonly PilotVoiceService _pilotVoice;
@@ -593,6 +594,12 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>Gets the app's one tower-cab image service, shared by the Ground views and the Airport Editor.</summary>
     internal TowerCabImageService TowerCabImages => _towerCabImageService;
+
+    /// <summary>
+    /// Gets the Airport Editor's tower-cab image source, one for the app: its in-flight request per airport outlives a
+    /// closed editor window, so reopening one mid-download joins that download.
+    /// </summary>
+    internal TowerCabAirportImagerySource AirportEditorImagery => _airportEditorImagery ??= new(_towerCabImageService, VnasConfig);
 
     /// <summary>Gets the app's vNAS config, shared by the Ground views and the Airport Editor.</summary>
     internal VnasConfigService VnasConfig => _vnasConfigService;

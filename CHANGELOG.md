@@ -6,7 +6,7 @@
 
 - An ARTCC's `cornerFillets` sidecar entries can remove a taxiway corner's curve, set its radius, pin its tangent points, or add one the generator skipped.
 - Tools › Scenario Editor lists, creates, imports and saves each ARTCC's scenario copies, and edits their settings, positions, triggers, generators, strips and aircraft with undo.
-- Tools › Airport Editor opens an airport map from the vNAS cache, a file or a folder, over its vNAS satellite image, and shows each feature's properties when clicked.
+- Tools › Airport Editor opens an airport map from the vNAS cache, a file or a folder, over its vNAS satellite image or USGS aerial tiles, and shows each feature's properties when clicked.
 - Load Scenario's ARTCC tab can download an ARTCC's scenarios for offline use, and lists the downloaded ones when the server's list is unavailable.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 

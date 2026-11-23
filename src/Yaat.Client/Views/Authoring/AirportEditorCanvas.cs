@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -7,8 +8,10 @@ using Microsoft.Extensions.Logging;
 using SkiaSharp;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
+using Yaat.Client.Services.Imagery;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Authoring.AirportMap;
+using Yaat.Sim.Authoring.Imagery;
 
 namespace Yaat.Client.Views.Authoring;
 
@@ -42,6 +45,9 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     private TowerCabImage? _image;
     private bool _showImagery = true;
     private int _imageryBrightness = 50;
+    private UsgsImageryTileCache? _tileCache;
+    private bool _tilesActive;
+    private string? _imageryProgressText;
 
     // Where the pointer last moved over the canvas, or null once it has left.
     private Point? _pointerAt;
@@ -136,8 +142,65 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets or sets the USGS tile cache the frames ask for tiles, or null for none; set on the UI thread. The window owns
+    /// it and disposes it after the canvas.
+    /// </summary>
+    public UsgsImageryTileCache? TileCache
+    {
+        get => _tileCache;
+        set
+        {
+            if (!ReferenceEquals(_tileCache, value))
+            {
+                _tileCache = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>Gets or sets a value indicating whether the USGS tiles are drawn (the view model's TilesActive); UI thread.</summary>
+    public bool TilesActive
+    {
+        get => _tilesActive;
+        set
+        {
+            if (_tilesActive != value)
+            {
+                _tilesActive = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>Gets or sets the vNAS download's progress line, or null while nothing downloads; set on the UI thread.</summary>
+    public string? ImageryProgressText
+    {
+        get => _imageryProgressText;
+        set
+        {
+            if (_imageryProgressText != value)
+            {
+                _imageryProgressText = value;
+                MarkDirty();
+            }
+        }
+    }
+
     /// <summary>Gets what the pointer is over, or null when nothing is. Test seam.</summary>
     internal AirportEditorHit? Hover => _hover;
+
+    /// <summary>Gets a value indicating whether the canvas has been disposed. Test seam.</summary>
+    internal bool IsDisposed
+    {
+        get
+        {
+            lock (_renderLock)
+            {
+                return _disposed;
+            }
+        }
+    }
 
     /// <summary>Gets the context menu open now, or null when none is. Test seam.</summary>
     internal ContextMenu? ActiveContextMenu => _activeContextMenu;
@@ -312,16 +375,29 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    /// <summary>Builds the frame the next render would draw, asking the tile cache as a render does. Test seam.</summary>
+    /// <returns>The frame, or null once the canvas is disposed.</returns>
+    internal AirportEditorRenderSnapshot? SnapshotForTesting() => CreateRenderSnapshot() as AirportEditorRenderSnapshot;
+
     /// <inheritdoc />
-    protected override object? CreateRenderSnapshot() =>
-        _disposed
-            ? null
-            : new AirportEditorRenderSnapshot(_scene, ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
-            {
-                Image = _image,
-                ShowImagery = _showImagery,
-                ImageryBrightness = _imageryBrightness,
-            };
+    protected override object? CreateRenderSnapshot()
+    {
+        if (_disposed)
+        {
+            return null;
+        }
+
+        (ImmutableArray<ImageryTile> tiles, string? status) = BuildImagery();
+        return new AirportEditorRenderSnapshot(_scene, ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
+        {
+            Image = _image,
+            ShowImagery = _showImagery,
+            ImageryBrightness = _imageryBrightness,
+            Tiles = tiles,
+            ShowCredit = !tiles.IsEmpty,
+            StatusLine = status,
+        };
+    }
 
     /// <inheritdoc />
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot) => Draw(canvas, viewport, snapshot);
@@ -452,6 +528,44 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         }
     }
 
+    // On the UI thread: the tiles the view wants at its zoom, from the cache (which starts fetching the missing ones), and
+    // the status line. No tile is asked while imagery is off, the tiles are inactive or a tower-cab image is shown.
+    private (ImmutableArray<ImageryTile> Tiles, string? Status) BuildImagery()
+    {
+        if (!_showImagery)
+        {
+            return ([], null);
+        }
+
+        bool active = (_tilesActive) && (_tileCache is not null) && (_image is null);
+        double lat = Viewport.CenterLat;
+        int? zoom = active ? ImageryZoom.Choose(lat, Viewport.Zoom) : null;
+        bool covered = (active) && UsgsCoverage.Contains(lat, Viewport.CenterLon);
+        if ((zoom is not int z) || (!covered) || (_tileCache is not { } cache))
+        {
+            return ([], AirportEditorImageryStatus.Line(_imageryProgressText, active, zoom, covered, ImageryTileState.AllShown));
+        }
+
+        IReadOnlyList<TileKey> wanted = WantedTiles(z);
+        ImmutableArray<ImageryTile> tiles = [.. cache.GetVisible(wanted)];
+        return (tiles, AirportEditorImageryStatus.Line(_imageryProgressText, active, zoom, covered, cache.State(wanted)));
+    }
+
+    // The tiles covering the box around the view's four corners (a rotated view's box holds all of it).
+    private IReadOnlyList<TileKey> WantedTiles(int z)
+    {
+        float w = Viewport.PixelWidth;
+        float h = Viewport.PixelHeight;
+        (double Lat, double Lon)[] corners =
+        [
+            Viewport.ScreenToLatLon(0, 0),
+            Viewport.ScreenToLatLon(w, 0),
+            Viewport.ScreenToLatLon(0, h),
+            Viewport.ScreenToLatLon(w, h),
+        ];
+        return WebMercatorTile.TilesCovering(corners.Min(c => c.Lat), corners.Min(c => c.Lon), corners.Max(c => c.Lat), corners.Max(c => c.Lon), z);
+    }
+
     private void Draw(SKCanvas canvas, MapViewport viewport, object? snapshot)
     {
         if (snapshot is not AirportEditorRenderSnapshot frame)
@@ -466,5 +580,50 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
                 _renderer.Render(canvas, viewport, frame);
             }
         }
+    }
+}
+
+/// <summary>The Airport Editor's imagery status line: one line saying why imagery is missing, or what is downloading.</summary>
+internal static class AirportEditorImageryStatus
+{
+    /// <summary>The line while the view is zoomed out past the tiles' lowest zoom.</summary>
+    public const string ZoomIn = "Zoom in to see imagery";
+
+    /// <summary>The line while the view's centre is outside the USGS coverage.</summary>
+    public const string OutsideUs = "No imagery outside the US";
+
+    /// <summary>The line while a wanted tile failed for a network reason and has no disk copy.</summary>
+    public const string Offline = "Imagery offline: showing cached tiles only";
+
+    /// <summary>The first line that applies: the vNAS download, then, with tiles active, zoomed out, outside the US, offline.</summary>
+    /// <param name="progress">The vNAS download's progress line, or null.</param>
+    /// <param name="tilesActive">Whether the USGS tiles are active.</param>
+    /// <param name="zoom">The tile zoom for the view, or null when it is zoomed out too far.</param>
+    /// <param name="covered">Whether the view's centre is inside the USGS coverage.</param>
+    /// <param name="state">The wanted tiles' state.</param>
+    /// <returns>The line, or null for none.</returns>
+    public static string? Line(string? progress, bool tilesActive, int? zoom, bool covered, ImageryTileState state)
+    {
+        if (progress is not null)
+        {
+            return progress;
+        }
+
+        if (!tilesActive)
+        {
+            return null;
+        }
+
+        if (zoom is null)
+        {
+            return ZoomIn;
+        }
+
+        if (!covered)
+        {
+            return OutsideUs;
+        }
+
+        return state == ImageryTileState.Offline ? Offline : null;
     }
 }
