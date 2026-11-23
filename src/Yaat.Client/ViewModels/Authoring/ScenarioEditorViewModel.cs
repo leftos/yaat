@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -227,9 +228,14 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         OpenError = null;
         var session = new ScenarioEditSession(_services.Store, artccId, id);
         var general = new ScenarioGeneralViewModel(session, _services);
-        var aircraft = new ScenarioAircraftViewModel(session, _services) { AirportOptions = general.AirportOptions };
+        var aircraft = new ScenarioAircraftViewModel(session, _services)
+        {
+            AirportOptions = general.AirportOptions,
+            PositionCatalog = general.PositionCatalog,
+        };
         session.DocumentReplaced += OnDocumentReplaced;
         general.Edited += OnEdited;
+        general.PropertyChanged += OnGeneralPropertyChanged;
         aircraft.Edited += OnEdited;
         Session = session;
         General = general;
@@ -443,6 +449,20 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         NotifyState();
     }
 
+    // The General tab's position catalog arrived: the Aircraft tab's auto-track picker offers it too.
+    private void OnGeneralPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (
+            (e.PropertyName == nameof(ScenarioGeneralViewModel.PositionCatalog))
+            && (sender is ScenarioGeneralViewModel general)
+            && ReferenceEquals(sender, General)
+            && (Aircraft is { } aircraft)
+        )
+        {
+            aircraft.PositionCatalog = general.PositionCatalog;
+        }
+    }
+
     private void CloseSession()
     {
         if (Session is { } session)
@@ -453,6 +473,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         if (General is { } general)
         {
             general.Edited -= OnEdited;
+            general.PropertyChanged -= OnGeneralPropertyChanged;
             general.Dispose();
         }
 

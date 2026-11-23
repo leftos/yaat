@@ -125,6 +125,12 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     /// <summary>Gets the primary airport picker's options; one collection, updated in place.</summary>
     public IReadOnlyList<string> AirportOptions => _airportOptions;
 
+    /// <summary>
+    /// Gets the ARTCC's and its neighbours' positions, one option per position id; empty until the pickers' load applies
+    /// them, when the property's change is raised.
+    /// </summary>
+    public IReadOnlyList<ScenarioPickOption> PositionCatalog => _catalogOptions;
+
     /// <summary>Gets the pickers' first load: finished once the position and airport options are applied. Tests await it.</summary>
     public Task PickersLoaded { get; }
 
@@ -372,6 +378,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         IsPrimaryAirportFreeText = data.Airports is null;
         _configAirports = data.Airports ?? [];
         ConfigProblem = data.Problem;
+        OnPropertyChanged(nameof(PositionCatalog));
         RebuildOptions();
         RefreshSummaries();
     }

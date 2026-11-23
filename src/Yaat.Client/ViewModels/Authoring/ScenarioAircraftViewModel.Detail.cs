@@ -67,6 +67,10 @@ public sealed partial class ScenarioAircraftViewModel
     private IReadOnlyList<string> _airportOptions = [];
     private bool _loadingDetail;
 
+    // While a commit that names its own field reload runs (a preset row's): how a commit that changes nothing re-shows it.
+    // Set only for the duration of WithFieldReload's commit() and null at any other time.
+    private Action<ScenarioAircraft>? _fieldReload;
+
     [ObservableProperty]
     private string _callsign = "";
 
@@ -434,10 +438,14 @@ public sealed partial class ScenarioAircraftViewModel
         {
             LoadStartKind(StartOf(aircraft).Type ?? "");
             OnAltitudeProfile = aircraft.OnAltitudeProfile;
-            foreach ((_, Action<ScenarioAircraftViewModel, ScenarioAircraft> load) in FieldLoads)
+            foreach ((_, Action<ScenarioAircraftViewModel, ScenarioAircraft> load) in AllFieldLoads())
             {
                 load(this, aircraft);
             }
+
+            LoadFlightPlan(aircraft);
+            LoadPresets(aircraft);
+            LoadAutoTrack(aircraft);
         }
         finally
         {
@@ -449,10 +457,11 @@ public sealed partial class ScenarioAircraftViewModel
     // a step that is no text field's re-shows the whole panel.
     private void ReloadField(string description)
     {
-        Action<ScenarioAircraftViewModel, ScenarioAircraft>? load = Array
-            .Find(FieldLoads, f => string.Equals(f.Step, description, StringComparison.Ordinal))
+        Action<ScenarioAircraft>? own = _fieldReload;
+        Action<ScenarioAircraftViewModel, ScenarioAircraft>? load = AllFieldLoads()
+            .FirstOrDefault(f => string.Equals(f.Step, description, StringComparison.Ordinal))
             .Load;
-        if ((load is null) || (SelectedDocumentIndex(description) is not { } index))
+        if (((own is null) && (load is null)) || (SelectedDocumentIndex(description) is not { } index))
         {
             LoadDetail();
             return;
@@ -461,11 +470,37 @@ public sealed partial class ScenarioAircraftViewModel
         _loadingDetail = true;
         try
         {
-            load(this, _session.Document.Scenario.Aircraft[index]);
+            ScenarioAircraft aircraft = _session.Document.Scenario.Aircraft[index];
+            if (own is not null)
+            {
+                own(aircraft);
+            }
+            else if (load is not null)
+            {
+                load(this, aircraft);
+            }
         }
         finally
         {
             _loadingDetail = false;
+        }
+    }
+
+    // The text fields of every block: the aircraft's own and its starting conditions', the flight plan's, the auto-track's.
+    private static IEnumerable<(string Step, Action<ScenarioAircraftViewModel, ScenarioAircraft> Load)> AllFieldLoads() =>
+        FieldLoads.Concat(FlightPlanFieldLoads).Concat(AutoTrackFieldLoads);
+
+    // Runs a commit whose no-op re-shows only what the reload shows, not a field of the panel's tables.
+    private void WithFieldReload(Action<ScenarioAircraft> reload, Action commit)
+    {
+        _fieldReload = reload;
+        try
+        {
+            commit();
+        }
+        finally
+        {
+            _fieldReload = null;
         }
     }
 

@@ -173,6 +173,107 @@
             IsVisible="{Binding DistanceFromRunwayError, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
         </StackPanel>
+
+        <TextBlock Classes="head" Text="Flight plan" />
+        <CheckBox x:Name="HasFlightPlanBox" Margin="0,6,0,0" Content="Has flight plan" IsChecked="{Binding HasFlightPlan}" />
+        <StackPanel IsVisible="{Binding HasFlightPlan}">
+          <TextBlock Classes="lbl" Text="Rules" />
+          <ComboBox
+            x:Name="FlightRulesPicker"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding FlightRulesOptions}"
+            SelectedItem="{Binding FlightRulesPick}"
+          />
+          <TextBlock Classes="lbl" Text="Departure" />
+          <TextBox x:Name="DepartureBox" Text="{Binding Departure}" Tag="{Binding CommitDepartureCommand}" />
+          <TextBlock Classes="lbl" Text="Destination" />
+          <TextBox x:Name="DestinationBox" Text="{Binding Destination}" Tag="{Binding CommitDestinationCommand}" />
+          <TextBlock Classes="lbl" Text="Cruise altitude (ft)" />
+          <TextBox x:Name="CruiseAltitudeBox" Text="{Binding CruiseAltitude}" Tag="{Binding CommitCruiseAltitudeCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding CruiseAltitudeError}"
+            IsVisible="{Binding CruiseAltitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Classes="lbl" Text="Cruise speed (kt)" />
+          <TextBox x:Name="CruiseSpeedBox" Text="{Binding CruiseSpeed}" Tag="{Binding CommitCruiseSpeedCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding CruiseSpeedError}"
+            IsVisible="{Binding CruiseSpeedError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Classes="lbl" Text="Route" />
+          <TextBox x:Name="RouteBox" TextWrapping="Wrap" Text="{Binding FlightPlanRoute}" Tag="{Binding CommitFlightPlanRouteCommand}" />
+          <TextBlock Classes="lbl" Text="Remarks" />
+          <TextBox x:Name="RemarksBox" TextWrapping="Wrap" Text="{Binding Remarks}" Tag="{Binding CommitRemarksCommand}" />
+          <TextBlock Classes="lbl" Text="Filed type" />
+          <TextBox x:Name="FiledTypeBox" Text="{Binding FiledType}" Tag="{Binding CommitFiledTypeCommand}" />
+        </StackPanel>
+
+        <TextBlock Classes="head" Text="Preset commands" />
+        <ItemsControl x:Name="PresetList" ItemsSource="{Binding Presets}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ScenarioPresetRowViewModel">
+              <Border Margin="0,6,0,0" Padding="6" Background="#2A2A2A" BorderBrush="#3D3D3D" BorderThickness="1" CornerRadius="3">
+                <StackPanel Spacing="3">
+                  <Grid ColumnDefinitions="*,6,64">
+                    <TextBox
+                      x:Name="PresetCommandBox"
+                      Grid.Column="0"
+                      Watermark="Command"
+                      Text="{Binding Command}"
+                      Tag="{Binding CommitCommandCommand}"
+                    />
+                    <TextBox x:Name="PresetOffsetBox" Grid.Column="2" Watermark="0:00" Text="{Binding Offset}" Tag="{Binding CommitOffsetCommand}" />
+                  </Grid>
+                  <TextBlock
+                    Classes="err"
+                    Text="{Binding CommandError}"
+                    IsVisible="{Binding CommandError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  />
+                  <TextBlock
+                    Classes="err"
+                    Text="{Binding OffsetError}"
+                    IsVisible="{Binding OffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  />
+                  <StackPanel Orientation="Horizontal" Spacing="4">
+                    <Button x:Name="PresetMoveUpButton" Content="Up" Padding="6,2" Command="{Binding MoveUpCommand}" />
+                    <Button x:Name="PresetMoveDownButton" Content="Down" Padding="6,2" Command="{Binding MoveDownCommand}" />
+                    <Button x:Name="PresetDuplicateButton" Content="Duplicate" Padding="6,2" Command="{Binding DuplicateCommand}" />
+                    <Button x:Name="PresetRemoveButton" Content="Remove" Padding="6,2" Command="{Binding RemoveCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button x:Name="AddPresetButton" Margin="0,6,0,0" Content="Add preset" Padding="9,3" Command="{Binding AddPresetCommand}" />
+
+        <TextBlock Classes="head" Text="Auto-track" />
+        <CheckBox x:Name="HasAutoTrackBox" Margin="0,6,0,0" Content="Auto-track" IsChecked="{Binding HasAutoTrack}" />
+        <StackPanel IsVisible="{Binding HasAutoTrack}">
+          <TextBlock Classes="lbl" Text="Position" />
+          <ComboBox
+            x:Name="AutoTrackPositionPicker"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding AutoTrackPositionOptions}"
+            DisplayMemberBinding="{Binding Label}"
+            SelectedItem="{Binding AutoTrackPositionSelection}"
+          />
+          <TextBlock Classes="lbl" Text="Handoff delay (seconds)" />
+          <TextBox x:Name="HandoffDelayBox" Text="{Binding HandoffDelay}" Tag="{Binding CommitHandoffDelayCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding HandoffDelayError}"
+            IsVisible="{Binding HandoffDelayError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Classes="lbl" Text="Scratchpad" />
+          <TextBox x:Name="ScratchPadBox" Text="{Binding ScratchPad}" Tag="{Binding CommitScratchPadCommand}" />
+          <TextBlock Classes="lbl" Text="Interim altitude" />
+          <TextBox x:Name="InterimAltitudeBox" Text="{Binding InterimAltitude}" Tag="{Binding CommitInterimAltitudeCommand}" />
+          <TextBlock Classes="lbl" Text="Cleared altitude" />
+          <TextBox x:Name="ClearedAltitudeBox" Text="{Binding ClearedAltitude}" Tag="{Binding CommitClearedAltitudeCommand}" />
+        </StackPanel>
       </StackPanel>
     </ScrollViewer>
     <DataGrid
