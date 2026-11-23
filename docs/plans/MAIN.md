@@ -4,13 +4,11 @@
 
 ## YAATEdit in YAAT
 
-### M1 Scenario editor (6/9 done)
-- [ ] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2493 YAATEdit M1.7: Parking picker (sub-issue of YAAT-1989) · release vNext
+### M1 Scenario editor (7/9 done)
+- [/] YAAT-2492 YAATEdit M1.6: Live validation (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide (sub-issue of YAAT-1989) · release vNext
 
-### M2 Export (0/3 done)
-- [/] YAAT-2495 YAATEdit M2.1: Export JSON (sub-issue of YAAT-1989) · release vNext
+### M2 Export (1/3 done)
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
@@ -36,10 +34,8 @@
 
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
-  - [ ] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
-  - [ ] YAAT-2493 YAATEdit M1.7: Parking picker · release vNext
+  - [/] YAAT-2492 YAATEdit M1.6: Live validation · release vNext
   - [ ] YAAT-2494 YAATEdit M1.8: Test in room and guide · release vNext
-  - [/] YAAT-2495 YAATEdit M2.1: Export JSON · release vNext
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
   - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
   - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext
@@ -146,10 +142,10 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2735 Add DVXM: descend via, except maintain a speed until a fix · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
+- [ ] YAAT-2798 DVXM after a crossing speed in the same transmission: define and test the pair
 
 ## Context-menu quick commands (#471)
 
@@ -442,7 +438,7 @@
 
 ## Taxi navigator: speed, braking and turns
 
-### 1 Defects (5/27 done)
+### 1 Defects (5/28 done)
 - [ ] YAAT-1746 Publish the line-up's straight-segment speed, not the arc speed, on non-arc segments
 - [ ] YAAT-1304 Break an exact 180-degree reversal's turn direction deterministically across platforms
 - [ ] YAAT-912 Make the rolling turn-about verdict independent of where the aircraft stands within a second
@@ -465,6 +461,7 @@
 - [ ] YAAT-1975 Measure taxi stop distances from the aircraft when it is past its segment's end node, and brake on node-arrival sub-ticks
 - [ ] YAAT-1993 Arm the nose-at-spot stop early enough when the last two legs are shorter than half the aircraft
 - [ ] YAAT-2276 UnableStopCapKts reads a bar scan an AT-node arrival made stale the same sub-tick
+- [ ] YAAT-2800 Jets cut an unfilleted 28-degree taxiway kink by about 20 ft inside the turn (OAK 367-368-369)
 
 ### 2 Refinements and rulings (2/20 done)
 - [ ] YAAT-736 Turn-about footprint leads: end-of-runway circle, GA body model, follower re-saying unable
@@ -503,7 +500,6 @@
 - [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
 - [ ] YAAT-2748 Rule out fillet arcs tighter than the aircraft category can steer in the ground pathfinder
 - [ ] YAAT-2750 End a taxiing aircraft's entry-alignment slow turn on the taxiway centreline
-- [ ] YAAT-2751 Walk the route for the ramped ground steer's look-ahead past a node (bends, fillets, 30-45 degree band) · release vNext
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -1057,7 +1053,7 @@
 
 ## Traffic pattern and airborne FOLLOW
 
-### 1 Defects (13/40 done)
+### 1 Defects (16/44 done)
 - [ ] YAAT-254 Visual follower behind a heavier lead lands beyond its touchdown point
 - [ ] YAAT-257 A follower whose lead has landed joins final instead of re-entering the pattern
 - [ ] YAAT-1334 Check N342T's 28L touch-and-go touchdown point near the pavement end (#1357 bundle)
@@ -1083,8 +1079,9 @@
 - [ ] YAAT-2255 Keep an assigned altitude below field+400 ft at liftoff (CM on the roll climbs through it)
 - [ ] YAAT-2257 CTO MRC then CM ... OR BELOW: the departure never turns crosswind (turn gate ignores the altitude ceiling)
 - [ ] YAAT-2273 FOLLOW turn-out's base turn behind the lead starts too close to the final and overshoots toward the parallel
-- [/] YAAT-2778 FOLLOW turns against the downwind when the lead turns base from a fix · release vNext
-- [/] YAAT-2782 FOLLOW S-turns from ahead of the lead and cuts it off at the downwind · release vNext
+- [ ] YAAT-2793 FOLLOW fall-in keeps steering toward the lead's track after crossing it before it is established
+- [ ] YAAT-2794 LeadPathTrail.Project jumps to an older segment when the lead's path loops back near the follower
+- [ ] YAAT-2795 Measure whether teardrop re-entry targets loop under YAAT-2779's fly-over rule
 
 ### 2 Refinements and rulings (7/20 done)
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
@@ -1260,8 +1257,9 @@
 - [ ] YAAT-2752 Drop a Class B hold's stashed direct when a later heading replaces it
 - [ ] YAAT-2764 Paired Class B orbit: vertical restore vs non-altitude commands, late advisory wording
 - [ ] YAAT-2767 VFR check-in polish: APP landing call names the airport, model-level type names, CTR order
-- [ ] YAAT-2790 Solo: advise "that'll take us into the bravo" at clearance dispatch from the path test · release vNext
+- [/] YAAT-2790 Solo: advise "that'll take us into the bravo" at clearance dispatch from the path test · release vNext
 - [ ] YAAT-2791 Solo: put the Class B shelf cap on the path predictor · release vNext
+- [ ] YAAT-2799 BravoPathPredictor predicts approach-fix turns over 120 degrees fly-by while they are flown fly-over
 
 ## Server: CRC, ERAM, vEDST and rooms
 
@@ -1745,6 +1743,9 @@
 - [ ] YAAT-2731 Drop a sidecar entry with a wrong JSON type instead of failing the whole sidecar file
 - [ ] YAAT-2743 End a map canvas pan when its button is released outside the window
 - [ ] YAAT-2765 Main aircraft list: a saved sort can restore reversed (DataGrid 12.1 queues Sort)
+- [ ] YAAT-2796 Name the STAR in descend-via readbacks instead of 'Descend via STAR'
+- [ ] YAAT-2797 Split FlightPhysics.UpdateNavigation under the 100-line and complexity-8 limits
+- [ ] YAAT-2801 Spawned arrivals on STARs without common legs miss their enroute-transition restrictions
 
 ## Design files
 
@@ -1773,4 +1774,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2492, YAAT-2493, YAAT-2494, YAAT-2495, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2492, YAAT-2494, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
