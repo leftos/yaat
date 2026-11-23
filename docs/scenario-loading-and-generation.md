@@ -960,6 +960,9 @@ Authoring/AirportMap/AtomicTextFile.cs       # Whole-file write through a temp f
 Authoring/AirportMap/UndoStack.cs            # Pure undo/redo over immutable state snapshots with descriptions, bounded depth (200 by default)
 Authoring/AirportMap/SnapEngine.cs           # Find(...) → the nearest SnapResult within SnapOptions.ThresholdFt feet (a target exactly at the threshold snaps, 0 turns snapping off), per-kind toggles, equal distances resolved Parking, Spot, Helipad, RunwayVertex, TaxiwayVertex; the dragged vertex (SnapExclusion) is never a target
 Authoring/AirportMap/MapEdits.cs             # Pure edits returning a new AirportMapDocument: MoveVertex, InsertVertex, DeleteVertex, AddFeature, DeleteFeature, SetProperty, SplitTaxiway, NewFeature
+Authoring/Imagery/WebMercatorTile.cs # Web Mercator tile maths for the Airport Editor's imagery: the TileKey (Z, X, Y), MercatorBox and TileBounds records, Box and Bounds of a tile, ToMercator, FromLatLon, and TilesCovering(south, west, north, east, z), the tiles a latitude and longitude box touches
+Authoring/Imagery/ImageryZoom.cs # Choose(latDeg, viewportZoom) → the tile zoom (MinZoom 12 to MaxZoom 18) whose pixels come closest to the map's at that latitude, or null when the view is too far out for imagery
+Authoring/Imagery/UsgsCoverage.cs # Contains(latDeg, lonDeg): the generous latitude and longitude boxes the USGS NAIPPlus imagery is asked for (lower 48, Alaska, Hawaii, Puerto Rico and the Virgin Islands, Guam and the Marianas, American Samoa); a tile outside the real coverage comes back blank and is dropped
 Authoring/AirportMap/AirportMapValidation.cs # Runs GeoJsonParser.ParseWithDiagnostics and LayoutValidator (Data/Airport/LayoutValidator.cs) over a document with caller-supplied LayoutInputs; issues carry a code (unknown-feature-type, malformed-feature, parse-failure or a LayoutValidator code) and a resolved feature index
 ```
 

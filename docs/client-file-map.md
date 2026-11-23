@@ -122,6 +122,10 @@ Services/
   IAirportImagerySource.cs      # Where the Airport Editor asks for the image it draws under a map: GetAsync(artccId, airportId, ct) gives a TowerCabImage or null (no vNAS config, a 404, offline with no cached copy)
   NoAirportImagery.cs           # The IAirportImagerySource that never has an image (Instance), for an editor built without the app's vNAS services
   TowerCabAirportImagerySource.cs # IAirportImagerySource over the app's TowerCabImageService and VnasConfigService: the high-res vNAS tower-cab image from the config's base URL, decoded off the UI thread; null while the config has no base URL
+  Imagery/UsgsImageryTileCache.cs # The USGS NAIPPlus tile cache for the Airport Editor (ImageryTile, ImageryTileState): GetVisible(wanted) gives the decoded tiles ready and queues the rest; SetActive, State, the Credit line; CreateForApp builds the app's.
+    At most 4 requests at once, retries for 408, 429, 502, 503, 504 and timeouts, a 60 s hold-off, a memory cache of the visible tiles plus 64. No view uses it.
+  Imagery/UsgsTileStore.cs      # The cache's disk side (internal): PathFor(TileKey) under cache/imagery/usgs-naipplus/{z}/{x}/{y}.jpg, Read (bytes and whether fresh), Write through a temp file then a move
+  Imagery/UsgsTileDecoder.cs    # Decode(bytes) → an SKImage, or null for a raster that does not decode or is one colour (a blank tile outside the coverage)
   TowerCabMapParser.cs          # Parses tower cab GeoJSON video maps into filled polygons + colored lines
   ArtccAirportResolver.cs       # Fetches vNAS ARTCC config → underlying airport IDs (cached at cache/artcc/{ID}.json, the file Yaat.Sim's ArtccConfigSource also reads and writes); recurses the facility tree for every STARS config
   LiveSessionAirportDefaults.cs # Pure: which airports the live-session picker offers for a position (tower-cab airports under its facility, else the ARTCC) and the default

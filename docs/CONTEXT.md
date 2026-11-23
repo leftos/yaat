@@ -1398,6 +1398,9 @@ _Avoid_: video map (the radar's facility video maps are a different thing)
 
 ## Scenario authoring
 
+**NAIPPlus**:
+The USGS National Map aerial imagery service the Airport Editor draws under a map, fetched as Web Mercator tiles and credited to the USGS.
+
 **Path ratio**:
 A published route's expanded length (departure airport, every fix, arrival airport, great-circle legs summed) divided by the airport-to-airport great circle; `NavdataRouteSource` ranks by it and drops routes above 1.25 (or beyond the great circle plus 50 NM on a short hop), a judgement call and not an FAA limit (`PublishedRouteInfo.Ratio`).
 
@@ -1418,6 +1421,9 @@ The on-disk copy of an ARTCC's scenarios exactly as vNAS last served them (`scen
 
 **Snap target**:
 A point on an airport map the editor's cursor can snap to (a `SnapTargetKind`: parking, spot, helipad, runway vertex or taxiway vertex) within `SnapOptions.ThresholdFt` feet; the vertex being dragged is never one.
+
+**Tile cache**:
+The Airport Editor's store of USGS imagery tiles (`UsgsImageryTileCache`): a disk copy per tile under `cache/imagery/usgs-naipplus/` and a memory cache of the tiles in view.
 
 **Working copy**:
 A locally edited scenario (`scenarios/{ARTCC}/local/{id}.json` with an `{id}.meta.json` sidecar), kept apart from the server mirror and never deleted or overwritten by a download.
