@@ -1,0 +1,29 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.ParkingPickerWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Pick parking"
+  Background="#1F1F1F"
+  Width="900"
+  Height="650"
+  WindowStartupLocation="CenterOwner"
+>
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,8">
+      <TextBlock x:Name="AirportText" FontSize="14" FontWeight="SemiBold" Foreground="White" />
+      <TextBlock x:Name="StatusText" Foreground="#B0B0B0" TextWrapping="Wrap" />
+    </StackPanel>
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+      <TextBlock x:Name="SelectionText" VerticalAlignment="Center" Foreground="#D4D4D4" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button x:Name="OkButton" Content="OK" MinWidth="74" IsDefault="True" IsEnabled="False" Classes="accent" />
+        <Button x:Name="CancelButton" Content="Cancel" MinWidth="74" />
+      </StackPanel>
+    </Grid>
+    <Border BorderBrush="#3D3D3D" BorderThickness="1">
+      <local:ParkingPickerCanvas x:Name="MapCanvas" />
+    </Border>
+  </DockPanel>
+</Window>

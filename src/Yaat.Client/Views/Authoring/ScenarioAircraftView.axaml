@@ -111,7 +111,17 @@
         />
         <StackPanel IsVisible="{Binding ShowsParking}">
           <TextBlock Classes="lbl" Text="Parking" />
-          <TextBox x:Name="ParkingBox" Text="{Binding Parking}" Tag="{Binding CommitParkingCommand}" />
+          <Grid ColumnDefinitions="*,6,Auto">
+            <TextBox x:Name="ParkingBox" Grid.Column="0" Text="{Binding Parking}" Tag="{Binding CommitParkingCommand}" />
+            <Button
+              x:Name="PickParkingButton"
+              Grid.Column="2"
+              Content="Pick on map"
+              Padding="9,3"
+              IsEnabled="{Binding CanPickParking}"
+              Click="OnPickParkingClick"
+            />
+          </Grid>
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsRunway}">
           <TextBlock Classes="lbl" Text="Runway" />

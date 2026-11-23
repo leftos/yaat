@@ -70,6 +70,26 @@ public partial class ScenarioAircraftView : UserControl
         }
     }
 
+    // Pick on map: opens the parking picker on the aircraft's airport and writes the picked stand as one parking edit;
+    // a cancelled pick, or one with no map, changes nothing.
+    private async void OnPickParkingClick(object? sender, RoutedEventArgs e)
+    {
+        if (
+            (DataContext is not ScenarioAircraftViewModel vm)
+            || (vm.ParkingAirportId is not { } airport)
+            || (TopLevel.GetTopLevel(this) is not Window owner)
+        )
+        {
+            return;
+        }
+
+        string? stand = await new ParkingPickerWindow(airport, vm.Parking, vm.Preferences).ShowAsync(owner);
+        if (stand is not null)
+        {
+            vm.ApplyPickedParking(stand);
+        }
+    }
+
     // A field commits when it loses the focus. A type or airport box (its text box and its drop-down together) commits its
     // text when the focus leaves it entirely, and nothing when the focus moves between its text box and its open
     // drop-down; a move into the drop-down is remembered until it closes.

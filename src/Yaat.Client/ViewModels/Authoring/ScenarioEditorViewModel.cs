@@ -284,6 +284,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         {
             AirportOptions = general.AirportOptions,
             PositionCatalog = general.PositionCatalog,
+            PrimaryAirportId = general.PrimaryAirportId,
         };
         session.DocumentReplaced += OnDocumentReplaced;
         general.Edited += OnEdited;
@@ -506,17 +507,22 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         NotifyState();
     }
 
-    // The General tab's position catalog arrived: the Aircraft tab's auto-track picker offers it too.
+    // The General tab's position catalog arrived: the Aircraft tab's auto-track picker offers it too. Its primary airport
+    // changed: the Aircraft tab's parking picker follows it.
     private void OnGeneralPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (
-            (e.PropertyName == nameof(ScenarioGeneralViewModel.PositionCatalog))
-            && (sender is ScenarioGeneralViewModel general)
-            && ReferenceEquals(sender, General)
-            && (Aircraft is { } aircraft)
-        )
+        if ((sender is not ScenarioGeneralViewModel general) || !ReferenceEquals(sender, General) || (Aircraft is not { } aircraft))
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(ScenarioGeneralViewModel.PositionCatalog))
         {
             aircraft.PositionCatalog = general.PositionCatalog;
+        }
+        else if (e.PropertyName == nameof(ScenarioGeneralViewModel.PrimaryAirportId))
+        {
+            aircraft.PrimaryAirportId = general.PrimaryAirportId;
         }
     }
 
