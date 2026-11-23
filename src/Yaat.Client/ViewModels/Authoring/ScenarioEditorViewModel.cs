@@ -32,6 +32,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private readonly ScenarioBrowserServices _services;
     private readonly Func<Task<bool>> _guard;
     private readonly Func<string, string, Task<bool>> _replaceGuard;
+    private readonly Func<string, string, Task<bool>> _exportGuard;
     private ScenarioEditSession? _session;
     private ScenarioGeneralViewModel? _general;
     private ScenarioAircraftViewModel? _aircraft;
@@ -63,11 +64,13 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _guard = ConfirmLeaveAsync;
         _replaceGuard = ConfirmReplaceAsync;
+        _exportGuard = PrepareForExportAsync;
         _browser.OpenRequested += OnOpenRequested;
         _browser.WorkingCopyDeleted += OnWorkingCopyDeleted;
         _browser.WorkingCopyReplaced += OnWorkingCopyReplaced;
         _browser.LeaveGuard = _guard;
         _browser.ReplaceGuard = _replaceGuard;
+        _browser.ExportGuard = _exportGuard;
     }
 
     /// <summary>Gets the open working copy's session; null when nothing is open.</summary>
@@ -154,7 +157,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         UnsavedChangesChoice choice;
         try
         {
-            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session));
+            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session), UnsavedChangesContext.Close);
         }
         catch (Exception ex)
         {
@@ -173,6 +176,50 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
                 return await SaveBeforeLeaveAsync(session);
             case UnsavedChangesChoice.Discard:
                 CloseSession();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// The browser's <see cref="ScenarioBrowserViewModel.ExportGuard"/>: whether a working copy may be exported now. True
+    /// at once unless it is the open copy with unsaved edits; then the unsaved-changes question is asked as before an
+    /// export. Save saves and goes on only once saved; Discard drops the edits by re-reading the saved file and goes on;
+    /// Cancel (or a failed prompt) stops. False when the open copy changed while the question was pending.
+    /// </summary>
+    /// <param name="artccId">The ARTCC whose folder holds the copy.</param>
+    /// <param name="id">The working copy's id.</param>
+    /// <returns>True to export the copy's saved file.</returns>
+    public async Task<bool> PrepareForExportAsync(string artccId, string id)
+    {
+        if (!IsOpenCopy(artccId, id) || (Session is not { IsDirty: true } session))
+        {
+            return true;
+        }
+
+        UnsavedChangesChoice choice;
+        try
+        {
+            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session), UnsavedChangesContext.Export);
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "asking before an export of " + id);
+            return false;
+        }
+
+        if (!ReferenceEquals(Session, session))
+        {
+            return false;
+        }
+
+        switch (choice)
+        {
+            case UnsavedChangesChoice.Save:
+                return TrySave(session);
+            case UnsavedChangesChoice.Discard:
+                Reload(artccId, id);
                 return true;
             default:
                 return false;
@@ -200,6 +247,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         if (_browser.ReplaceGuard == _replaceGuard)
         {
             _browser.ReplaceGuard = (_, _) => Task.FromResult(true);
+        }
+
+        if (_browser.ExportGuard == _exportGuard)
+        {
+            _browser.ExportGuard = (_, _) => Task.FromResult(true);
         }
 
         CloseSession();
@@ -268,7 +320,6 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
 
         if (TrySave(session))
         {
-            _replacedUnder = null;
             await _browser.NotifyWorkingCopySavedAsync(session.ArtccId, session.ScenarioId);
         }
     }
@@ -279,7 +330,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         UnsavedChangesChoice choice;
         try
         {
-            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session));
+            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session), UnsavedChangesContext.Close);
         }
         catch (Exception ex)
         {
@@ -331,7 +382,8 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         return ReferenceEquals(Session, session);
     }
 
-    // True only when the document was written; any other outcome, or a write failure, sets the save message.
+    // True only when the document was written; any other outcome, or a write failure, sets the save message. A written
+    // document is the file now, so a session kept over an imported file no longer asks before its next save.
     private bool TrySave(ScenarioEditSession session)
     {
         ScenarioSaveResult result;
@@ -348,6 +400,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         }
 
         bool saved = result.Outcome == ScenarioSaveOutcome.Saved;
+        if (saved && ReferenceEquals(_replacedUnder, session))
+        {
+            _replacedUnder = null;
+        }
+
         SaveMessage = saved ? null : result.Reason;
         NotifyState();
         return saved;

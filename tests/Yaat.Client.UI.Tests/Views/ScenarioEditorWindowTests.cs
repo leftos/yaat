@@ -253,6 +253,9 @@ public class ScenarioEditorWindowTests
                 ("Import", vm.ImportCommand),
                 ("SaveCopy", vm.SaveCopyCommand),
                 ("Refresh", vm.RefreshCommand),
+                ("ExportJson", vm.ExportJsonCommand),
+                ("ExportCleanJson", vm.ExportCleanJsonCommand),
+                ("ExportAllUnexported", vm.ExportAllUnexportedCommand),
             ];
 
             foreach ((string name, ICommand command) in commands)
@@ -1532,7 +1535,11 @@ public class ScenarioEditorWindowTests
         public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>
             Task.FromException<ImportConflictAnswer>(new NotSupportedException("no import in these tests"));
 
-        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName)
+        public Task<string?> PickExportPathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
+
+        public Task<string?> PickExportFolderAsync() => Task.FromResult<string?>(null);
+
+        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context)
         {
             UnsavedAsked++;
             return Task.FromResult(UnsavedChangesChoice.Discard);

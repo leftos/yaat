@@ -115,6 +115,7 @@ internal static class ScenarioBrowserRows
             (originGone, ScenarioBadge.GoneFromServer),
             (copy.Corrupt, ScenarioBadge.Corrupt),
             (copy.OriginId is null, ScenarioBadge.LocalOnly),
+            (copy.UnexportedChanges, ScenarioBadge.Unexported),
         ];
         return [.. candidates.Where(c => c.On).Select(c => c.Badge)];
     }

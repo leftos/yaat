@@ -299,7 +299,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
 
         ScenarioBrowserRowViewModel edited = Assert.Single(vm.LocalRows, r => r.Id == "S1");
         ScenarioBrowserRowViewModel goneCopy = Assert.Single(vm.LocalRows, r => r.Id == "G1");
-        Assert.Equal([ScenarioBadge.Modified], edited.Badges);
+        Assert.Equal([ScenarioBadge.Modified, ScenarioBadge.Unexported], edited.Badges);
         Assert.Equal([ScenarioBadge.GoneFromServer], goneCopy.Badges);
         Assert.Equal([ScenarioBadge.GoneFromServer], Assert.Single(vm.ServerRows, r => r.Id == "G1").Badges);
         Assert.Empty(Assert.Single(vm.ServerRows, r => r.Id == "S1").Badges);
@@ -800,6 +800,9 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             vm.StartWorkingCopyCommand,
             vm.OpenCommand,
             vm.TestInRoomCommand,
+            vm.ExportJsonCommand,
+            vm.ExportCleanJsonCommand,
+            vm.ExportAllUnexportedCommand,
         ];
 
     private static void Select(ScenarioBrowserViewModel vm, ScenarioBrowserRowViewModel row)
@@ -960,7 +963,12 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
         }
 
         // The browser alone never asks it: only the editor's leave guard does.
-        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName) => Task.FromResult(UnsavedChangesChoice.Cancel);
+        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context) =>
+            Task.FromResult(UnsavedChangesChoice.Cancel);
+
+        public Task<string?> PickExportPathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
+
+        public Task<string?> PickExportFolderAsync() => Task.FromResult<string?>(null);
 
         // Asked only through the editor's replace guard.
         public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);

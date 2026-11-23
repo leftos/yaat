@@ -9,8 +9,8 @@ namespace Yaat.Client.Views.Authoring;
 
 /// <summary>
 /// The Scenario Editor window's answers to the browser's questions: a Yes/No box before a delete, the file pickers for
-/// Import and Save copy, the import id-conflict dialog, a Yes/No/Cancel box before unsaved edits are left, and a
-/// Replace/Cancel box before an import replaces the copy open with unsaved edits, each over the window.
+/// Import, Save copy and the exports, the import id-conflict dialog, a Yes/No/Cancel box before unsaved edits are left or
+/// exported, and a Replace/Cancel box before an import replaces the copy open with unsaved edits, each over the window.
 /// </summary>
 /// <param name="owner">The window the boxes and dialogs show over.</param>
 /// <param name="picker">The window's file picker.</param>
@@ -42,15 +42,23 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
         picker.SaveFileAsync(new SaveFileOptions("Save a copy", suggestedFileName, JsonFilter, DefaultExtension: "json"));
 
     /// <inheritdoc/>
+    public Task<string?> PickExportPathAsync(string suggestedFileName) =>
+        picker.SaveFileAsync(new SaveFileOptions("Export JSON", suggestedFileName, JsonFilter, DefaultExtension: "json"));
+
+    /// <inheritdoc/>
+    public Task<string?> PickExportFolderAsync() => picker.OpenFolderAsync(new OpenFolderOptions("Export all unexported scenarios"));
+
+    /// <inheritdoc/>
     public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) => new ImportConflictDialog(question).ShowAsync(owner);
 
     /// <inheritdoc/>
-    public async Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName)
+    public async Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context)
     {
+        string before = (context == UnsavedChangesContext.Export) ? "exporting" : "closing";
         ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
             owner,
             "Unsaved changes",
-            $"Save your changes to \"{scenarioName}\" before closing it?",
+            $"Save your changes to \"{scenarioName}\" before {before} it?",
             ButtonEnum.YesNoCancel
         );
         return result switch

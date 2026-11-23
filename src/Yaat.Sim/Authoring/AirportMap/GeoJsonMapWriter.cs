@@ -57,11 +57,8 @@ public static class GeoJsonMapWriter
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrEmpty(path);
         string fullPath = Path.GetFullPath(path);
-        string cacheDir = Path.TrimEndingDirectorySeparator(Path.GetFullPath(YaatPaths.Combine("cache", "airports")));
-        if (
-            string.Equals(fullPath, cacheDir, StringComparison.OrdinalIgnoreCase)
-            || fullPath.StartsWith(cacheDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-        )
+        string cacheDir = VnasCacheFolder.FullPath("airports");
+        if (VnasCacheFolder.Contains(cacheDir, fullPath))
         {
             throw new InvalidOperationException(
                 $"Refusing to write the airport map to {path}: it is inside the vNAS airport cache ({cacheDir}), which only the downloader writes."

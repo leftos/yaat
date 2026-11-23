@@ -81,7 +81,10 @@ public static class WorkingCopyExporter
     /// <summary>Writes a prepared export to <paramref name="path"/> in one step, UTF-8 without a BOM, LF line ends.</summary>
     /// <param name="result">A <see cref="ExportOutcome.Written"/> result of <see cref="Prepare"/>.</param>
     /// <param name="path">The file to create or replace; its folder is created when it is missing.</param>
-    /// <exception cref="InvalidOperationException">The result was refused or corrupt; nothing is written.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The result was refused or corrupt, or the path lies inside the vNAS cache, which only the downloaders write; nothing
+    /// is written.
+    /// </exception>
     public static void WriteTo(ExportResult result, string path)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -89,6 +92,14 @@ public static class WorkingCopyExporter
         if ((result.Outcome != ExportOutcome.Written) || (result.Json is null))
         {
             throw new InvalidOperationException($"An export that is {result.Outcome} has nothing to write; {path} was not written.");
+        }
+
+        string cacheDir = VnasCacheFolder.FullPath();
+        if (VnasCacheFolder.Contains(cacheDir, path))
+        {
+            throw new InvalidOperationException(
+                $"Refusing to export to {path}: it is inside the vNAS cache ({cacheDir}), which only the downloaders write."
+            );
         }
 
         StoreFiles.WriteAtomically(path, result.Json);

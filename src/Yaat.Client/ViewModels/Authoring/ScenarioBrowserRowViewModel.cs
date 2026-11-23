@@ -27,6 +27,9 @@ public enum ScenarioBadge
 
     /// <summary>The working copy has no server scenario behind it.</summary>
     LocalOnly,
+
+    /// <summary>The working copy has changes not yet exported as vNAS JSON.</summary>
+    Unexported,
 }
 
 /// <summary>Which of the browser's two lists shows.</summary>
@@ -71,6 +74,9 @@ public sealed class ScenarioBrowserRowViewModel
 
     /// <summary>Gets a value indicating whether the row's file is not a readable scenario.</summary>
     public bool IsCorrupt => Badges.Contains(ScenarioBadge.Corrupt);
+
+    /// <summary>Gets a value indicating whether a working copy has changes not yet exported as vNAS JSON.</summary>
+    public bool HasUnexportedChanges => Badges.Contains(ScenarioBadge.Unexported);
 
     /// <summary>Gets a value indicating whether the scenario can be opened for editing: every row but a corrupt one.</summary>
     public bool CanOpen => !IsCorrupt;

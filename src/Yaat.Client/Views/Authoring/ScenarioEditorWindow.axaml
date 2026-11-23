@@ -71,6 +71,9 @@
         <Border Classes="vsep" />
         <Button x:Name="ImportButton" Content="Import…" Command="{Binding ImportCommand}" />
         <Button x:Name="SaveCopyButton" Content="Save copy…" Command="{Binding SaveCopyCommand}" />
+        <Button x:Name="ExportJsonButton" Content="Export JSON…" Command="{Binding ExportJsonCommand}" />
+        <Button x:Name="ExportCleanJsonButton" Content="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
+        <Button x:Name="ExportAllUnexportedButton" Content="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
         <Border Classes="vsep" />
         <Button x:Name="RefreshButton" Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal" Spacing="4">

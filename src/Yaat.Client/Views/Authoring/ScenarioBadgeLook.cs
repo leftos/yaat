@@ -11,6 +11,9 @@ namespace Yaat.Client.Views.Authoring;
 /// <param name="Tip">The tooltip.</param>
 public sealed record ScenarioBadgeLook(Geometry Icon, IBrush? Stroke, IBrush? Fill, string Tip)
 {
+    // An arrow up out of a tray: changes not yet exported.
+    private static readonly Geometry ExportArrow = Geometry.Parse("M8,10.5 V2.5 M4.5,6 L8,2.5 L11.5,6 M2.5,10 V13.5 H13.5 V10");
+
     /// <summary>The look of a badge.</summary>
     /// <param name="badge">The badge.</param>
     /// <param name="problem">The row's problem text, which a corrupt badge's tooltip quotes.</param>
@@ -38,6 +41,7 @@ public sealed record ScenarioBadgeLook(Geometry Icon, IBrush? Stroke, IBrush? Fi
                 null,
                 "Exists only on this PC; it is not linked to a server scenario."
             ),
+            ScenarioBadge.Unexported => new(ExportArrow, ScenarioEditorIcons.Amber, null, "Has changes not yet exported as JSON."),
             _ => throw new UnreachableException($"No look for the badge {badge}."),
         };
 

@@ -106,7 +106,7 @@ public sealed partial class ScenarioBrowserViewModel
         }
 
         string artcc = _artcc!;
-        string suggested = SuggestedFileName(row);
+        string suggested = ScenarioExportViewModel.FileName(row.Name, row.Id);
         string? target = await PromptAsync<string?>(row.Name, () => _services.Prompts.PickSavePathAsync(suggested), null).ConfigureAwait(false);
         if (target is not null)
         {
@@ -194,14 +194,6 @@ public sealed partial class ScenarioBrowserViewModel
     private string StoredPath(string artcc, ScenarioBrowserRowViewModel row) =>
         row.Kind == ScenarioRowKind.WorkingCopy ? _services.Store.GetWorkingCopyPath(artcc, row.Id) : _services.Store.GetMirrorPath(artcc, row.Id);
 
-    // The scenario name with every character a file name cannot hold replaced, or the id when nothing is left.
-    private static string SuggestedFileName(ScenarioBrowserRowViewModel row)
-    {
-        char[] invalid = Path.GetInvalidFileNameChars();
-        string name = new string([.. row.Name.Select(c => invalid.Contains(c) ? '_' : c)]).Trim();
-        return (name.Length == 0 ? row.Id : name) + ".json";
-    }
-
     // Runs the store or file work on a pool thread; a failure is logged and posted as a notice naming the scenario.
     private async Task<(bool Ok, T? Value)> TryStoreAsync<T>(string name, string what, Func<T> work)
     {
@@ -258,5 +250,8 @@ public sealed partial class ScenarioBrowserViewModel
         StartWorkingCopyCommand.NotifyCanExecuteChanged();
         OpenCommand.NotifyCanExecuteChanged();
         TestInRoomCommand.NotifyCanExecuteChanged();
+        ExportJsonCommand.NotifyCanExecuteChanged();
+        ExportCleanJsonCommand.NotifyCanExecuteChanged();
+        ExportAllUnexportedCommand.NotifyCanExecuteChanged();
     }
 }

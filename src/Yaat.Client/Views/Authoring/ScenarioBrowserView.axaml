@@ -86,6 +86,9 @@
         <Separator />
         <MenuItem x:Name="ImportMenuItem" Header="Import…" Command="{Binding ImportCommand}" />
         <MenuItem x:Name="SaveCopyMenuItem" Header="Save a copy…" Command="{Binding SaveCopyCommand}" />
+        <MenuItem x:Name="ExportJsonMenuItem" Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
+        <MenuItem x:Name="ExportCleanJsonMenuItem" Header="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
+        <MenuItem x:Name="ExportAllUnexportedMenuItem" Header="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
         <Separator />
         <MenuItem x:Name="RefreshMenuItem" Header="Refresh" Command="{Binding RefreshCommand}" />
       </ContextMenu>

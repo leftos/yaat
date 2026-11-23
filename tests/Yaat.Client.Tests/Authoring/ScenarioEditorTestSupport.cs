@@ -242,6 +242,20 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 
     public List<string> UnsavedAsked { get; } = [];
 
+    /// <summary>Gets what each unsaved-changes question was asked before: closing or exporting.</summary>
+    public List<UnsavedChangesContext> UnsavedContexts { get; } = [];
+
+    /// <summary>Gets or sets the path the export picker answers; null as the user cancelling it.</summary>
+    public string? ExportPath { get; set; }
+
+    /// <summary>Gets the file names the export picker was offered.</summary>
+    public List<string> ExportSuggested { get; } = [];
+
+    /// <summary>Gets or sets the folder the export-all picker answers; null as the user cancelling it.</summary>
+    public string? ExportFolder { get; set; }
+
+    public int ExportFolderAsked { get; private set; }
+
     /// <summary>Gets or sets the answer to the unsaved-changes question, for a pending or failing prompt.</summary>
     public Func<Task<UnsavedChangesChoice>>? Ask { get; set; }
 
@@ -263,9 +277,10 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
         return Task.FromResult(ConfirmReplace);
     }
 
-    public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName)
+    public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context)
     {
         UnsavedAsked.Add(scenarioName);
+        UnsavedContexts.Add(context);
         if (Ask is { } ask)
         {
             return ask();
@@ -279,6 +294,18 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
     public Task<IReadOnlyList<string>> PickImportFilesAsync() => Task.FromResult(ImportFiles);
 
     public Task<string?> PickSavePathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
+
+    public Task<string?> PickExportPathAsync(string suggestedFileName)
+    {
+        ExportSuggested.Add(suggestedFileName);
+        return Task.FromResult(ExportPath);
+    }
+
+    public Task<string?> PickExportFolderAsync()
+    {
+        ExportFolderAsked++;
+        return Task.FromResult(ExportFolder);
+    }
 
     public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>
         Task.FromResult(new ImportConflictAnswer(ImportChoice, false));

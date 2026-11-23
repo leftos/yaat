@@ -222,6 +222,18 @@ public class WorkingCopyExporterTests
     }
 
     [Fact]
+    public void WriteTo_UnderCache_Throws()
+    {
+        ExportResult result = Written(Source().ToJsonString(), ExportKind.Full);
+        string path = YaatPaths.Combine("cache", "export-" + Guid.NewGuid().ToString("N") + ".json");
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() => WorkingCopyExporter.WriteTo(result, path));
+
+        Assert.Contains("vNAS cache", refused.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(path));
+    }
+
+    [Fact]
     public void Export_ValidationWarning_WritesWithTheWarning()
     {
         JsonObject source = Source();
