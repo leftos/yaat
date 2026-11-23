@@ -1081,8 +1081,8 @@
 - [ ] YAAT-2255 Keep an assigned altitude below field+400 ft at liftoff (CM on the roll climbs through it)
 - [ ] YAAT-2257 CTO MRC then CM ... OR BELOW: the departure never turns crosswind (turn gate ignores the altitude ceiling)
 - [ ] YAAT-2273 FOLLOW turn-out's base turn behind the lead starts too close to the final and overshoots toward the parallel
-- [ ] YAAT-2778 FOLLOW turns against the downwind when the lead turns base from a fix · release vNext
-- [ ] YAAT-2782 FOLLOW S-turns from ahead of the lead and cuts it off at the downwind · release vNext
+- [/] YAAT-2778 FOLLOW turns against the downwind when the lead turns base from a fix · release vNext
+- [/] YAAT-2782 FOLLOW S-turns from ahead of the lead and cuts it off at the downwind · release vNext
 
 ### 2 Refinements and rulings (7/20 done)
 - [ ] YAAT-1043 Name the pattern side in the unarmed midfield-downwind reminder
@@ -1097,7 +1097,7 @@
 - [ ] YAAT-2275 Check a FOLLOW long-final join far above the glidepath (CanSequenceOntoFinal has no altitude test)
 - [ ] YAAT-2653 OC on upwind or crosswind should depart the pattern per AIM 4-3-3
 - [ ] YAAT-2736 Keep a VFR follower spaced behind a lead orbiting at the Class B boundary
-- [ ] YAAT-2781 Keep a VFR follower at or above its leader's path while descending to the pattern
+- [ ] YAAT-2781 Keep a VFR follower at or above its leader's path while descending to the pattern · release vNext+1
 
 ### 3 Hygiene and tests (6/12 done)
 - [ ] YAAT-260 Two follow comments cite the wrong AIM paragraph for no cutting in on final
@@ -1122,7 +1122,7 @@
 
 ## Navigation data and route geometry
 
-### 1 Defects (3/16 done)
+### 1 Defects (4/16 done)
 - [ ] YAAT-676 Make a JAWY intercept planned with no airway fix behind the aircraft fire
 - [ ] YAAT-2021 Check the runway width YAAT derives for SFO (ADG ceiling comes out V, SFO runways are 200 ft)
 - [ ] YAAT-479 Load CIFP approaches for airports whose ident is a three-character FAA LID
@@ -1135,7 +1135,6 @@
 - [ ] YAAT-1664 Find CIFP approaches at airports with a 3-character FAA id (12J, 6R1, F00: GetApproach prefixes K)
 - [ ] YAAT-1688 Keep the offline CIFP stale-cache fallback to cycle-named files
 - [ ] YAAT-2739 Keep published at-or-below STAR speeds on the spawned route (ARYEL, DYAMD)
-- [ ] YAAT-2779 A route that doubles back at a fix turns back up to 5 nm short of it · release vNext
 
 ### 2 Refinements and rulings (5/11 done)
 - [ ] YAAT-214 Warn the RPO in the terminal when an amended flight plan has unresolvable route elements
@@ -1245,9 +1244,10 @@
 - [ ] YAAT-2775 Skip the solo Class B hold for a path between volumes of the Bravo it is already in
 - [ ] YAAT-2776 Look past the first Class B crossing on the predicted path
 
-### 3 Hygiene and tests (0/2 done)
+### 3 Hygiene and tests (0/3 done)
 - [ ] YAAT-1188 Audit type-routed solo pilot lines against the student's worked range · release vNext
 - [ ] YAAT-2259 Split PilotProactive.TickArrivalApproachRequest under the complexity limit
+- [ ] YAAT-2784 Measure the Class B release walk against the flown downwind and upwind restart copies
 
 ### No milestone
 - [ ] YAAT-1503 Key the RTIS 'looking' answer before later readbacks; stop the pilot echoing 'report traffic in sight' · release vNext
@@ -1600,7 +1600,7 @@
 
 ## Docs, agent tooling and repo hygiene
 
-### 1 Defects (5/16 done)
+### 1 Defects (5/17 done)
 - [ ] YAAT-515 Stop the commit hook's style pass marking [ObservableProperty] fields readonly
 - [ ] YAAT-589 Make four GuideCapture scenes deterministic (terminal order, nav status, radar jitter)
 - [ ] YAAT-1550 Make GuideCapture's load-weather and connected-empty scenes wait for their shown state before capturing
@@ -1612,6 +1612,7 @@
 - [ ] YAAT-1210 Retry refused Discord archive and close-rename writes instead of dropping them
 - [ ] YAAT-1211 Close the cron-versus-webhook races in the Discord thread rename
 - [ ] YAAT-2231 Halt prepare-release on a red or running CI run in either repo at the released commits
+- [ ] YAAT-2783 prepare-release: take a hotfix's PREV_TAG from the latest release, not the latest tag merged into main
 
 ### 2 Refinements and rulings (0/3 done)
 - [ ] YAAT-1645 Brief rule: find and prove a red-first test's staging before dispatch
