@@ -86,6 +86,12 @@ public sealed class DownwindPhase : Phase
     public PatternWaypoints? Waypoints { get; set; }
 
     /// <summary>
+    /// The altitude this leg climbs or descends to when it starts: a controller altitude it carries, else pattern altitude;
+    /// null without waypoints.
+    /// </summary>
+    internal double? PlannedLegAltitudeFt => _controllerAltitudeFt ?? Waypoints?.PatternAltitude;
+
+    /// <summary>
     /// The controller-armed <c>REPORT MIDFIELD</c> report has been voiced on this lap's downwind (once per circuit). A
     /// downwind that re-creates this lap's on the same runway and side is built with it copied, so the lap is not reported
     /// twice: a 360's resumed copy, an <c>MLT</c>/<c>MRT</c> rebuild that keeps the runway and side, an <c>ELD</c>/<c>ERD</c>
@@ -695,7 +701,9 @@ public sealed class DownwindPhase : Phase
         resume.ShortApproachArmed = ShortApproachArmed;
         resume.ExitAtMidfield = ExitAtMidfield;
         resume._midfieldBroadcastIssued = _midfieldBroadcastIssued;
-        resume._controllerAltitudeFt = _controllerAltitudeFt;
+        // A CM issued during the hold, which the held leg never ticked to see, is newer than one it saw on the leg.
+        resume._controllerAltitudeFt =
+            ResumedLegAltitude.IssuedOnLeg(ctx.Targets, !_assignedAltitudeBaselinePending, _seenAssignedAltitudeFt) ?? _controllerAltitudeFt;
         resume._seenAssignedAltitudeFt = _seenAssignedAltitudeFt;
         resume._assignedAltitudeBaselinePending = _assignedAltitudeBaselinePending;
         resume._resumeFromPosition = true;

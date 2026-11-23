@@ -548,6 +548,13 @@ public class AircraftState
     public string? InPhaseHoldUnablePhase { get; internal set; }
 
     /// <summary>
+    /// The Class B an RPO session's instructor was warned this aircraft's running phase will enter uncleared: set when the
+    /// warning goes out, null again when that encounter ends (the entry no longer seen, a clearance into it, or out of the
+    /// scope), so the warning goes out once per encounter (<see cref="Pilot.PilotProactive.TickRpoPathWarning"/>).
+    /// </summary>
+    public string? InPhaseWarnedArea { get; internal set; }
+
+    /// <summary>
     /// The Class B of an orbit put in front of a running phase whose advisory the pilot has not yet said, because the orbit
     /// went in while it was not yet in contact or was tuned away from the student: set when the orbit goes in, said (and null
     /// again) the first second the pilot can speak to the student, or null when that orbit ends first
@@ -944,6 +951,7 @@ public class AircraftState
             InPhaseHoldUnableArea = dto.InPhaseHoldUnableArea,
             InPhaseHoldUnableSeenAtSeconds = dto.InPhaseHoldUnableSeenAtSeconds,
             InPhaseHoldUnablePhase = dto.InPhaseHoldUnablePhase,
+            InPhaseWarnedArea = dto.InPhaseWarnedArea,
             InPhaseOrbitAdvisoryOwed = dto.InPhaseOrbitAdvisoryOwed,
             HasAnnouncedLinedUpReady = dto.HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = dto.NoLandingClearanceWarningActive,
@@ -1086,6 +1094,7 @@ public class AircraftState
             InPhaseHoldUnableArea = InPhaseHoldUnableArea,
             InPhaseHoldUnableSeenAtSeconds = InPhaseHoldUnableSeenAtSeconds,
             InPhaseHoldUnablePhase = InPhaseHoldUnablePhase,
+            InPhaseWarnedArea = InPhaseWarnedArea,
             InPhaseOrbitAdvisoryOwed = InPhaseOrbitAdvisoryOwed,
             HasAnnouncedLinedUpReady = HasAnnouncedLinedUpReady,
             NoLandingClearanceWarningActive = NoLandingClearanceWarningActive,

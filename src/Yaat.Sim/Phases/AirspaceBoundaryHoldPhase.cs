@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airspace;
@@ -241,6 +242,11 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
             return true;
         }
 
+        if (HeldPathClearsTheBravo(ctx))
+        {
+            return true;
+        }
+
         SetHoldingTargets(ctx);
         TrueHeading current = ctx.Aircraft.TrueHeading;
         double delta = _lastHeading.SignedAngleTo(current);
@@ -444,7 +450,7 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
     /// </summary>
     private void EndPairedVertical(PhaseContext ctx)
     {
-        if ((_altitudeCommandCountAtStart is not { } count) || (ctx.Aircraft.ControllerAltitudeCommandCount != count))
+        if (!RestoresPairedVertical(ctx.Aircraft))
         {
             return;
         }
@@ -452,6 +458,29 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         ctx.Targets.TargetAltitude = _originalTargetAltitude;
         ctx.Targets.DesiredVerticalRate = _originalDesiredVerticalRate;
     }
+
+    /// <summary>
+    /// The altitude target a controller altitude command issued during this hold left, which the hold's end leaves standing
+    /// (<see cref="EndPairedVertical"/>): the self-release's walk flies it ahead of the resumed leg's own altitude. Null when
+    /// no such command came.
+    /// </summary>
+    internal double? ControllerAltitudeLeftStanding(PhaseContext ctx) =>
+        AltitudeCommandedDuringHold(ctx.Aircraft) ? ctx.Targets.TargetAltitude : null;
+
+    /// <summary>Whether a controller altitude command came since this hold, standing in front of a held phase, started.</summary>
+    private bool AltitudeCommandedDuringHold(AircraftState aircraft) =>
+        (_altitudeCommandCountAtStart is { } count) && (aircraft.ControllerAltitudeCommandCount != count);
+
+    /// <summary>
+    /// The altitude target standing once this hold has ended: the one <see cref="EndPairedVertical"/> gives back to the held
+    /// phase, else the present one (a controller altitude issued during the hold, or any hold not in front of a held phase).
+    /// </summary>
+    internal double? TargetAltitudeAfterEnd(PhaseContext ctx) =>
+        RestoresPairedVertical(ctx.Aircraft) ? _originalTargetAltitude : ctx.Targets.TargetAltitude;
+
+    /// <summary>Whether the hold's end gives the held phase back its vertical targets: it stands in front of one, and no CM came since.</summary>
+    private bool RestoresPairedVertical(AircraftState aircraft) =>
+        (_altitudeCommandCountAtStart is { } count) && (aircraft.ControllerAltitudeCommandCount == count);
 
     public override CommandAcceptance CanAcceptCommand(CanonicalCommandType cmd) => CommandAcceptance.Allowed;
 
@@ -641,6 +670,84 @@ public sealed class AirspaceBoundaryHoldPhase : Phase
         }
 
         return volume.ContainsLateral(aircraft.Position) || volume.ContainsLateral(AirspaceDatabase.ProjectPosition(aircraft, 60.0));
+    }
+
+    /// <summary>
+    /// The route the hold saved when it first started (the held phase's live route then), or a direct it held through: what
+    /// its end puts back (<see cref="PutBackRoute"/>).
+    /// </summary>
+    public IReadOnlyList<NavigationTarget> StashedRoute => _originalRoute;
+
+    /// <summary>
+    /// The scenario second the boundary hold in front of <paramref name="aircraft"/>'s held phase last ended by itself because
+    /// the held path cleared the Class B (<see cref="HeldPathClearsTheBravo"/>); null when none has. Kept for the re-hold
+    /// warning only, outside the snapshot.
+    /// </summary>
+    public static double? SelfReleasedAtSeconds(AircraftState aircraft) =>
+        SelfReleases.TryGetValue(aircraft, out StrongBox<double>? at) ? at.Value : null;
+
+    private static readonly ConditionalWeakTable<AircraftState, StrongBox<double>> SelfReleases = [];
+
+    /// <summary>
+    /// The self-release: a Class B hold in front of a held phase, not holding through a vector, ends by itself, as a grant
+    /// ends it but with no clearance, once the whole remaining held path clears the held Class B by one turn margin
+    /// (<see cref="Pilot.BravoPathPredictor.TurnMarginNm"/>, the radius of the orbit the aircraft flies). The path judged is
+    /// the one the resume would fly: the held phase, or the restart copy its <see cref="Phase.ResumeAfterBoundaryHold"/>
+    /// builds (never started), from the aircraft's present position (<see cref="Pilot.BravoPathPredictor.PredictResume"/>).
+    /// Judged once per second of the hold. The margin is the hysteresis: the trigger holds on any entry of the 60 s path, the
+    /// release needs the whole path clear by the margin, so a path between the two neither holds nor releases; a downwind
+    /// running within one margin of the boundary never self-releases and holds until cleared in or vectored, accepted as the
+    /// margin's cost. A held phase with no path source never self-releases. A hold flying through a vector into the Class B
+    /// never ends on this test: the vector's track decides then.
+    /// </summary>
+    private bool HeldPathClearsTheBravo(PhaseContext ctx)
+    {
+        if (
+            _heldThroughVector
+            || (AirspaceClass != AirspaceClass.Bravo)
+            || (ctx.Aircraft.Phases is not { HeldPhase: { } held } phases)
+            || (Math.Floor(ElapsedSeconds) <= Math.Floor(ElapsedSeconds - ctx.DeltaSeconds))
+        )
+        {
+            return false;
+        }
+
+        if (!ResumedPathClears(ctx, phases, held))
+        {
+            return false;
+        }
+
+        SelfReleases.AddOrUpdate(ctx.Aircraft, new StrongBox<double>(ctx.ScenarioElapsedSeconds));
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug(
+                "[BoundaryHold] {Callsign}: {Held} path clears the {Area} Class B, the hold ends by itself",
+                ctx.Aircraft.Callsign,
+                held.Name,
+                Ident
+            );
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the path of the phase the hold's end would install (the restart copy when there is one, else the held phase)
+    /// clears the held Class B by the turn margin. A held phase of a kind the predictor has no path source for
+    /// (<see cref="Pilot.BravoPathPredictor.HasPathSource"/>) never clears, and its resume is never built: a teardrop
+    /// re-entry's resume writes its own completion flag, so a once-a-second read must not call it.
+    /// </summary>
+    private bool ResumedPathClears(PhaseContext ctx, PhaseList phases, Phase held)
+    {
+        if (!Pilot.BravoPathPredictor.HasPathSource(held))
+        {
+            return false;
+        }
+
+        AircraftState aircraft = ctx.Aircraft;
+        Phase installed = held.ResumeAfterBoundaryHold(ctx).Copy ?? held;
+        return (Pilot.BravoPathPredictor.PredictResume(aircraft, phases, installed, ctx, this) is { } path)
+            && Pilot.BravoPathPredictor.KeepsClearOf(path, AirspaceDatabase.Default, Ident, Pilot.BravoPathPredictor.TurnMarginNm(aircraft));
     }
 
     private bool HeldVolumeCanStillBeEntered(AircraftState aircraft)

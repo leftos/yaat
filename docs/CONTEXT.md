@@ -658,6 +658,9 @@ Established on the final and no further out than a limit measured to the landing
 **Pattern compression**:
 A traffic pattern flown narrower, at slower speeds and a 25° bank, because its normal size would cross another active runway; all or nothing, and only down to the type's compressed floor (`PatternCompression`, docs/approach-and-pattern-geometry.md, *Pattern compression*).
 
+**Self-release**:
+A boundary hold in front of a held phase ending itself, uncleared, because the held phase's remaining path (through the resume the hold would install) clears the held Class B by one orbit radius (`PilotProactive`, `BravoPathPredictor.PredictResume`; docs/airspace-database.md, *Path lookahead and self-release*).
+
 **Protected corridor** (of a runway):
 A runway's pavement plus its extended centerline 1 NM past each end, which pattern compression keeps a circuit's legs out of and the "crosses runway" warning tests (`PatternCompression`).
 

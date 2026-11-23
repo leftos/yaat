@@ -29,7 +29,7 @@ public sealed class CrosswindPhase : Phase
 
     private bool _assignedAltitudeBaselineRecorded;
 
-    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps. Read in OnStart only.</summary>
+    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps.</summary>
     private double? _resumeControllerAltitudeFt;
 
     public PatternWaypoints? Waypoints { get; set; }
@@ -51,6 +51,30 @@ public sealed class CrosswindPhase : Phase
     /// instead of leveling at pattern altitude. Null for normal closed-traffic / arrival crosswinds.
     /// </summary>
     public int? DepartureClimbTargetFt { get; set; }
+
+    /// <summary>How far below pattern altitude a crosswind starts to climb to it; one starting higher leaves the target standing.</summary>
+    private const double ClimbToPatternBelowFt = 50.0;
+
+    /// <summary>
+    /// The altitude this leg flies when it starts at <paramref name="altitudeFt"/>, as <see cref="OnStart"/> sets it: a
+    /// controller altitude it carries, else its departure climb target, else pattern altitude when it starts more than
+    /// <see cref="ClimbToPatternBelowFt"/> below it, else <paramref name="standingTargetFt"/> (the target standing as it starts,
+    /// which it leaves alone), else <paramref name="altitudeFt"/>; null without waypoints.
+    /// </summary>
+    internal double? PlannedLegAltitudeFt(double altitudeFt, double? standingTargetFt)
+    {
+        if (Waypoints is null)
+        {
+            return null;
+        }
+
+        if ((_resumeControllerAltitudeFt ?? DepartureClimbTargetFt) is { } ownFt)
+        {
+            return ownFt;
+        }
+
+        return (altitudeFt < Waypoints.PatternAltitude - ClimbToPatternBelowFt) ? Waypoints.PatternAltitude : (standingTargetFt ?? altitudeFt);
+    }
 
     public override string Name => "Crosswind";
     public override bool ManagesSpeed => true;
@@ -122,7 +146,7 @@ public sealed class CrosswindPhase : Phase
             ctx.Targets.TargetAltitude = departureClimbTo;
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);
         }
-        else if (ctx.Aircraft.Altitude < Waypoints.PatternAltitude - 50)
+        else if (ctx.Aircraft.Altitude < Waypoints.PatternAltitude - ClimbToPatternBelowFt)
         {
             ctx.Targets.TargetAltitude = Waypoints.PatternAltitude;
             ctx.Targets.DesiredVerticalRate = AircraftPerformance.InitialClimbRate(ctx.AircraftType, ctx.Category);

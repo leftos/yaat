@@ -41,7 +41,7 @@ public sealed class UpwindPhase : Phase
 
     private bool _assignedAltitudeBaselineRecorded;
 
-    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps. Read in OnStart only.</summary>
+    /// <summary>A CM/DM issued on the leg a boundary hold suspended, which this restart copy keeps.</summary>
     private double? _resumeControllerAltitudeFt;
 
     public PatternWaypoints? Waypoints { get; set; }
@@ -75,6 +75,12 @@ public sealed class UpwindPhase : Phase
     /// closed-traffic / arrival upwinds.
     /// </summary>
     public int? DepartureClimbTargetFt { get; set; }
+
+    /// <summary>
+    /// The altitude this leg climbs or descends to when it starts: a controller altitude it carries, else its departure climb
+    /// target, else pattern altitude; null without waypoints.
+    /// </summary>
+    internal double? PlannedLegAltitudeFt => _resumeControllerAltitudeFt ?? DepartureClimbTargetFt ?? Waypoints?.PatternAltitude;
 
     public override string Name => "Upwind";
     public override bool ManagesSpeed => true;

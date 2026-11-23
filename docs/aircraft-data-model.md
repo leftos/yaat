@@ -44,7 +44,7 @@ These live directly on the record, not in a satellite:
 | `Phases` | `PhaseList?` | Active phase state machine; `null` = free-flying. See [phases.md](phases.md). |
 
 A handful of cross-phase one-shot booleans and debrief timestamps also live at top level and **are** snapshot-serialized:
-`HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `TunedPosition`, `ClearedBravoIdent`, `HasEnteredClearedBravo`, `BravoExitSinceSeconds`, `RemainOutsideBravo`, `BravoCap`, `ControllerAltitudeCommandCount`, `AirspaceUnableAdvisedCommand`, `HasAnnouncedLinedUpReady`,
+`HasMadeInitialContact`, `HasControllerAcknowledgedInitialContact`, `TunedPosition`, `ClearedBravoIdent`, `HasEnteredClearedBravo`, `BravoExitSinceSeconds`, `RemainOutsideBravo`, `BravoCap`, `ControllerAltitudeCommandCount`, `AirspaceUnableAdvisedCommand`, `InPhaseWarnedArea`, `HasAnnouncedLinedUpReady`,
 `NoLandingClearanceWarningActive`, `SpawnedAtSeconds`, `CompletedAtSeconds`, `CompletionReason`, `CompletionDetail`, `PendingPilotRequest`, `LastPilotTransmission`, `PendingRepeat`, `PendingRepeatCallsignOnly`.
 
 `TunedPosition` (a `TrackOwner?`; null reads as the student's side) is written by the student's CT/FCA, the airborne or ground spawn stamp, the student's handoff accept and `**` convert, the ERAM `QT` convert, the pilot's initial call and a scripted or AI contact naming the student; the full rules are CONTEXT.md "Tuned position", and a student instruction to a pilot tuned elsewhere is not heard ([solo-training-pilot-speech.md](solo-training-pilot-speech.md)).

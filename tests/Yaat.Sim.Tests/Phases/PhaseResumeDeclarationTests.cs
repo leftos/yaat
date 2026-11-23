@@ -627,7 +627,14 @@ public class PhaseResumeDeclarationTests
     {
         RunwayInfo runway = Oak28R();
         (AircraftState ac, PhaseContext ctx) = AircraftAt(runway, DownwindLinePoint(-3.0));
-        PatternEntryPhase entry = PatternEntryTo();
+        // Its entry point inside the SFO Class B surface area keeps the held path blocked, so the hold never ends by itself.
+        PatternEntryPhase entry = new()
+        {
+            EntryLat = SfoClassBTestPoints.InsideTheSfoSurfaceArea.Lat,
+            EntryLon = SfoClassBTestPoints.InsideTheSfoSurfaceArea.Lon,
+            PatternAltitude = PatternEntryTo().PatternAltitude,
+            Kind = PatternEntryKind.Direct,
+        };
         Start(ac, ctx, entry);
         PhaseRunner.Tick(ac, ctx);
         double elapsed = entry.ElapsedSeconds;
@@ -653,7 +660,11 @@ public class PhaseResumeDeclarationTests
         Start(ac, ctx, downwind);
         PhaseRunner.Tick(ac, ctx);
         ac.Phases!.InsertHoldInFront(SfoBravoHold());
+        // At 7500 ft over the OAK pattern the held path runs inside the SFO Class B, so the hold's first tick does not end it
+        // by itself; back at pattern altitude for the resume.
+        ac.Altitude = 7500;
         PhaseRunner.Tick(ac, ctx);
+        ac.Altitude = wp.PatternAltitude;
 
         PhaseRunner.EndHold(ac, ctx, downwind.ResumeAfterBoundaryHold(ctx));
 

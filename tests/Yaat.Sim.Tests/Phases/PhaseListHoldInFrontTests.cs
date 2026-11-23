@@ -540,11 +540,16 @@ public class PhaseListHoldInFrontTests
         return (ac, ctx, entry);
     }
 
+    /// <summary>
+    /// A C172 6 nm out from a pattern entry whose entry point lies inside the SFO Class B surface area, so a hold put in
+    /// front of it never ends by itself: its held path stays blocked (<see cref="AirspaceBoundaryHoldPhase.SelfReleasedAtSeconds"/>).
+    /// </summary>
     private static (AircraftState Aircraft, PhaseContext Context, PatternEntryPhase Entry) AircraftWithUnstartedPatternEntry()
     {
         RunwayInfo runway = Oak28R();
         PatternEntryPhase entry = PatternEntryTo(runway);
-        (AircraftState ac, PhaseContext ctx) = AircraftAt(runway, GeoMath.ProjectPoint(EntryPoint(runway), runway.TrueHeading + 180, 6.0));
+        LatLon entryPoint = new(entry.EntryLat, entry.EntryLon);
+        (AircraftState ac, PhaseContext ctx) = AircraftAt(runway, GeoMath.ProjectPoint(entryPoint, runway.TrueHeading + 180, 6.0));
         ac.Phases!.Add(entry);
         return (ac, ctx, entry);
     }
@@ -552,13 +557,12 @@ public class PhaseListHoldInFrontTests
     private static RunwayInfo Oak28R() =>
         NavigationDatabase.Instance.GetRunway("OAK", "28R") ?? throw new InvalidOperationException("OAK 28R missing");
 
-    /// <summary>A left-traffic downwind for 28R lies to the south; the entry point is 1 nm abeam the threshold.</summary>
-    private static LatLon EntryPoint(RunwayInfo runway) =>
-        GeoMath.ProjectPoint(new LatLon(runway.ThresholdLatitude, runway.ThresholdLongitude), runway.TrueHeading + (-90), 1.0);
+    private static readonly LatLon InsideTheSfoSurfaceArea = SfoClassBTestPoints.InsideTheSfoSurfaceArea;
 
+    /// <summary>A pattern entry to a point inside the SFO Class B surface area (<see cref="InsideTheSfoSurfaceArea"/>).</summary>
     private static PatternEntryPhase PatternEntryTo(RunwayInfo runway)
     {
-        LatLon entryPoint = EntryPoint(runway);
+        LatLon entryPoint = InsideTheSfoSurfaceArea;
         return new PatternEntryPhase
         {
             EntryLat = entryPoint.Lat,

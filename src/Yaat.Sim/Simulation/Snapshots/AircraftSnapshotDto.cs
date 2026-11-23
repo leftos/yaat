@@ -253,6 +253,13 @@ public sealed class AircraftSnapshotDto
     public string? InPhaseHoldUnablePhase { get; init; }
 
     /// <summary>
+    /// The Class B an RPO session's instructor was warned of for a running phase (<see cref="AircraftState.InPhaseWarnedArea"/>);
+    /// left out of the JSON while null.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InPhaseWarnedArea { get; init; }
+
+    /// <summary>
     /// The Class B of an in-phase orbit whose advisory is still owed (<see cref="AircraftState.InPhaseOrbitAdvisoryOwed"/>);
     /// left out of the JSON while null.
     /// </summary>

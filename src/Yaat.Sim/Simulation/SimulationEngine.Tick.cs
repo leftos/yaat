@@ -279,11 +279,16 @@ public sealed partial class SimulationEngine
                     _boundaryHoldContextFor ??= BuildBoundaryHoldContext
                 );
             }
-            else if (ac.BravoCap is not null)
+            else
             {
-                // A Class B cap left standing when the session stopped being solo training is released (RPO sessions fly
-                // every command as given).
-                Pilot.PilotProactive.TickBravoCap(ac, scenario, AirspaceDatabase.Default);
+                // An RPO session: the instructor alone is warned of a phase's path into an uncleared Class B; the pilot flies on.
+                Pilot.PilotProactive.TickRpoPathWarning(ac, scenario, AirspaceDatabase.Default, _boundaryHoldContextFor ??= BuildBoundaryHoldContext);
+                if (ac.BravoCap is not null)
+                {
+                    // A Class B cap left standing when the session stopped being solo training is released (RPO sessions fly
+                    // every command as given).
+                    Pilot.PilotProactive.TickBravoCap(ac, scenario, AirspaceDatabase.Default);
+                }
             }
 
             Pilot.PilotProactive.TickPendingRequests(ac, scenario, LookupAirportPosition);

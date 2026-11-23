@@ -4,6 +4,7 @@
 
 ### Added
 
+- RPO sessions warn the instructor when an uncleared VFR pattern or approach path will enter a Class B; the pilot flies on.
 - Radar: ERAM-template tracks draw CRC's ERAM look: a target glyph per state, track symbols, glyph history, CRC's leader and ERAM yellow.
 - Settings › Appearance › Scope text draws STARS and ERAM datablocks Compact or Realistic: Terminus Bold at CRC's text sizes, sized per kind.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
@@ -22,7 +23,7 @@
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
 - Solo: uncleared VFR pilots now stay under a Class B shelf in the pattern, approaches, go-arounds and departures, saying unable once per altitude into it.
-- Solo: an uncleared VFR pattern or approach heading into a Class B now orbits outside it, says so, asks for the bravo, then resumes.
+- Solo: an uncleared VFR pattern or approach whose path enters a Class B orbits outside, asks for the bravo, then resumes once cleared or clear.
 - Solo: a pattern entry or approach to an airport outside the Class B no longer clears a waiting VFR pilot into that Bravo or answers its request.
 - AI Ground no longer holds a jet's push on standby for a tow in its ramp area that is itself stopped for that jet.
 - An aircraft given a route that turns back on itself at a fix now flies to the fix before turning, instead of turning up to 5 nm short.

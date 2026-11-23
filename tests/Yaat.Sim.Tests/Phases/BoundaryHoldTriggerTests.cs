@@ -229,15 +229,27 @@ public sealed class BoundaryHoldTriggerTests : IDisposable
     [Fact]
     public void S7_AnRpoSession_GetsNoHold()
     {
+        // In an RPO session the path warning goes to the instructor only, as one amber Warning
+        // line; no hold, no radio call, and the readback channel (the pilot's transmissions and speech) is untouched.
         AircraftState ac = WestOfTheRing();
-        ac.Phases!.Add(Active(OakPatternEntry()));
-        SimScenarioState rpo = SoloScenario();
+        PatternEntryPhase entry = OakPatternEntry();
+        ac.Phases!.Add(entry);
+        (SimulationEngine engine, SimScenarioState rpo) = SoloEngine(ac);
         rpo.SoloTrainingMode = false;
+        var warnings = new List<(string Callsign, string Text)>();
+        engine.WarningEmitted += (callsign, text) => warnings.Add((callsign, text));
 
-        Tick(ac, rpo, Context(ac, Oak28R()));
+        for (int t = 0; t < 5; t++)
+        {
+            engine.TickOneSecond();
+        }
 
-        Assert.Single(ac.Phases.Phases);
+        Assert.Same(entry, Assert.Single(ac.Phases.Phases));
         Assert.Empty(ac.PendingPilotTransmissions);
+        Assert.Empty(ac.PendingPilotSpeech);
+        (string callsign, string text) = Assert.Single(warnings);
+        Assert.Equal(Callsign, callsign);
+        Assert.Matches(@"^N123AB: .+ path enters the SFO Class B uncleared in \d+ s \(RPO session: no hold\)$", text);
     }
 
     [Fact]
@@ -383,18 +395,40 @@ public sealed class BoundaryHoldTriggerTests : IDisposable
         Assert.Null(ac.InPhaseHoldUnableArea);
     }
 
+    /// <summary>
+    /// Turns east and swaps the pattern entry for one whose entry point lies 10 nm east: the predicted path, not only the
+    /// ray, no longer enters the surface area. The phase keeps its name, so the encounter is not ended by a phase change.
+    /// </summary>
     private static void TurnAwayFromTheSurfaceArea(AircraftState ac)
     {
         ac.TrueTrack = new TrueHeading(90);
         ac.TrueHeading = ac.TrueTrack;
+        ReplaceEntry(ac, PatternEntryAt(GeoMath.ProjectPoint(ac.Position, new TrueHeading(90), 10)));
         Assert.Null(AirspaceDatabase.Default.FindFirstProjectedEntry(ac, 60, AirspaceClass.Bravo));
     }
 
+    /// <summary>Turns west and swaps back to a pattern entry at SFO, whose path enters the surface area.</summary>
     private static void TurnIntoTheSurfaceArea(AircraftState ac)
     {
         ac.TrueTrack = new TrueHeading(270);
         ac.TrueHeading = ac.TrueTrack;
+        ReplaceEntry(ac, PatternEntryAt(Ksfo));
     }
+
+    private static void ReplaceEntry(AircraftState ac, PatternEntryPhase entry)
+    {
+        ac.Phases = new PhaseList();
+        ac.Phases.Add(Active(entry));
+    }
+
+    private static PatternEntryPhase PatternEntryAt(LatLon point) =>
+        new()
+        {
+            EntryLat = point.Lat,
+            EntryLon = point.Lon,
+            PatternAltitude = 300,
+            Kind = PatternEntryKind.Direct,
+        };
 
     [Fact]
     public void Below400FtAgl_WhenThePilotCannotSpeak_SaysUnableTheFirstSecondItCan_StillOnce()
@@ -1167,7 +1201,8 @@ public sealed class BoundaryHoldTriggerTests : IDisposable
     {
         LatLon edge = FirstPointOutside(Ksfo, 90, v => v.LowerFtMsl == 0);
         AircraftState ac = Airborne(GeoMath.ProjectPoint(edge, new TrueHeading(90), 0.5), trueHeading: 270, altitude: 300);
-        ac.Phases!.Add(Active(OakPatternEntry()));
+        // A pattern entry at SFO: its predicted path runs west into the surface area, as the ray does.
+        ac.Phases!.Add(Active(PatternEntryAt(Ksfo)));
         RunwayInfo sfo28R = Runway("SFO", "28R");
         AirspaceBoundaryCrossing? crossing = AirspaceDatabase.Default.FindFirstProjectedEntry(ac, 60, AirspaceClass.Bravo);
         Assert.NotNull(crossing);
