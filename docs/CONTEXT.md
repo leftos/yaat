@@ -1330,6 +1330,9 @@ A bare run that is not already inside a gate re-invokes itself once under one he
 **Slot**:
 A place machine-wide a gate must hold to run, of the kind its `-Slot` names, from one of two pools that never wait on each other: heavy slots and light slots. A gate that finds every slot of its kind held logs `gate: waiting for a heavy slot` (or `... light slot`) and waits; a gate inside another gate takes none and uses its parent's.
 
+**Spawn origin**:
+What the scenario editor's spawn planner treats as one source of aircraft when it spaces spawn times: the departure airport for a ground start, the fix for an airborne start, and the destination runway for On Final starts. Two aircraft of one origin never spawn closer than the minimum separation, which also keeps clear of aircraft the run does not schedule (their delays never change) (`SpawnSchedule.OriginKey`).
+
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 
@@ -1353,6 +1356,9 @@ A recording test that pins behaviour which only makes sense on the airport as re
 
 **WER** (word error rate):
 The edits (substituted, deleted and inserted words) a transcript needs to match its reference, divided by the reference's word count, after both pass through `WerTextNormalizer` (`WerScorer`).
+
+**Workload curve**:
+Control points, workload percent over scenario time, that the scenario editor's spawn planner turns into spawn times: a busier stretch spawns closer together, within the interval limits the author sets (`WorkloadCurve`, `SpawnSchedule.WalkSlots` and `FillSlots`).
 
 **West end** (SFO):
 Taxiway Z from C to Z2, past the departure ends of runways 28, which a taxi route from the north field to runways 1 follows; Local owns it when landing the 10s, departing the 28s or when given, and Ground requests it by count ("once around the west end") (SFO ATCT SOP 3-1.a.vi; `sfo-video-lessons.md` S10).
