@@ -12,15 +12,29 @@ namespace Yaat.Sim.Authoring;
 /// <summary>
 /// Turns a working copy's text into the vNAS JSON an author uploads to ATCTrainer. The full export is the copy as the
 /// scenario document writes it, every field kept; the clean export drops every field YAAT does not model and the
-/// YAAT-only parts (VFR arrival and overflight generators, <c>liveSession</c>, a generator's <c>enabled</c>). Both name
-/// each YAAT-only part they found, and a copy whose checks report an error is refused.
+/// YAAT-only parts (VFR arrival and overflight generators, <c>liveSession</c>, a generator's <c>enabled</c>, an aircraft's
+/// <see cref="AircraftTaxiSecondsKey"/> and <see cref="AircraftRpoNoteKey"/>). Both name each YAAT-only part they found, and
+/// a copy whose checks report an error is refused.
 /// </summary>
 public static class WorkingCopyExporter
 {
+    /// <summary>
+    /// The aircraft extension-data key of the Scenario Editor's taxi time, a whole number of seconds: YAAT-only, so vNAS
+    /// ignores it and the clean export drops it.
+    /// </summary>
+    public const string AircraftTaxiSecondsKey = "yaatTaxiSeconds";
+
+    /// <summary>
+    /// The aircraft extension-data key of the Scenario Editor's RPO note, a string: YAAT-only, so vNAS ignores it and the
+    /// clean export drops it.
+    /// </summary>
+    public const string AircraftRpoNoteKey = "yaatRpoNote";
+
     private const string VfrArrivalGeneratorKind = "vfrArrivalGenerator";
     private const string OverflightGeneratorKind = "overflightGenerator";
     private const string LiveSessionKind = "liveSession";
     private const string GeneratorEnabledKind = "generatorEnabled";
+    private const string AircraftYaatFieldKind = "aircraftYaatField";
 
     private static readonly ILogger Log = SimLog.CreateLogger("WorkingCopyExporter");
 
@@ -132,6 +146,7 @@ public static class WorkingCopyExporter
             OverflightGeneratorKind => $"overflight generator {part.Name}",
             LiveSessionKind => "live session flag",
             GeneratorEnabledKind => $"enabled flag of aircraft generator {part.Name}",
+            AircraftYaatFieldKind => part.Name,
             _ => $"{part.Kind} {part.Name}",
         };
 
@@ -179,10 +194,36 @@ public static class WorkingCopyExporter
         }
 
         AddParts(parts, GeneratorEnabledKind, scenario.AircraftGenerators ?? [], g => g.Enabled is not null);
+        AddAircraftParts(parts, scenario.Aircraft ?? []);
         return parts;
     }
 
-    // One part per generator the filter takes, named by its id or, when the id is empty, by "#" and its index.
+    // One part per YAAT-only key an aircraft's extension data holds, named by the aircraft's callsign or, when the callsign
+    // is empty, by "#" and its 1-based position, then the field.
+    private static void AddAircraftParts(List<YaatOnlyPart> parts, List<ScenarioAircraft> aircraft)
+    {
+        for (int i = 0; i < aircraft.Count; i++)
+        {
+            ScenarioAircraft? one = aircraft[i];
+            if (one?.ExtensionData is not { } extension)
+            {
+                continue;
+            }
+
+            string name = string.IsNullOrEmpty(one.AircraftId) ? $"#{i + 1}" : one.AircraftId;
+            if (extension.ContainsKey(AircraftTaxiSecondsKey))
+            {
+                parts.Add(new YaatOnlyPart(AircraftYaatFieldKind, $"{name} taxi time"));
+            }
+
+            if (extension.ContainsKey(AircraftRpoNoteKey))
+            {
+                parts.Add(new YaatOnlyPart(AircraftYaatFieldKind, $"{name} RPO note"));
+            }
+        }
+    }
+
+    // One part per generator the filter takes, named by its id or, when the id is empty, by "#" and its 1-based position.
     private static void AddParts<T>(List<YaatOnlyPart> parts, string kind, List<T> generators, Func<T, bool> include)
         where T : IGeneratorConfig
     {
@@ -191,7 +232,7 @@ public static class WorkingCopyExporter
             T generator = generators[i];
             if ((generator is not null) && include(generator))
             {
-                parts.Add(new YaatOnlyPart(kind, string.IsNullOrEmpty(generator.Id) ? $"#{i}" : generator.Id));
+                parts.Add(new YaatOnlyPart(kind, string.IsNullOrEmpty(generator.Id) ? $"#{i + 1}" : generator.Id));
             }
         }
     }
@@ -354,10 +395,14 @@ public sealed record ExportIssue(ExportIssueSeverity Severity, string Message);
 
 /// <summary>One part of a scenario only YAAT reads, found by an export.</summary>
 /// <param name="Kind">
-/// <c>vfrArrivalGenerator</c>, <c>overflightGenerator</c>, <c>liveSession</c> or <c>generatorEnabled</c> (an aircraft
-/// generator's <c>enabled</c> flag).
+/// <c>vfrArrivalGenerator</c>, <c>overflightGenerator</c>, <c>liveSession</c>, <c>generatorEnabled</c> (an aircraft
+/// generator's <c>enabled</c> flag) or <c>aircraftYaatField</c> (an aircraft's taxi time or RPO note).
 /// </param>
-/// <param name="Name">The generator's id, <c>#</c> and its index when the id is empty, or <c>liveSession</c>.</param>
+/// <param name="Name">
+/// The generator's id, or <c>#</c> and its 1-based position in its list when the id is empty (<c>#1</c>);
+/// <c>liveSession</c>; or the aircraft's callsign, or <c>#</c> and its 1-based position when the callsign is empty, then
+/// its field (<c>AAL1 taxi time</c>, <c>#2 RPO note</c>).
+/// </param>
 public sealed record YaatOnlyPart(string Kind, string Name);
 
 /// <summary>The outcome of <see cref="WorkingCopyExporter.Prepare"/>.</summary>

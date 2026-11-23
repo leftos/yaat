@@ -11,8 +11,9 @@ namespace Yaat.Client.ViewModels.Authoring;
 
 /// <summary>
 /// The Aircraft tab over one <see cref="ScenarioEditSession"/>: one read-only row per scenario aircraft in document order,
-/// the selected row, and Add, Duplicate and Remove, each one undo step. The rows are rebuilt from the session's document
-/// after every edit and on <see cref="Reload"/> (undo or redo replaced the document), and the selection is held by
+/// the selected row, and Add, Duplicate and Remove, each one undo step. The rows follow the session's document after every
+/// edit and on <see cref="Reload"/> (undo or redo replaced the document): refreshed in place while its aircraft ids and
+/// their order are unchanged, made anew otherwise. The selection is held by
 /// aircraft id: when its aircraft is gone, the row now at its index is selected, else the last row, else none. A reload
 /// that brings back exactly one aircraft selects it; one that takes away exactly one aircraft this tab added selects
 /// what was selected before that add. The grid's sort is the view's own and never reorders the document.
@@ -146,28 +147,56 @@ public sealed partial class ScenarioAircraftViewModel : ObservableObject
         return null;
     }
 
-    // One edit as one undo step, then the rows rebuilt with selectId selected (by the selection rule when it is gone).
+    // One edit as one undo step, then the rows rebuilt with selectId selected (by the selection rule when it is gone). An
+    // edit that changed nothing keeps the rows and the selection, re-shows only the committed field's value (every other
+    // field keeps its text and its error) and reports nothing.
     private void Apply(string description, Action<Scenario> change, string selectId)
     {
         int oldIndex = Selected?.Index ?? -1;
-        _session.Edit(description, change);
+        if (!_session.Edit(description, change))
+        {
+            ReloadField(description);
+            return;
+        }
+
         Rebuild(selectId, oldIndex);
         Edited?.Invoke(this, EventArgs.Empty);
     }
 
     // The rows from the document as it is now, with the aircraft of the id selected; when it is gone, the row at the old
-    // index, else the last row, else none. No id selects none.
+    // index, else the last row, else none. No id selects none. When the document holds the rows' ids in the rows' order,
+    // each row is refreshed in place, so the grid keeps its row containers (a click being handled still names its row)
+    // and its selection; otherwise the rows are made anew. A selection that stays on the same row re-shows the panel.
     private void Rebuild(string? id, int oldIndex)
     {
-        Rows.Clear();
         List<ScenarioAircraft> aircraft = _session.Document.Scenario.Aircraft;
-        for (int i = 0; i < aircraft.Count; i++)
+        if (SameIds(aircraft))
         {
-            Rows.Add(new ScenarioAircraftRowViewModel(aircraft[i], i));
+            for (int i = 0; i < aircraft.Count; i++)
+            {
+                Rows[i].Update(aircraft[i], i);
+            }
+        }
+        else
+        {
+            Rows.Clear();
+            for (int i = 0; i < aircraft.Count; i++)
+            {
+                Rows.Add(new ScenarioAircraftRowViewModel(aircraft[i], i));
+            }
         }
 
+        ScenarioAircraftRowViewModel? before = Selected;
         Selected = Pick(id, oldIndex);
+        if (ReferenceEquals(before, Selected))
+        {
+            LoadDetail();
+        }
     }
+
+    // Whether the document's aircraft have the rows' ids, in the rows' order.
+    private bool SameIds(List<ScenarioAircraft> aircraft) =>
+        (aircraft.Count == Rows.Count) && aircraft.Select(a => a.Id).SequenceEqual(Rows.Select(r => r.Id), StringComparer.Ordinal);
 
     private ScenarioAircraftRowViewModel? Pick(string? id, int oldIndex)
     {

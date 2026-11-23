@@ -223,7 +223,8 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
 
     private void Apply(string description, Action<Scenario> change)
     {
-        _session.Edit(description, change);
+        // A commit that changed nothing still refreshes the summaries and reports itself, as the editor's state follows it.
+        _ = _session.Edit(description, change);
         RebuildOptions();
         RefreshSummaries();
         Edited?.Invoke(this, EventArgs.Empty);

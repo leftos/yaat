@@ -227,7 +227,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         OpenError = null;
         var session = new ScenarioEditSession(_services.Store, artccId, id);
         var general = new ScenarioGeneralViewModel(session, _services);
-        var aircraft = new ScenarioAircraftViewModel(session, _services);
+        var aircraft = new ScenarioAircraftViewModel(session, _services) { AirportOptions = general.AirportOptions };
         session.DocumentReplaced += OnDocumentReplaced;
         general.Edited += OnEdited;
         aircraft.Edited += OnEdited;

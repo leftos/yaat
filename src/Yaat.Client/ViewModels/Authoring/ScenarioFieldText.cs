@@ -20,9 +20,10 @@ internal delegate bool ScenarioFieldTryParse<TValue>(string text, out TValue val
 internal sealed record ScenarioFieldKind<TValue>(ScenarioFieldTryParse<TValue> TryParse, Func<TValue, string> Format, string ErrorText);
 
 /// <summary>
-/// The generator rows' field kinds and pickers: numbers and whole numbers in the invariant culture, trimmed (a blank
-/// optional number is none); times through <see cref="ScenarioTime"/> (a blank time is 0, a blank optional time is none;
-/// a document's negative time is shown as its second count); the engine and weight options.
+/// The generator rows' and the aircraft editor's field kinds and pickers: numbers and whole numbers in the invariant
+/// culture, trimmed (a blank optional number is none); latitudes, longitudes and headings with their ranges; times through
+/// <see cref="ScenarioTime"/> (a blank time is 0, a blank optional time is none; a document's negative time is shown as
+/// its second count); the engine and weight options.
 /// </summary>
 internal static class ScenarioFieldText
 {
@@ -35,14 +36,55 @@ internal static class ScenarioFieldText
     /// <summary>The error a whole-number field shows when its text is not a whole number.</summary>
     public const string WholeNumberErrorText = "Enter a whole number.";
 
+    /// <summary>The error a field that takes no negative number shows when its text is not a number of 0 or more.</summary>
+    public const string NonNegativeNumberErrorText = "Enter a number, 0 or more.";
+
+    /// <summary>The error a field that takes no negative whole number shows when its text is not one of 0 or more.</summary>
+    public const string NonNegativeWholeNumberErrorText = "Enter a whole number, 0 or more.";
+
     /// <summary>The error a time field shows when its text is not a time.</summary>
     public const string TimeErrorText = "Enter a time like 1:30, 1:02:30 or 130.";
+
+    /// <summary>The error a latitude field shows when its text is not a number from -90 to 90.</summary>
+    public const string LatitudeErrorText = "Enter a latitude from -90 to 90.";
+
+    /// <summary>The error a longitude field shows when its text is not a number from -180 to 180.</summary>
+    public const string LongitudeErrorText = "Enter a longitude from -180 to 180.";
+
+    /// <summary>The error a heading field shows when its text is not a number from 0 to 360.</summary>
+    public const string HeadingErrorText = "Enter a heading from 0 to 360.";
 
     /// <summary>A number; blank is not one.</summary>
     public static readonly ScenarioFieldKind<double> Number = new(TryNumber, FormatNumber, NumberErrorText);
 
+    /// <summary>A whole number, or none when blank.</summary>
+    public static readonly ScenarioFieldKind<int?> OptionalWholeNumber = new(TryOptionalWholeNumber, FormatOptionalWholeNumber, WholeNumberErrorText);
+
+    /// <summary>A latitude in degrees, -90 to 90; blank is not one.</summary>
+    public static readonly ScenarioFieldKind<double> Latitude = new((t, out v) => TryNumberIn(t, 90, out v), FormatNumber, LatitudeErrorText);
+
+    /// <summary>A longitude in degrees, -180 to 180; blank is not one.</summary>
+    public static readonly ScenarioFieldKind<double> Longitude = new((t, out v) => TryNumberIn(t, 180, out v), FormatNumber, LongitudeErrorText);
+
+    /// <summary>A heading in degrees, 0 to 360, or none when blank.</summary>
+    public static readonly ScenarioFieldKind<double?> OptionalHeading = new(TryOptionalHeading, FormatOptionalNumber, HeadingErrorText);
+
     /// <summary>A number, or none when blank.</summary>
     public static readonly ScenarioFieldKind<double?> OptionalNumber = new(TryOptionalNumber, FormatOptionalNumber, NumberErrorText);
+
+    /// <summary>A number of 0 or more, or none when blank.</summary>
+    public static readonly ScenarioFieldKind<double?> OptionalNonNegativeNumber = new(
+        (t, out v) => TryOptionalNumber(t, out v) && !(v < 0),
+        FormatOptionalNumber,
+        NonNegativeNumberErrorText
+    );
+
+    /// <summary>A whole number of 0 or more, or none when blank.</summary>
+    public static readonly ScenarioFieldKind<int?> OptionalNonNegativeWholeNumber = new(
+        (t, out v) => TryOptionalWholeNumber(t, out v) && !(v < 0),
+        FormatOptionalWholeNumber,
+        NonNegativeWholeNumberErrorText
+    );
 
     /// <summary>A whole number; blank is not one.</summary>
     public static readonly ScenarioFieldKind<int> WholeNumber = new(TryWholeNumber, FormatWholeNumber, WholeNumberErrorText);
@@ -230,6 +272,37 @@ internal static class ScenarioFieldText
 
     private static bool TryWholeNumber(string text, out int value) =>
         int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+
+    private static bool TryOptionalWholeNumber(string text, out int? value)
+    {
+        value = null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        bool parsed = TryWholeNumber(text, out int number);
+        value = parsed ? number : null;
+        return parsed;
+    }
+
+    // A number from -limit to limit.
+    private static bool TryNumberIn(string text, double limit, out double value) => TryNumber(text, out value) && (Math.Abs(value) <= limit);
+
+    private static bool TryOptionalHeading(string text, out double? value)
+    {
+        value = null;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        bool parsed = TryNumber(text, out double number) && (number >= 0) && (number <= 360);
+        value = parsed ? number : null;
+        return parsed;
+    }
+
+    private static string FormatOptionalWholeNumber(int? value) => (value is { } number) ? FormatWholeNumber(number) : "";
 
     private static bool TryTime(string text, out int value)
     {

@@ -93,6 +93,47 @@ public class WorkingCopyExporterTests
     }
 
     [Fact]
+    public void Export_Clean_DropsAnAircraftsTaxiTimeAndRpoNote_AndNamesEach()
+    {
+        JsonObject source = Source();
+        JsonNode first = source["aircraft"]![0]!;
+        string callsign = first["aircraftId"]!.GetValue<string>();
+        first[WorkingCopyExporter.AircraftTaxiSecondsKey] = 300;
+        first[WorkingCopyExporter.AircraftRpoNoteKey] = "Call ground on the hold short";
+
+        ExportResult clean = Written(source.ToJsonString(), ExportKind.Clean);
+        ExportResult full = Written(source.ToJsonString(), ExportKind.Full);
+
+        JsonObject exported = JsonNode.Parse(clean.Json!)!["aircraft"]![0]!.AsObject();
+        Assert.False(exported.ContainsKey("yaatTaxiSeconds"));
+        Assert.False(exported.ContainsKey("yaatRpoNote"));
+        Assert.Equal(300, JsonNode.Parse(full.Json!)!["aircraft"]![0]!["yaatTaxiSeconds"]!.GetValue<int>());
+        YaatOnlyPart[] expected = [new("aircraftYaatField", $"{callsign} taxi time"), new("aircraftYaatField", $"{callsign} RPO note")];
+        Assert.Equal(expected, clean.Parts);
+        Assert.Equal(expected, full.Parts);
+        Assert.Equal(
+            $"Dropped YAAT-only parts: {callsign} taxi time, {callsign} RPO note.",
+            WorkingCopyExporter.DescribeParts(ExportKind.Clean, clean.Parts)
+        );
+    }
+
+    [Fact]
+    public void AnAircraftWithNoCallsign_IsNamedByItsPosition_InTheYaatOnlyWarning()
+    {
+        JsonObject source = Source();
+        JsonNode first = source["aircraft"]![0]!;
+        first["aircraftId"] = "";
+        first[WorkingCopyExporter.AircraftTaxiSecondsKey] = 300;
+        first[WorkingCopyExporter.AircraftRpoNoteKey] = "Call ground on the hold short";
+
+        ExportResult clean = Written(source.ToJsonString(), ExportKind.Clean);
+
+        YaatOnlyPart[] expected = [new("aircraftYaatField", "#1 taxi time"), new("aircraftYaatField", "#1 RPO note")];
+        Assert.Equal(expected, clean.Parts);
+        Assert.Equal("Dropped YAAT-only parts: #1 taxi time, #1 RPO note.", WorkingCopyExporter.DescribeParts(ExportKind.Clean, clean.Parts));
+    }
+
+    [Fact]
     public void Export_Full_YaatOnlyParts_KeptAndListedEach()
     {
         JsonObject source = WithYaatOnlyParts();
@@ -109,7 +150,7 @@ public class WorkingCopyExporterTests
         YaatOnlyPart[] expected =
         [
             new("vfrArrivalGenerator", "VFR-NORTH"),
-            new("vfrArrivalGenerator", "#1"),
+            new("vfrArrivalGenerator", "#2"),
             new("overflightGenerator", "OVER-1"),
             new("liveSession", "liveSession"),
             new("generatorEnabled", GeneratorId(source, 0)),

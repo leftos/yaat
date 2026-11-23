@@ -244,11 +244,11 @@ public sealed class ScenarioAircraftViewModelTests : IDisposable
         ScenarioAircraftRowViewModel picked = vm.Rows[5];
         vm.Selected = picked;
 
-        session.Edit("Edit name", s => s.Name = "Renamed");
+        _ = session.Edit("Edit name", s => s.Name = "Renamed");
         Assert.True(session.Undo());
 
         Assert.Equal(picked.Id, vm.Selected?.Id);
-        Assert.NotSame(picked, vm.Selected);
+        Assert.Same(picked, vm.Selected);
         Assert.True(session.Redo());
         Assert.Equal(picked.Id, vm.Selected?.Id);
     }

@@ -77,7 +77,8 @@ public sealed class ScenarioEditSession
     /// </summary>
     /// <param name="description">The edit's name, as an Undo menu item shows it.</param>
     /// <param name="change">Changes the scenario in place.</param>
-    public void Edit(string description, Action<Scenario> change)
+    /// <returns>Whether the edit changed the document and so recorded an undo step.</returns>
+    public bool Edit(string description, Action<Scenario> change)
     {
         ArgumentNullException.ThrowIfNull(description);
         ArgumentNullException.ThrowIfNull(change);
@@ -94,11 +95,14 @@ public sealed class ScenarioEditSession
             throw;
         }
 
-        if (!string.Equals(after, before, StringComparison.Ordinal))
+        if (string.Equals(after, before, StringComparison.Ordinal))
         {
-            _undo.Record(description, before);
-            _currentText = after;
+            return false;
         }
+
+        _undo.Record(description, before);
+        _currentText = after;
+        return true;
     }
 
     /// <summary>Reverts the last edit, replacing the document.</summary>

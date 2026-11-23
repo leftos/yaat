@@ -23,6 +23,7 @@ using Yaat.Client.Views.Authoring;
 using Yaat.Sim;
 using Yaat.Sim.Authoring;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -506,6 +507,430 @@ public class ScenarioEditorWindowTests
     }
 
     [AvaloniaFact]
+    public async Task CtrlS_SavesACallsignStillBeingTypedInTheAircraftDetailPanel()
+    {
+        LocalScenarioStore store = OakStore();
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            window.Editor.Aircraft!.Selected = window.Editor.Aircraft.Rows[0];
+            MainWindowHost.Pump();
+
+            TextBox callsign = view.FindControl<TextBox>("CallsignBox")!;
+            callsign.Focus();
+            callsign.Text = "N123AB";
+            MainWindowHost.Pump();
+            Assert.False(window.Editor.IsDirty);
+            window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.Control);
+            await AwaitSaveAsync(window);
+
+            JsonNode saved = JsonNode.Parse(File.ReadAllText(store.GetWorkingCopyPath(Zoa, OakId)))!;
+            Assert.Equal("N123AB", (string?)saved["aircraft"]![0]!["aircraftId"]);
+            Assert.False(window.Editor.IsDirty);
+            Assert.Equal("Edit callsign", window.Editor.Session!.UndoDescription);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AircraftDetailPanel_ShowsOnlyWithASelection()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            ScrollViewer panel = view.FindControl<ScrollViewer>("DetailPanel")!;
+            Assert.Null(window.Editor.Aircraft!.Selected);
+            Assert.False(panel.IsVisible);
+
+            window.Editor.Aircraft.Selected = window.Editor.Aircraft.Rows[0];
+            MainWindowHost.Pump();
+            Assert.True(panel.IsEffectivelyVisible);
+            Assert.Equal(window.Editor.Aircraft.Rows[0].Callsign, view.FindControl<TextBox>("CallsignBox")!.Text);
+
+            window.Editor.Aircraft.Selected = null;
+            MainWindowHost.Pump();
+            Assert.False(panel.IsVisible);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClickingAnotherAircraftRow_WhileAPanelFieldHasFocus_SelectsThatRowAndShowsItsValues()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            ScenarioAircraftViewModel aircraft = window.Editor.Aircraft!;
+            aircraft.Selected = aircraft.Rows[0];
+            MainWindowHost.Pump();
+            TextBox callsign = view.FindControl<TextBox>("CallsignBox")!;
+            callsign.Focus();
+            MainWindowHost.Pump();
+            ScenarioAircraftRowViewModel target = aircraft.Rows[1];
+
+            ClickRow(window, view, target);
+
+            Assert.Equal(target.Id, aircraft.Selected?.Id);
+            Assert.Equal(target.Callsign, callsign.Text);
+            Assert.False(window.Editor.Session!.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ChangingAPanelField_ThenClickingAnotherRow_SelectsTheClickedRow()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            ScenarioAircraftViewModel aircraft = window.Editor.Aircraft!;
+            DataGrid grid = view.FindControl<DataGrid>("AircraftGrid")!;
+            grid.Columns.First(c => Equals(c.Header, "Callsign")).Sort(ListSortDirection.Ascending);
+            MainWindowHost.Pump();
+            // Sorted by callsign, the last row is edited to a callsign that sorts first, and the first row is clicked: a
+            // rebuild would re-sort the rows under the click.
+            ScenarioAircraftRowViewModel[] shown =
+            [
+                .. grid.GetVisualDescendants()
+                    .OfType<DataGridRow>()
+                    .Where(r => r.IsVisible)
+                    .OrderBy(r => r.TranslatePoint(default, grid)!.Value.Y)
+                    .Select(r => (ScenarioAircraftRowViewModel)r.DataContext!),
+            ];
+            ScenarioAircraftRowViewModel edited = shown[^1];
+            ScenarioAircraftRowViewModel target = shown[0];
+            aircraft.Selected = edited;
+            MainWindowHost.Pump();
+            TextBox callsign = view.FindControl<TextBox>("CallsignBox")!;
+            callsign.Focus();
+            callsign.Text = "AAA1";
+            MainWindowHost.Pump();
+
+            ClickRow(window, view, target);
+
+            Assert.Equal(target.Id, aircraft.Selected?.Id);
+            Assert.Equal("Edit callsign", window.Editor.Session!.UndoDescription);
+            Assert.Equal(target.Callsign, callsign.Text);
+            ScenarioAircraftRowViewModel editedNow = aircraft.Rows.Single(r => r.Id == edited.Id);
+            Assert.Equal("AAA1", editedNow.Callsign);
+            Assert.Contains(GridRow(view, editedNow).GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "AAA1");
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PickingAnAirportFromTheList_CommitsIt_AsOneStep()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            ScenarioAircraftViewModel aircraft = window.Editor.Aircraft!;
+            aircraft.Selected = aircraft.Rows[0];
+            MainWindowHost.Pump();
+            ScenarioEditSession session = window.Editor.Session!;
+            string current = session.Document.Scenario.Aircraft[0].AirportId ?? "";
+            string picked = aircraft.AirportOptions.First(o => !string.Equals(o, current, StringComparison.Ordinal));
+            ComboBox airport = view.FindControl<ComboBox>("AirportBox")!;
+            airport.IsDropDownOpen = true;
+            MainWindowHost.Pump();
+            ComboBoxItem item = airport.GetRealizedContainers().OfType<ComboBoxItem>().First(i => Equals(i.Content, picked));
+
+            ClickInItsTopLevel(item);
+
+            Assert.Equal(picked, session.Document.Scenario.Aircraft[0].AirportId);
+            Assert.Equal("Edit airport", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PickingATypeSuggestion_CommitsIt_AsOneStep()
+    {
+        TestVnasData.EnsureAircraftDataInitialized();
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            ScenarioAircraftViewModel aircraft = window.Editor.Aircraft!;
+            aircraft.Selected = aircraft.Rows[0];
+            MainWindowHost.Pump();
+            ScenarioEditSession session = window.Editor.Session!;
+            string current = session.Document.Scenario.Aircraft[0].AircraftType;
+            AutoCompleteBox type = view.FindControl<AutoCompleteBox>("TypeBox")!;
+            TextBox typed = type.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = "B73";
+            MainWindowHost.Pump();
+            Assert.True(type.IsDropDownOpen);
+            ListBoxItem item = type.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Primitives.Popup>()
+                .Single()
+                .Child!.GetVisualDescendants()
+                .OfType<ListBoxItem>()
+                .First(i => !Equals(i.Content, current) && !Equals(i.DataContext, current));
+            string picked = (string)item.DataContext!;
+
+            ClickInItsTopLevel(item);
+
+            Assert.Equal(picked, session.Document.Scenario.Aircraft[0].AircraftType);
+            Assert.Equal("Edit type", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TypingIntoTheTypeBox_ThenFocusingTheSuggestions_ThenClickingAway_CommitsTheTypedText()
+    {
+        TestVnasData.EnsureAircraftDataInitialized();
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            AutoCompleteBox type = view.FindControl<AutoCompleteBox>("TypeBox")!;
+            TextBox typed = type.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = "B73";
+            MainWindowHost.Pump();
+            Assert.True(type.IsDropDownOpen);
+            ListBoxItem item = type.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Primitives.Popup>()
+                .Single()
+                .Child!.GetVisualDescendants()
+                .OfType<ListBoxItem>()
+                .First();
+            item.Focus();
+            MainWindowHost.Pump();
+            Assert.False(session.CanUndo);
+
+            ClickInItsTopLevel(view.FindControl<TextBox>("TransponderBox")!);
+
+            Assert.Equal("B73", session.Document.Scenario.Aircraft[0].AircraftType);
+            Assert.Equal("Edit type", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CtrlS_WhileTheTypeSuggestionsHaveTheFocus_SavesTheTypedText_AsOneStep()
+    {
+        TestVnasData.EnsureAircraftDataInitialized();
+        LocalScenarioStore store = OakStore();
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            AutoCompleteBox type = view.FindControl<AutoCompleteBox>("TypeBox")!;
+            TextBox typed = type.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = "B73";
+            MainWindowHost.Pump();
+            Assert.True(type.IsDropDownOpen);
+            type.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Primitives.Popup>()
+                .Single()
+                .Child!.GetVisualDescendants()
+                .OfType<ListBoxItem>()
+                .First()
+                .Focus();
+            MainWindowHost.Pump();
+            Assert.False(session.CanUndo);
+
+            window.KeyPressQwerty(PhysicalKey.S, RawInputModifiers.Control);
+            await AwaitSaveAsync(window);
+
+            JsonNode saved = JsonNode.Parse(File.ReadAllText(store.GetWorkingCopyPath(Zoa, OakId)))!;
+            Assert.Equal("B73", (string?)saved["aircraft"]![0]!["aircraftType"]);
+            Assert.Equal("Edit type", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingTheWindow_WhileTheTypeSuggestionsAreOpen_RecordsNoStepAfterTheClose()
+    {
+        TestVnasData.EnsureAircraftDataInitialized();
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        bool closed = false;
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            AutoCompleteBox type = view.FindControl<AutoCompleteBox>("TypeBox")!;
+            TextBox typed = type.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = "B73";
+            MainWindowHost.Pump();
+            Assert.True(type.IsDropDownOpen);
+
+            CloseNow(window);
+            closed = true;
+            string atClose = session.Document.Write();
+            string? stepAtClose = session.UndoDescription;
+            MainWindowHost.Pump();
+
+            Assert.Equal(atClose, session.Document.Write());
+            Assert.Equal(stepAtClose, session.UndoDescription);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
+    // The selection and the close a pick raises are made here in both orders, from the drop-down's focused item.
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PickingAnAirport_RecordsOneStep_WhicheverOfTheSelectionAndTheCloseComesFirst(bool selectionFirst)
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            string current = session.Document.Scenario.Aircraft[0].AirportId ?? "";
+            string picked = window.Editor.Aircraft!.AirportOptions.First(o => !string.Equals(o, current, StringComparison.Ordinal));
+            ComboBox airport = view.FindControl<ComboBox>("AirportBox")!;
+            airport.GetVisualDescendants().OfType<TextBox>().First().Focus();
+            airport.IsDropDownOpen = true;
+            MainWindowHost.Pump();
+            airport.GetRealizedContainers().OfType<ComboBoxItem>().First().Focus();
+            MainWindowHost.Pump();
+            Assert.False(session.CanUndo);
+
+            if (selectionFirst)
+            {
+                airport.SelectedItem = picked;
+                airport.IsDropDownOpen = false;
+            }
+            else
+            {
+                airport.IsDropDownOpen = false;
+                airport.SelectedItem = picked;
+            }
+
+            MainWindowHost.Pump();
+
+            Assert.Equal(picked, session.Document.Scenario.Aircraft[0].AirportId);
+            Assert.Equal("Edit airport", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TypingAnExactAirportMatch_WithTheListClosed_CommitsOnlyOnLeaving()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            string current = session.Document.Scenario.Aircraft[0].AirportId ?? "";
+            string match = window.Editor.Aircraft!.AirportOptions.First(o => !string.Equals(o, current, StringComparison.Ordinal));
+            ComboBox airport = view.FindControl<ComboBox>("AirportBox")!;
+            TextBox typed = airport.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = match;
+            MainWindowHost.Pump();
+            Assert.False(airport.IsDropDownOpen);
+            Assert.False(session.CanUndo);
+
+            window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
+            MainWindowHost.Pump();
+
+            Assert.Equal(match, session.Document.Scenario.Aircraft[0].AirportId);
+            Assert.Equal("Edit airport", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PressingEnterInTheAirportBox_CommitsTheTypedText_AsOneStep()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            (ScenarioAircraftView view, ScenarioEditSession session) = await OpenFirstAircraftAsync(window);
+            TextBox typed = view.FindControl<ComboBox>("AirportBox")!.GetVisualDescendants().OfType<TextBox>().First();
+            typed.Focus();
+            typed.Text = "KZZZ";
+            MainWindowHost.Pump();
+            Assert.False(session.CanUndo);
+
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            MainWindowHost.Pump();
+
+            Assert.Equal("KZZZ", session.Document.Scenario.Aircraft[0].AirportId);
+            Assert.Equal("Edit airport", session.UndoDescription);
+            Assert.True(session.Undo());
+            Assert.False(session.CanUndo);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task CtrlS_WithNothingEdited_WritesNothing()
     {
         LocalScenarioStore store = OakStore();
@@ -975,6 +1400,49 @@ public class ScenarioEditorWindowTests
         name.Text = text;
         MainWindowHost.Pump();
         Assert.False(window.Editor.IsDirty);
+    }
+
+    // Selects the Aircraft tab, lets it show, and returns its view.
+    private static ScenarioAircraftView ShowAircraftView(ScenarioEditorWindow window)
+    {
+        window.FindControl<TabItem>("AircraftTab")!.IsSelected = true;
+        MainWindowHost.Pump();
+        return window.FindControl<ScenarioAircraftView>("AircraftView")!;
+    }
+
+    // Opens the OAK copy, shows the Aircraft tab with its first aircraft selected, and returns the view and the session.
+    private static async Task<(ScenarioAircraftView View, ScenarioEditSession Session)> OpenFirstAircraftAsync(ScenarioEditorWindow window)
+    {
+        await ShowAsync(window);
+        await OpenOakAsync(window);
+        ScenarioAircraftView view = ShowAircraftView(window);
+        window.Editor.Aircraft!.Selected = window.Editor.Aircraft.Rows[0];
+        MainWindowHost.Pump();
+        return (view, window.Editor.Session!);
+    }
+
+    // The aircraft grid's row showing the row view model.
+    private static DataGridRow GridRow(ScenarioAircraftView view, ScenarioAircraftRowViewModel target) =>
+        view.FindControl<DataGrid>("AircraftGrid")!.GetVisualDescendants().OfType<DataGridRow>().Single(r => ReferenceEquals(r.DataContext, target));
+
+    // Clicks a row of the aircraft grid near its left edge, as a mouse does.
+    private static void ClickRow(ScenarioEditorWindow window, ScenarioAircraftView view, ScenarioAircraftRowViewModel target)
+    {
+        DataGridRow row = GridRow(view, target);
+        Point at = row.TranslatePoint(new Point(20, row.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(at, MouseButton.Left);
+        window.MouseUp(at, MouseButton.Left);
+        MainWindowHost.Pump();
+    }
+
+    // Clicks the middle of a control in the top level it shows in (a popup's own, for a drop-down's item).
+    private static void ClickInItsTopLevel(Control control)
+    {
+        TopLevel top = TopLevel.GetTopLevel(control)!;
+        Point at = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), top)!.Value;
+        top.MouseDown(at, MouseButton.Left);
+        top.MouseUp(at, MouseButton.Left);
+        MainWindowHost.Pump();
     }
 
     // Waits for the save a key press started, if any.

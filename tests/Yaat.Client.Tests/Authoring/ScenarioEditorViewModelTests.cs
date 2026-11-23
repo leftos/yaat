@@ -236,7 +236,7 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     public async Task ARefusedSaveAtThePrompt_KeepsTheCopyOpen_WithTheSaveMessage()
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await DirtyFirstWithOthers();
-        editor.Session!.Edit("Edit name", s => s.Name = "");
+        _ = editor.Session!.Edit("Edit name", s => s.Name = "");
         _fx.Prompts.Answers.Enqueue(UnsavedChangesChoice.Save);
 
         Assert.False(await browser.CanCloseAsync());

@@ -122,6 +122,7 @@ public partial class ScenarioEditorWindow : Window
         {
             e.Handled = true;
             GeneralView.CommitFocusedField();
+            AircraftView.CommitFocusedField();
             if (Editor.SaveCommand.CanExecute(null))
             {
                 Editor.SaveCommand.Execute(null);
@@ -139,6 +140,7 @@ public partial class ScenarioEditorWindow : Window
         }
 
         GeneralView.CommitFocusedField();
+        AircraftView.CommitFocusedField();
         if (ClosesForShutdown(e.CloseReason))
         {
             return;

@@ -5,6 +5,26 @@
   x:Class="Yaat.Client.Views.Authoring.ScenarioAircraftView"
   x:DataType="vm:ScenarioAircraftViewModel"
 >
+  <UserControl.Styles>
+    <Style Selector="ScrollViewer#DetailPanel TextBlock.lbl">
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="Margin" Value="0,6,0,2" />
+    </Style>
+    <Style Selector="ScrollViewer#DetailPanel TextBlock.err">
+      <Setter Property="Foreground" Value="#E06C6C" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="ScrollViewer#DetailPanel TextBlock.hint">
+      <Setter Property="Foreground" Value="#D9A54A" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="ScrollViewer#DetailPanel TextBlock.head">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,12,0,0" />
+    </Style>
+  </UserControl.Styles>
   <DockPanel>
     <Border DockPanel.Dock="Top" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5">
       <StackPanel Orientation="Horizontal" Spacing="5">
@@ -13,6 +33,148 @@
         <Button x:Name="RemoveAircraftButton" Content="Remove" Padding="9,3" Command="{Binding RemoveAircraftCommand}" />
       </StackPanel>
     </Border>
+    <ScrollViewer
+      x:Name="DetailPanel"
+      DockPanel.Dock="Right"
+      Width="320"
+      Background="#232323"
+      BorderBrush="#3D3D3D"
+      BorderThickness="1,0,0,0"
+      IsVisible="{Binding IsDetailVisible}"
+    >
+      <StackPanel Margin="10,4,10,10">
+        <TextBlock Classes="head" Text="Aircraft" />
+        <TextBlock Classes="lbl" Text="Callsign" />
+        <TextBox x:Name="CallsignBox" Text="{Binding Callsign}" Tag="{Binding CommitCallsignCommand}" />
+        <TextBlock Classes="lbl" Text="Type" />
+        <AutoCompleteBox
+          x:Name="TypeBox"
+          Text="{Binding AircraftType, Mode=TwoWay}"
+          ItemsSource="{Binding TypeSuggestions}"
+          FilterMode="None"
+          MinimumPrefixLength="1"
+          Tag="{Binding CommitAircraftTypeCommand}"
+          SelectionChanged="OnListPicked"
+          DropDownClosed="OnListClosed"
+        />
+        <TextBlock Classes="hint" Text="{Binding TypeHint}" IsVisible="{Binding TypeHint, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock Classes="lbl" Text="Transponder" />
+        <TextBox x:Name="TransponderBox" Text="{Binding Transponder}" Tag="{Binding CommitTransponderCommand}" />
+        <TextBlock Classes="lbl" Text="Spawn delay" />
+        <TextBox x:Name="SpawnDelayBox" Text="{Binding SpawnDelay}" Tag="{Binding CommitSpawnDelayCommand}" />
+        <TextBlock
+          Classes="err"
+          Text="{Binding SpawnDelayError}"
+          IsVisible="{Binding SpawnDelayError, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+        <TextBlock Classes="lbl" Text="Taxi time (seconds)" />
+        <TextBox x:Name="TaxiTimeBox" Text="{Binding TaxiTime}" Tag="{Binding CommitTaxiTimeCommand}" />
+        <TextBlock
+          Classes="err"
+          Text="{Binding TaxiTimeError}"
+          IsVisible="{Binding TaxiTimeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+        <TextBlock Classes="lbl" Text="Airport" />
+        <ComboBox
+          x:Name="AirportBox"
+          IsEditable="True"
+          HorizontalAlignment="Stretch"
+          Text="{Binding Airport, Mode=TwoWay}"
+          ItemsSource="{Binding AirportOptions}"
+          Tag="{Binding CommitAirportCommand}"
+          SelectionChanged="OnListPicked"
+          DropDownClosed="OnListClosed"
+        />
+        <TextBlock Classes="lbl" Text="Approach" />
+        <TextBox x:Name="ApproachBox" Text="{Binding Approach}" Tag="{Binding CommitApproachCommand}" />
+        <TextBlock Classes="lbl" Text="Difficulty" />
+        <TextBox x:Name="DifficultyBox" Text="{Binding Difficulty}" Tag="{Binding CommitDifficultyCommand}" />
+        <CheckBox x:Name="AltitudeProfileBox" Margin="0,8,0,0" Content="On altitude profile" IsChecked="{Binding OnAltitudeProfile}" />
+        <TextBlock Classes="lbl" Text="RPO note" />
+        <TextBox
+          x:Name="RpoNoteBox"
+          AcceptsReturn="True"
+          TextWrapping="Wrap"
+          MinHeight="60"
+          Text="{Binding RpoNote}"
+          Tag="{Binding CommitRpoNoteCommand}"
+        />
+
+        <TextBlock Classes="head" Text="Starting conditions" />
+        <TextBlock Classes="lbl" Text="Kind" />
+        <ComboBox
+          x:Name="StartKindPicker"
+          HorizontalAlignment="Stretch"
+          ItemsSource="{Binding StartKindOptions}"
+          DisplayMemberBinding="{Binding Label}"
+          SelectedItem="{Binding StartKindSelection}"
+        />
+        <StackPanel IsVisible="{Binding ShowsParking}">
+          <TextBlock Classes="lbl" Text="Parking" />
+          <TextBox x:Name="ParkingBox" Text="{Binding Parking}" Tag="{Binding CommitParkingCommand}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsRunway}">
+          <TextBlock Classes="lbl" Text="Runway" />
+          <TextBox x:Name="RunwayBox" Text="{Binding Runway}" Tag="{Binding CommitRunwayCommand}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsFix}">
+          <TextBlock Classes="lbl" Text="Fix or FRD" />
+          <TextBox x:Name="FixBox" Text="{Binding Fix}" Tag="{Binding CommitFixCommand}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsCoordinates}">
+          <TextBlock Classes="lbl" Text="Latitude" />
+          <TextBox x:Name="LatitudeBox" Text="{Binding Latitude}" Tag="{Binding CommitLatitudeCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding LatitudeError}"
+            IsVisible="{Binding LatitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock Classes="lbl" Text="Longitude" />
+          <TextBox x:Name="LongitudeBox" Text="{Binding Longitude}" Tag="{Binding CommitLongitudeCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding LongitudeError}"
+            IsVisible="{Binding LongitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsAltitude}">
+          <TextBlock Classes="lbl" Text="Altitude (ft)" />
+          <TextBox x:Name="AltitudeBox" Text="{Binding Altitude}" Tag="{Binding CommitAltitudeCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding AltitudeError}"
+            IsVisible="{Binding AltitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsSpeed}">
+          <TextBlock Classes="lbl" Text="Speed (kt)" />
+          <TextBox x:Name="SpeedBox" Text="{Binding Speed}" Tag="{Binding CommitSpeedCommand}" />
+          <TextBlock Classes="err" Text="{Binding SpeedError}" IsVisible="{Binding SpeedError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsHeading}">
+          <TextBlock Classes="lbl" Text="Heading (deg)" />
+          <TextBox x:Name="HeadingBox" Text="{Binding Heading}" Tag="{Binding CommitHeadingCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding HeadingError}"
+            IsVisible="{Binding HeadingError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsNavigationPath}">
+          <TextBlock Classes="lbl" Text="Navigation path" />
+          <TextBox x:Name="NavigationPathBox" Text="{Binding NavigationPath}" Tag="{Binding CommitNavigationPathCommand}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding ShowsDistanceFromRunway}">
+          <TextBlock Classes="lbl" Text="Distance from runway (nm)" />
+          <TextBox x:Name="DistanceBox" Text="{Binding DistanceFromRunway}" Tag="{Binding CommitDistanceFromRunwayCommand}" />
+          <TextBlock
+            Classes="err"
+            Text="{Binding DistanceFromRunwayError}"
+            IsVisible="{Binding DistanceFromRunwayError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
     <DataGrid
       x:Name="AircraftGrid"
       ItemsSource="{Binding Rows}"

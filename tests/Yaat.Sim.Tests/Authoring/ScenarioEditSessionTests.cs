@@ -66,7 +66,7 @@ public class ScenarioEditSessionTests
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
 
-                session.Edit("Rename", s => s.Name = "Renamed scenario");
+                _ = session.Edit("Rename", s => s.Name = "Renamed scenario");
                 Assert.True(session.IsDirty);
                 ScenarioSaveResult result = session.Save();
 
@@ -91,7 +91,7 @@ public class ScenarioEditSessionTests
                 byte[] before = File.ReadAllBytes(TrainingFixtures.LocalPath(root, IdA));
                 var session = new ScenarioEditSession(store, Zoa, IdA);
 
-                session.Edit("Clear name", s => s.Name = name);
+                _ = session.Edit("Clear name", s => s.Name = name);
                 ScenarioSaveResult result = session.Save();
 
                 Assert.Equal(ScenarioSaveOutcome.Refused, result.Outcome);
@@ -136,7 +136,7 @@ public class ScenarioEditSessionTests
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
 
-                session.Edit("Altitude", s => s.Aircraft[0].StartingConditions.Altitude = 300);
+                _ = session.Edit("Altitude", s => s.Aircraft[0].StartingConditions.Altitude = 300);
                 session.Save();
                 Assert.True(IsModified(store, IdA));
                 Assert.True(session.Undo());
@@ -159,7 +159,7 @@ public class ScenarioEditSessionTests
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
 
-                session.Edit("Rename", s => s.Name = "Elsewhere");
+                _ = session.Edit("Rename", s => s.Name = "Elsewhere");
                 session.Save();
                 session.Undo();
                 session.Save();
@@ -185,7 +185,7 @@ public class ScenarioEditSessionTests
             {
                 var session = new ScenarioEditSession(store, Zoa, IdB);
 
-                session.Edit("Trigger command", s => s.InitializationTriggers[0].Command = "SQALL 1200");
+                _ = session.Edit("Trigger command", s => s.InitializationTriggers[0].Command = "SQALL 1200");
                 session.Save();
 
                 JsonObject saved = SavedJson(root, IdB);
@@ -209,8 +209,8 @@ public class ScenarioEditSessionTests
                 Assert.False(trigger0.ContainsKey("timeOffset"), "the fixture trigger is expected to leave timeOffset out");
                 var session = new ScenarioEditSession(store, Zoa, IdB);
 
-                session.Edit("Trigger command", s => s.InitializationTriggers[0].Command = "SQALL 1200");
-                session.Edit("Rename", s => s.Name = "Renamed");
+                _ = session.Edit("Trigger command", s => s.InitializationTriggers[0].Command = "SQALL 1200");
+                _ = session.Edit("Rename", s => s.Name = "Renamed");
                 session.Undo();
                 session.Save();
 
@@ -231,7 +231,7 @@ public class ScenarioEditSessionTests
             (root, store) =>
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
-                session.Edit("Rename", s => s.Name = "Saved name");
+                _ = session.Edit("Rename", s => s.Name = "Saved name");
                 session.Save();
 
                 Assert.False(session.IsDirty);
@@ -255,9 +255,9 @@ public class ScenarioEditSessionTests
             (root, store) =>
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
-                session.Edit("Name one", s => s.Name = "One");
-                session.Edit("Approach", s => s.PrimaryApproach = "ILS 28R");
-                session.Edit("Name three", s => s.Name = "Three");
+                _ = session.Edit("Name one", s => s.Name = "One");
+                _ = session.Edit("Approach", s => s.PrimaryApproach = "ILS 28R");
+                _ = session.Edit("Name three", s => s.Name = "Three");
                 Assert.Equal("Name three", session.UndoDescription);
                 Assert.Null(session.RedoDescription);
 
@@ -275,7 +275,7 @@ public class ScenarioEditSessionTests
                 Assert.Equal("One", session.Document.Scenario.Name);
                 Assert.Equal("Name three", session.RedoDescription);
 
-                session.Edit("Name four", s => s.Name = "Four");
+                _ = session.Edit("Name four", s => s.Name = "Four");
 
                 Assert.False(session.CanRedo);
                 session.Undo();
@@ -297,7 +297,7 @@ public class ScenarioEditSessionTests
             (root, store) =>
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
-                session.Edit("Rename", s => s.Name = "Renamed");
+                _ = session.Edit("Rename", s => s.Name = "Renamed");
                 ScenarioDocument before = session.Document;
                 int raised = 0;
                 session.DocumentReplaced += (_, _) => raised++;
@@ -321,10 +321,10 @@ public class ScenarioEditSessionTests
             (root, store) =>
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
-                session.Edit("Clear name", s => s.Name = "");
+                _ = session.Edit("Clear name", s => s.Name = "");
                 Assert.Equal(ScenarioSaveOutcome.Refused, session.Save().Outcome);
 
-                session.Edit("Rename", s => s.Name = "Fixed name");
+                _ = session.Edit("Rename", s => s.Name = "Fixed name");
                 ScenarioSaveResult result = session.Save();
 
                 Assert.Equal(ScenarioSaveOutcome.Saved, result.Outcome);
@@ -366,14 +366,14 @@ public class ScenarioEditSessionTests
             (root, store) =>
             {
                 var session = new ScenarioEditSession(store, Zoa, IdA);
-                session.Edit("Rename", s => s.Name = "Renamed");
+                _ = session.Edit("Rename", s => s.Name = "Renamed");
                 session.Save();
                 string written = session.Document.Write();
                 int raised = 0;
                 session.DocumentReplaced += (_, _) => raised++;
 
                 Assert.Throws<InvalidOperationException>(() =>
-                    session.Edit(
+                    _ = session.Edit(
                         "Half done",
                         s =>
                         {
@@ -409,10 +409,28 @@ public class ScenarioEditSessionTests
                 var session = new ScenarioEditSession(store, Zoa, IdA);
                 string name = session.Document.Scenario.Name;
 
-                session.Edit("Same name", s => s.Name = name);
+                _ = session.Edit("Same name", s => s.Name = name);
 
                 Assert.False(session.CanUndo);
                 Assert.False(session.IsDirty);
+            }
+        );
+    }
+
+    [Fact]
+    public void Edit_ReturnsWhetherItRecordedAStep()
+    {
+        WithCopy(
+            IdA,
+            TrainingFixtures.Read(IdA),
+            (root, store) =>
+            {
+                var session = new ScenarioEditSession(store, Zoa, IdA);
+                string name = session.Document.Scenario.Name;
+
+                Assert.False(session.Edit("Same name", s => s.Name = name));
+                Assert.True(session.Edit("Rename", s => s.Name = name + " renamed"));
+                Assert.Equal("Rename", session.UndoDescription);
             }
         );
     }
