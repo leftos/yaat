@@ -399,6 +399,383 @@ public class GroundNavigatorSteeringRampTests(ITestOutputHelper output)
         Assert.True(Math.Abs(moved) < 1e-9, $"the nose moved {moved:F4} deg toward k+1's bearing on the hand-off tick");
     }
 
+    // YAAT-2751: a short collinear straight then a 25-32 deg bend, under the ramp at 15 kt: the look-ahead walks past the short
+    // straight and round the bend, so after the bend the aircraft is within 5 ft of the line.
+    [Fact]
+    public void ShortCollinearEdgeThenThirtyDegreeBend_Ramp_WalkedAimTakesTheBend_CrossTrackAfterTheBendWithinFiveFeet()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(ShortCollinearThenBend());
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        List<TickSample> trace = Drive(rig, route, 4000, dropWalk: false);
+
+        Assert.True(route.CurrentSegmentIndex >= route.Segments.Count, $"{where}: the route never completed");
+        double afterFt = MaxOffsetPastNodeFt(trace, route.Segments[2]);
+        output.WriteLine($"{where}: {RouteText(route)}; max cross-track after the bend {afterFt:F2} ft");
+        Assert.True(afterFt <= 5.0, $"{where}: {afterFt:F2} ft off the line after the bend");
+    }
+
+    // YAAT-2751: a straight into a fillet, under the ramp at 15 kt: the walked aim follows the arc, so on the arc the aircraft
+    // is within 5 ft of it.
+    [Fact]
+    public void Fillet_Ramp_AimStaysOnTheArc_CrossTrackOnTheArcWithinFiveFeet()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(StraightIntoFillet());
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        List<TickSample> trace = Drive(rig, route, 4000, dropWalk: false);
+
+        Assert.True(route.CurrentSegmentIndex >= route.Segments.Count, $"{where}: the route never completed");
+        DirectionalEdge arcEdge = route.Segments[1].Edge;
+        GroundArc arc = Assert.IsType<GroundArc>(arcEdge.Edge);
+        double onArcFt = trace.Where(s => s.SegmentIndex == 1).Select(s => arc.Locate(arcEdge.FromNode, s.After).OffFt).DefaultIfEmpty(0).Max();
+        output.WriteLine($"{where}: {RouteText(route)}; max cross-track on the arc {onArcFt:F2} ft");
+        Assert.True(trace.Any(s => s.SegmentIndex == 1), $"{where}: no tick on the arc");
+        Assert.True(onArcFt <= 5.0, $"{where}: {onArcFt:F2} ft off the arc");
+    }
+
+    // YAAT-2751: an unfilleted 35-40 deg bend, under the ramp at 15 kt: the nose turns one way through the node (no swing
+    // toward it and back) until it reaches the next bearing, and after the bend the aircraft is within 10 ft of the line.
+    [Fact]
+    public void ThirtyFiveToFortyDegreeBend_Ramp_NoSwingAtTheNode_NoOrbitNoOvershoot()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.Standard, new ChainLeg(60, 1e9, 35, 40))
+        );
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        List<TickSample> trace = Drive(rig, route, 4000, dropWalk: false);
+
+        Assert.True(route.CurrentSegmentIndex >= route.Segments.Count, $"{where}: the route never completed");
+        DirectionalEdge post = route.Segments[1].Edge;
+        double afterFt = MaxOffsetPastNodeFt(trace, route.Segments[1]);
+        double reversalDeg = MaxHeadingReversalDeg(trace, post.FromNode.Position, inDeg, post.DepartureBearing);
+        output.WriteLine($"{where}: {RouteText(route)}; after the bend {afterFt:F2} ft, heading reversal {reversalDeg:F4} deg");
+        Assert.True(reversalDeg <= 1e-6, $"{where}: the heading swung back {reversalDeg:F4} deg through the node");
+        Assert.True(afterFt <= 10.0, $"{where}: {afterFt:F2} ft off the line after the bend");
+    }
+
+    // YAAT-2751: an unfilleted 28-30 deg kink (no fillet pass), under the ramp at 15 kt, where the past-node aim and the lowered
+    // entry-alignment gate both apply: no orbit (the module throws on one) and no overshoot: after the kink the aircraft is at
+    // most 10 ft to the outside of the turn (the TDG 3 edge safety margin). The cut inside the corner is reported only.
+    [Fact]
+    public void UnfilletedKinkTwentyEightToThirty_Ramp_NeitherOrbitsNorOvershoots()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.None, new ChainLeg(60, 1e9, 28.0001, 30))
+        );
+        Assert.True(GroundNavigator.ThrowOnOrbit, "the test module sets ThrowOnOrbit");
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        List<TickSample> trace = Drive(rig, route, 4000, dropWalk: false);
+
+        Assert.True(route.CurrentSegmentIndex >= route.Segments.Count, $"{where}: the route never completed");
+        DirectionalEdge post = route.Segments[1].Edge;
+        double postFt = post.DistanceNm * GeoMath.FeetPerNm;
+        double insideSign = Math.Sign(GeoMath.SignedBearingDifference(route.Segments[0].Edge.DepartureBearing, post.DepartureBearing));
+        double outsideFt = 0;
+        double insideFt = 0;
+        foreach (TickSample sample in trace)
+        {
+            (double along, double cross) = LineFrame(post.FromNode.Position, post.DepartureBearing, sample.After);
+            if ((along >= 0) && (along <= postFt))
+            {
+                insideFt = Math.Max(insideFt, cross * insideSign);
+                outsideFt = Math.Max(outsideFt, -cross * insideSign);
+            }
+        }
+
+        output.WriteLine($"{where}: {RouteText(route)}; after the kink {outsideFt:F2} ft outside, {insideFt:F2} ft inside the turn");
+        Assert.True(outsideFt <= 10.0, $"{where}: overshot {outsideFt:F2} ft to the outside of the turn after the kink");
+    }
+
+    // YAAT-2751: under the instant model the walk changes nothing: through the short-straight-then-bend fixture the heading
+    // trace is the same, bit for bit, as the trace flown with the walk cleared after every set-up. Under the ramp, as the
+    // control, clearing it does change the trace.
+    [Fact]
+    public void Instant_PastNodeAimUnchanged()
+    {
+        static string Digest(TurnModel model, bool dropWalk)
+        {
+            (TaxiRoute route, LatLon start, double inDeg, string _) = RequireChain(ShortCollinearThenBend());
+            var rig = Rig.Create(model, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+            return HeadingDigest(Drive(rig, route, 4000, dropWalk));
+        }
+
+        string instant = Digest(TurnModel.Instant, dropWalk: false);
+        string ramp = Digest(TurnModel.Ramp, dropWalk: false);
+        string rampWithoutWalk = Digest(TurnModel.Ramp, dropWalk: true);
+        output.WriteLine($"instant {instant}, ramp {ramp}, ramp without the walk {rampWithoutWalk}");
+        Assert.Equal(Digest(TurnModel.Instant, dropWalk: true), instant);
+        Assert.NotEqual(rampWithoutWalk, ramp);
+    }
+
+    // YAAT-2751: an uncleared bar at the far end of the next segment, within the look-ahead's reach: the walked aim never
+    // passes its painted stop (to 0.1 ft, the gap between GeoMath.ProjectPointRaw's and GeoMath.DistanceNm's measures over
+    // the leg), and rests there once the reach is past it; cleared, the walk goes on past the node.
+    [Fact]
+    public void UnclearedHoldShortWithinReach_Ramp_AimNeverPassesThePaintedStop()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.Standard, new ChainLeg(40, 150, 0, 20), new ChainLeg(20, 1e9, 0, 20))
+        );
+        DirectionalEdge barEdge = route.Segments[1].Edge;
+        double barEdgeFt = GeoMath.DistanceNm(barEdge.FromNode.Position, barEdge.ToNode.Position) * GeoMath.FeetPerNm;
+        LatLon stop = GeoMath.ProjectPointRaw(barEdge.FromNode.Position, barEdge.DepartureBearing, (barEdgeFt - 15) / GeoMath.FeetPerNm);
+        var bar = new HoldShortPoint
+        {
+            NodeId = barEdge.ToNodeId,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            Latitude = stop.Lat,
+            Longitude = stop.Lon,
+        };
+        route.HoldShortPoints.Add(bar);
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        IReadOnlyList<GroundNavigator.RouteWalkLeg> legs = rig.Nav.RouteWalkLegs ?? throw new InvalidOperationException("no walk legs");
+        bool Uncleared(int id) => id != bar.NodeId;
+        double paintedFt = LineFrame(barEdge.FromNode.Position, barEdge.DepartureBearing, stop).AlongFt;
+        output.WriteLine($"{where}: {RouteText(route)}; painted stop {paintedFt:F2} ft along the bar's segment");
+
+        for (double leftoverFt = 0; leftoverFt <= barEdgeFt + 200; leftoverFt += 1)
+        {
+            (double along, double _) = LineFrame(
+                barEdge.FromNode.Position,
+                barEdge.DepartureBearing,
+                GroundNavigator.PointAlongRoute(legs, leftoverFt, Uncleared)
+            );
+            Assert.True(
+                along <= paintedFt + 0.1,
+                $"{where}: leftover {leftoverFt:F0} ft walks {along:F2} ft, past the painted stop at {paintedFt:F2} ft"
+            );
+        }
+
+        double restFt = GeoMath.DistanceNm(GroundNavigator.PointAlongRoute(legs, barEdgeFt + 200, Uncleared), stop) * GeoMath.FeetPerNm;
+        Assert.True(restFt <= 0.5, $"{where}: the clamped aim rests {restFt:F2} ft from the painted stop");
+        DirectionalEdge beyond = route.Segments[2].Edge;
+        (double beyondAlong, double beyondCross) = LineFrame(
+            beyond.FromNode.Position,
+            beyond.DepartureBearing,
+            GroundNavigator.PointAlongRoute(legs, barEdgeFt + 10, _ => true)
+        );
+        Assert.True(
+            (Math.Abs(beyondAlong - 10) <= 0.1) && (Math.Abs(beyondCross) <= 0.1),
+            $"{where}: cleared, the walk stops at {beyondAlong:F2} ft"
+        );
+    }
+
+    // YAAT-2751: the route ends within the look-ahead's reach: the walked aim runs along the last segment and stops on its
+    // far node.
+    [Fact]
+    public void RouteEndWithinReach_Ramp_AimClampedAtTheLastNode()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.Standard, new ChainLeg(20, 1e9, 0, 20))
+        );
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        IReadOnlyList<GroundNavigator.RouteWalkLeg> legs = rig.Nav.RouteWalkLegs ?? throw new InvalidOperationException("no walk legs");
+        DirectionalEdge last = route.Segments[1].Edge;
+        double lastFt = last.DistanceNm * GeoMath.FeetPerNm;
+        output.WriteLine($"{where}: {RouteText(route)}");
+
+        (double halfAlong, double halfCross) = LineFrame(
+            last.FromNode.Position,
+            last.DepartureBearing,
+            GroundNavigator.PointAlongRoute(legs, lastFt / 2, _ => true)
+        );
+        Assert.True(
+            (Math.Abs(halfAlong - (lastFt / 2)) <= 0.1) && (Math.Abs(halfCross) <= 0.1),
+            $"{where}: half way walks to {halfAlong:F2}/{halfCross:F2} ft"
+        );
+        double endFt = GeoMath.DistanceNm(GroundNavigator.PointAlongRoute(legs, lastFt + 100, _ => true), last.ToNode.Position) * GeoMath.FeetPerNm;
+        Assert.True(endFt <= 1e-6, $"{where}: past the route end the aim is {endFt:F6} ft from the last node");
+    }
+
+    // YAAT-2751: a corner sharper than 45 deg at the target: the steer past the node is null, so the final window
+    // keeps the bearing to the node; the heading trace is the one flown with the walk cleared after every set-up.
+    [Fact]
+    public void CornerAboveFortyFive_Ramp_AimsAtTheNodeAsToday()
+    {
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.Standard, new ChainLeg(60, 1e9, 50, 120))
+        );
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        double segBearingDeg = route.Segments[0].Edge.DepartureBearing;
+        foreach (double leftoverFt in new[] { 1.0, 10.0, 50.0, 100.0 })
+        {
+            Assert.Null(rig.Nav.PastNodeSteerDeg(rig.Ctx, segBearingDeg, leftoverFt / GeoMath.FeetPerNm, _ => true));
+        }
+
+        output.WriteLine($"{where}: {RouteText(route)}");
+        AssertSameHeadings(where, RampTrace(route, start, inDeg, dropWalk: false), RampTrace(route, start, inDeg, dropWalk: true));
+    }
+
+    // YAAT-2751: an aircraft on an aimed line over a fillet whose line meets the next straight more than 45 deg off (the
+    // fillet's own exit tangent runs on into it): the walk's first corner is judged against the line flown, so the steer past
+    // the node is null, and the heading trace is the one flown with the walk cleared after every set-up.
+    [Fact]
+    public void AimedLineOverFillet_FlownLineMeetsTheNextStraightAboveFortyFive_Ramp_KeepsTodaysAim()
+    {
+        (Rig rig, TaxiRoute route, string where) = AimedLineRig();
+        Assert.IsType<PathPrimitiveStraight>(rig.Nav.CurrentPrimitive);
+        double segBearingDeg = GeoMath.BearingTo(rig.From, route.Segments[0].Edge.ToNode.Position);
+        foreach (double leftoverFt in new[] { 1.0, 10.0, 50.0, 100.0 })
+        {
+            Assert.Null(rig.Nav.PastNodeSteerDeg(rig.Ctx, segBearingDeg, leftoverFt / GeoMath.FeetPerNm, _ => true));
+        }
+
+        output.WriteLine($"{where}: {RouteText(route)}");
+        (Rig other, TaxiRoute otherRoute, string _) = AimedLineRig();
+        AssertSameHeadings(where, Drive(rig, route, 4000, dropWalk: false), Drive(other, otherRoute, 4000, dropWalk: true));
+    }
+
+    // YAAT-2751: ticked at 30 kt toward a bar at the far end of the next segment, uncleared and then cleared mid-segment: while it is
+    // uncleared the steer is the bearing to its painted stop; once cleared, the same straight's steer walks on past the bar's
+    // node, so TickStraight reads the live hold-short state each tick.
+    [Fact]
+    public void HoldShortClearedMidSegment_Ramp_AimStopsAtThePaintedStopThenWalksPast()
+    {
+        const double SpeedKts = 30.0;
+        (TaxiRoute route, LatLon start, double inDeg, string where) = RequireChain(
+            FindStraightChain(FilletMode.Standard, new ChainLeg(25, 35, 0, 20), new ChainLeg(40, 1e9, 10, 40))
+        );
+        DirectionalEdge first = route.Segments[0].Edge;
+        DirectionalEdge barEdge = route.Segments[1].Edge;
+        double barEdgeFt = GeoMath.DistanceNm(barEdge.FromNode.Position, barEdge.ToNode.Position) * GeoMath.FeetPerNm;
+        LatLon stop = GeoMath.ProjectPointRaw(barEdge.FromNode.Position, barEdge.DepartureBearing, (barEdgeFt - 10) / GeoMath.FeetPerNm);
+        var bar = new HoldShortPoint
+        {
+            NodeId = barEdge.ToNodeId,
+            Reason = HoldShortReason.ExplicitHoldShort,
+            Latitude = stop.Lat,
+            Longitude = stop.Lon,
+        };
+        route.HoldShortPoints.Add(bar);
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(start, inDeg, SpeedKts, Type, AircraftCategory.Jet), cleared: true);
+        IReadOnlyList<GroundNavigator.RouteWalkLeg> legs = rig.Nav.RouteWalkLegs ?? throw new InvalidOperationException("no walk legs");
+        LatLon clamped = GroundNavigator.PointAlongRoute(legs, 1e9, id => id != bar.NodeId);
+        double firstFt = GeoMath.DistanceNm(first.FromNode.Position, first.ToNode.Position) * GeoMath.FeetPerNm;
+        double lookAheadFt = SpeedKts * GeoMath.FeetPerNm / 3600.0 * CategoryPerformance.GroundSteerRampSeconds(AircraftCategory.Jet);
+        bool barCleared = false;
+        int unclearedTicks = 0;
+        int clearedTicks = 0;
+        for (int i = 0; i < 2000; i++)
+        {
+            rig.Aircraft.IndicatedAirspeed = SpeedKts;
+            LatLon pos = rig.Aircraft.Position;
+            double leftoverFt = lookAheadFt - (firstFt - LineFrame(first.FromNode.Position, first.DepartureBearing, pos).AlongFt);
+            bool toNodeClear = (GeoMath.DistanceNm(pos, first.ToNode.Position) * GeoMath.FeetPerNm) > 50;
+            bool clearedNow = barCleared;
+            if (rig.Nav.Tick(rig.Ctx, isLastSegment: false, id => clearedNow || (id != bar.NodeId)) == NavigatorResult.ArrivedAtNode)
+            {
+                break;
+            }
+
+            double target = Assert.NotNull(rig.Ctx.Targets.TargetTrueHeading).Degrees;
+            if (toNodeClear && !clearedNow && (leftoverFt >= barEdgeFt - 9))
+            {
+                Assert.True(GeoMath.AbsBearingDifference(target, GeoMath.BearingTo(pos, clamped)) < 1e-9, $"tick {i}: uncleared, not at the stop");
+                unclearedTicks++;
+                barCleared = true;
+            }
+            else if (toNodeClear && clearedNow && (leftoverFt >= barEdgeFt + 5))
+            {
+                double walkedDeg = GeoMath.BearingTo(pos, GroundNavigator.PointAlongRoute(legs, leftoverFt, _ => true));
+                double stopDeg = GeoMath.BearingTo(pos, clamped);
+                Assert.True(GeoMath.AbsBearingDifference(target, walkedDeg) < 0.05, $"tick {i}: cleared, {target:F4} is not the walk {walkedDeg:F4}");
+                Assert.True(GeoMath.AbsBearingDifference(target, stopDeg) > 0.2, $"tick {i}: cleared, still aimed at the stop {stopDeg:F4}");
+                clearedTicks++;
+            }
+
+            rig.Aircraft.IndicatedAirspeed = SpeedKts;
+            rig.Physics();
+        }
+
+        output.WriteLine($"{where}: {RouteText(route)}; {unclearedTicks} uncleared and {clearedTicks} cleared window ticks");
+        Assert.True((unclearedTicks > 0) && (clearedTicks > 0), $"{where}: uncleared ticks {unclearedTicks}, cleared ticks {clearedTicks}");
+    }
+
+    // YAAT-2751: the walk legs are not snapshotted: a navigator restored mid-segment from a round-tripped snapshot has none
+    // until its set-up rebuilds them from the route, and from there flies the same headings, bit for bit, as the run that was
+    // never interrupted.
+    [Fact]
+    public void WalkLegs_RestoredMidSegment_RebuiltBySetUp_ContinuesIdentically()
+    {
+        (TaxiRoute liveRoute, LatLon start, double inDeg, string where) = RequireChain(ShortCollinearThenBend());
+        (TaxiRoute otherRoute, LatLon _, double _, string _) = RequireChain(ShortCollinearThenBend());
+        var rigStart = new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet);
+        var live = Rig.Create(TurnModel.Ramp, liveRoute, rigStart, cleared: true);
+        var other = Rig.Create(TurnModel.Ramp, otherRoute, rigStart, cleared: true);
+        Drive(live, liveRoute, 12, dropWalk: false);
+        Drive(other, otherRoute, 12, dropWalk: false);
+        Assert.NotNull(other.Nav.RouteWalkLegs);
+
+        string json = JsonSerializer.Serialize(other.Nav.ToSnapshot(), RecordingJsonOptions.Default);
+        GroundNavigatorDto read = Assert.IsType<GroundNavigatorDto>(
+            JsonSerializer.Deserialize<GroundNavigatorDto>(json, RecordingJsonOptions.Default)
+        );
+        var restored = GroundNavigator.FromSnapshot(read);
+        Assert.Null(restored.RouteWalkLegs);
+        Assert.Equal(json, JsonSerializer.Serialize(restored.ToSnapshot(), RecordingJsonOptions.Default));
+        restored.SetupSegment(otherRoute, other.Ctx, _ => true);
+        Assert.NotNull(restored.RouteWalkLegs);
+        var resumed = new Rig
+        {
+            Aircraft = other.Aircraft,
+            Ctx = other.Ctx,
+            Nav = restored,
+            Options = other.Options,
+            From = other.From,
+            SegmentBearingDeg = other.SegmentBearingDeg,
+            Cleared = true,
+        };
+
+        List<TickSample> liveTrace = Drive(live, liveRoute, 4000, dropWalk: false);
+        output.WriteLine($"{where}: {RouteText(liveRoute)}; {liveTrace.Count} ticks after the restore");
+        AssertSameHeadings(where, liveTrace, Drive(resumed, otherRoute, 4000, dropWalk: false));
+    }
+
+    // YAAT-2751: a virtual first segment entered off its heading by more than the entry-alignment gate, so the alignment arc
+    // plays and its completion re-anchors the line on the aircraft: snapshotted right after that and restored, the navigator
+    // flies the same headings, bit for bit, as the run that was never interrupted, for lines 35-44 deg off the next straight
+    // on either side and either turn sense.
+    [Fact]
+    public void VirtualFirstSegment_RestoredAfterTheAlignmentArc_ContinuesIdentically()
+    {
+        int checkedCases = 0;
+        foreach (double offDeg in new[] { -44.0, -40.0, -35.0, 35.0, 40.0, 44.0 })
+        {
+            foreach (double turnDeg in new[] { -90.0, 90.0 })
+            {
+                (Rig live, TaxiRoute liveRoute, string where) = VirtualEntryRig(offDeg, turnDeg);
+                (Rig other, TaxiRoute otherRoute, string _) = VirtualEntryRig(offDeg, turnDeg);
+                string label = $"{where}: line {offDeg} deg off, heading {turnDeg} deg off it";
+                Assert.IsType<PathPrimitiveSlowTurn>(live.Nav.CurrentPrimitive);
+                for (int i = 0; (i < 400) && (live.Nav.CurrentPrimitive is PathPrimitiveSlowTurn); i++)
+                {
+                    Drive(live, liveRoute, 1, dropWalk: false);
+                    Drive(other, otherRoute, 1, dropWalk: false);
+                }
+
+                Assert.True(live.Nav.CurrentPrimitive is PathPrimitiveStraight, $"{label}: the alignment arc never handed over to a straight");
+                string json = JsonSerializer.Serialize(other.Nav.ToSnapshot(), RecordingJsonOptions.Default);
+                var restored = GroundNavigator.FromSnapshot(
+                    Assert.IsType<GroundNavigatorDto>(JsonSerializer.Deserialize<GroundNavigatorDto>(json, RecordingJsonOptions.Default))
+                );
+                restored.SetupSegment(otherRoute, other.Ctx, _ => true);
+                var resumed = new Rig
+                {
+                    Aircraft = other.Aircraft,
+                    Ctx = other.Ctx,
+                    Nav = restored,
+                    Options = other.Options,
+                    From = other.From,
+                    SegmentBearingDeg = other.SegmentBearingDeg,
+                    Cleared = true,
+                };
+                AssertSameHeadings(label, Drive(live, liveRoute, 4000, dropWalk: false), Drive(resumed, otherRoute, 4000, dropWalk: false));
+                checkedCases++;
+            }
+        }
+
+        output.WriteLine($"{checkedCases} cases continued identically");
+    }
+
     /// <summary>
     /// Two plain straights on OAK then SFO, the first at least 200 ft and the second at least 60 ft, meeting at a node with a
     /// 3-40 deg deflection: the route and the first edge, and the second's departure bearing.
@@ -664,6 +1041,335 @@ public class GroundNavigatorSteeringRampTests(ITestOutputHelper output)
 
     private static double DeflectionDeg(double inDeg, GroundNode node, GroundEdge next) =>
         GeoMath.AbsBearingDifference(inDeg, GeoMath.BearingTo(node.Position, next.OtherNode(node).Position));
+
+    /// <summary>One navigator tick and the physics tick after it: the segment, the result, the poses and the published target.</summary>
+    private readonly record struct TickSample(
+        int SegmentIndex,
+        NavigatorResult Result,
+        LatLon Before,
+        LatLon After,
+        double HeadingDeg,
+        double? TargetDeg
+    );
+
+    /// <summary>A further straight of a chain: its length range (ft) and its bend range (deg) from the straight before it.</summary>
+    private readonly record struct ChainLeg(double MinFt, double MaxFt, double MinBendDeg, double MaxBendDeg);
+
+    /// <summary>
+    /// Drive the rig along every segment of <paramref name="route"/>, advancing and setting up each, cleared throughout; with
+    /// <paramref name="dropWalk"/>, the walk past the node is cleared after every set-up.
+    /// </summary>
+    private static List<TickSample> Drive(Rig rig, TaxiRoute route, int maxTicks, bool dropWalk)
+    {
+        var trace = new List<TickSample>();
+        if (dropWalk)
+        {
+            rig.Nav.RouteWalkLegs = null;
+        }
+
+        for (int i = 0; (i < maxTicks) && (route.CurrentSegmentIndex < route.Segments.Count); i++)
+        {
+            int seg = route.CurrentSegmentIndex;
+            LatLon before = rig.Aircraft.Position;
+            bool last = seg == (route.Segments.Count - 1);
+            NavigatorResult result = rig.Nav.Tick(rig.Ctx, isLastSegment: last, _ => rig.Cleared);
+            double? target = rig.Ctx.Targets.TargetTrueHeading?.Degrees;
+            if (result == NavigatorResult.ArrivedAtNode)
+            {
+                route.CurrentSegmentIndex++;
+                if (route.CurrentSegmentIndex < route.Segments.Count)
+                {
+                    rig.Nav.SetupSegment(route, rig.Ctx, _ => rig.Cleared);
+                    if (dropWalk)
+                    {
+                        rig.Nav.RouteWalkLegs = null;
+                    }
+                }
+            }
+
+            rig.Physics();
+            trace.Add(new TickSample(seg, result, before, rig.Aircraft.Position, rig.Aircraft.TrueHeading.Degrees, target));
+        }
+
+        return trace;
+    }
+
+    /// <summary>Along-track and right-positive cross-track (ft) of <paramref name="p"/> against the line from <paramref name="origin"/>.</summary>
+    private static (double AlongFt, double CrossFt) LineFrame(LatLon origin, double bearingDeg, LatLon p)
+    {
+        double distFt = GeoMath.DistanceNm(origin, p) * GeoMath.FeetPerNm;
+        double rel = GeoMath.SignedBearingDifference(bearingDeg, GeoMath.BearingTo(origin, p)) * Math.PI / 180.0;
+        return (distFt * Math.Cos(rel), distFt * Math.Sin(rel));
+    }
+
+    /// <summary>The largest cross-track (ft) from straight <paramref name="seg"/> of every pose that lies along it, past its start.</summary>
+    private static double MaxOffsetPastNodeFt(List<TickSample> trace, TaxiRouteSegment seg)
+    {
+        DirectionalEdge edge = seg.Edge;
+        double lengthFt = edge.DistanceNm * GeoMath.FeetPerNm;
+        double worst = 0;
+        foreach (TickSample s in trace)
+        {
+            (double along, double cross) = LineFrame(edge.FromNode.Position, edge.DepartureBearing, s.After);
+            if ((along >= 0) && (along <= lengthFt))
+            {
+                worst = Math.Max(worst, Math.Abs(cross));
+            }
+        }
+
+        return worst;
+    }
+
+    /// <summary>
+    /// The largest turn (deg) against the bend's sense between consecutive ticks, from 150 ft before <paramref name="node"/>
+    /// until the heading first reaches <paramref name="outDeg"/>.
+    /// </summary>
+    private static double MaxHeadingReversalDeg(List<TickSample> trace, LatLon node, double inDeg, double outDeg)
+    {
+        double sense = Math.Sign(GeoMath.SignedBearingDifference(inDeg, outDeg));
+        double worst = 0;
+        double? previous = null;
+        foreach (TickSample s in trace)
+        {
+            if ((previous is null) && ((GeoMath.DistanceNm(s.After, node) * GeoMath.FeetPerNm) > 150))
+            {
+                continue;
+            }
+
+            if (previous is { } prev)
+            {
+                worst = Math.Max(worst, -GeoMath.SignedBearingDifference(prev, s.HeadingDeg) * sense);
+            }
+
+            if ((GeoMath.SignedBearingDifference(s.HeadingDeg, outDeg) * sense) <= 0)
+            {
+                break;
+            }
+
+            previous = s.HeadingDeg;
+        }
+
+        return worst;
+    }
+
+    private static string HeadingDigest(List<TickSample> trace)
+    {
+        byte[] bytes = [.. trace.SelectMany(s => BitConverter.GetBytes(s.HeadingDeg))];
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16];
+    }
+
+    private static string RouteText(TaxiRoute route) =>
+        string.Join(
+            " ",
+            route.Segments.Select(s => $"{s.FromNodeId}-{s.ToNodeId}({s.Edge.DistanceNm * GeoMath.FeetPerNm:F0}ft,{s.Edge.DepartureBearing:F1})")
+        );
+
+    private static (TaxiRoute Route, LatLon Start, double InDeg, string Where) RequireChain((TaxiRoute, LatLon, double, string)? found)
+    {
+        Assert.True(found is not null, "the selector found no matching geometry on OAK or SFO");
+        return found.Value;
+    }
+
+    private static TaxiRouteSegment Seg(GroundEdge edge, GroundNode from) =>
+        new() { Edge = edge.Directed(from, edge.OtherNode(from)), TaxiwayName = edge.TaxiwayName };
+
+    /// <summary>A plain straight of at most 50 ft continuing within 3 deg of the one before it, then a 25-32 deg bend.</summary>
+    private static (TaxiRoute, LatLon, double, string)? ShortCollinearThenBend() =>
+        FindStraightChain(FilletMode.Standard, new ChainLeg(5, 50, 0, 3), new ChainLeg(60, 1e9, 25, 32));
+
+    /// <summary>
+    /// A chain of plain straights on OAK then SFO: a first of at least 100 ft, then one straight per <paramref name="legs"/>
+    /// entry; the aircraft starts on the first, 200 ft short of its end or at its start, on its line.
+    /// </summary>
+    private static (TaxiRoute, LatLon, double, string)? FindStraightChain(FilletMode mode, params ChainLeg[] legs)
+    {
+        TestVnasData.EnsureInitialized();
+        foreach (string airport in new[] { "OAK", "SFO" })
+        {
+            AirportGroundLayout? layout = new TestAirportGroundData(mode).GetLayout(airport);
+            List<GroundEdge> plain = layout is null
+                ? []
+                : [.. layout.Edges.Where(IsPlainTaxiway).OrderBy(e => e.Nodes[0].Id).ThenBy(e => e.Nodes[1].Id)];
+            ILookup<int, GroundEdge> byNode = plain.SelectMany(e => new[] { (e.Nodes[0].Id, e), (e.Nodes[1].Id, e) }).ToLookup(p => p.Id, p => p.e);
+            foreach (GroundEdge first in plain.Where(e => (e.DistanceNm * GeoMath.FeetPerNm) >= 100))
+            {
+                foreach (GroundNode from in first.Nodes)
+                {
+                    if (Extend(byNode, [Seg(first, from)], legs) is not { } chain)
+                    {
+                        continue;
+                    }
+
+                    double inDeg = chain[0].Edge.DepartureBearing;
+                    double lengthFt = first.DistanceNm * GeoMath.FeetPerNm;
+                    var route = new TaxiRoute { Segments = chain, HoldShortPoints = [] };
+                    return (route, Offset(from.Position, inDeg, Math.Max(0, lengthFt - 200), 0), inDeg, airport);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<TaxiRouteSegment>? Extend(ILookup<int, GroundEdge> byNode, List<TaxiRouteSegment> chain, ChainLeg[] legs)
+    {
+        if (chain.Count > legs.Length)
+        {
+            return chain;
+        }
+
+        ChainLeg leg = legs[chain.Count - 1];
+        DirectionalEdge last = chain[^1].Edge;
+        GroundNode node = last.ToNode;
+        foreach (GroundEdge e in byNode[node.Id].Where(e => chain.All(c => c.Edge.Edge != e)))
+        {
+            double lengthFt = e.DistanceNm * GeoMath.FeetPerNm;
+            double bendDeg = DeflectionDeg(last.ArrivalBearing, node, e);
+            if ((lengthFt < leg.MinFt) || (lengthFt > leg.MaxFt) || (bendDeg < leg.MinBendDeg) || (bendDeg > leg.MaxBendDeg))
+            {
+                continue;
+            }
+
+            if (Extend(byNode, [.. chain, Seg(e, node)], legs) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A plain straight of at least 250 ft into a fillet tangent to it (within 5 deg), then a plain straight of at least 100 ft
+    /// leaving within 5 deg of the fillet's exit tangent, on OAK then SFO; the aircraft starts 200 ft short of the fillet.
+    /// </summary>
+    private static (TaxiRoute, LatLon, double, string)? StraightIntoFillet()
+    {
+        TestVnasData.EnsureInitialized();
+        foreach (string airport in new[] { "OAK", "SFO" })
+        {
+            AirportGroundLayout? layout = new TestAirportGroundData(FilletMode.Standard).GetLayout(airport);
+            if (layout is null)
+            {
+                continue;
+            }
+
+            List<GroundEdge> plain = [.. layout.Edges.Where(IsPlainTaxiway).OrderBy(e => e.Nodes[0].Id).ThenBy(e => e.Nodes[1].Id)];
+            foreach (GroundEdge arm in plain.Where(e => (e.DistanceNm * GeoMath.FeetPerNm) >= 250))
+            {
+                foreach (GroundNode from in arm.Nodes)
+                {
+                    TaxiRouteSegment armSeg = Seg(arm, from);
+                    double armDeg = armSeg.Edge.DepartureBearing;
+                    if (TangentArc(layout, armSeg.Edge.ToNode, armDeg, exits: false) is not { } arcSeg)
+                    {
+                        continue;
+                    }
+
+                    var bez = (PathPrimitiveBezier)PathPrimitiveBuilder.FromSegment(arcSeg);
+                    double exitDeg = bez.Curve.TangentBearing(1.0);
+                    GroundNode end = arcSeg.Edge.ToNode;
+                    GroundEdge? exit = plain.FirstOrDefault(e =>
+                        e.HasNode(end.Id) && ((e.DistanceNm * GeoMath.FeetPerNm) >= 100) && (DeflectionDeg(exitDeg, end, e) <= 5.0)
+                    );
+                    if (exit is null)
+                    {
+                        continue;
+                    }
+
+                    var route = new TaxiRoute { Segments = [armSeg, arcSeg, Seg(exit, end)], HoldShortPoints = [] };
+                    double lengthFt = arm.DistanceNm * GeoMath.FeetPerNm;
+                    return (route, Offset(from.Position, armDeg, lengthFt - 200, 0), armDeg, airport);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A virtual first segment 150 ft long onto the shared node of two plain straights, its line <paramref name="offDeg"/> off
+    /// the second straight's bearing, then that straight; the aircraft stands on the virtual node headed
+    /// <paramref name="turnDeg"/> off the line.
+    /// </summary>
+    private static (Rig Rig, TaxiRoute Route, string Where) VirtualEntryRig(double offDeg, double turnDeg)
+    {
+        (TaxiRoute chain, LatLon _, double _, string where) = RequireChain(FindStraightChain(FilletMode.Standard, new ChainLeg(150, 1e9, 0, 20)));
+        TaxiRouteSegment next = chain.Segments[1];
+        GroundNode node = next.Edge.FromNode;
+        double lineDeg = (next.Edge.DepartureBearing + offDeg + 360.0) % 360.0;
+        LatLon from = GeoMath.ProjectPointRaw(node.Position, (lineDeg + 180.0) % 360.0, 150.0 / GeoMath.FeetPerNm);
+        GroundNode virtualFrom = VirtualNode.Create(from.Lat, from.Lon);
+        var route = new TaxiRoute { Segments = [VirtualNode.CreateSegment(virtualFrom, node, next.TaxiwayName), next], HoldShortPoints = [] };
+        var rig = Rig.Create(
+            TurnModel.Ramp,
+            route,
+            new RigStart(from, (lineDeg + turnDeg + 360.0) % 360.0, 10, Type, AircraftCategory.Jet),
+            cleared: true
+        );
+        return (rig, route, where);
+    }
+
+    /// <summary>A fresh rig on a copy of <paramref name="route"/> under the ramp, driven to its end.</summary>
+    private static List<TickSample> RampTrace(TaxiRoute route, LatLon start, double inDeg, bool dropWalk)
+    {
+        var copy = new TaxiRoute { Segments = [.. route.Segments], HoldShortPoints = [] };
+        var rig = Rig.Create(TurnModel.Ramp, copy, new RigStart(start, inDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        return Drive(rig, copy, 4000, dropWalk);
+    }
+
+    private static void AssertSameHeadings(string where, List<TickSample> expected, List<TickSample> actual)
+    {
+        Assert.True(expected.Count == actual.Count, $"{where}: {expected.Count} ticks, then {actual.Count}");
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.True(
+                BitConverter.DoubleToInt64Bits(expected[i].HeadingDeg) == BitConverter.DoubleToInt64Bits(actual[i].HeadingDeg),
+                $"{where}: tick {i}: {expected[i].HeadingDeg:R}, then {actual[i].HeadingDeg:R}"
+            );
+        }
+    }
+
+    /// <summary>
+    /// The fillet and the straight after it from <see cref="StraightIntoFillet"/>, flown as an aimed line over the fillet
+    /// (a restored navigator's set-up rebuilds it): the line runs 150 ft into the fillet's far end 60 deg off the straight.
+    /// </summary>
+    private static (Rig Rig, TaxiRoute Route, string Where) AimedLineRig()
+    {
+        (TaxiRoute full, LatLon _, double _, string where) = RequireChain(StraightIntoFillet());
+        TaxiRouteSegment fillet = full.Segments[1];
+        var route = new TaxiRoute { Segments = [fillet, full.Segments[2]], HoldShortPoints = [] };
+        GroundNode end = fillet.Edge.ToNode;
+        double lineDeg = (full.Segments[2].Edge.DepartureBearing + 60.0) % 360.0;
+        LatLon anchor = GeoMath.ProjectPointRaw(end.Position, (lineDeg + 180.0) % 360.0, 150.0 / GeoMath.FeetPerNm);
+        var rig = Rig.Create(TurnModel.Ramp, route, new RigStart(anchor, lineDeg, 15, Type, AircraftCategory.Jet), cleared: true);
+        var nav = GroundNavigator.FromSnapshot(
+            new GroundNavigatorDto
+            {
+                TargetNodeId = end.Id,
+                TargetLat = end.Position.Lat,
+                TargetLon = end.Position.Lon,
+                SegmentFromLat = anchor.Lat,
+                SegmentFromLon = anchor.Lon,
+                PrevDistToTarget = double.MaxValue,
+                MaxSpeedKts = 15.0,
+                OnAimedLineOverFillet = true,
+                AimedLineFilletFromNodeId = fillet.FromNodeId,
+            }
+        );
+        nav.SetupSegment(route, rig.Ctx, _ => true);
+        var aimed = new Rig
+        {
+            Aircraft = rig.Aircraft,
+            Ctx = rig.Ctx,
+            Nav = nav,
+            Options = rig.Options,
+            From = anchor,
+            SegmentBearingDeg = lineDeg,
+            Cleared = true,
+        };
+        return (aimed, route, where);
+    }
 
     /// <summary>Where a rig's aircraft starts: its position, heading and speed, and its type and category.</summary>
     private readonly record struct RigStart(LatLon Position, double HeadingDeg, double SpeedKts, string AircraftType, AircraftCategory Category);

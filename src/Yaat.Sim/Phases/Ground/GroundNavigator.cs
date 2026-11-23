@@ -520,6 +520,26 @@ public sealed class GroundNavigator
     private double? _nextSegmentBearing;
 
     /// <summary>
+    /// The route beyond the target node, as far as the ramped straight steer's look-ahead walks past it
+    /// (<see cref="PastNodeSteerDeg"/>): the segments after the current one, up to <see cref="RouteWalkMaxFt"/>, ending at the
+    /// route end or before the first corner beyond the target sharper than <see cref="EntryAlignmentThresholdDeg"/>, from the
+    /// route alone. Set by <see cref="BuildSpeedConstraints"/> alongside <see cref="_nextSegmentBearing"/> under every turn
+    /// model, so every rebuild (set-up, restore, refresh) lands on the same legs; only the ramped steer reads it, judging the
+    /// corner at the target against the line flown each tick. Null at a stop target and on the last segment.
+    /// </summary>
+    private List<RouteWalkLeg>? _routeWalkLegs;
+
+    /// <summary>
+    /// The route the look-ahead walks past the target node (<see cref="_routeWalkLegs"/>); a test clears it to fly the steer
+    /// past the node without the walk.
+    /// </summary>
+    internal IReadOnlyList<RouteWalkLeg>? RouteWalkLegs
+    {
+        get => _routeWalkLegs;
+        set => _routeWalkLegs = value?.ToList();
+    }
+
+    /// <summary>
     /// True when the immediately-following route segment is a
     /// <see cref="GroundArc"/> (fillet, junction, etc.). Used by
     /// <see cref="TickStraight"/> to switch to the tight arrival threshold —
@@ -923,6 +943,12 @@ public sealed class GroundNavigator
     /// continuation, which a rolling turn about with no room before that node or at it rolls on to.
     /// </summary>
     public const double ContinuationMaxBendDeg = 30.0;
+
+    /// <summary>
+    /// How far (ft) past the target node the route walk of the past-node steer reaches (<see cref="_routeWalkLegs"/>): well
+    /// beyond the longest look-ahead, the ramp lag at the fastest taxi.
+    /// </summary>
+    private const double RouteWalkMaxFt = 300.0;
 
     /// <summary>
     /// The primitive and playback state a snapshot carried (<see cref="FromSnapshot"/>), waiting for the owning phase's first
@@ -4035,11 +4061,18 @@ public sealed class GroundNavigator
     /// <summary>
     /// The steer in a straight's last look-ahead window, where the look-ahead point is clamped onto the target node. Where
     /// physics steers (<see cref="RampSteers"/>), a stop target holds the segment bearing, so the nose is not swung onto the
-    /// node in the last few feet, and a pass-through node the next segment carries straight on from is steered past
+    /// node in the last few feet, and a pass-through node with a walk whose first corner is within
+    /// <see cref="EntryAlignmentThresholdDeg"/> of the line flown (<paramref name="segBearingDeg"/>) is steered past
     /// (<see cref="PastNodeSteerDeg"/>), <paramref name="leftoverNm"/> being the look-ahead's reach beyond the node;
     /// otherwise the steer is the bearing to the node.
     /// </summary>
-    private double FinalWindowSteerDeg(PhaseContext ctx, bool isStopTarget, double segBearingDeg, double leftoverNm)
+    private double FinalWindowSteerDeg(
+        PhaseContext ctx,
+        bool isStopTarget,
+        double segBearingDeg,
+        double leftoverNm,
+        Func<int, bool> isHoldShortCleared
+    )
     {
         LatLon node = new(TargetLat, TargetLon);
         if (!RampSteers(ctx))
@@ -4052,26 +4085,125 @@ public sealed class GroundNavigator
             return segBearingDeg;
         }
 
-        return PastNodeSteerDeg(ctx, node, segBearingDeg, leftoverNm) ?? GeoMath.BearingTo(ctx.Aircraft.Position, node);
+        return PastNodeSteerDeg(ctx, segBearingDeg, leftoverNm, isHoldShortCleared) ?? GeoMath.BearingTo(ctx.Aircraft.Position, node);
     }
 
     /// <summary>
-    /// The steer past a pass-through node on a near-straight run: the bearing to the point <paramref name="leftoverNm"/> (the
-    /// look-ahead's reach beyond <paramref name="node"/>) along the next segment, so the look-ahead keeps its full length
-    /// across the node instead of shrinking onto it. Aimed at the node itself, the steer of an aircraft off the line swings
-    /// toward 90 deg off it as the node comes abeam, which the ramped nose cannot take back in time, and it crosses the line.
-    /// Null when there is no next segment or it bends more than <see cref="ContinuationMaxBendDeg"/> from this one, where
-    /// entry alignment and the sharp-corner arrival keep the bearing to the node.
+    /// The steer past a pass-through node: the bearing to the point <paramref name="leftoverNm"/> (the look-ahead's reach
+    /// beyond the target node) walked along the route past it (<see cref="_routeWalkLegs"/>, <see cref="PointAlongRoute"/>):
+    /// round its bends and fillets, never past an uncleared bar's painted stop or the route end. So the look-ahead keeps its
+    /// full length across the node instead of shrinking onto it: aimed at the node itself, the steer of an aircraft off the
+    /// line swings toward 90 deg off it as the node comes abeam, which the ramped nose cannot take back in time, and it
+    /// crosses the line. Null when there is no walk (a stop target, the route end) or when the walk's first leg leaves more
+    /// than <see cref="EntryAlignmentThresholdDeg"/> off <paramref name="segBearingDeg"/>, the line flown this tick (an aimed
+    /// line over a fillet, a virtual first segment re-anchored after its alignment arc): there entry alignment and the
+    /// sharp-corner arrival keep the bearing to the node.
     /// </summary>
-    private double? PastNodeSteerDeg(PhaseContext ctx, LatLon node, double segBearingDeg, double leftoverNm)
+    internal double? PastNodeSteerDeg(PhaseContext ctx, double segBearingDeg, double leftoverNm, Func<int, bool> isHoldShortCleared) =>
+        (_routeWalkLegs is { Count: > 0 } legs) && (GeoMath.AbsBearingDifference(segBearingDeg, legs[0].BearingDeg) <= EntryAlignmentThresholdDeg)
+            ? GeoMath.BearingTo(ctx.Aircraft.Position, PointAlongRoute(legs, leftoverNm * GeoMath.FeetPerNm, isHoldShortCleared))
+            : null;
+
+    /// <summary>
+    /// The point <paramref name="leftoverFt"/> along <paramref name="legs"/> from the first leg's start: a straight leg along its
+    /// bearing, a fillet along its curve (<see cref="GroundArc.PointAtFt"/>). The walk stops at the painted stop of the first leg
+    /// end whose bar is not cleared (<paramref name="isHoldShortCleared"/>, read each tick), at the walk's start when that stop
+    /// lies behind it, and at the last leg's end.
+    /// </summary>
+    internal static LatLon PointAlongRoute(IReadOnlyList<RouteWalkLeg> legs, double leftoverFt, Func<int, bool> isHoldShortCleared)
     {
-        if ((_nextSegmentBearing is not { } nextBearingDeg) || (GeoMath.AbsBearingDifference(segBearingDeg, nextBearingDeg) > ContinuationMaxBendDeg))
+        double reachFt = Math.Clamp(leftoverFt, 0.0, ClearedWalkFt(legs, isHoldShortCleared));
+        foreach (RouteWalkLeg leg in legs)
         {
-            return null;
+            if (reachFt < leg.LengthFt)
+            {
+                return leg.Arc is { } arc
+                    ? arc.PointAtFt(leg.From, reachFt)
+                    : GeoMath.ProjectPointRaw(leg.From.Position, leg.BearingDeg, reachFt / GeoMath.FeetPerNm);
+            }
+
+            reachFt -= leg.LengthFt;
         }
 
-        LatLon aim = GeoMath.ProjectPointRaw(node, nextBearingDeg, leftoverNm);
-        return GeoMath.BearingTo(ctx.Aircraft.Position, aim);
+        return legs[^1].To.Position;
+    }
+
+    /// <summary>
+    /// How far (ft) along <paramref name="legs"/> the walk may go: to the painted stop of the first leg end whose bar is not
+    /// cleared (never below zero), else to the last leg's end.
+    /// </summary>
+    private static double ClearedWalkFt(IReadOnlyList<RouteWalkLeg> legs, Func<int, bool> isHoldShortCleared)
+    {
+        double nodeFt = 0.0;
+        foreach (RouteWalkLeg leg in legs)
+        {
+            nodeFt += leg.LengthFt;
+            if (!isHoldShortCleared(leg.To.Id))
+            {
+                return Math.Max(0.0, nodeFt - leg.StopBeforeToNodeFt);
+            }
+        }
+
+        return nodeFt;
+    }
+
+    /// <summary>
+    /// The walk legs past the current segment's far node (<see cref="_routeWalkLegs"/>): one per later segment, up to
+    /// <see cref="RouteWalkMaxFt"/>, ending at the route end or before the first corner sharper than
+    /// <see cref="EntryAlignmentThresholdDeg"/> between two route segments beyond the target (the slow-turn corner, which keeps
+    /// the bearing to its node). It reads the route alone, so every rebuild (set-up, restore, refresh) gives the same legs; the
+    /// corner at the target itself is judged each tick against the line flown (<see cref="PastNodeSteerDeg"/>). Null when
+    /// there is none.
+    /// </summary>
+    private static List<RouteWalkLeg>? BuildRouteWalkLegs(TaxiRoute route)
+    {
+        List<RouteWalkLeg>? legs = null;
+        double walkedFt = 0.0;
+        for (int i = route.CurrentSegmentIndex + 1; (i < route.Segments.Count) && (walkedFt < RouteWalkMaxFt); i++)
+        {
+            DirectionalEdge edge = route.Segments[i].Edge;
+            bool laterCorner = i > route.CurrentSegmentIndex + 1;
+            if (
+                laterCorner
+                && (GeoMath.AbsBearingDifference(route.Segments[i - 1].Edge.ArrivalBearing, edge.DepartureBearing) > EntryAlignmentThresholdDeg)
+            )
+            {
+                break;
+            }
+
+            double lengthFt =
+                (edge.Edge is GroundArc ? edge.DistanceNm : GeoMath.DistanceNm(edge.FromNode.Position, edge.ToNode.Position)) * GeoMath.FeetPerNm;
+            double stopBeforeFt = route.GetHoldShortAt(edge.ToNodeId) is { } bar ? StopDistanceBeforeNodeNm(route, i, bar) * GeoMath.FeetPerNm : 0.0;
+            (legs ??= []).Add(
+                new RouteWalkLeg
+                {
+                    From = edge.FromNode,
+                    To = edge.ToNode,
+                    Arc = edge.Edge as GroundArc,
+                    BearingDeg = edge.DepartureBearing,
+                    LengthFt = lengthFt,
+                    StopBeforeToNodeFt = stopBeforeFt,
+                }
+            );
+            walkedFt += lengthFt;
+        }
+
+        return legs;
+    }
+
+    /// <summary>
+    /// One segment of the route the look-ahead walks past the target node (<see cref="_routeWalkLegs"/>): its ends, its fillet
+    /// (null for a straight, which runs along <see cref="BearingDeg"/>), its length, and how far before its far node the
+    /// painted stop of a bar there lies (0 without one).
+    /// </summary>
+    internal sealed record RouteWalkLeg
+    {
+        public required GroundNode From { get; init; }
+        public required GroundNode To { get; init; }
+        public GroundArc? Arc { get; init; }
+        public required double BearingDeg { get; init; }
+        public required double LengthFt { get; init; }
+        public required double StopBeforeToNodeFt { get; init; }
     }
 
     /// <summary>
@@ -5004,7 +5136,7 @@ public sealed class GroundNavigator
             }
             else if (lookAheadAlongNm >= edgeLengthNm - 1e-9)
             {
-                bearingToSteerDeg = FinalWindowSteerDeg(ctx, isStopTarget, segBearingDeg, alongNm + lookAheadNm - edgeLengthNm);
+                bearingToSteerDeg = FinalWindowSteerDeg(ctx, isStopTarget, segBearingDeg, alongNm + lookAheadNm - edgeLengthNm, isHoldShortCleared);
             }
             else
             {
@@ -5963,6 +6095,7 @@ public sealed class GroundNavigator
         {
             _currentNodeRequiredSpeed = 0;
             _nextSegmentBearing = null;
+            _routeWalkLegs = null;
             _nextSegmentIsArc = false;
             _nextSegmentIsShort = false;
             AddSetBackStopAtTarget(route, seg);
@@ -5974,6 +6107,7 @@ public sealed class GroundNavigator
             double turnAngle = SingleCornerTurnAngle(route, route.CurrentSegmentIndex);
             (double intoNm, double outNm) = CornerLegsNm(route, route.CurrentSegmentIndex, turnAngle);
             _nextSegmentBearing = nextSeg.Edge.DepartureBearing;
+            _routeWalkLegs = BuildRouteWalkLegs(route);
             _nextSegmentIsArc = nextSeg.Edge.Edge is GroundArc;
             _nextSegmentIsShort = nextSeg.Edge.DistanceNm < NodeArrivalThresholdNm;
 
@@ -5998,6 +6132,7 @@ public sealed class GroundNavigator
         {
             _currentNodeRequiredSpeed = RouteEndSpeedKts;
             _nextSegmentBearing = null;
+            _routeWalkLegs = null;
             _nextSegmentIsArc = false;
             _nextSegmentIsShort = false;
         }

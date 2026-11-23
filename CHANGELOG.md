@@ -14,7 +14,7 @@
 
 - Solo: a VFR pilot's first call names its type and asks for a transition, Bravo transition or flight following, and re-calls once if unanswered.
 - Quick commands offer Accept handoff for every handoff in progress, including one from your own position, beside Cancel handoff.
-- Aircraft taxiing, rolling out, exiting a runway or lining up now ease their nose into and out of turns, and turn more gently at high speed.
+- Aircraft taxiing, rolling out, exiting a runway or lining up now ease their nose into and out of turns, following the taxi route through bends and fillets, and turn more gently at high speed.
 - Radar: on the Mixed template, tracks nobody owns draw as STARS tracks up to 120 NM range and as ERAM tracks beyond.
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
