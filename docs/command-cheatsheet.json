@@ -106,6 +106,7 @@
         { "verb": "PTAC", "aliases": [], "description": "Pos/turn/alt/clearance [hdg alt app], L/R before hdg forces the turn (L240), PH = keep assigned hdg else present (PTACF = force, bypass 30° gate)" },
         { "verb": "CVIA", "aliases": [], "description": "Climb via SID [except alt]; cancels an earlier assigned speed" },
         { "verb": "DVIA", "aliases": [], "description": "Descend via STAR [except alt]; cancels an earlier assigned speed" },
+        { "verb": "DVXM", "aliases": [], "description": "Descend via STAR, except maintain speed [until fix] (DVXM 250 SUNOL; Mach M.78 at or above FL240)" },
         { "verb": "CFIX", "aliases": ["cf"], "description": "Cross fix at altitude" },
         { "verb": "DEPART", "aliases": ["dep", "d"], "description": "Depart fix on heading" },
         { "verb": "APPS", "aliases": [], "description": "List approaches [airport]", "global": true },

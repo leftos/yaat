@@ -1337,6 +1337,12 @@ public record ClimbViaCommand(int? Altitude) : ParsedCommand;
 public record DescendViaCommand(int? Altitude, int? Speed = null, string? SpeedFixName = null, double? SpeedFixLat = null, double? SpeedFixLon = null)
     : ParsedCommand;
 
+/// <summary>
+/// DVXM: descend via the STAR, except maintain <see cref="Speed"/> knots (or <see cref="Mach"/>) until <see cref="FixName"/>,
+/// or, when no fix is named, until ATC changes it (7110.65 §5-7-2.e). Exactly one of the speed and the Mach is set.
+/// </summary>
+public record DescendViaExceptSpeedCommand(int? Speed, double? Mach, string? FixName, double? FixLat, double? FixLon) : ParsedCommand;
+
 public record CrossFixCommand(string FixName, double FixLat, double FixLon, int Altitude, CrossFixAltitudeType AltType, int? Speed) : ParsedCommand;
 
 public record ConstrainedFixAltitude(int AltitudeFt, CrossFixAltitudeType AltType);

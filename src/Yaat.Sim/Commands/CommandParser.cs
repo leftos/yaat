@@ -992,6 +992,7 @@ public static class CommandParser
             PositionTurnAltitudeClearanceForce => ApproachCommandParser.ParsePtac(arg, forced: true),
             ClimbVia => ApproachCommandParser.ParseCvia(arg),
             DescendVia => ApproachCommandParser.ParseDvia(arg, ctx),
+            DescendViaExceptSpeed => ApproachCommandParser.ParseDvxm(arg, ctx),
             CrossFix => ApproachCommandParser.ParseCfix(arg, ctx),
             DepartFix => ApproachCommandParser.ParseDepart(arg, ctx),
             ListApproaches => PR.Ok(ApproachCommandParser.ParseApps(arg)),
@@ -3010,7 +3011,7 @@ public static class CommandParser
         return true;
     }
 
-    private static PR ParseMach(string arg)
+    internal static PR ParseMach(string arg)
     {
         // Accept ".82", "0.82", or "82" (hundredths)
         string trimmed = arg.Trim();

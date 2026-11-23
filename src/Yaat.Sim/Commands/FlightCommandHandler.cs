@@ -606,6 +606,9 @@ internal static class FlightCommandHandler
     /// </summary>
     internal static void EndPublishedSpeedFloor(AircraftState aircraft)
     {
+        // A vector or direct ends a DVXM's exception with the via, unapplied: the speed ATC assigned stands.
+        NavigationCommandHandler.DropExceptSpeedEnd(NavigationCommandHandler.EffectiveRoute(aircraft));
+
         if (!aircraft.Targets.HasExplicitSpeedCommand)
         {
             aircraft.Targets.SpeedFloor = null;
@@ -712,6 +715,12 @@ internal static class FlightCommandHandler
     /// </summary>
     internal static void ApplySpeedResume(AircraftState aircraft, SpeedResumeKind kind)
     {
+        if (kind == SpeedResumeKind.ExceptSpeed)
+        {
+            EndExceptSpeed(aircraft);
+            return;
+        }
+
         if (kind == SpeedResumeKind.Deleted)
         {
             CancelAssignedSpeed(aircraft);
@@ -726,6 +735,18 @@ internal static class FlightCommandHandler
 
         CancelAssignedSpeedKeepingProcedureFloor(aircraft);
         ResumePublishedStarSpeeds(aircraft);
+    }
+
+    /// <summary>
+    /// The end of a DVXM's speed at its fix (<see cref="SpeedResumeKind.ExceptSpeed"/>): the assignment ends, keeping a floor
+    /// the procedure set, and the next published speed beyond the fix governs. No published speed crossed during the exception
+    /// comes back as the ceiling, so the last crossed one is forgotten rather than restored.
+    /// </summary>
+    private static void EndExceptSpeed(AircraftState aircraft)
+    {
+        CancelAssignedSpeedKeepingProcedureFloor(aircraft);
+        aircraft.Procedure.LastCrossedPublishedSpeedKts = null;
+        FlightPhysics.ApplyNextPublishedSpeed(aircraft);
     }
 
     private static CommandResult ResumeSpeed(AircraftState aircraft, DispatchContext ctx, SpeedResumeKind kind, string readback)
@@ -1657,7 +1678,9 @@ internal static class FlightCommandHandler
         bool speedMaxPending = NavigationCommandHandler.SpeedMaxPending(aircraft, aircraft.Targets.NavigationRoute);
         NavigationTarget? takenMachHolder = taken.FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is not null));
         SpeedResumeKind? takenResume = taken
-            .FindLast(fix => !fix.RevertSpeedMax && (fix.RevertMach is null) && (fix.RevertResume is not null))
+            .FindLast(fix =>
+                !fix.RevertSpeedMax && (fix.RevertMach is null) && (fix.RevertResume is not null) && (fix.RevertResume != SpeedResumeKind.ExceptSpeed)
+            )
             ?.RevertResume;
 
         aircraft.Targets.AssignedMagneticHeading = null;

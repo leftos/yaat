@@ -64,6 +64,7 @@ internal static class NavRouteSpeedLatency
         {
             SpeedResumeKind.Deleted => (false, true),
             SpeedResumeKind.Published => (false, false),
+            SpeedResumeKind.ExceptSpeed => (false, false),
             SpeedResumeKind.Normal => (false, deleted),
             _ => (explicitSpeed, deleted),
         };

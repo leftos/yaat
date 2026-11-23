@@ -338,7 +338,8 @@ internal static class NavigationCommandHandler
                 plainHolder?.RevertAssignedSpeed,
                 plainHolder?.RevertSpeedFloor,
                 plainHolder?.RevertSpeedCeiling,
-                route.Find(fix => fix.RevertResume is not null)?.RevertResume
+                // A DVXM's end is never carried to another fix: the crossing or direct that reads these drops it instead.
+                route.Find(fix => (fix.RevertResume is not null) && (fix.RevertResume != SpeedResumeKind.ExceptSpeed))?.RevertResume
             );
         }
     }
@@ -473,6 +474,8 @@ internal static class NavigationCommandHandler
         fix.CrossingTransmissionId = crossingTransmissionId;
         if (speedRestriction is not null)
         {
+            // A crossing speed ends a DVXM's exception: the crossing then governs as any CFIX does.
+            DropExceptSpeedEnd(route);
             fix.SpeedRestriction = speedRestriction;
             fix.SpeedTransmissionId = crossingTransmissionId;
             if (!speedRestated)
@@ -2141,6 +2144,190 @@ internal static class NavigationCommandHandler
         return ((sidId is null) || string.IsNullOrEmpty(departure)) ? null : NavigationDatabase.Instance.GetSid(departure, sidId);
     }
 
+    /// <summary>
+    /// DVXM, "descend via the STAR, except maintain {speed} until {fix}" (7110.65 5-7-2.e; Mach at or above FL240, 5-7-1.g): the
+    /// speed (or Mach) is assigned and stamped with this transmission, so the descend via that follows keeps it
+    /// (<see cref="SpeedStandsUnderClearance"/>); then its end goes on the named fix (<see cref="PlaceExceptSpeedEnd"/>). With
+    /// no fix there is no end: the speed stands until ATC changes it. No STAR to descend via, a fix not on the STAR part of
+    /// the route and a Mach below FL240 are refused before anything changes.
+    /// </summary>
+    internal static CommandResult DispatchDescendViaExceptSpeed(DescendViaExceptSpeedCommand cmd, AircraftState aircraft, DispatchContext ctx)
+    {
+        if (RefuseDescendViaExceptSpeed(cmd, aircraft) is { } refused)
+        {
+            return refused;
+        }
+
+        CommandResult speed = cmd switch
+        {
+            { Mach: { } mach } => FlightCommandHandler.ApplyMach(new MachCommand(mach), aircraft, ctx),
+            { Speed: { } knots } => FlightCommandHandler.ApplySpeed(new SpeedCommand(knots), aircraft, ctx),
+            _ => throw new InvalidOperationException("DVXM carries neither a speed nor a Mach number"),
+        };
+        if (!speed.Success)
+        {
+            return speed;
+        }
+
+        aircraft.Targets.AssignedSpeedTransmissionId = ctx.TransmissionId;
+        CommandResult via = DispatchDescendVia(new DescendViaCommand(null), aircraft, ctx.TransmissionId);
+        if (!via.Success)
+        {
+            return via;
+        }
+
+        // With no fix there is no end: the speed stands past the STAR until ATC changes it (7110.65 5-7-2.e).
+        if (cmd.FixName is { } endFix)
+        {
+            PlaceExceptSpeedEnd(aircraft.Targets.NavigationRoute, endFix);
+        }
+
+        return CommandDispatcher.Ok(CommandDescriber.DescribeDvxmNatural(cmd, cmd.FixName is { } named ? FixDisplay(named) : null));
+    }
+
+    /// <summary>The altitude at and above which a Mach number is assigned (7110.65 5-7-1.g).</summary>
+    private const double DvxmMachFloorFt = 24000;
+
+    private static CommandResult? RefuseDescendViaExceptSpeed(DescendViaExceptSpeedCommand cmd, AircraftState aircraft)
+    {
+        if ((aircraft.Procedure.ActiveStarId is null) && (FiledStar(aircraft) is null))
+        {
+            return new CommandResult(false, NoStarForDescendVia);
+        }
+
+        if ((cmd.FixName is { } fixName) && !IsOnStarPartOfRoute(aircraft, fixName))
+        {
+            return new CommandResult(false, $"Fix {FixDisplay(fixName)} not found in current route");
+        }
+
+        if ((cmd.Mach is not null) && (aircraft.Altitude < DvxmMachFloorFt - FlightPhysics.AltitudeSnapFt))
+        {
+            return new CommandResult(false, "Unable, Mach speeds are assigned at or above FL240");
+        }
+
+        return null;
+    }
+
+    private const string NoStarForDescendVia = "No active STAR — descend via requires a STAR in the filed route";
+
+    /// <summary>The STAR the flight-plan route files, as a descend via with no active STAR activates it.</summary>
+    private static (string Id, CifpStarProcedure Procedure)? FiledStar(AircraftState aircraft) =>
+        FiledProcedureLookup.FindStar(NavigationDatabase.Instance, aircraft.FlightPlan.Destination, aircraft.FlightPlan.Route);
+
+    /// <summary>
+    /// Whether <paramref name="fixName"/> is a route fix at or after the first route fix of the STAR part of the route: the
+    /// common legs, the enroute transition flown into them (<see cref="FlownEnrouteTransitions"/>) and the runway transition, of
+    /// the active STAR, else of the filed one. With an active STAR that does not resolve, any route fix counts, as a descend
+    /// via still accepts it. With no junction on the route (<see cref="StarJunctionIndex"/>), no fix counts.
+    /// </summary>
+    private static bool IsOnStarPartOfRoute(AircraftState aircraft, string fixName)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int fixIndex = route.FindIndex(f => string.Equals(f.Name, fixName, StringComparison.OrdinalIgnoreCase));
+        CifpStarProcedure? star = (aircraft.Procedure.ActiveStarId is not null) ? ResolveActiveStar(aircraft) : FiledStar(aircraft)?.Procedure;
+        if (star is null)
+        {
+            return fixIndex >= 0;
+        }
+
+        FlownStarEntry entry = FlownEnrouteTransitions(star, aircraft);
+        return (entry.JunctionIndex >= 0) && (fixIndex >= entry.StartIndex);
+    }
+
+    /// <summary>
+    /// Where the STAR starts on the live route: <see cref="JunctionIndex"/> is where an enroute transition meets the rest of
+    /// the STAR (<see cref="StarJunctionIndex"/>, -1 with none), <see cref="StartIndex"/> the first fix of the enroute
+    /// transition flown into it, and <see cref="Transitions"/> that
+    /// transition (more than one only where their fixes coincide and the filed route names none of them).
+    /// </summary>
+    private readonly record struct FlownStarEntry(int JunctionIndex, int StartIndex, List<CifpTransition> Transitions);
+
+    /// <summary>
+    /// The enroute transition the aircraft flies into the rest of <paramref name="star"/>, read from the live route as a
+    /// <c>JARR</c> or the filed route left it: from the junction (<see cref="StarJunctionIndex"/>), walk back while the fixes before it all
+    /// belong to one enroute transition. A fix of another transition ahead of that run is not the STAR's. The filed route's
+    /// token only breaks a tie between transitions whose fixes coincide. Both the descend via's overlay
+    /// (<see cref="PublishedStarRestrictions"/>) and DVXM's fix check read it.
+    /// </summary>
+    private static FlownStarEntry FlownEnrouteTransitions(CifpStarProcedure star, AircraftState aircraft)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        int junction = StarJunctionIndex(star, aircraft);
+        int start = junction;
+        List<CifpTransition> flown = [];
+        List<CifpTransition> candidates = [.. star.EnrouteTransitions.Values];
+        for (int i = junction - 1; i >= 0; i--)
+        {
+            string name = route[i].Name;
+            List<CifpTransition> holding = candidates.FindAll(t =>
+                t.Legs.Any(l => string.Equals(l.FixIdentifier, name, StringComparison.OrdinalIgnoreCase))
+            );
+            if (holding.Count == 0)
+            {
+                break;
+            }
+
+            candidates = holding;
+            flown = holding;
+            start = i;
+        }
+
+        return new FlownStarEntry(junction, start, BreakTransitionTieByFiledRoute(star, flown, aircraft));
+    }
+
+    /// <summary>
+    /// The route index where an enroute transition meets the rest of <paramref name="star"/>: the route's first common-leg fix,
+    /// else, with none on the route (a STAR that publishes no common legs, or one whose common legs are behind), its first
+    /// fix of the runway transition (<see cref="RunwayTransitionFixNames"/>); -1 with neither.
+    /// </summary>
+    private static int StarJunctionIndex(CifpStarProcedure star, AircraftState aircraft)
+    {
+        List<NavigationTarget> route = aircraft.Targets.NavigationRoute;
+        var commonFixes = new HashSet<string>(star.CommonLegs.Select(l => l.FixIdentifier).OfType<string>(), StringComparer.OrdinalIgnoreCase);
+        int common = route.FindIndex(f => commonFixes.Contains(f.Name));
+        if (common >= 0)
+        {
+            return common;
+        }
+
+        HashSet<string> runwayFixes = RunwayTransitionFixNames(star, aircraft);
+        return route.FindIndex(f => runwayFixes.Contains(f.Name));
+    }
+
+    /// <summary>Of several transitions flown alike, the one the filed route names, when it names exactly one; else all of them.</summary>
+    private static List<CifpTransition> BreakTransitionTieByFiledRoute(CifpStarProcedure star, List<CifpTransition> flown, AircraftState aircraft)
+    {
+        if (flown.Count < 2)
+        {
+            return flown;
+        }
+
+        var filed = new HashSet<string>(FiledRouteTokens(aircraft), StringComparer.OrdinalIgnoreCase);
+        List<CifpTransition> named = [.. star.EnrouteTransitions.Where(p => filed.Contains(p.Key) && flown.Contains(p.Value)).Select(p => p.Value)];
+        return (named.Count == 1) ? named : flown;
+    }
+
+    /// <summary>The fixes of the runway transition for the aircraft's runway, or of every runway transition when none resolves.</summary>
+    private static HashSet<string> RunwayTransitionFixNames(CifpStarProcedure star, AircraftState aircraft)
+    {
+        string? runway = aircraft.Phases?.AssignedRunway?.Designator ?? aircraft.Procedure.DestinationRunway;
+        CifpTransition? flownRunway = string.IsNullOrEmpty(runway) ? null : LookupRunwayTransition(star.RunwayTransitions, runway);
+        IEnumerable<CifpLeg> legs = flownRunway?.Legs ?? star.RunwayTransitions.Values.SelectMany(t => t.Legs);
+        return new HashSet<string>(legs.Select(l => l.FixIdentifier).OfType<string>(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Drops a DVXM's pending end (<see cref="SpeedResumeKind.ExceptSpeed"/>) from every fix of <paramref name="route"/>,
+    /// applying nothing.
+    /// </summary>
+    internal static void DropExceptSpeedEnd(List<NavigationTarget> route)
+    {
+        foreach (NavigationTarget fix in route.Where(f => f.RevertResume == SpeedResumeKind.ExceptSpeed))
+        {
+            fix.RevertResume = null;
+        }
+    }
+
     internal static CommandResult DispatchDescendVia(DescendViaCommand cmd, AircraftState aircraft, int transmissionId)
     {
         // DVIA SPD <speed> <fix> names a fix on the route; refuse one off it before anything changes.
@@ -2172,7 +2359,7 @@ internal static class NavigationCommandHandler
 
         if (!starReady)
         {
-            return new CommandResult(false, "No active STAR — descend via requires a STAR in the filed route");
+            return new CommandResult(false, NoStarForDescendVia);
         }
 
         SupersedeEarlierCrossingRestrictions(aircraft, transmissionId, ActiveStarRestrictions);
@@ -2267,7 +2454,7 @@ internal static class NavigationCommandHandler
     /// </summary>
     private static bool TryActivateFiledStar(AircraftState aircraft, int transmissionId)
     {
-        if (FiledProcedureLookup.FindStar(NavigationDatabase.Instance, aircraft.FlightPlan.Destination, aircraft.FlightPlan.Route) is not { } filed)
+        if (FiledStar(aircraft) is not { } filed)
         {
             return false;
         }
@@ -2446,6 +2633,14 @@ internal static class NavigationCommandHandler
     {
         foreach (NavigationTarget holder in holders)
         {
+            // A DVXM's end goes with the route unapplied: a vector or direct ends the via and its exception, while the speed
+            // ATC assigned stands (7110.65 5-7-1.e).
+            if (holder.RevertResume == SpeedResumeKind.ExceptSpeed)
+            {
+                holder.RevertResume = null;
+                continue;
+            }
+
             FlightPhysics.RestoreSpeedPastFix(aircraft, holder, []);
         }
     }
@@ -2570,6 +2765,30 @@ internal static class NavigationCommandHandler
         if (last >= 0)
         {
             route[last].RevertResume = null;
+        }
+    }
+
+    /// <summary>
+    /// Puts a DVXM's end (<see cref="SpeedResumeKind.ExceptSpeed"/>) on the route fix named <paramref name="fixName"/>
+    /// and clears the resumes and plain reverts on every other fix, as <see cref="PlaceResumeRevert"/> does, so the route
+    /// keeps one pending end. The fix that holds it keeps no other speed revert.
+    /// </summary>
+    internal static void PlaceExceptSpeedEnd(List<NavigationTarget> route, string fixName)
+    {
+        int index = route.FindIndex(f => string.Equals(f.Name, fixName, StringComparison.OrdinalIgnoreCase));
+        foreach (NavigationTarget fix in route)
+        {
+            fix.RevertResume = null;
+            fix.RevertSpeed = null;
+            fix.RevertAssignedSpeed = null;
+            fix.RevertSpeedFloor = null;
+            fix.RevertSpeedCeiling = null;
+        }
+
+        if (index >= 0)
+        {
+            ClearSpeedReverts(route[index]);
+            route[index].RevertResume = SpeedResumeKind.ExceptSpeed;
         }
     }
 
@@ -2854,21 +3073,17 @@ internal static class NavigationCommandHandler
 
     /// <summary>
     /// The restrictions <paramref name="star"/> publishes on the legs <paramref name="aircraft"/> flies, by fix name,
-    /// in the order <c>JARR</c> builds them: the enroute transition(s) its route is on, the common route, then the
-    /// runway transition for its runway (the assigned runway, else the procedure's destination runway). Where no
+    /// in the order <c>JARR</c> builds them: the enroute transition flown into the rest of the STAR
+    /// (<see cref="FlownEnrouteTransitions"/>), the common route, then the runway transition for its runway (the assigned
+    /// runway, else the procedure's destination runway). Where no
     /// runway transition resolves for it, every runway transition is read, the first to name a fix winning.
     /// </summary>
     private static Dictionary<string, NavigationTarget> PublishedStarRestrictions(CifpStarProcedure star, AircraftState aircraft)
     {
-        var commonFixes = new HashSet<string>(star.CommonLegs.Select(l => l.FixIdentifier), StringComparer.OrdinalIgnoreCase);
-        var routeFixes = new HashSet<string>(aircraft.Targets.NavigationRoute.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
         var orderedLegs = new List<CifpLeg>();
-        foreach (CifpTransition transition in star.EnrouteTransitions.Values)
+        foreach (CifpTransition transition in FlownEnrouteTransitions(star, aircraft).Transitions)
         {
-            if (transition.Legs.Any(l => routeFixes.Contains(l.FixIdentifier) && !commonFixes.Contains(l.FixIdentifier)))
-            {
-                orderedLegs.AddRange(transition.Legs);
-            }
+            orderedLegs.AddRange(transition.Legs);
         }
 
         orderedLegs.AddRange(star.CommonLegs);

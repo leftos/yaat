@@ -277,6 +277,12 @@ public enum SpeedResumeKind
 
     /// <summary>DSR: the assignment ends and the procedure's published speeds are deleted.</summary>
     Deleted,
+
+    /// <summary>
+    /// DVXM's end, on the named fix: the assigned speed ends and the next published speed beyond the
+    /// fix governs, with no published speed crossed during the exception held as the ceiling.
+    /// </summary>
+    ExceptSpeed,
 }
 
 public class NavigationTarget

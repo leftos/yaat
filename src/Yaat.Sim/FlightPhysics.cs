@@ -268,7 +268,7 @@ public static class FlightPhysics
 
             if (controllerCrossingEnds || !IsControllerSetSpeed(sequenced))
             {
-                RecordCrossedPublishedSpeed(aircraft, crossedRestriction);
+                RecordCrossedPublishedSpeed(aircraft, crossedRestriction, sequenced);
             }
 
             // AIM 5-4-1 NOTE 2 / 7110.65 §5-7-1.g NOTE 3: once at a "cross at" speed the
@@ -2378,7 +2378,7 @@ public static class FlightPhysics
         || Commands.NavigationCommandHandler.HasPlainRevert(fix)
         || (fix.RevertMach is not null)
         || fix.RevertSpeedMax
-        || (fix.RevertResume is not null);
+        || ((fix.RevertResume is { } resume) && (resume != SpeedResumeKind.ExceptSpeed));
 
     /// <summary>
     /// Whether <paramref name="fix"/>'s speed restriction binds under the given speed state: it has one, the published
@@ -2866,11 +2866,17 @@ public static class FlightPhysics
     /// it was flying, so a later "resume normal speed" or "resume published speed" holds it as the ceiling until the next
     /// published speed restriction (AIM 5-4-1 NOTE 2). The caller passes only a published speed, never one a controller
     /// set (<see cref="IsControllerSetSpeed"/>). An "at or above" speed is a minimum, never a ceiling, and leaves the
-    /// memory as it was.
+    /// memory as it was. A DVXM's named fix (<paramref name="sequenced"/> holding the
+    /// <see cref="SpeedResumeKind.ExceptSpeed"/> end) records nothing: its own published speed was replaced by the assigned one,
+    /// and the end has just cleared the memory, so past it only the next published speed beyond governs.
     /// </summary>
-    private static void RecordCrossedPublishedSpeed(AircraftState aircraft, CifpSpeedRestriction? published)
+    private static void RecordCrossedPublishedSpeed(AircraftState aircraft, CifpSpeedRestriction? published, NavigationTarget sequenced)
     {
-        if ((published is not { } crossed) || (crossed.Type == CifpSpeedRestrictionType.AtOrAbove))
+        if (
+            (published is not { } crossed)
+            || (crossed.Type == CifpSpeedRestrictionType.AtOrAbove)
+            || (sequenced.RevertResume == SpeedResumeKind.ExceptSpeed)
+        )
         {
             return;
         }

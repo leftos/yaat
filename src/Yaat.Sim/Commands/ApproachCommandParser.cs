@@ -561,6 +561,58 @@ internal static partial class ApproachCommandParser
     }
 
     /// <summary>
+    /// Parses DVXM &lt;speed&gt; [fix]: descend via, except maintain a speed until a fix (with no fix, until ATC changes it). The speed
+    /// is knots IAS or a Mach number ("M.78" or ".78"). Example: "DVXM 250 SUNOL", "DVXM 250", "DVXM M.78 SUNOL".
+    /// </summary>
+    internal static PR ParseDvxm(string? arg, FixResolutionContext ctx)
+    {
+        string[] parts = (arg ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if ((parts.Length == 0) || (parts.Length > 2))
+        {
+            return PR.Fail("DVXM expects a speed and an optional fix, e.g. DVXM 250 SUNOL");
+        }
+
+        (int? speed, double? mach, string? error) = ParseDvxmSpeed(parts[0]);
+        if (error is not null)
+        {
+            return PR.Fail(error);
+        }
+
+        if (parts.Length == 1)
+        {
+            return PR.Ok(new DescendViaExceptSpeedCommand(speed, mach, null, null, null));
+        }
+
+        string fixName = parts[1].ToUpperInvariant();
+        (double Lat, double Lon)? fixPos = NavigationDatabase.Instance.GetFixPosition(fixName, ctx);
+        if (fixPos is null)
+        {
+            return PR.Fail($"fix '{fixName}' not found");
+        }
+
+        return PR.Ok(new DescendViaExceptSpeedCommand(speed, mach, fixName, fixPos.Value.Lat, fixPos.Value.Lon));
+    }
+
+    /// <summary>DVXM's speed token: whole knots, or a Mach number written with an M prefix or a decimal point.</summary>
+    private static (int? Speed, double? Mach, string? Error) ParseDvxmSpeed(string token)
+    {
+        if (int.TryParse(token, out int knots))
+        {
+            return (knots > 0) ? (knots, null, null) : (null, null, $"invalid DVXM speed '{token}'");
+        }
+
+        bool machPrefix = token.StartsWith('M') || token.StartsWith('m');
+        if (!machPrefix && !token.Contains('.'))
+        {
+            return (null, null, $"invalid DVXM speed '{token}'");
+        }
+
+        return CommandParser.ParseMach(machPrefix ? token[1..] : token).Value is MachCommand parsed
+            ? (null, parsed.MachNumber, null)
+            : (null, null, $"invalid DVXM Mach number '{token}'");
+    }
+
+    /// <summary>
     /// Parses CFIX fixName [A|B|AT]altitudeHundreds [speed].
     /// Accepts: "CFIX SUNOL A040", "CFIX SUNOL 040 250", "CFIX SUNOL AT 360"
     /// The "AT" keyword form splits altitude into a separate token.

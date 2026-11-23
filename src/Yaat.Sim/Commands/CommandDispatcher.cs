@@ -1734,6 +1734,8 @@ public static class CommandDispatcher
                 return NavigationCommandHandler.DispatchClimbVia(cmd, aircraft, ctx);
             case DescendViaCommand cmd:
                 return NavigationCommandHandler.DispatchDescendVia(cmd, aircraft, ctx.TransmissionId);
+            case DescendViaExceptSpeedCommand cmd:
+                return NavigationCommandHandler.DispatchDescendViaExceptSpeed(cmd, aircraft, ctx);
 
             // RWY assigns the arrival/departure runway, which is a route decision rather than a surface one, so it
             // must apply with no phase active too — the tower switch has the same arm for the phase path.
@@ -5586,7 +5588,7 @@ public static class CommandDispatcher
         bool hasLateralCmd = hasHeadingCmd || commands.Any(c => c is JoinStarCommand);
         if (hasLateralCmd && hadProcedureAltitudes && !AltitudeRestrictionInForce.ProcedureAltitudesInForce(aircraft))
         {
-            bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand);
+            bool hasViaCmd = commands.Any(c => c is ClimbViaCommand or DescendViaCommand or DescendViaExceptSpeedCommand);
             if (!hasAltCmd && !hasViaCmd)
             {
                 aircraft.PendingWarnings.Add("Vectored off procedure without an altitude assignment");

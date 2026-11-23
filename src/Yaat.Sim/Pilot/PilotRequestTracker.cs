@@ -668,6 +668,7 @@ public static class PilotRequestTracker
                 or ClimbMaintainCommand
                 or ForceAltitudeCommand
                 or DescendViaCommand
+                or DescendViaExceptSpeedCommand
                 or CrossFixCommand
                 or ConstrainedForceDirectToCommand
                 or ClearedApproachCommand

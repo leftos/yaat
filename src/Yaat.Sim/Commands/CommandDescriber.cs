@@ -155,6 +155,7 @@ public static class CommandDescriber
                 : CanonicalCommandType.PositionTurnAltitudeClearance,
             ClimbViaCommand => CanonicalCommandType.ClimbVia,
             DescendViaCommand => CanonicalCommandType.DescendVia,
+            DescendViaExceptSpeedCommand => CanonicalCommandType.DescendViaExceptSpeed,
             CrossFixCommand => CanonicalCommandType.CrossFix,
             DepartFixCommand => CanonicalCommandType.DepartFix,
             ListApproachesCommand => CanonicalCommandType.ListApproaches,
@@ -424,6 +425,12 @@ public static class CommandDescriber
             return CommandDimension.Lateral | CommandDimension.Vertical;
         }
 
+        // DVXM is a descend via that also assigns a speed
+        if (command is DescendViaExceptSpeedCommand)
+        {
+            return CommandDimension.Lateral | CommandDimension.Vertical | CommandDimension.Speed;
+        }
+
         // CrossFix annotates the route rather than replacing it: DispatchCrossFix stamps the restriction on the fix if
         // it is already on the route and appends it if it is not, leaving every other fix and restriction in place. So
         // it is not lateral — a chain of crossing restrictions must not cancel the lateral work the aircraft is flying
@@ -660,6 +667,7 @@ public static class CommandDescriber
             PositionTurnAltitudeClearanceCommand => TrackedCommandType.Immediate,
             ClimbViaCommand => TrackedCommandType.Altitude,
             DescendViaCommand => TrackedCommandType.Altitude,
+            DescendViaExceptSpeedCommand => TrackedCommandType.Altitude,
             CrossFixCommand => TrackedCommandType.Navigation,
             DepartFixCommand => TrackedCommandType.Navigation,
             ListApproachesCommand => TrackedCommandType.Immediate,
@@ -866,6 +874,7 @@ public static class CommandDescriber
             DescendViaCommand cmd => cmd.Speed is not null ? $"DVIA SPD {cmd.Speed} {cmd.SpeedFixName}"
             : cmd.Altitude is not null ? $"DVIA {cmd.Altitude}"
             : "DVIA",
+            DescendViaExceptSpeedCommand cmd => FormatDvxmCanonical(cmd),
             CrossFixCommand cmd => FormatCfixCanonical(cmd),
             DepartFixCommand cmd => $"DEPART {cmd.FixName} {cmd.MagneticHeading.ToDisplayInt():000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"APPS {cmd.AirportCode}" : "APPS",
@@ -1193,6 +1202,23 @@ public static class CommandDescriber
         };
     }
 
+    /// <summary>DVXM's canonical text: "DVXM 250 SUNOL", "DVXM 250", "DVXM M.78 SUNOL".</summary>
+    private static string FormatDvxmCanonical(DescendViaExceptSpeedCommand cmd)
+    {
+        string speed = cmd.Mach is { } mach ? "M" + mach.ToString("F2", CultureInfo.InvariantCulture).TrimStart('0') : $"{cmd.Speed}";
+        return cmd.FixName is null ? $"DVXM {speed}" : $"DVXM {speed} {cmd.FixName}";
+    }
+
+    /// <summary>
+    /// DVXM's natural text, with the fix written as <paramref name="fixText"/>: "Descend via STAR, except maintain 250 knots until
+    /// SUNOL", "Descend via STAR, except maintain 250 knots", "Descend via STAR, except maintain Mach 0.78 until SUNOL".
+    /// </summary>
+    internal static string DescribeDvxmNatural(DescendViaExceptSpeedCommand cmd, string? fixText)
+    {
+        string speed = cmd.Mach is { } mach ? $"Mach {mach.ToString("F2", CultureInfo.InvariantCulture)}" : $"{cmd.Speed} knots";
+        return fixText is null ? $"Descend via STAR, except maintain {speed}" : $"Descend via STAR, except maintain {speed} until {fixText}";
+    }
+
     internal static string DescribeNatural(ParsedCommand command)
     {
         return command switch
@@ -1368,6 +1394,7 @@ public static class CommandDescriber
             DescendViaCommand cmd => cmd.Speed is not null ? $"Descend via STAR, {cmd.Speed} knots at {cmd.SpeedFixName}"
             : cmd.Altitude is not null ? $"Descend via STAR, except maintain {cmd.Altitude:N0}"
             : "Descend via STAR",
+            DescendViaExceptSpeedCommand cmd => DescribeDvxmNatural(cmd, cmd.FixName),
             CrossFixCommand cmd => FormatCfixNatural(cmd),
             DepartFixCommand cmd => $"Depart {cmd.FixName}, fly heading {cmd.MagneticHeading.Degrees:000}",
             ListApproachesCommand cmd => cmd.AirportCode is not null ? $"List approaches for {cmd.AirportCode}" : "List approaches",

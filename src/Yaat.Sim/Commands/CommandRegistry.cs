@@ -2350,6 +2350,24 @@ public static class CommandRegistry
                 ]
             ),
             Cmd(
+                DescendViaExceptSpeed,
+                "Descend Via Except Speed",
+                "Approach",
+                CommandDimension.Lateral | CommandDimension.Vertical | CommandDimension.Speed,
+                false,
+                ["DVXM"],
+                [
+                    O("Speed until fix", [R("speed", "knots IAS"), R("fix", "fix name")], "Descend via STAR, except maintain speed until fix"),
+                    O("Speed", [R("speed", "knots IAS")], "Descend via STAR, except maintain speed until ATC changes it"),
+                    O(
+                        "Mach until fix",
+                        [R("mach", "M.XX mach number, at or above FL240"), R("fix", "fix name")],
+                        "Descend via STAR, except maintain Mach until fix"
+                    ),
+                    O("Mach", [R("mach", "M.XX mach number, at or above FL240")], "Descend via STAR, except maintain Mach until ATC changes it"),
+                ]
+            ),
+            Cmd(
                 CrossFix,
                 "Cross Fix",
                 "Approach",

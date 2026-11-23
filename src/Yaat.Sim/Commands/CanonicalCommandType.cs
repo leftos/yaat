@@ -327,4 +327,7 @@ public enum CanonicalCommandType
 
     // VFR remain outside Bravo airspace (RMOB [minutes]), FAA 7110.65 §7-9-2.a; appended last so no stored value shifts
     RemainOutsideBravo,
+
+    // Descend via the STAR, except maintain a speed until a fix (DVXM), 7110.65 §5-7-2.e; appended last so no stored value shifts
+    DescendViaExceptSpeed,
 }

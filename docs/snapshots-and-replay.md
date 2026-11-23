@@ -89,7 +89,7 @@ No schema bump: nothing is given up in snapshot 0, whose hash yaat-server pins. 
 
 `NavigationTargetDto.ForceFlyBy` (`bool`, `WhenWritingDefault`) carries `NavigationTarget.ForceFlyBy`, the pattern entry's `PTN-LEADIN` sequencing fly-by regardless of course change ([flight-physics.md](flight-physics.md)). It is written only when true, so every older snapshot and its hash are unchanged and restore false; no schema bump.
 
-`NavigationTargetDto.RevertSpeedFloor` (double?), `RevertSpeedCeiling` (double?) and `RevertResume` (int?, a `SpeedResumeKind` code: RNS, RPS or DSR given in a crossing's own transmission) carry the matching `NavigationTarget` members, written only when set; absence restores "no bound to restore" and "no resume", so older snapshots and their hashes are unchanged; no schema bump.
+`NavigationTargetDto.RevertSpeedFloor` (double?), `RevertSpeedCeiling` (double?) and `RevertResume` (int?, a `SpeedResumeKind` code: RNS, RPS or DSR given in a crossing's own transmission, or `ExceptSpeed` = 3, the end of a DVXM's speed on its named fix) carry the matching `NavigationTarget` members, written only when set; absence restores "no bound to restore" and "no resume", so older snapshots and their hashes are unchanged; no schema bump.
 
 `StateSnapshotDto.FrequencyTransmissions` (`List<FrequencyTransmissionDto>?` of `{Start, Duration}`, `WhenWritingNull`) carries the active frequency's `FrequencyActivityMeter` intervals in recorded order, so a rewind or restore resumes in the load band the run was in ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) § the activity meter).
 

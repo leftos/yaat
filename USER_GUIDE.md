@@ -2499,7 +2499,7 @@ FH 270, CM 100; FH 180
 
 The second turn waits for the heading-to-270 part, not necessarily for the climb all the way to 10,000 ft. If you want a later instruction to happen at an altitude, use `LV` or numeric `AT`.
 
-A `;` after `CVIA` or `DVIA` waits for the via's top or bottom (on a SID with only floors, FL190), so a speed meant to go with the via uses `,`: `CVIA, SPD 230` (7110.65 5-7-1.c and 5-7-2.e).
+A `;` after `CVIA` or `DVIA` waits for the via's top or bottom (on a SID with only floors, FL190), so a speed meant to go with the via uses `,`: `CVIA, SPD 230` (7110.65 5-7-1.c and 5-7-2.e). `DVXM 250 SUNOL` gives a descend via with its own speed in one command (see COMMANDS.md).
 
 #### Word aliases: `AND` and `THEN`
 

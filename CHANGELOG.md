@@ -4,6 +4,7 @@
 
 ### Added
 
+- `DVXM 250 SUNOL` (or `DVXM 250`, `DVXM M.78 SUNOL`) clears a descend via, except maintain a speed until a fix; published speeds resume past it.
 - RPO sessions warn the instructor when an uncleared VFR pattern or approach path will enter a Class B; the pilot flies on.
 - Radar: ERAM-template tracks draw CRC's ERAM look: a target glyph per state, track symbols, glyph history, CRC's leader and ERAM yellow.
 - Settings › Appearance › Scope text draws STARS and ERAM datablocks Compact or Realistic: Terminus Bold at CRC's text sizes, sized per kind.
