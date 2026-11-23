@@ -18,8 +18,6 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
-
-- vStrips and vTDLS in CRC download a compressed copy of their program once and keep it, instead of the full 33 MB on every load.
 - The Follow traffic menu now offers traffic a VFR aircraft has reported in sight, instead of greying it out.
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
@@ -30,6 +28,12 @@
 - Solo: a Class B clearance (`CLBRV` or an implied one) now covers only that Bravo and ends two minutes after leaving it or at a full-stop landing.
 - Solo: a VFR pilot waiting at the Class B boundary now says it is orbiting outside, or level below, the bravo when it asks again.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
+
+## v0.19.2-beta [2026/11/22]
+
+### Fixed
+
+- vStrips and vTDLS in CRC download a compressed copy of their program once and keep it, instead of the full 33 MB on every load.
 
 ## v0.19.1-beta [2026/11/21]
 
