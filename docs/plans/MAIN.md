@@ -146,6 +146,7 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
 - [ ] YAAT-2798 DVXM after a crossing speed in the same transmission: define and test the pair
+- [ ] YAAT-2803 Discord bot drops forwarded messages from /create-issue bodies
 
 ## Context-menu quick commands (#471)
 
