@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.19.3-beta [2026/11/23]
+
+### Fixed
+
+- A handoff to a neighbouring center's sector (`J30` from Tampa) now reaches the scenario's controller working that sector.
+- Loading a scenario no longer warns about a neighbouring center vNAS has no config for, such as ZWY.
+
 ## v0.19.2-beta [2026/11/22]
 
 ### Fixed
