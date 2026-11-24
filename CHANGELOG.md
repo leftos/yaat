@@ -20,8 +20,6 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
-- A handoff to a neighbouring center's sector (`J30` from Tampa) now reaches the scenario's controller working that sector.
-- Loading a scenario no longer warns about a neighbouring center vNAS has no config for, such as ZWY.
 - The Follow traffic menu now offers traffic a VFR aircraft has reported in sight, instead of greying it out.
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
@@ -35,6 +33,13 @@
 - A FOLLOW pilot no longer turns back against the downwind when its lead turns base from a fix.
 - A FOLLOW pilot ahead of its lead now turns out to fall in behind, instead of S-turning and cutting the lead off.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
+
+## v0.19.3-beta [2026/11/23]
+
+### Fixed
+
+- A handoff to a neighbouring center's sector (`J30` from Tampa) now reaches the scenario's controller working that sector.
+- Loading a scenario no longer warns about a neighbouring center vNAS has no config for, such as ZWY.
 
 ## v0.19.2-beta [2026/11/22]
 
