@@ -20,6 +20,7 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
+- A handoff to a neighbouring center's sector (`J30` from Tampa) now reaches the scenario's controller working that sector.
 - The Follow traffic menu now offers traffic a VFR aircraft has reported in sight, instead of greying it out.
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.
