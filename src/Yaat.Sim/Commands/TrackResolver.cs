@@ -1,3 +1,4 @@
+using System.Globalization;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -90,8 +91,38 @@ public static class TrackResolver
         }
 
         return artccConfig.ResolveEramToStarsHandoffCode(tcpCode)
-            ?? artccConfig.ResolveEramToNeighborCenterHandoffCode(tcpCode)
+            ?? RosterCenterSector(scenario, artccConfig.ResolveEramToNeighborCenterHandoffCode(tcpCode))
             ?? ResolvePositionName(artccConfig, tcpCode, facilityHint);
+    }
+
+    /// <summary>
+    /// The scenario ATC position working <paramref name="sector"/>'s center and sector under its own callsign (ZJX sector
+    /// 30 is <c>JAX_30_CTR</c>), else <paramref name="sector"/> itself: a neighbouring center's sector resolves to a
+    /// made-up callsign, which would never match the position the scenario created for it.
+    /// </summary>
+    private static TrackOwner? RosterCenterSector(SimScenarioState scenario, TrackOwner? sector)
+    {
+        if (sector is null)
+        {
+            return null;
+        }
+
+        foreach (ResolvedAtcPosition atc in scenario.AtcPositions)
+        {
+            TrackOwner owner = atc.Owner;
+            if (
+                (owner.OwnerType == TrackOwnerType.Eram)
+                && string.Equals(owner.FacilityId, sector.FacilityId, StringComparison.OrdinalIgnoreCase)
+                && (int.TryParse(owner.SectorId, NumberStyles.None, CultureInfo.InvariantCulture, out int rosterSector))
+                && (int.TryParse(sector.SectorId, NumberStyles.None, CultureInfo.InvariantCulture, out int typedSector))
+                && (rosterSector == typedSector)
+            )
+            {
+                return owner;
+            }
+        }
+
+        return sector;
     }
 
     /// <summary>

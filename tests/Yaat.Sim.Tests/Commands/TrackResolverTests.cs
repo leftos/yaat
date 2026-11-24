@@ -288,6 +288,36 @@ public class TrackResolverTests
     }
 
     [Fact]
+    public void ResolveTcpToOwner_NeighbourCenterCode_NamesTheScenarioPositionWorkingThatSector()
+    {
+        if (_zoa is null)
+        {
+            return;
+        }
+
+        // A scenario's ATC roster can work a neighbouring center's sector under its real callsign (ZJX sector 30 is
+        // JAX_30_CTR): a handoff typed as that center's letter and sector goes to that position, not a made-up one.
+        ArtccConfigRoot zoa = JsonSerializer.Deserialize<ArtccConfigRoot>(JsonSerializer.Serialize(_zoa))!;
+        zoa.NeighborCenterNasIds["ZLA"] = "L";
+        var rosterZla25 = TrackOwner.CreateEram("LAX_25_CTR", "ZLA", "25");
+        SimScenarioState scenario = Scenario(
+            NctApproach(),
+            null,
+            zoa,
+            new ResolvedAtcPosition
+            {
+                Source = new ScenarioAtc { Id = "LAX_25_CTR" },
+                Owner = rosterZla25,
+                Tcp = null,
+            }
+        );
+
+        Assert.Equal(rosterZla25, TrackResolver.ResolveTcpToOwner(scenario, "L25", facilityHint: null));
+        Assert.Equal(rosterZla25, TrackResolver.ResolveTcpToOwner(scenario, "L025", facilityHint: null));
+        Assert.Equal(TrackOwner.CreateEram("ZLA_26_CTR", "ZLA", "26"), TrackResolver.ResolveTcpToOwner(scenario, "L26", facilityHint: null));
+    }
+
+    [Fact]
     public void ResolveTcpToOwner_NoConfig_UnknownCodeIsNull()
     {
         SimScenarioState scenario = Scenario(TrackOwner.CreateStars("OAK_TWR", "OAK", 3, "O"), new Tcp(3, "O", "tcp-3o", null), config: null);
