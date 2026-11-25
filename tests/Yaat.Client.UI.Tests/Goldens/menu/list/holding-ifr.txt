@@ -3,6 +3,7 @@ AAL205 · B738 [disabled]
 Holding · 5,000 ft · 180 kt · KOAK rwy 30 [disabled]
 ---
 strip row 1: Approach: approach.cleared | Pilot reports: approach.report-field-in-sight | Vectors: navigation.direct-to altitude.maintain | Pattern: pattern.enter-final
+Ident alias:IDENT
 ---
 Command…
 Note…

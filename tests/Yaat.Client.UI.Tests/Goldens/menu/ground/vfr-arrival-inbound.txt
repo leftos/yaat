@@ -4,6 +4,7 @@ N303AB · C172 [disabled]
 ---
 strip row 1: Pattern: pattern.enter-left-downwind pattern.enter-right-downwind pattern.enter-left-base pattern.enter-right-base pattern.enter-final pattern.follow
 strip row 2: Pilot reports: approach.report-when | Vectors: altitude.vfr
+Ident alias:IDENT
 ---
 Command…
 Note…

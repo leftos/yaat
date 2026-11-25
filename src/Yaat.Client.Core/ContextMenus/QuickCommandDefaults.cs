@@ -9,11 +9,13 @@ namespace Yaat.Client.ContextMenus;
 /// view's display item. <see cref="AircraftSituation.Unknown"/> has no list, so an unclassified aircraft shows no quick
 /// commands. Every list but <see cref="AircraftSituation.LiveTraffic"/>'s (a shadow track takes no command) opens with
 /// Squawk assigned code, and every ground one with Squawk normal before it: each shows only while the transponder needs it,
-/// and is then the first call. Accept handoff, Cancel handoff and Acknowledge pointout follow Squawk assigned code in each
-/// of those lists: each shows only while its handoff or pointout is to (Accept, Acknowledge) or from (Cancel) the position
-/// the client acts as. <c>UserPreferences</c> inserts the three into stored lists once, at preferences version 2. Every
-/// list that carries Maintain altitude lists it IFR only with Altitude… (VFR only) right after it, and the Pattern, Final and
-/// VFR arrival inbound lists carry Altitude… just before Land; preferences version 3 brings stored lists the same rows.
+/// and is then the first call. Every airborne list carries Ident right after Squawk assigned code, shown only while no
+/// position owns the track. Accept handoff, Cancel handoff and Acknowledge pointout follow those rows in each of those
+/// lists: each shows only while its handoff or pointout is to (Accept, Acknowledge) or from (Cancel) the position
+/// the client acts as. <c>UserPreferences</c> inserts the three into stored lists once, at preferences version 2, and
+/// Ident at version 5. Every list that carries Maintain altitude lists it IFR only with Altitude… (VFR only) right after
+/// it, and the Pattern, Final and VFR arrival inbound lists carry Altitude… just before Land; preferences version 3 brings
+/// stored lists the same rows.
 /// </summary>
 public static class QuickCommandDefaults
 {
@@ -107,6 +109,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Departing] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -121,6 +124,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.IfrEnroute] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -137,6 +141,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.IfrArrival] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -154,6 +159,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.VfrFlightFollowing] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -168,6 +174,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Approach] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -186,6 +193,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Holding] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -206,6 +214,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Pattern] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -227,6 +236,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.Final] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -259,6 +269,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.GoAround] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -277,6 +288,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.VfrArrivalInbound] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),
@@ -294,6 +306,7 @@ public static class QuickCommandDefaults
             [AircraftSituation.VfrDeparting] =
             [
                 Entry(MenuIds.SquawkAssigned),
+                Entry(MenuIds.SquawkIdent),
                 Entry(MenuIds.TrackAcceptHandoff),
                 Entry(MenuIds.TrackCancelHandoff),
                 Entry(MenuIds.TrackAcknowledgePointout),

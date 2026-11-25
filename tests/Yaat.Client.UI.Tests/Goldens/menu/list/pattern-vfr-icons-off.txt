@@ -19,6 +19,8 @@ Make short approach alias:SA
 Make left 360 alias:L360
 Make right 360 alias:R360
 Turn base alias:TB
+Track and coordination [disabled]
+Ident alias:IDENT
 ---
 Command…
 Note…

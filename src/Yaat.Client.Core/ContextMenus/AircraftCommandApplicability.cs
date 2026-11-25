@@ -679,6 +679,13 @@ public static class AircraftCommandApplicability
     public static bool ShowsSquawkAssigned(IMenuAircraft? ac) => ac is not null && TryGetSquawkMismatch(ac, out _, out _);
 
     /// <summary>
+    /// Ident shows in the quick list while no STARS or ERAM position tracks the aircraft: no owner and no owner sector code
+    /// (<see cref="IsOwned"/> false). Once a position owns the track, All Commands keeps the entry and the quick list
+    /// leaves it out; a missing aircraft shows nothing.
+    /// </summary>
+    public static bool ShowsIdentWhenUntracked(IMenuAircraft? ac) => (ac is not null) && (!IsOwned(ac));
+
+    /// <summary>
     /// Whether the aircraft has a beacon code assigned, so bare <c>SQ</c> has a code to reset to; without one it would
     /// squawk 0000.
     /// </summary>

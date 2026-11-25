@@ -9,6 +9,7 @@ Follow alias:FOLLOW
 ---
 For AAL601 [disabled]
 strip row 1: Runway: tower.cleared-to-land tower.go-around | Vectors: speed.final-approach
+Ident alias:IDENT
 ---
 Command…
 Note…

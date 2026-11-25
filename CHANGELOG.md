@@ -12,6 +12,7 @@
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 - Solo: a pattern entry, approach or `PTAC` clearance whose path enters an uncleared Class B is read back "that'll take us into the bravo, request bravo clearance".
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
+- Quick commands offer Ident for an airborne aircraft no STARS or ERAM facility tracks yet.
 
 ### Changed
 

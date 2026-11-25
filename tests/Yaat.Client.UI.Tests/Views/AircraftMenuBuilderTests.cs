@@ -37,6 +37,7 @@ public class AircraftMenuBuilderTests
                 "Final · 1,500 ft · 180 kt · KOAK rwy 30",
                 "---",
                 StripRow,
+                "Ident",
                 "---",
                 Label(MenuIds.AircraftCommand),
                 Label(MenuIds.AircraftNote),
@@ -537,10 +538,11 @@ public class AircraftMenuBuilderTests
                 "---",
                 "For AAL601",
                 StripRow,
+                "Ident",
                 "---",
                 Label(MenuIds.AircraftCommand),
             ],
-            items[2..12]
+            items[2..13]
         );
     }
 

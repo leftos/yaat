@@ -469,6 +469,27 @@ public class QuickCommandVisibilityRulesTests
         Assert.Equal(shown, Shows(aircraft, MenuIds.SquawkAssigned, VfrCommandsForIfr.None));
     }
 
+    /// <summary>
+    /// Ident shows in the quick list only while no STARS or ERAM position owns the aircraft's track: an owner, or an owner
+    /// sector code alone, refers to one and hides it.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, true)]
+    [InlineData(null, "", true)]
+    [InlineData("NCT_2C", "", false)]
+    [InlineData("", "2C", false)]
+    public void SquawkIdent_ShowsOnlyForAnUntrackedAircraft(string? owner, string? sectorCode, bool shown)
+    {
+        AircraftModel aircraft = Aircraft(AircraftSituation.IfrEnroute, "", onGround: false, "IFR");
+        aircraft.Owner = owner;
+        aircraft.OwnerSectorCode = sectorCode;
+        Assert.Equal(shown, Shows(aircraft, MenuIds.SquawkIdent, VfrCommandsForIfr.None));
+    }
+
+    /// <summary>Ident hides for a missing aircraft, as every rule does: the resolver never sees one, the rule answers false.</summary>
+    [Fact]
+    public void SquawkIdent_HidesForAMissingAircraft() => Assert.False(AircraftCommandApplicability.ShowsIdentWhenUntracked(null));
+
     // --- Track and coordination: Accept, Cancel and Acknowledge by direction against the acting position ---
 
     private static readonly IReadOnlyList<QuickCommandEntry> TrackRowList =

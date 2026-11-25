@@ -123,7 +123,7 @@ public sealed partial class UserPreferences
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
-    internal const int CurrentPreferencesVersion = 4;
+    internal const int CurrentPreferencesVersion = 5;
 
     /// <summary>The old Radar view's primary window key and extra-window key prefix, read only by the v4 migration.</summary>
     private const string RadarViewKey = "RadarView";
@@ -147,6 +147,22 @@ public sealed partial class UserPreferences
         MenuIds.TrackAcceptHandoff,
         MenuIds.TrackCancelHandoff,
         MenuIds.TrackAcknowledgePointout,
+    ];
+
+    /// <summary>The situations whose default quick list carries Ident: every airborne one, so no ground or Live traffic list gains it.</summary>
+    private static readonly AircraftSituation[] IdentSituations =
+    [
+        AircraftSituation.Departing,
+        AircraftSituation.IfrEnroute,
+        AircraftSituation.IfrArrival,
+        AircraftSituation.VfrFlightFollowing,
+        AircraftSituation.Approach,
+        AircraftSituation.Holding,
+        AircraftSituation.Pattern,
+        AircraftSituation.Final,
+        AircraftSituation.GoAround,
+        AircraftSituation.VfrArrivalInbound,
+        AircraftSituation.VfrDeparting,
     ];
 
     /// <summary>
@@ -208,6 +224,8 @@ public sealed partial class UserPreferences
     /// v2 → v3: every stored quick-command list but Live traffic's gains Altitude… for VFR aircraft
     /// (<see cref="InsertVfrAltitudeRows"/>). v3 → v4: every saved layout's Radar window rows become Scope window rows
     /// (<see cref="MigrateRadarWindows"/>), and so do the window-geometry store's (<see cref="MigrateTopLevelRadarWindows"/>).
+    /// v4 → v5: every stored quick-command list of an airborne situation gains Ident after its squawk rows
+    /// (<see cref="InsertIdentRow"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -248,6 +266,12 @@ public sealed partial class UserPreferences
 
             bool storeChanged = MigrateTopLevelRadarWindows();
             LogMigratedToV4(fromVersion, changed, storeChanged);
+        }
+
+        if (fromVersion < 5)
+        {
+            int changed = InsertIdentRow();
+            LogMigratedToV5(fromVersion, changed);
         }
 
         _data.PreferencesVersion = CurrentPreferencesVersion;
@@ -306,6 +330,15 @@ public sealed partial class UserPreferences
                 changed,
                 storeChanged
             );
+        }
+    }
+
+    /// <summary>Logs at Information the v5 migration and how many stored lists gained the Ident row.</summary>
+    private static void LogMigratedToV5(int fromVersion, int changed)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Preferences v{From} → v5: Ident quick command added to {Count} stored list(s)", fromVersion, changed);
         }
     }
 
@@ -549,6 +582,27 @@ public sealed partial class UserPreferences
             entries.Insert(at++, new CatalogQuickCommandEntry(id, null));
         }
 
+        return entries;
+    }
+
+    /// <summary>
+    /// Brings Ident to each stored list of an airborne situation that does not hold it yet, after the list's last squawk
+    /// entry (Squawk assigned code or Squawk normal), else last. A ground or Live traffic list, and one already holding
+    /// Ident, is left alone. A list that then equals its default stops being stored.
+    /// </summary>
+    /// <returns>How many stored lists gained the row.</returns>
+    private int InsertIdentRow() => RewriteStoredLists(WithIdentRow);
+
+    private static List<QuickCommandEntry> WithIdentRow(AircraftSituation situation, IReadOnlyList<QuickCommandEntry> stored)
+    {
+        List<QuickCommandEntry> entries = [.. stored];
+        if ((!IdentSituations.Contains(situation)) || (IndexOfCatalogEntry(entries, MenuIds.SquawkIdent) >= 0))
+        {
+            return entries;
+        }
+
+        int lastSquawk = Math.Max(IndexOfCatalogEntry(entries, MenuIds.SquawkAssigned), IndexOfCatalogEntry(entries, MenuIds.SquawkNormal));
+        entries.Insert((lastSquawk >= 0) ? lastSquawk + 1 : entries.Count, new CatalogQuickCommandEntry(MenuIds.SquawkIdent, null));
         return entries;
     }
 

@@ -3,6 +3,7 @@ N301AB · C172 [disabled]
 Departure · 1,500 ft · 90 kt · KOAK rwy 28R [disabled]
 ---
 strip row 1: Vectors: heading.fly altitude.vfr navigation.direct-to speed.assign
+Ident alias:IDENT
 ---
 Command…
 Note…

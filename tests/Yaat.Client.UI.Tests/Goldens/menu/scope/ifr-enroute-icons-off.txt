@@ -16,6 +16,8 @@ Cross fix… alias:CFIX
 Approach [disabled]
 Hold at fix… alias:HOLDP
   hold at fix flyout
+Track and coordination [disabled]
+Ident alias:IDENT
 ---
 Command…
 Note…

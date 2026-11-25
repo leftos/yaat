@@ -90,18 +90,19 @@ public class QuickCommandDefaultsTests
     ];
 
     /// <summary>
-    /// Accept handoff, Cancel handoff and Acknowledge pointout follow Squawk assigned code in every list that takes commands,
-    /// in that order; each shows only while its handoff or pointout concerns the acting position.
+    /// Accept handoff, Cancel handoff and Acknowledge pointout follow the squawk rows and Ident in every list that takes
+    /// commands, in that order; each shows only while its handoff or pointout concerns the acting position.
     /// </summary>
     [Theory]
     [MemberData(nameof(CommandableSituations))]
     public void DefaultList_CarriesTheTrackCoordinationRowsAfterSquawk(AircraftSituation situation)
     {
         List<string> ids = [.. QuickCommandDefaults.For(situation).Select(CatalogId)];
-        int squawk = ids.IndexOf(MenuIds.SquawkAssigned);
+        int anchor = Math.Max(ids.IndexOf(MenuIds.SquawkAssigned), ids.IndexOf(MenuIds.SquawkNormal));
+        anchor = Math.Max(anchor, ids.IndexOf(MenuIds.SquawkIdent));
 
-        Assert.Equal(TrackCoordinationIds, ids.Skip(squawk + 1).Take(3));
-        Assert.All(QuickCommandDefaults.For(situation).Skip(squawk + 1).Take(3), entry => Assert.Null(((CatalogQuickCommandEntry)entry).FlightRules));
+        Assert.Equal(TrackCoordinationIds, ids.Skip(anchor + 1).Take(3));
+        Assert.All(QuickCommandDefaults.For(situation).Skip(anchor + 1).Take(3), entry => Assert.Null(((CatalogQuickCommandEntry)entry).FlightRules));
     }
 
     [Fact]
@@ -111,6 +112,45 @@ public class QuickCommandDefaultsTests
 
         Assert.Empty(ids.Intersect(TrackCoordinationIds));
     }
+
+    /// <summary>
+    /// The situations whose default list carries Ident, right after the squawk rows: every airborne one. A ground list and
+    /// Live traffic's leave it out.
+    /// </summary>
+    private static readonly AircraftSituation[] IdentSituations =
+    [
+        AircraftSituation.Departing,
+        AircraftSituation.IfrEnroute,
+        AircraftSituation.IfrArrival,
+        AircraftSituation.VfrFlightFollowing,
+        AircraftSituation.Approach,
+        AircraftSituation.Holding,
+        AircraftSituation.Pattern,
+        AircraftSituation.Final,
+        AircraftSituation.GoAround,
+        AircraftSituation.VfrArrivalInbound,
+        AircraftSituation.VfrDeparting,
+    ];
+
+    public static TheoryData<AircraftSituation> IdentSituationsData() => [.. IdentSituations];
+
+    public static TheoryData<AircraftSituation> SituationsWithoutIdent() => [.. GroundSituations, AircraftSituation.LiveTraffic];
+
+    [Theory]
+    [MemberData(nameof(IdentSituationsData))]
+    public void DefaultList_ListsIdentRightAfterTheSquawkRows(AircraftSituation situation)
+    {
+        List<string> ids = [.. QuickCommandDefaults.For(situation).Select(CatalogId)];
+        int squawk = Math.Max(ids.IndexOf(MenuIds.SquawkAssigned), ids.IndexOf(MenuIds.SquawkNormal));
+
+        Assert.True(squawk >= 0, $"{situation} lists no squawk row");
+        Assert.Equal(MenuIds.SquawkIdent, ids[squawk + 1]);
+    }
+
+    [Theory]
+    [MemberData(nameof(SituationsWithoutIdent))]
+    public void DefaultList_OmitsIdentOnTheGroundAndForLiveTraffic(AircraftSituation situation) =>
+        Assert.DoesNotContain(MenuIds.SquawkIdent, Ids(situation));
 
     /// <summary>
     /// The three Track and coordination glyphs are the approved mock's (<c>docs/plans/canvases/quick-cmd-altitude</c>, lane
@@ -192,12 +232,16 @@ public class QuickCommandDefaultsTests
         Assert.Empty(missing);
     }
 
+    /// <summary>Every default quick command carries a glyph; Ident is the one text row, listed below the strip.</summary>
     [Theory]
     [MemberData(nameof(ClassifiedSituations))]
-    public void EveryDefaultQuickCommand_HasAGlyph(AircraftSituation situation)
+    public void EveryDefaultQuickCommandButIdent_HasAGlyph(AircraftSituation situation)
     {
-        List<string> missing = [.. Ids(situation).Where(id => !QuickCommandGlyphs.ById.ContainsKey(id))];
-        Assert.True(missing.Count == 0, $"{situation} default quick commands with no glyph: {string.Join(", ", missing)}");
+        List<string> glyphless = [.. Ids(situation).Where(id => !QuickCommandGlyphs.ById.ContainsKey(id))];
+        Assert.True(
+            glyphless.All(id => id == MenuIds.SquawkIdent),
+            $"{situation} default quick commands with no glyph but Ident: {string.Join(", ", glyphless)}"
+        );
     }
 
     [AvaloniaFact]

@@ -196,7 +196,7 @@ public class UserPreferencesRadarMigrationTests
         string firstLayouts = JsonSerializer.Serialize(first.Layouts);
 
         JsonNode saved = JsonNode.Parse(File.ReadAllText(PreferencesPath))!;
-        Assert.Equal(4, saved["preferencesVersion"]!.GetValue<int>());
+        Assert.Equal(UserPreferences.CurrentPreferencesVersion, saved["preferencesVersion"]!.GetValue<int>());
         Assert.Null(saved["radarViewWindowGeometry"]);
         Assert.DoesNotContain(GeometryKeys(saved["windowGeometries"]), k => k.StartsWith("RadarView", StringComparison.Ordinal));
         foreach (JsonNode? layout in saved["layouts"]!.AsArray())
@@ -447,7 +447,7 @@ public class UserPreferencesRadarMigrationTests
     }
 
     [Fact]
-    public void FileWithNoRadarFields_IsUnchanged_AndVersionIsFour()
+    public void FileWithNoRadarFields_IsUnchanged_AndVersionIsCurrent()
     {
         WriteV3File(
             new JsonObject
@@ -466,7 +466,10 @@ public class UserPreferencesRadarMigrationTests
         Assert.Equal(["ScopeView", "ScopeView#2"], layout.WindowGeometries.Keys.Order(StringComparer.Ordinal));
         AssertGeometry(layout.WindowGeometries["ScopeView"], 1, 1, 111, 111);
         AssertGeometry(layout.WindowGeometries["ScopeView#2"], 2, 2, 222, 222);
-        Assert.Equal(4, JsonNode.Parse(File.ReadAllText(PreferencesPath))!["preferencesVersion"]!.GetValue<int>());
+        Assert.Equal(
+            UserPreferences.CurrentPreferencesVersion,
+            JsonNode.Parse(File.ReadAllText(PreferencesPath))!["preferencesVersion"]!.GetValue<int>()
+        );
     }
 
     [Fact]

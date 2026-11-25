@@ -8,10 +8,11 @@ using Yaat.Sim.Situation;
 namespace Yaat.Client.Tests;
 
 /// <summary>
-/// Pins the preferences v1 → v2 migration of the stored quick-command lists: Accept handoff, Cancel handoff and Acknowledge
+/// Pins the preferences migrations of the stored quick-command lists: Accept handoff, Cancel handoff and Acknowledge
 /// pointout are inserted once into every stored list but Live traffic's, after Squawk assigned code (else Squawk normal,
-/// else first), and never twice. Tests share the per-process preferences.json as <see cref="QuickCommandStorageTests"/>
-/// does, writing a file at <c>"preferencesVersion": 1</c>, and each test resets every stored list when it ends.
+/// else first), and never twice; Altitude… follows at version 3; Ident follows the squawk rows in an airborne list at
+/// version 5. Tests share the per-process preferences.json as <see cref="QuickCommandStorageTests"/> does, writing a file
+/// at a version below the current one, and each test resets every stored list when it ends.
 /// </summary>
 public class QuickCommandMigrationTests : IDisposable
 {
@@ -65,7 +66,10 @@ public class QuickCommandMigrationTests : IDisposable
         var prefs = new UserPreferences();
 
         Assert.Equal([SquawkNormal, Accept, Cancel, Acknowledge, HoldPosition], prefs.GetQuickCommandList(AircraftSituation.Taxiing));
-        Assert.Equal([Accept, Cancel, Acknowledge, Catalog(MenuIds.TowerGoAround), VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Final));
+        Assert.Equal(
+            [Accept, Cancel, Acknowledge, Catalog(MenuIds.TowerGoAround), VfrAltitude, Catalog(MenuIds.SquawkIdent)],
+            prefs.GetQuickCommandList(AircraftSituation.Final)
+        );
     }
 
     // --- v2 → v3: Altitude… for VFR aircraft -------------------------------------------------------
@@ -80,19 +84,23 @@ public class QuickCommandMigrationTests : IDisposable
 
         var prefs = new UserPreferences();
 
-        Assert.Equal([SquawkAssigned, IfrMaintain, VfrAltitude, Catalog(MenuIds.HeadingFly)], prefs.GetQuickCommandList(AircraftSituation.Departing));
+        Assert.Equal(
+            [SquawkAssigned, Catalog(MenuIds.SquawkIdent), IfrMaintain, VfrAltitude, Catalog(MenuIds.HeadingFly)],
+            prefs.GetQuickCommandList(AircraftSituation.Departing)
+        );
         Assert.Equal(UserPreferences.CurrentPreferencesVersion, StoredVersion());
     }
 
+    /// <summary>A list already holding Altitude… gains no second one; Ident goes last, the list holding no squawk row.</summary>
     [Fact]
-    public void V2StoredListAlreadyHoldingAltitude_IsUntouched()
+    public void V2StoredListAlreadyHoldingAltitude_KeepsItOnce()
     {
         InjectLists(2, $$"""{ "Departing": [ {{Json(MenuIds.AltitudeMaintain)}}, {{Json(MenuIds.AltitudeVfr)}}, {{Json(MenuIds.HeadingFly)}} ] }""");
 
         var prefs = new UserPreferences();
 
         Assert.Equal(
-            [Catalog(MenuIds.AltitudeMaintain), Catalog(MenuIds.AltitudeVfr), Catalog(MenuIds.HeadingFly)],
+            [Catalog(MenuIds.AltitudeMaintain), Catalog(MenuIds.AltitudeVfr), Catalog(MenuIds.HeadingFly), Catalog(MenuIds.SquawkIdent)],
             prefs.GetQuickCommandList(AircraftSituation.Departing)
         );
     }
@@ -114,10 +122,10 @@ public class QuickCommandMigrationTests : IDisposable
         var prefs = new UserPreferences();
 
         Assert.Equal(
-            [Catalog(MenuIds.TowerClearedToLand), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter)],
+            [Catalog(MenuIds.TowerClearedToLand), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter), Catalog(MenuIds.SquawkIdent)],
             prefs.GetQuickCommandList(AircraftSituation.Pattern)
         );
-        Assert.Equal([Catalog(MenuIds.TowerGoAround), VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Final));
+        Assert.Equal([Catalog(MenuIds.TowerGoAround), VfrAltitude, Catalog(MenuIds.SquawkIdent)], prefs.GetQuickCommandList(AircraftSituation.Final));
     }
 
     /// <summary>A Maintain altitude the user restricted to VFR keeps its override, and the list gains no Altitude… after it.</summary>
@@ -139,7 +147,7 @@ public class QuickCommandMigrationTests : IDisposable
         var prefs = new UserPreferences();
 
         Assert.Equal(
-            [SquawkAssigned, new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.VfrOnly)],
+            [SquawkAssigned, Catalog(MenuIds.SquawkIdent), new CatalogQuickCommandEntry(MenuIds.AltitudeMaintain, MenuFlightRules.VfrOnly)],
             prefs.GetQuickCommandList(AircraftSituation.Departing)
         );
     }
@@ -152,7 +160,7 @@ public class QuickCommandMigrationTests : IDisposable
         var prefs = new UserPreferences();
 
         Assert.Equal(
-            [Catalog(MenuIds.PatternFollow), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter)],
+            [Catalog(MenuIds.PatternFollow), VfrAltitude, Catalog(MenuIds.GroundLandHelicopter), Catalog(MenuIds.SquawkIdent)],
             prefs.GetQuickCommandList(AircraftSituation.VfrArrivalInbound)
         );
     }
@@ -194,6 +202,35 @@ public class QuickCommandMigrationTests : IDisposable
         );
     }
 
+    // --- v4 → v5: Ident for an aircraft no position tracks -----------------------------------------
+
+    [Fact]
+    public void V4StoredIfrEnrouteList_GainsIdentAfterItsSquawkRows()
+    {
+        InjectLists(4, $$"""{ "IfrEnroute": [ {{Json(MenuIds.SquawkAssigned)}}, {{Json(MenuIds.HeadingFly)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [SquawkAssigned, Catalog(MenuIds.SquawkIdent), Catalog(MenuIds.HeadingFly)],
+            prefs.GetQuickCommandList(AircraftSituation.IfrEnroute)
+        );
+        Assert.Equal(UserPreferences.CurrentPreferencesVersion, StoredVersion());
+    }
+
+    [Fact]
+    public void V4StoredListAlreadyHoldingIdent_IsUntouched()
+    {
+        InjectLists(4, $$"""{ "IfrEnroute": [ {{Json(MenuIds.SquawkAssigned)}}, {{Json(MenuIds.SquawkIdent)}}, {{Json(MenuIds.HeadingFly)}} ] }""");
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(
+            [SquawkAssigned, Catalog(MenuIds.SquawkIdent), Catalog(MenuIds.HeadingFly)],
+            prefs.GetQuickCommandList(AircraftSituation.IfrEnroute)
+        );
+    }
+
     [Fact]
     public void V1File_RunsBothMigrations()
     {
@@ -201,7 +238,10 @@ public class QuickCommandMigrationTests : IDisposable
 
         var prefs = new UserPreferences();
 
-        Assert.Equal([SquawkAssigned, Accept, Cancel, Acknowledge, IfrMaintain, VfrAltitude], prefs.GetQuickCommandList(AircraftSituation.Departing));
+        Assert.Equal(
+            [SquawkAssigned, Catalog(MenuIds.SquawkIdent), Accept, Cancel, Acknowledge, IfrMaintain, VfrAltitude],
+            prefs.GetQuickCommandList(AircraftSituation.Departing)
+        );
     }
 
     [Fact]
