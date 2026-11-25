@@ -61,6 +61,7 @@ public class SplitBlockPreservationTests : IDisposable
         ["TrackApplied"] = "copied",
         ["WaitingForRelease"] = "copied",
         ["IsApplied"] = "copied",
+        ["IsPassed"] = "copied",
         ["TriggerMet"] = "copied",
         ["TriggerCrossingObserved"] = "copied",
         ["TriggerTerminatorObserved"] = "copied",

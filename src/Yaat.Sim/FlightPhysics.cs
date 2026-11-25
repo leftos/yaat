@@ -4707,7 +4707,7 @@ public static class FlightPhysics
 
             if (block.ReadyToAdvance)
             {
-                queue.CurrentBlockIndex++;
+                block.IsPassed = true;
                 block = queue.CurrentBlock;
                 if (block is null)
                 {
@@ -5719,10 +5719,6 @@ public static class FlightPhysics
             if (index >= 0)
             {
                 queue.Blocks.RemoveAt(index);
-                if (queue.CurrentBlockIndex > index)
-                {
-                    queue.CurrentBlockIndex--;
-                }
             }
 
             string src = !string.IsNullOrEmpty(block.SourceCommandText)
@@ -5734,11 +5730,6 @@ public static class FlightPhysics
                 warning += $" — rest of transmission discarded ({discarded.Count}): {string.Join("; ", discarded)}";
             }
             aircraft.PendingWarnings.Add(warning);
-        }
-
-        if (queue.CurrentBlockIndex > queue.Blocks.Count)
-        {
-            queue.CurrentBlockIndex = queue.Blocks.Count;
         }
     }
 

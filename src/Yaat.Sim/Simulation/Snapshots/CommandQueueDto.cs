@@ -7,6 +7,9 @@ namespace Yaat.Sim.Simulation.Snapshots;
 public sealed class CommandQueueDto
 {
     public required List<CommandBlockDto> Blocks { get; init; }
+
+    // Written as the index of the first block not passed (CommandBlockDto.IsPassed); an older snapshot carries only this,
+    // and every block ahead of it restores as passed.
     public required int CurrentBlockIndex { get; init; }
 
     // The aircraft's transmission counter. Additive, no schema bump: 0 (omitted) before its first transmission and in
@@ -60,6 +63,11 @@ public sealed class CommandBlockDto
     // Additive, no schema bump: 0 (omitted) in older snapshots.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int TransmissionId { get; init; }
+
+    // Whether the queue has advanced past this block. Additive, no schema bump: false (omitted) in older snapshots, which
+    // restore the blocks ahead of CommandQueueDto.CurrentBlockIndex as passed.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsPassed { get; init; }
 
     // The runways a CROSS earlier in that transmission cleared, which a takeoff or line-up clearance here crosses on its
     // implicit taxi. Additive, no schema bump: null (omitted) in older snapshots.

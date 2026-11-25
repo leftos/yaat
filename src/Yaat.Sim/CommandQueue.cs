@@ -190,6 +190,13 @@ public class CommandBlock
     public List<TrackedCommand> Commands { get; init; } = [];
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
+
+    /// <summary>
+    /// Whether the queue has advanced past this block: set when the block was ready to advance at the head of the
+    /// queue, and never cleared. <see cref="CommandQueue.CurrentBlockIndex"/> is the first block without it.
+    /// </summary>
+    public bool IsPassed { get; set; }
+
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
 
     /// <summary>
@@ -401,6 +408,7 @@ public class CommandBlock
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
+            IsPassed = IsPassed,
             CrossingsClearedInTransmission = CrossingsClearedInTransmission is { } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = CrossFeedsFollowingClearance,
         };
@@ -428,6 +436,7 @@ public class CommandBlock
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
+            IsPassed = dto.IsPassed,
             CrossingsClearedInTransmission = dto.CrossingsClearedInTransmission is { Count: > 0 } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = dto.CrossFeedsFollowingClearance,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
@@ -451,7 +460,6 @@ public class CommandQueue
     /// <summary>
     /// Queues <paramref name="followUp"/> directly behind <see cref="Applying"/>, ahead of the later blocks of its chain, so
     /// the next block waits on the follow-on; appends when no block is applying or the applying block is not in the queue.
-    /// A cursor past the applying block moves with the block it points at.
     /// </summary>
     internal void InsertFollowUp(CommandBlock followUp)
     {
@@ -463,17 +471,31 @@ public class CommandQueue
         }
 
         Blocks.Insert(index + 1, followUp);
-        if (CurrentBlockIndex > index)
+    }
+
+    /// <summary>
+    /// The index of the first block the queue has not advanced past (<see cref="CommandBlock.IsPassed"/> false), or
+    /// <c>Blocks.Count</c> when every block is passed. Derived, so inserting or removing blocks needs no fix-up.
+    /// </summary>
+    public int CurrentBlockIndex
+    {
+        get
         {
-            CurrentBlockIndex++;
+            for (int i = 0; i < Blocks.Count; i++)
+            {
+                if (!Blocks[i].IsPassed)
+                {
+                    return i;
+                }
+            }
+
+            return Blocks.Count;
         }
     }
 
-    public int CurrentBlockIndex { get; set; }
+    public CommandBlock? CurrentBlock => CurrentBlockIndex is int index && index < Blocks.Count ? Blocks[index] : null;
 
-    public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;
-
-    public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
+    public bool IsComplete => Blocks.TrueForAll(b => b.IsPassed);
 
     /// <summary>
     /// The id of the last accepted transmission to this aircraft (0 before the first); every dispatched transmission takes
@@ -526,11 +548,6 @@ public class CommandQueue
             cmd.IsComplete = true;
         }
 
-        if (CurrentBlockIndex > Blocks.Count)
-        {
-            CurrentBlockIndex = Blocks.Count;
-        }
-
         return discarded;
     }
 
@@ -544,10 +561,13 @@ public class CommandQueue
 
     public static CommandQueue FromSnapshot(CommandQueueDto dto)
     {
-        var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex, LastTransmissionId = dto.LastTransmissionId };
-        foreach (CommandBlockDto blockDto in dto.Blocks)
+        var queue = new CommandQueue { LastTransmissionId = dto.LastTransmissionId };
+        for (int i = 0; i < dto.Blocks.Count; i++)
         {
-            queue.Blocks.Add(CommandBlock.FromSnapshot(blockDto));
+            var block = CommandBlock.FromSnapshot(dto.Blocks[i]);
+            // A snapshot from before the per-block flag carries only the cursor: every block ahead of it was passed.
+            block.IsPassed = dto.Blocks[i].IsPassed || (i < dto.CurrentBlockIndex);
+            queue.Blocks.Add(block);
         }
         return queue;
     }

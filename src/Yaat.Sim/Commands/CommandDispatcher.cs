@@ -789,7 +789,6 @@ public static class CommandDispatcher
                 {
                     // First block failed — clear the queue and propagate the failure
                     aircraft.Queue.Blocks.Clear();
-                    aircraft.Queue.CurrentBlockIndex = 0;
                     return applyResult;
                 }
 
@@ -2109,15 +2108,12 @@ public static class CommandDispatcher
     /// <c>CROSS 28R; DEL</c>, <c>AT FIXIE DEL</c>. Leaving one behind is not a cosmetic miss: when it
     /// eventually fires it raises <see cref="AircraftGroundOps.PendingAutoDelete"/>, which deliberately
     /// bypasses the <see cref="AircraftGroundOps.AutoDeleteExempt"/> flag NODEL just set, so the
-    /// aircraft would disappear despite the cancel. Blocks removed from before the cursor pull
-    /// <see cref="CommandQueue.CurrentBlockIndex"/> back with them so it keeps pointing at the same
-    /// logical block.
+    /// aircraft would disappear despite the cancel.
     /// </summary>
     private static int RemoveQueuedDeleteBlocks(AircraftState aircraft)
     {
         CommandQueue queue = aircraft.Queue;
         var removed = new List<CommandBlock>();
-        int removedBeforeCursor = 0;
 
         for (int i = queue.Blocks.Count - 1; i >= 0; i--)
         {
@@ -2128,13 +2124,8 @@ public static class CommandDispatcher
 
             removed.Add(queue.Blocks[i]);
             queue.Blocks.RemoveAt(i);
-            if (i < queue.CurrentBlockIndex)
-            {
-                removedBeforeCursor++;
-            }
         }
 
-        queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
         return removed.Count;
     }
 
@@ -4727,8 +4718,8 @@ public static class CommandDispatcher
             && ((incomingDimensions & CommandDimension.AllAirborne) == CommandDimension.AllAirborne || incomingDimensions == CommandDimension.None)
         )
         {
-            int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);
-            for (int i = fastStart; i < queue.Blocks.Count; i++)
+            // Every passed block was applied, so scanning from the start reports exactly the unapplied blocks.
+            for (int i = 0; i < queue.Blocks.Count; i++)
             {
                 if (!queue.Blocks[i].IsApplied)
                 {
@@ -4736,7 +4727,6 @@ public static class CommandDispatcher
                 }
             }
             queue.Blocks.Clear();
-            queue.CurrentBlockIndex = 0;
             return [];
         }
 
@@ -5293,6 +5283,7 @@ public static class CommandDispatcher
         rebuilt.TrackApplied = block.TrackApplied;
         rebuilt.WaitingForRelease = block.WaitingForRelease;
         rebuilt.IsApplied = block.IsApplied;
+        rebuilt.IsPassed = block.IsPassed;
         rebuilt.TriggerMet = block.TriggerMet;
         rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;
         rebuilt.TriggerTerminatorObserved = block.TriggerTerminatorObserved;

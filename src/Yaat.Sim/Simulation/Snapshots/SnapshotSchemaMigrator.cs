@@ -450,6 +450,8 @@ public static class SnapshotSchemaMigrator
         // V56 (no bump): PilotPendingRequestKind.InitialContact appended last, so every earlier kind keeps its number; an older
         //   snapshot never holds it. NavigationTargetDto.ForceFlyBy added, marking a phase's own lead-in point as flown
         //   fly-by whatever its course change; written only when true, and an older snapshot reads false.
+        //   CommandBlockDto.IsPassed added, written only when true; CommandQueueDto.CurrentBlockIndex is written as the first
+        //   block not passed, and an older snapshot's blocks ahead of it restore as passed.
         if (snapshot.SchemaVersion < 53)
         {
             foreach (AircraftSnapshotDto ac in snapshot.Aircraft)

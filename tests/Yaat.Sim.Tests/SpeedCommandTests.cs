@@ -875,7 +875,6 @@ public class SpeedPhysicsTests
         // Set up a command block with the trigger
         ac.Queue = new CommandQueue();
         ac.Queue.Blocks.Add(new CommandBlock { Trigger = trigger, ApplyAction = (_, _) => new CommandResult(true) });
-        ac.Queue.CurrentBlockIndex = 0;
 
         // Aircraft is at runway threshold (0nm), should trigger
         FlightPhysics.Update(ac, 0.1);
@@ -893,7 +892,6 @@ public class SpeedPhysicsTests
 
         ac.Queue = new CommandQueue();
         ac.Queue.Blocks.Add(new CommandBlock { Trigger = trigger, ApplyAction = (_, _) => new CommandResult(true) });
-        ac.Queue.CurrentBlockIndex = 0;
 
         FlightPhysics.Update(ac, 0.1);
 

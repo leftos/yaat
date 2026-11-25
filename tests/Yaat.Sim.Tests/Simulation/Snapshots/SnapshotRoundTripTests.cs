@@ -2210,6 +2210,41 @@ public class SnapshotRoundTripTests
         };
     }
 
+    /// <summary>
+    /// The per-block passed flag survives a snapshot round trip across two transmissions' blocks, is written only on the
+    /// blocks that carry it, and the derived cursor is written beside it; an older snapshot that holds only the cursor
+    /// restores every block ahead of it as passed and the rest as not.
+    /// </summary>
+    [Fact]
+    public void PassedFlags_RoundTrip_LegacyCursorRestoresPrefix()
+    {
+        var queue = new CommandQueue();
+        queue.Blocks.Add(new CommandBlock { TransmissionId = 1, IsPassed = true });
+        queue.Blocks.Add(new CommandBlock { TransmissionId = 1 });
+        queue.Blocks.Add(new CommandBlock { TransmissionId = 2, IsPassed = true });
+        queue.Blocks.Add(new CommandBlock { TransmissionId = 2 });
+
+        string json = JsonSerializer.Serialize(queue.ToSnapshot(), RecordingJsonOptions.Default);
+        var restored = CommandQueue.FromSnapshot(JsonSerializer.Deserialize<CommandQueueDto>(json, RecordingJsonOptions.Default)!);
+
+        Assert.Equal([true, false, true, false], restored.Blocks.Select(b => b.IsPassed));
+        Assert.Equal([1, 1, 2, 2], restored.Blocks.Select(b => b.TransmissionId));
+        Assert.Equal(1, restored.CurrentBlockIndex);
+        Assert.Equal(2, json.Split("\"IsPassed\"").Length - 1);
+        Assert.Contains("\"CurrentBlockIndex\":1", json.Replace(" ", "", StringComparison.Ordinal), StringComparison.Ordinal);
+
+        const string LegacyBlock =
+            "{ \"Commands\": [], \"IsApplied\": true, \"TriggerMet\": false, \"TriggerClosestApproach\": 0, \"TriggerMissed\": false,"
+            + " \"IsWaitBlock\": false, \"WaitRemainingSeconds\": 0, \"WaitRemainingDistanceNm\": 0, \"Description\": \"\","
+            + " \"NaturalDescription\": \"\" }";
+        string legacy = $"{{ \"CurrentBlockIndex\": 2, \"Blocks\": [ {LegacyBlock}, {LegacyBlock}, {LegacyBlock} ] }}";
+        var legacyRestored = CommandQueue.FromSnapshot(JsonSerializer.Deserialize<CommandQueueDto>(legacy, RecordingJsonOptions.Default)!);
+
+        Assert.Equal([true, true, false], legacyRestored.Blocks.Select(b => b.IsPassed));
+        Assert.Equal(2, legacyRestored.CurrentBlockIndex);
+        Assert.False(legacyRestored.IsComplete);
+    }
+
     /// <summary>An airborne aircraft carrying <paramref name="layout"/>, or none at all.</summary>
     private static AircraftState Bound(string callsign, AirportGroundLayout? layout)
     {
