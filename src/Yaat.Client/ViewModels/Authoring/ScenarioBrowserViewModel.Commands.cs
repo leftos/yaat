@@ -153,23 +153,38 @@ public sealed partial class ScenarioBrowserViewModel
             .ConfigureAwait(false);
     }
 
-    /// <summary>Loads the selected working copy into the room through the room seam.</summary>
+    /// <summary>
+    /// Loads the selected working copy into the room through the room seam. The <see cref="ExportGuard"/> is asked first,
+    /// so an open copy's unsaved edits are saved (or dropped) and the room runs what the editor shows; then, while the room
+    /// runs a scenario, the user is asked whether to replace it, and a no leaves the room alone.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanTestInRoom))]
     private async Task TestInRoomAsync()
     {
-        if (SelectedRow is not { Kind: ScenarioRowKind.WorkingCopy } row)
+        if (SelectedRow is not { Kind: ScenarioRowKind.WorkingCopy, IsCorrupt: false } row)
         {
             return;
         }
 
         string artcc = _artcc!;
+        if (!await PromptAsync(row.Name, () => ExportGuard(artcc, row.Id), false).ConfigureAwait(false))
+        {
+            return;
+        }
+
         LocalScenarioStore store = _services.Store;
         (bool read, string? json) = await TryStoreAsync(row.Name, "reading", () => store.ReadWorkingCopyText(artcc, row.Id)).ConfigureAwait(false);
-        if (read && (json is not null))
+        if (!read || (json is null) || !await PromptAsync(row.Name, () => MayReplaceRunningAsync(row), false).ConfigureAwait(false))
         {
-            await PromptAsync(row.Name, () => LoadInRoomAsync(json, row), false).ConfigureAwait(false);
+            return;
         }
+
+        await PromptAsync(row.Name, () => LoadInRoomAsync(json, row), false).ConfigureAwait(false);
     }
+
+    // True at once with no scenario running; else the user's answer to replacing it.
+    private Task<bool> MayReplaceRunningAsync(ScenarioBrowserRowViewModel row) =>
+        _services.RoomHasScenario() ? _services.Prompts.ConfirmReplaceRunningScenarioAsync(row.Name) : Task.FromResult(true);
 
     private async Task<bool> LoadInRoomAsync(string json, ScenarioBrowserRowViewModel row)
     {

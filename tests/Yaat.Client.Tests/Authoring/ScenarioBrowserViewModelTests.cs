@@ -36,6 +36,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     private readonly List<(string Json, string Name, string? OriginId)> _roomLoads = [];
     private readonly List<ScenarioBrowserViewModel> _viewModels = [];
     private bool _canLoadInRoom;
+    private bool _roomHasScenario;
 
     public ScenarioBrowserViewModelTests()
     {
@@ -782,6 +783,102 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
         Assert.False(vm.TestInRoomCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task TestInRoom_ServerDerivedCopy_PassesItsOriginId()
+    {
+        Mirror(Zoa, "A1", "Alpha");
+        _store.CreateWorkingCopy(Zoa, "A1");
+        _canLoadInRoom = true;
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+        Select(vm, Assert.Single(vm.LocalRows));
+
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        (string json, string name, string? originId) = Assert.Single(_roomLoads);
+        Assert.Equal(_store.ReadWorkingCopyText(Zoa, "A1"), json);
+        Assert.Equal("Alpha", name);
+        Assert.Equal("A1", originId);
+    }
+
+    [Fact]
+    public async Task TestInRoom_CorruptCopy_IsDisabled()
+    {
+        _store.CreateLocalScenario(Zoa, Scenario("L1", "Lima", Zoa), "L1");
+        File.WriteAllText(_store.GetWorkingCopyPath(Zoa, "L1"), "[1, 2]");
+        _canLoadInRoom = true;
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+        Select(vm, Assert.Single(vm.LocalRows));
+
+        Assert.False(vm.TestInRoomCommand.CanExecute(null));
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Empty(_roomLoads);
+    }
+
+    [Fact]
+    public async Task TestInRoom_WithAScenarioRunning_AsksFirst_NoLeavesTheRoomAlone_YesLoads()
+    {
+        _store.CreateLocalScenario(Zoa, Scenario("L1", "Lima", Zoa), "L1");
+        _canLoadInRoom = true;
+        _roomHasScenario = true;
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+        Select(vm, Assert.Single(vm.LocalRows));
+
+        _prompts.ConfirmReplaceRunning = false;
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Equal(["Lima"], _prompts.ReplaceRunningAsked);
+        Assert.Empty(_roomLoads);
+
+        _prompts.ConfirmReplaceRunning = true;
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Equal(["Lima", "Lima"], _prompts.ReplaceRunningAsked);
+        Assert.Equal("Lima", Assert.Single(_roomLoads).Name);
+    }
+
+    [Fact]
+    public async Task TestInRoom_WithNoScenarioRunning_AsksNothing()
+    {
+        _store.CreateLocalScenario(Zoa, Scenario("L1", "Lima", Zoa), "L1");
+        _canLoadInRoom = true;
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+        Select(vm, Assert.Single(vm.LocalRows));
+
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Empty(_prompts.ReplaceRunningAsked);
+        Assert.Single(_roomLoads);
+    }
+
+    // The guard is the one Export asks: the editor answers it, saving an open copy's unsaved edits before the load.
+    [Fact]
+    public async Task TestInRoom_AsksTheSaveFirstGuardBeforeLoading_AndAStopLoadsNothing()
+    {
+        _store.CreateLocalScenario(Zoa, Scenario("L1", "Lima", Zoa), "L1");
+        _canLoadInRoom = true;
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+        Select(vm, Assert.Single(vm.LocalRows));
+        var guarded = new List<(string Artcc, string Id, int LoadsBefore)>();
+        bool allow = false;
+        vm.ExportGuard = (artcc, id) =>
+        {
+            guarded.Add((artcc, id, _roomLoads.Count));
+            return Task.FromResult(allow);
+        };
+
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Equal([(Zoa, "L1", 0)], guarded);
+        Assert.Empty(_roomLoads);
+
+        allow = true;
+        await _ui.Run(vm.TestInRoomCommand.ExecuteAsync(null));
+
+        Assert.Equal([(Zoa, "L1", 0), (Zoa, "L1", 0)], guarded);
+        Assert.Single(_roomLoads);
+    }
+
     private static string Scenario(string id, string name, string artcc) => $"{{\"id\": \"{id}\", \"name\": \"{name}\", \"artccId\": \"{artcc}\"}}";
 
     private static string ScenarioWith(string id, string name, string artcc, string extra) =>
@@ -870,6 +967,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
                 _roomLoads.Add((json, name, originId));
                 return Task.CompletedTask;
             },
+            () => _roomHasScenario,
             ScenarioEditorFixture.OfflineConfigs(Path.Combine(_root, "artcc"))
         );
         var vm = new ScenarioBrowserViewModel(services);
@@ -972,6 +1070,16 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
 
         // Asked only through the editor's replace guard.
         public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);
+
+        public bool ConfirmReplaceRunning { get; set; }
+
+        public List<string> ReplaceRunningAsked { get; } = [];
+
+        public Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName)
+        {
+            ReplaceRunningAsked.Add(scenarioName);
+            return Task.FromResult(ConfirmReplaceRunning);
+        }
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

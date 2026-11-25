@@ -74,6 +74,7 @@
         <Button x:Name="ExportJsonButton" Content="Export JSON…" Command="{Binding ExportJsonCommand}" />
         <Button x:Name="ExportCleanJsonButton" Content="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
         <Button x:Name="ExportAllUnexportedButton" Content="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
+        <Button x:Name="TestInRoomButton" Content="Test in Room" Command="{Binding TestInRoomCommand}" />
         <Border Classes="vsep" />
         <Button x:Name="RefreshButton" Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal" Spacing="4">

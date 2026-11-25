@@ -31,6 +31,15 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Weather Editor](#weather-editor)
   - [Weather Timelines (V2 Format)](#weather-timelines-v2-format)
   - [Aircraft Generators Editor](#aircraft-generators-editor)
+- [Scenario Editor](#scenario-editor)
+  - [Opening the Editor](#opening-the-editor)
+  - [The Scenario List](#the-scenario-list)
+  - [Editor Commands](#editor-commands)
+  - [Test in Room](#test-in-room)
+  - [Editing a Scenario](#editing-a-scenario)
+  - [Live Findings](#live-findings)
+  - [Exporting JSON](#exporting-json)
+  - [Airport Editor](#airport-editor)
 - [Solo Training](#solo-training)
 - [Commands](#commands)
   - [Compound Commands](#compound-commands)
@@ -69,7 +78,7 @@ The YAAT window has three areas:
 2. **Terminal panel** (bottom) — scrolling log of commands, responses, warnings, and errors
 3. **Command bar** (bottom edge) — where you type commands
 
-The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather/active runways), Room (members/students), View (pop-out windows, bars, layouts), Tools (Settings, Import / Export, Copy traffic feed URL, CRC environments), and Help.
+The menu bar provides access to File (connect/disconnect), Scenario (load/unload/weather/active runways), Room (members/students), View (pop-out windows, bars, layouts), Tools (Settings, Import / Export, Scenario Editor, Airport Editor, Copy traffic feed URL, CRC environments), and Help.
 
 #### Planned server maintenance
 
@@ -2333,6 +2342,90 @@ VFR traffic transiting the airspace without landing. You set the arc they come *
 **Recording / replay:** Edits are recorded as a `RecordedArrivalGeneratorsChange` action and replay deterministically.
 
 **Validation:** Empty/duplicate ids (across all three kinds), unknown engine types, unknown weight categories, runways that don't exist on the active airport, inverted distance/altitude ranges, or an exit distance inside the spawn corridor are reported in the status line and prevent the apply.
+
+---
+
+## Scenario Editor
+
+The Scenario Editor creates and edits training scenarios inside YAAT and exports them as vNAS JSON. It builds on YAATEdit, the scenario editor by RY from ZOA.
+
+### Opening the Editor
+
+**Tools > Scenario Editor...** opens the editor in its own window. It needs no connection and no loaded scenario. A second click brings the open window forward, and the window remembers its position and size.
+
+The editor works on one ARTCC at a time, chosen from the ARTCCs your account may edit: the server's list while you are connected, otherwise the list saved with your last sign-in, otherwise your Settings ARTCC. With one ARTCC the toolbar shows its name; with several it shows a selector, and the editor remembers your last pick.
+
+### The Scenario List
+
+The list on the left has two tabs. **Server** lists the ARTCC's scenarios as published on vNAS, downloaded when the window opens and on **Refresh**, with progress along the bottom. **Local** lists your working copies: the scenarios you edit, kept on this computer.
+
+A working copy is either started from a server scenario or local-only (made with New, Duplicate or Import). Icons on each row tell you about it; hover one for its meaning:
+
+- **Laptop** (green): the copy exists only on this computer and is not linked to a server scenario.
+- **Dot** (amber): you changed the copy since it was downloaded.
+- **Cloud with an arrow** (blue): the server version changed since you started the copy.
+- **Crossed-out cloud** (grey): the scenario is no longer on the server; your downloaded copy is kept.
+- **Export arrow** (amber, the Unexported badge): the copy has changes not yet exported as JSON.
+- **Warning** (red): the file is not a readable scenario; the tooltip says why, and it cannot be opened.
+
+A single click selects a row; a double-click, or Enter, opens it. Opening a Server row with no working copy starts one, so your edits never touch the downloaded scenario. The status line along the bottom reports what the last command did, and the notices button lists anything that went wrong.
+
+### Editor Commands
+
+The toolbar and the list's right-click menu carry the same commands:
+
+- **New**: a new local-only scenario.
+- **Duplicate**: a local-only copy of the selected working copy.
+- **Delete**: deletes the selected working copy, after asking.
+- **Import...**: adds scenario JSON files as working copies. A file whose scenario id is already taken asks whether to give it a new id, keep the id or skip it.
+- **Save copy...**: writes the selected scenario to a file of your choice.
+- **Export JSON...**, **Export clean JSON...** and **Export all unexported...**: see [Exporting JSON](#exporting-json).
+- **Test in Room**: loads the selected working copy into your training room (below).
+- **Refresh**: downloads the server scenarios again.
+
+### Test in Room
+
+**Test in Room** loads the selected working copy into the room you are in, so you can try it at once. It is available when you could load a scenario from the main window: connected, in a room, as a mentor or instructor, and with no load already running. A corrupt copy cannot be tested.
+
+If the copy is open with unsaved edits, the editor first asks whether to save them, so the room runs what the editor shows. If the room already runs a scenario, the editor asks "Replace the running scenario?" in its own window; **No** leaves the room as it is, and **Yes** loads the copy without the main window asking again. A copy with difficulty levels or solo pacing still opens the main window's scenario setup dialog before it loads.
+
+A Test in Room load never enters **Recent Scenarios**.
+
+### Editing a Scenario
+
+The open copy shows in two tabs beside the list.
+
+**General** is one scrolling page of collapsible sections, each collapsing to a one-line summary: the scenario's details, ATC positions, initialization triggers, flight strip placements, and the arrival, VFR arrival and overflight generators. A pick from a list applies at once; a typed field applies when you leave it or press Enter. A value the field cannot take shows an error under it and changes nothing.
+
+**Aircraft** lists the scenario's aircraft in a sortable grid (Callsign, Type, Transponder, Spawn delay, Airport, Start, Route, Presets, Auto-track) with **Add**, **Duplicate** and **Remove**. The grid remembers its column order, widths and sort on this computer.
+
+Selecting an aircraft shows its details beside the grid: callsign, type (with suggestions), transponder, spawn delay, airport, the starting condition and its fields, the flight plan, preset commands, and auto-track. Taxi time and an RPO note are YAAT-only fields that vNAS does not use.
+
+For a parking start, **Pick on map** beside the Parking field opens a map of the airport ("Pick parking — {airport}"): click a parking spot to select it, then double-click it or press **OK**.
+
+**Undo** and **Redo** step through every edit, and their tooltips name the step. **Save** (or Ctrl+S) writes the copy, first applying the field you are typing in. A marker beside Save shows unsaved edits, and closing the window asks whether to save them.
+
+### Live Findings
+
+The editor checks the scenario as you edit. Errors show in red and warnings in amber beside the field they are about, and an aircraft row in the grid carries a marker for its findings.
+
+A TAXI preset command the editor cannot route shows **Not checked**: the airport has no map, the destination is `@GATE` or a stand prefix, or the aircraft could not be placed.
+
+Findings about the scenario as a whole show in the status bar. An editor opened before navdata has loaded shows "Navdata not loaded: the scenario was not checked." and checks the scenario itself once the load ends.
+
+### Exporting JSON
+
+YAAT never sends anything to vNAS: export the JSON, then upload it on the vNAS site yourself.
+
+- **Export JSON...** writes the selected working copy with every field kept.
+- **Export clean JSON...** leaves out the fields YAAT does not model and the YAAT-only parts.
+- **Export all unexported...** writes every copy with unexported changes, as full JSON, into a folder you pick.
+
+If the copy is open with unsaved edits, the editor asks first: **Yes** saves and exports, **No** drops the edits and exports the last saved file, **Cancel** stops. A copy with validation errors is not exported. YAAT-only parts (YAAT's own generators, live-session settings, taxi time, RPO notes) are named in a warning, and a target folder inside the vNAS cache is refused. Exporting clears the **Unexported** badge.
+
+### Airport Editor
+
+**Tools > Airport Editor...** opens an airport map in its own window: from the vNAS cache by airport id, from a file, or from a folder holding one `.geojson` map. It views a map; it does not edit. The airport's imagery draws under the map (toggle it with **Imagery**); pan with the middle mouse button, zoom with the wheel, and click a feature to inspect it.
 
 ---
 

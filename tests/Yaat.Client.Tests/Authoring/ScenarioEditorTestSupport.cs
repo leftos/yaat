@@ -142,6 +142,7 @@ internal sealed class ScenarioEditorFixture : IDisposable
             Ui.Post,
             () => false,
             (_, _, _) => Task.CompletedTask,
+            () => false,
             new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow)
         );
 
@@ -297,6 +298,11 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
     }
 
     public Task<bool> ConfirmDeleteAsync(ScenarioBrowserRowViewModel row) => Task.FromResult(ConfirmDelete);
+
+    /// <summary>Gets or sets the answer to the replace-the-running-scenario question Test in Room asks.</summary>
+    public bool ConfirmReplaceRunning { get; set; }
+
+    public Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName) => Task.FromResult(ConfirmReplaceRunning);
 
     public Task<IReadOnlyList<string>> PickImportFilesAsync() => Task.FromResult(ImportFiles);
 

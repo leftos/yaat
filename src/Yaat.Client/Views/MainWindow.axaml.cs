@@ -3555,15 +3555,23 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             () => vm.Connection.IsConnected ? vm.ConnectedServerUrl : vm.Preferences.LastUsedServerUrl,
             vm.Connection.GetMyEditableArtccsAsync
         );
-        _scenarioEditorWindow = new ScenarioEditorWindow(
+        var editor = new ScenarioEditorWindow(
             vm.Preferences,
-            prompts => ScenarioBrowserServices.ForApp(vm.Preferences, prompts, access),
+            prompts => ScenarioBrowserServices.ForApp(vm.Preferences, prompts, access).WithRoom(vm),
             FilePickerFactory.Create,
             ScenarioValidationViewModel.AppLayouts,
             vm.NavDataInitialization
         );
-        _scenarioEditorWindow.Closed += (_, _) => _scenarioEditorWindow = null;
-        _scenarioEditorWindow.Show();
+
+        // Test in Room follows the room while the window is open.
+        IDisposable roomLink = ScenarioBrowserRoomLink.Follow(vm, editor.Browser);
+        editor.Closed += (_, _) =>
+        {
+            roomLink.Dispose();
+            _scenarioEditorWindow = null;
+        };
+        _scenarioEditorWindow = editor;
+        editor.Show();
     }
 
     // One Airport Editor window: a second click brings the open one forward.

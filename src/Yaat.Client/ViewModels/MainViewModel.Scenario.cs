@@ -17,6 +17,11 @@ public partial class MainViewModel
     private string? _pendingScenarioSource;
     private string? _pendingApiScenarioId;
 
+    // Set by LoadTestScenarioAsync for its one load, whatever its outcome, and carried through the setup dialog by
+    // _pendingDifficultySkipRecent: a Test in Room load never enters Recent Scenarios.
+    private bool _skipRecentScenario;
+    private bool _pendingDifficultySkipRecent;
+
     // When the active scenario started, as Discord counts it: a joiner's is back-dated by the room's
     // elapsed time so the timer on their profile matches everyone else's rather than restarting at zero.
     private long _richPresenceStartUnixSeconds;
@@ -209,6 +214,38 @@ public partial class MainViewModel
         await ExecuteLoadScenario();
     }
 
+    /// <summary>
+    /// The Scenario Editor's Test in Room load: loads pre-fetched JSON as <see cref="LoadScenarioFromJsonAsync"/> does, but
+    /// never asks to replace a running scenario (the editor already asked) and never enters Recent Scenarios. An ordinary
+    /// load still waiting in the main window, at its switch question or its setup dialog, is dropped: the editor's Yes
+    /// replaces it.
+    /// </summary>
+    /// <param name="json">The working copy's scenario JSON.</param>
+    /// <param name="displayName">The scenario's name, shown as the load's title.</param>
+    /// <param name="apiId">The server scenario the copy came from; null for a local-only copy.</param>
+    /// <returns>A task that completes when the load has run, or has stopped at the setup dialog.</returns>
+    public async Task LoadTestScenarioAsync(string json, string displayName, string? apiId)
+    {
+        ShowScenarioSwitchConfirmation = false;
+        if (ShowScenarioSetup)
+        {
+            CancelScenarioSetup();
+        }
+
+        _pendingScenarioSource = json;
+        _pendingApiScenarioId = apiId;
+        ScenarioFilePath = displayName;
+        _skipRecentScenario = true;
+        try
+        {
+            await ExecuteLoadScenario();
+        }
+        finally
+        {
+            _skipRecentScenario = false;
+        }
+    }
+
     [RelayCommand]
     private async Task ConfirmScenarioSwitchAsync()
     {
@@ -301,6 +338,7 @@ public partial class MainViewModel
         ScenarioSetupSoloGoAroundProbabilityPercent = setupPlan.GoAroundProbabilityPercent;
         _pendingScenarioJson = json;
         _pendingDifficultyApiId = apiId;
+        _pendingDifficultySkipRecent = _skipRecentScenario;
         ShowScenarioSetup = true;
     }
 
@@ -310,8 +348,10 @@ public partial class MainViewModel
         ShowScenarioSetup = false;
         string? json = _pendingScenarioJson;
         string? apiId = _pendingDifficultyApiId;
+        bool skipRecent = _pendingDifficultySkipRecent;
         _pendingScenarioJson = null;
         _pendingDifficultyApiId = null;
+        _pendingDifficultySkipRecent = false;
 
         if (json is null)
         {
@@ -332,7 +372,15 @@ public partial class MainViewModel
         (bool SaveGoAround, (int ParkingRate, int ArrivalRate, int GoAroundProbability) Rates) setup = ResolveSetupRates();
         DifficultyOptions.Clear();
         OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
-        await SendConfirmedScenarioAsync(json, level, apiId, setup.SaveGoAround, setup.Rates);
+        _skipRecentScenario = skipRecent;
+        try
+        {
+            await SendConfirmedScenarioAsync(json, level, apiId, setup.SaveGoAround, setup.Rates);
+        }
+        finally
+        {
+            _skipRecentScenario = false;
+        }
     }
 
     /// <summary>
@@ -407,6 +455,7 @@ public partial class MainViewModel
         ShowScenarioSetup = false;
         _pendingScenarioJson = null;
         _pendingDifficultyApiId = null;
+        _pendingDifficultySkipRecent = false;
         DifficultyOptions.Clear();
         OnPropertyChanged(nameof(ShowScenarioSetupDifficulty));
         ShowScenarioSetupPacingControls = false;
@@ -513,10 +562,21 @@ public partial class MainViewModel
         AddSystemEntry(reason);
     }
 
-    private void RememberLoadedScenario(LoadScenarioResultDto result, string? apiId)
+    /// <summary>
+    /// Records a completed load in Recent Scenarios (by its server id, else its file) and logs it; a Test in Room load is
+    /// logged only. Internal so a test can check the skip while a load runs, as no load completes headless.
+    /// </summary>
+    internal void RememberLoadedScenario(LoadScenarioResultDto result, string? apiId)
     {
         string scenarioName = result.Name;
-        if (apiId is not null)
+        if (_skipRecentScenario)
+        {
+            if (_log.IsEnabled(LogLevel.Debug))
+            {
+                _log.LogDebug("Test in Room load of '{Name}': not added to Recent Scenarios", scenarioName);
+            }
+        }
+        else if (apiId is not null)
         {
             _preferences.AddRecentScenario("", scenarioName, apiId);
         }

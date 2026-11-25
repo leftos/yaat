@@ -89,6 +89,7 @@
         <MenuItem x:Name="ExportJsonMenuItem" Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
         <MenuItem x:Name="ExportCleanJsonMenuItem" Header="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
         <MenuItem x:Name="ExportAllUnexportedMenuItem" Header="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
+        <MenuItem x:Name="TestInRoomMenuItem" Header="Test in Room" Command="{Binding TestInRoomCommand}" />
         <Separator />
         <MenuItem x:Name="RefreshMenuItem" Header="Refresh" Command="{Binding RefreshCommand}" />
       </ContextMenu>

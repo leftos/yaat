@@ -17,6 +17,7 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <param name="CanLoadInRoom">Whether a scenario can be loaded into the room now; re-read through
 /// <see cref="ScenarioBrowserViewModel.RefreshTestInRoom"/>.</param>
 /// <param name="LoadInRoom">Loads a scenario into the room: its JSON, display name and server origin id (null when local-only).</param>
+/// <param name="RoomHasScenario">Whether the room runs a scenario now, which Test in Room asks to replace before it loads.</param>
 /// <param name="Configs">The ARTCC configs the editor's position and airport pickers list their options from.</param>
 public sealed record ScenarioBrowserServices(
     UserPreferences Preferences,
@@ -29,6 +30,7 @@ public sealed record ScenarioBrowserServices(
     Action<Action> Post,
     Func<bool> CanLoadInRoom,
     Func<string, string, string?, Task> LoadInRoom,
+    Func<bool> RoomHasScenario,
     ArtccConfigSource Configs
 )
 {
@@ -39,7 +41,7 @@ public sealed record ScenarioBrowserServices(
 
     /// <summary>
     /// The app's services: the app-data store, the given ARTCC access, data-api (scenarios and ARTCC configs),
-    /// the system clock and the dispatcher; Test in Room is off (it can never load) until a room loader is given.
+    /// the system clock and the dispatcher; Test in Room is off (it can never load) until a room is given (<see cref="WithRoom"/>).
     /// </summary>
     /// <param name="preferences">The user's preferences.</param>
     /// <param name="prompts">The window's dialogs and pickers.</param>
@@ -59,8 +61,27 @@ public sealed record ScenarioBrowserServices(
             action => Dispatcher.UIThread.Post(action),
             () => false,
             (_, _, _) => Task.CompletedTask,
+            () => false,
             AppConfigs
         );
+    }
+
+    /// <summary>
+    /// These services with Test in Room over the main window's room: it can load while
+    /// <see cref="MainViewModel.CanLoadScenario"/> holds, loads through <see cref="MainViewModel.LoadTestScenarioAsync"/>, and
+    /// asks first while the room runs a scenario.
+    /// </summary>
+    /// <param name="room">The main window's view model.</param>
+    /// <returns>The services.</returns>
+    public ScenarioBrowserServices WithRoom(MainViewModel room)
+    {
+        ArgumentNullException.ThrowIfNull(room);
+        return this with
+        {
+            CanLoadInRoom = () => room.CanLoadScenario,
+            LoadInRoom = room.LoadTestScenarioAsync,
+            RoomHasScenario = () => room.ActiveScenarioId is not null,
+        };
     }
 
     /// <summary>A download seam over <see cref="ScenarioDownloader"/> with a new data-api client per run.</summary>

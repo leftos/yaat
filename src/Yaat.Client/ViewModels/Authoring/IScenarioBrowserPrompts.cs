@@ -46,6 +46,11 @@ public interface IScenarioBrowserPrompts
     /// <param name="scenarioName">The open scenario's name.</param>
     /// <returns>True to replace it; false to skip that file of the import.</returns>
     Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName);
+
+    /// <summary>Asks whether Test in Room may replace the scenario the room runs now.</summary>
+    /// <param name="scenarioName">The working copy about to load.</param>
+    /// <returns>True to load it in the running scenario's place; false to leave the room alone.</returns>
+    Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName);
 }
 
 /// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/>.</summary>

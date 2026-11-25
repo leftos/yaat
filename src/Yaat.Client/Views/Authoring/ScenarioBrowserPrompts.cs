@@ -10,7 +10,8 @@ namespace Yaat.Client.Views.Authoring;
 /// <summary>
 /// The Scenario Editor window's answers to the browser's questions: a Yes/No box before a delete, the file pickers for
 /// Import, Save copy and the exports, the import id-conflict dialog, a Yes/No/Cancel box before unsaved edits are left or
-/// exported, and a Replace/Cancel box before an import replaces the copy open with unsaved edits, each over the window.
+/// exported, a Replace/Cancel box before an import replaces the copy open with unsaved edits, and a Yes/No box before Test
+/// in Room replaces the running scenario, each over the window.
 /// </summary>
 /// <param name="owner">The window the boxes and dialogs show over.</param>
 /// <param name="picker">The window's file picker.</param>
@@ -80,5 +81,17 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
         };
         return await MessageBoxPresenter.ShowCustomAsync(owner, parameters) == ReplaceButton;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName)
+    {
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
+            owner,
+            "Test in Room",
+            $"Replace the running scenario? \"{scenarioName}\" loads in its place.",
+            ButtonEnum.YesNo
+        );
+        return result == ButtonResult.Yes;
     }
 }

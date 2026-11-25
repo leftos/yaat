@@ -260,6 +260,7 @@ public class ScenarioEditorWindowTests
                 ("ExportJson", vm.ExportJsonCommand),
                 ("ExportCleanJson", vm.ExportCleanJsonCommand),
                 ("ExportAllUnexported", vm.ExportAllUnexportedCommand),
+                ("TestInRoom", vm.TestInRoomCommand),
             ];
 
             foreach ((string name, ICommand command) in commands)
@@ -1595,6 +1596,8 @@ public class ScenarioEditorWindowTests
         }
 
         public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);
+
+        public Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName) => Task.FromResult(false);
     }
 
     // data-api answers ZOA with the snapshot and every other ARTCC (a neighbour) as the network being down.
