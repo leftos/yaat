@@ -22,6 +22,8 @@ using Yaat.Client.Views;
 using Yaat.Client.Views.Authoring;
 using Yaat.Sim;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Testing;
 
@@ -192,7 +194,9 @@ public class ScenarioEditorWindowTests
                     Download = NeverFinishes,
                     Post = _ => throw new InvalidOperationException("no UI thread"),
                 },
-            _ => new FakeFilePickerService()
+            _ => new FakeFilePickerService(),
+            NoLayouts,
+            Task.CompletedTask
         );
         try
         {
@@ -1300,9 +1304,14 @@ public class ScenarioEditorWindowTests
         return new ScenarioEditorWindow(
             preferences,
             prompts => ScenarioBrowserServices.ForApp(preferences, prompts, new StubAccess(artccs)) with { Store = store, Download = download },
-            _ => new FakeFilePickerService()
+            _ => new FakeFilePickerService(),
+            NoLayouts,
+            Task.CompletedTask
         );
     }
+
+    // The editor's layout source: no map for any airport, so no test reaches the network for one.
+    private static Task<AirportGroundLayout?> NoLayouts(string airportId, CancellationToken ct) => Task.FromResult<AirportGroundLayout?>(null);
 
     // A tab header's texts, in order, joined by spaces: its label and its count.
     private static string HeaderText(TabItem tab) =>
@@ -1370,7 +1379,9 @@ public class ScenarioEditorWindowTests
                     Download = NeverFinishes,
                     Configs = configs,
                 },
-            _ => new FakeFilePickerService()
+            _ => new FakeFilePickerService(),
+            NoLayouts,
+            Task.CompletedTask
         );
     }
 
@@ -1441,6 +1452,44 @@ public class ScenarioEditorWindowTests
         MainWindowHost.Pump();
         Assert.False(window.Editor.IsDirty);
     }
+
+    [AvaloniaFact]
+    public async Task LiveValidation_ShowsADuplicateCallsignBesideTheCallsignField()
+    {
+        using IDisposable navScope = NavigationDatabase.ScopedOverride(MenuGoldenFixtures.EnsureNavData());
+        var store = new LocalScenarioStore(YaatPaths.Combine("scenario-editor-tests", Guid.NewGuid().ToString("N")));
+        store.CreateLocalScenario(Zoa, DuplicateCallsignScenario, OakId);
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioAircraftView view = ShowAircraftView(window);
+            window.Editor.Aircraft!.Selected = window.Editor.Aircraft.Rows[0];
+            await window.Editor.Validation!.Recomputed.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+            MainWindowHost.Pump();
+
+            TextBlock issue = view.FindControl<TextBlock>("CallsignIssueText")!;
+            Assert.True(issue.IsEffectivelyVisible);
+            Assert.Equal("2 aircraft have the callsign AAL1", issue.Text);
+            Assert.False(view.FindControl<TextBlock>("ParkingIssueText")!.IsVisible);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    // Two airborne aircraft whose callsigns differ only in case.
+    private const string DuplicateCallsignScenario =
+        "{\"id\": \""
+        + OakId
+        + "\", \"name\": \"Duplicates\", \"artccId\": \"ZOA\", \"aircraft\": ["
+        + "{\"id\": \"01KAAL1\", \"aircraftId\": \"AAL1\", \"aircraftType\": \"B738\", "
+        + "\"startingConditions\": {\"type\": \"FixOrFrd\", \"fix\": \"OAK\", \"altitude\": 5000}, \"presetCommands\": []}, "
+        + "{\"id\": \"01KAAL1B\", \"aircraftId\": \"aal1\", \"aircraftType\": \"B738\", "
+        + "\"startingConditions\": {\"type\": \"FixOrFrd\", \"fix\": \"OAK\", \"altitude\": 6000}, \"presetCommands\": []}"
+        + "]}";
 
     // Selects the Aircraft tab, lets it show, and returns its view.
     private static ScenarioAircraftView ShowAircraftView(ScenarioEditorWindow window)

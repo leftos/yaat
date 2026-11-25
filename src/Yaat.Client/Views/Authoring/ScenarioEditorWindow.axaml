@@ -175,6 +175,19 @@
             Text="{Binding SaveMessage}"
             IsVisible="{Binding SaveMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
+          <StackPanel
+            x:Name="ValidationStatus"
+            x:DataType="vm:ScenarioEditorViewModel"
+            Orientation="Horizontal"
+            Spacing="5"
+            Margin="10,0,0,0"
+            IsVisible="{Binding ValidationStatusText, Converter={x:Static ObjectConverters.IsNotNull}}"
+          >
+            <Viewbox Width="14" Height="14" VerticalAlignment="Center">
+              <Path Classes="icon" Data="{x:Static local:ScenarioEditorIcons.Warning}" Stroke="{x:Static local:ScenarioEditorIcons.Amber}" />
+            </Viewbox>
+            <TextBlock x:Name="ValidationStatusText" Classes="status" Text="{Binding ValidationStatusText}" />
+          </StackPanel>
         </StackPanel>
         <ProgressBar
           Grid.Column="1"

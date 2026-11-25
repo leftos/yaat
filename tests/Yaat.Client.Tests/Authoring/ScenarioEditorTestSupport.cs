@@ -5,6 +5,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Tests.Authoring;
@@ -45,8 +46,14 @@ internal sealed class ScenarioEditorFixture : IDisposable
     /// <summary>Gets or sets the ARTCCs the user may edit.</summary>
     public IReadOnlyList<string> Artccs { get; set; } = [Zoa];
 
+    /// <summary>Gets the folder the editor's ARTCC config source keeps its saved copies in.</summary>
+    public string ArtccCacheDir => Path.Combine(_root, "artcc");
+
     /// <summary>Gets or sets the body data-api answers for an ARTCC config; null answers as the network being down.</summary>
     public string? ConfigBody { get; set; }
+
+    /// <summary>A layout source with no map for any airport, so no test fetches one.</summary>
+    public static Task<AirportGroundLayout?> NoLayouts(string airportId, CancellationToken ct) => Task.FromResult<AirportGroundLayout?>(null);
 
     /// <summary>A config source whose data-api is never reachable, over its own folder.</summary>
     public static ArtccConfigSource OfflineConfigs(string cacheRoot) =>
@@ -135,7 +142,7 @@ internal sealed class ScenarioEditorFixture : IDisposable
             Ui.Post,
             () => false,
             (_, _, _) => Task.CompletedTask,
-            new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), Path.Combine(_root, "artcc"), () => DateTime.UtcNow)
+            new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow)
         );
 
     /// <summary>A browser and an editor over it, the browser's first load and resync done.</summary>
@@ -153,7 +160,7 @@ internal sealed class ScenarioEditorFixture : IDisposable
     /// <summary>Another editor over a browser; disposed with the fixture, before the browser.</summary>
     public ScenarioEditorViewModel NewEditor(ScenarioBrowserViewModel browser, ScenarioBrowserServices? services = null)
     {
-        var editor = new ScenarioEditorViewModel(browser, services ?? Services());
+        var editor = new ScenarioEditorViewModel(browser, services ?? Services(), NoLayouts, Task.CompletedTask);
         _owned.Insert(0, editor);
         return editor;
     }

@@ -49,6 +49,9 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
     private readonly CancellationTokenSource _cts = new();
     private IReadOnlyList<ScenarioPickOption> _catalogOptions = [];
     private IReadOnlyList<string> _configAirports = [];
+
+    // Whether every neighbouring center's config was read, so the catalog lists every position a scenario may name.
+    private bool _neighboursRead;
     private string _artccId = "";
     private bool _disposed;
 
@@ -85,6 +88,10 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
 
     [ObservableProperty]
     private string? _configProblem;
+
+    /// <summary>The student position's live-validation finding (a position no config lists); null for none.</summary>
+    [ObservableProperty]
+    private ScenarioFieldIssue? _studentPositionIssue;
 
     // Each picker's one options collection, its ItemsSource for the view model's lifetime: a rebuild updates it in place.
     private readonly ObservableCollection<ScenarioPickOption> _studentPositionOptions = [];
@@ -133,6 +140,26 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
 
     /// <summary>Gets the pickers' first load: finished once the position and airport options are applied. Tests await it.</summary>
     public Task PickersLoaded { get; }
+
+    /// <summary>
+    /// The position ids the live position checks read: the ARTCC's and its neighbours' as the pickers list them; null until the
+    /// pickers' load applies them, and when a config could not be read (the check is skipped then).
+    /// </summary>
+    public IReadOnlySet<string>? CheckedPositionIds =>
+        (IsStudentPositionFreeText || !_neighboursRead) ? null : new HashSet<string>(_catalogOptions.Select(o => o.Value), StringComparer.Ordinal);
+
+    /// <summary>Shows the latest live-validation findings beside the student position and each ATC row's position.</summary>
+    /// <param name="issues">Every finding of the latest run.</param>
+    public void ApplyIssues(IReadOnlyList<ScenarioEditIssue> issues)
+    {
+        ArgumentNullException.ThrowIfNull(issues);
+        StudentPositionIssue = ScenarioFieldIssue.Of(issues.Where(i => i.Field == ScenarioEditFields.StudentPosition));
+        foreach (ScenarioAtcRowViewModel row in AtcPositions)
+        {
+            string field = ScenarioEditFields.AtcPosition(row.Index);
+            row.PositionIssue = ScenarioFieldIssue.Of(issues.Where(i => i.Field == field));
+        }
+    }
 
     /// <summary>Re-reads every field from the session's document and clears the name error.</summary>
     public void Reload()
@@ -293,7 +320,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         catch (Exception ex)
         {
             LogFailure(ex, "loading the ARTCC config of " + artccId);
-            data = new PickerData(null, null, null, ex.Message);
+            data = new PickerData(null, null, null, ex.Message, false);
         }
 
         await PostAsync(() => ApplyPickers(data)).ConfigureAwait(false);
@@ -306,7 +333,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         ArtccConfigLoad load = await configs.LoadAsync(artccId, ct).ConfigureAwait(false);
         if (load.Config is null)
         {
-            return new PickerData(null, null, null, load.Problem ?? $"the ARTCC config for {artccId} could not be read");
+            return new PickerData(null, null, null, load.Problem ?? $"the ARTCC config for {artccId} could not be read", false);
         }
 
         ArtccPositionCatalog catalog = await ArtccNeighbourLoader.LoadCatalogAsync(configs, load.Config, ct).ConfigureAwait(false);
@@ -315,7 +342,8 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
             positions,
             UnderlyingAirports(load.Config),
             StripBays(load.Config),
-            JoinProblems(load.Problem, catalog.UnreadNeighbours)
+            JoinProblems(load.Problem, catalog.UnreadNeighbours),
+            catalog.UnreadNeighbours.Count == 0
         );
     }
 
@@ -378,6 +406,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         IsPrimaryAirportFreeText = data.Airports is null;
         _configAirports = data.Airports ?? [];
         ConfigProblem = data.Problem;
+        _neighboursRead = data.NeighboursRead;
         OnPropertyChanged(nameof(PositionCatalog));
         RebuildOptions();
         RefreshSummaries();
@@ -410,11 +439,13 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         }
     }
 
-    // What one config load gives the pickers: null lists when the config could not be read, and the load's problem.
+    // What one config load gives the pickers: null lists when the config could not be read, the load's problem, and whether
+    // every neighbouring center's config was read.
     private sealed record PickerData(
         IReadOnlyList<ArtccPositionRow>? Positions,
         IReadOnlyList<string>? Airports,
         IReadOnlyList<ScenarioPickOption>? Bays,
-        string? Problem
+        string? Problem,
+        bool NeighboursRead
     );
 }

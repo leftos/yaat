@@ -20,6 +20,13 @@
       <Setter Property="FontSize" Value="11" />
       <Setter Property="Margin" Value="0,2,0,0" />
     </Style>
+    <Style Selector="DataGrid#AircraftGrid TextBlock.marker">
+      <Setter Property="Foreground" Value="#E06C6C" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="DataGrid#AircraftGrid TextBlock.marker.hint">
+      <Setter Property="Foreground" Value="#D9A54A" />
+    </Style>
     <Style Selector="ScrollViewer#DetailPanel TextBlock.head">
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Margin" Value="0,12,0,0" />
@@ -46,6 +53,13 @@
         <TextBlock Classes="head" Text="Aircraft" />
         <TextBlock Classes="lbl" Text="Callsign" />
         <TextBox x:Name="CallsignBox" Text="{Binding Callsign}" Tag="{Binding CommitCallsignCommand}" />
+        <TextBlock
+          x:Name="CallsignIssueText"
+          Classes="err"
+          Classes.hint="{Binding CallsignIssue.IsAdvisory, FallbackValue=False}"
+          Text="{Binding CallsignIssue.Text}"
+          IsVisible="{Binding CallsignIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
         <TextBlock Classes="lbl" Text="Type" />
         <AutoCompleteBox
           x:Name="TypeBox"
@@ -58,6 +72,13 @@
           DropDownClosed="OnListClosed"
         />
         <TextBlock Classes="hint" Text="{Binding TypeHint}" IsVisible="{Binding TypeHint, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock
+          x:Name="AircraftTypeIssueText"
+          Classes="err"
+          Classes.hint="{Binding AircraftTypeIssue.IsAdvisory, FallbackValue=False}"
+          Text="{Binding AircraftTypeIssue.Text}"
+          IsVisible="{Binding AircraftTypeIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
         <TextBlock Classes="lbl" Text="Transponder" />
         <TextBox x:Name="TransponderBox" Text="{Binding Transponder}" Tag="{Binding CommitTransponderCommand}" />
         <TextBlock Classes="lbl" Text="Spawn delay" />
@@ -85,6 +106,13 @@
           SelectionChanged="OnListPicked"
           DropDownClosed="OnListClosed"
         />
+        <TextBlock
+          x:Name="AirportIssueText"
+          Classes="err"
+          Classes.hint="{Binding AirportIssue.IsAdvisory, FallbackValue=False}"
+          Text="{Binding AirportIssue.Text}"
+          IsVisible="{Binding AirportIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
         <TextBlock Classes="lbl" Text="Approach" />
         <TextBox x:Name="ApproachBox" Text="{Binding Approach}" Tag="{Binding CommitApproachCommand}" />
         <TextBlock Classes="lbl" Text="Difficulty" />
@@ -109,6 +137,13 @@
           DisplayMemberBinding="{Binding Label}"
           SelectedItem="{Binding StartKindSelection}"
         />
+        <TextBlock
+          x:Name="StartKindIssueText"
+          Classes="err"
+          Classes.hint="{Binding StartKindIssue.IsAdvisory, FallbackValue=False}"
+          Text="{Binding StartKindIssue.Text}"
+          IsVisible="{Binding StartKindIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
         <StackPanel IsVisible="{Binding ShowsParking}">
           <TextBlock Classes="lbl" Text="Parking" />
           <Grid ColumnDefinitions="*,6,Auto">
@@ -122,14 +157,35 @@
               Click="OnPickParkingClick"
             />
           </Grid>
+          <TextBlock
+            x:Name="ParkingIssueText"
+            Classes="err"
+            Classes.hint="{Binding ParkingIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding ParkingIssue.Text}"
+            IsVisible="{Binding ParkingIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsRunway}">
           <TextBlock Classes="lbl" Text="Runway" />
           <TextBox x:Name="RunwayBox" Text="{Binding Runway}" Tag="{Binding CommitRunwayCommand}" />
+          <TextBlock
+            x:Name="RunwayIssueText"
+            Classes="err"
+            Classes.hint="{Binding RunwayIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding RunwayIssue.Text}"
+            IsVisible="{Binding RunwayIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsFix}">
           <TextBlock Classes="lbl" Text="Fix or FRD" />
           <TextBox x:Name="FixBox" Text="{Binding Fix}" Tag="{Binding CommitFixCommand}" />
+          <TextBlock
+            x:Name="FixIssueText"
+            Classes="err"
+            Classes.hint="{Binding FixIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding FixIssue.Text}"
+            IsVisible="{Binding FixIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsCoordinates}">
           <TextBlock Classes="lbl" Text="Latitude" />
@@ -145,6 +201,13 @@
             Classes="err"
             Text="{Binding LongitudeError}"
             IsVisible="{Binding LongitudeError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock
+            x:Name="CoordinatesIssueText"
+            Classes="err"
+            Classes.hint="{Binding CoordinatesIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding CoordinatesIssue.Text}"
+            IsVisible="{Binding CoordinatesIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsAltitude}">
@@ -173,6 +236,13 @@
         <StackPanel IsVisible="{Binding ShowsNavigationPath}">
           <TextBlock Classes="lbl" Text="Navigation path" />
           <TextBox x:Name="NavigationPathBox" Text="{Binding NavigationPath}" Tag="{Binding CommitNavigationPathCommand}" />
+          <TextBlock
+            x:Name="NavigationPathIssueText"
+            Classes="err"
+            Classes.hint="{Binding NavigationPathIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding NavigationPathIssue.Text}"
+            IsVisible="{Binding NavigationPathIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
         </StackPanel>
         <StackPanel IsVisible="{Binding ShowsDistanceFromRunway}">
           <TextBlock Classes="lbl" Text="Distance from runway (nm)" />
@@ -248,6 +318,13 @@
                     IsVisible="{Binding CommandError, Converter={x:Static ObjectConverters.IsNotNull}}"
                   />
                   <TextBlock
+                    x:Name="PresetCommandIssueText"
+                    Classes="err"
+                    Classes.hint="{Binding CommandIssue.IsAdvisory, FallbackValue=False}"
+                    Text="{Binding CommandIssue.Text}"
+                    IsVisible="{Binding CommandIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  />
+                  <TextBlock
                     Classes="err"
                     Text="{Binding OffsetError}"
                     IsVisible="{Binding OffsetError, Converter={x:Static ObjectConverters.IsNotNull}}"
@@ -275,6 +352,13 @@
             ItemsSource="{Binding AutoTrackPositionOptions}"
             DisplayMemberBinding="{Binding Label}"
             SelectedItem="{Binding AutoTrackPositionSelection}"
+          />
+          <TextBlock
+            x:Name="AutoTrackPositionIssueText"
+            Classes="err"
+            Classes.hint="{Binding AutoTrackPositionIssue.IsAdvisory, FallbackValue=False}"
+            Text="{Binding AutoTrackPositionIssue.Text}"
+            IsVisible="{Binding AutoTrackPositionIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
           <TextBlock Classes="lbl" Text="Handoff delay (seconds)" />
           <TextBox x:Name="HandoffDelayBox" Text="{Binding HandoffDelay}" Tag="{Binding CommitHandoffDelayCommand}" />
@@ -304,7 +388,23 @@
       GridLinesVisibility="Horizontal"
     >
       <DataGrid.Columns>
-        <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Callsign" Binding="{Binding Callsign}" SortMemberPath="Callsign" />
+        <DataGridTemplateColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Callsign" SortMemberPath="Callsign">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate x:DataType="vm:ScenarioAircraftRowViewModel">
+              <StackPanel Orientation="Horizontal" Spacing="4" Margin="12,0" VerticalAlignment="Center">
+                <TextBlock
+                  x:Name="RowIssueMarker"
+                  Classes="marker"
+                  Classes.hint="{Binding Issue.IsAdvisory, FallbackValue=False}"
+                  Text="●"
+                  ToolTip.Tip="{Binding Issue.Text}"
+                  IsVisible="{Binding Issue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                />
+                <TextBlock Text="{Binding Callsign}" />
+              </StackPanel>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+        </DataGridTemplateColumn>
         <DataGridTextColumn x:DataType="vm:ScenarioAircraftRowViewModel" Header="Type" Binding="{Binding Type}" SortMemberPath="Type" />
         <DataGridTextColumn
           x:DataType="vm:ScenarioAircraftRowViewModel"

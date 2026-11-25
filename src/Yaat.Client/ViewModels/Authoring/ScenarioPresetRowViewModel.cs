@@ -23,6 +23,10 @@ public sealed partial class ScenarioPresetRowViewModel : ObservableObject
     [ObservableProperty]
     private string? _commandError;
 
+    /// <summary>The command's live-validation findings (a parse failure, a TAXI that does not route); null for none.</summary>
+    [ObservableProperty]
+    private ScenarioFieldIssue? _commandIssue;
+
     [ObservableProperty]
     private string _offset = "";
 

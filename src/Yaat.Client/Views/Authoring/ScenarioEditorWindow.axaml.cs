@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Authoring;
 
@@ -39,21 +40,30 @@ public partial class ScenarioEditorWindow : Window
     /// <param name="preferences">Keeps the window's position and size.</param>
     /// <param name="services">Builds the browser's services over the window's dialogs and pickers.</param>
     /// <param name="filePickerFactory">Creates the file picker for the window (<see cref="FilePickerFactory.Create"/>).</param>
+    /// <param name="layouts">
+    /// The airport ground layouts the live validation routes TAXI presets on (<see cref="ScenarioValidationViewModel.AppLayouts"/>).
+    /// </param>
+    /// <param name="navDataReady">The startup navdata load, <c>MainViewModel.NavDataInitialization</c>.</param>
     public ScenarioEditorWindow(
         UserPreferences preferences,
         Func<IScenarioBrowserPrompts, ScenarioBrowserServices> services,
-        Func<TopLevel, IFilePickerService> filePickerFactory
+        Func<TopLevel, IFilePickerService> filePickerFactory,
+        Func<string, CancellationToken, Task<AirportGroundLayout?>> layouts,
+        Task navDataReady
     )
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(filePickerFactory);
+        ArgumentNullException.ThrowIfNull(layouts);
+        ArgumentNullException.ThrowIfNull(navDataReady);
         InitializeComponent();
         ScenarioBrowserServices built = services(new ScenarioBrowserPrompts(this, filePickerFactory(this)));
         Browser = new ScenarioBrowserViewModel(built);
-        Editor = new ScenarioEditorViewModel(Browser, built);
+        Editor = new ScenarioEditorViewModel(Browser, built, layouts, navDataReady);
         EditorCommands.DataContext = Editor;
         EditorPane.DataContext = Editor;
         SaveMessageText.DataContext = Editor;
+        ValidationStatus.DataContext = Editor;
         DataContext = Browser;
         PlaceholderPanel.Bind(IsVisibleProperty, CompiledBinding.Create<ScenarioEditorViewModel, bool>(vm => vm.ShowsPlaceholder, source: Editor));
         _geometry = new WindowGeometryHelper(this, preferences, GeometryKey, 1100, 700);
@@ -67,7 +77,13 @@ public partial class ScenarioEditorWindow : Window
     }
 
     private ScenarioEditorWindow(UserPreferences preferences)
-        : this(preferences, prompts => ScenarioBrowserServices.ForApp(preferences, prompts, new NoArtccs()), FilePickerFactory.Create) { }
+        : this(
+            preferences,
+            prompts => ScenarioBrowserServices.ForApp(preferences, prompts, new NoArtccs()),
+            FilePickerFactory.Create,
+            ScenarioValidationViewModel.AppLayouts,
+            Task.CompletedTask
+        ) { }
 
     /// <summary>Gets the browser the window shows.</summary>
     internal ScenarioBrowserViewModel Browser { get; }

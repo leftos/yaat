@@ -446,6 +446,7 @@ public sealed partial class ScenarioAircraftViewModel
             LoadFlightPlan(aircraft);
             LoadPresets(aircraft);
             LoadAutoTrack(aircraft);
+            ShowIssues();
         }
         finally
         {

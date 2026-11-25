@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Data;
+using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.ViewModels.Authoring;
 
@@ -30,12 +32,15 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
 
     private readonly ScenarioBrowserViewModel _browser;
     private readonly ScenarioBrowserServices _services;
+    private readonly Func<string, CancellationToken, Task<AirportGroundLayout?>> _layouts;
+    private readonly Task _navDataReady;
     private readonly Func<Task<bool>> _guard;
     private readonly Func<string, string, Task<bool>> _replaceGuard;
     private readonly Func<string, string, Task<bool>> _exportGuard;
     private ScenarioEditSession? _session;
     private ScenarioGeneralViewModel? _general;
     private ScenarioAircraftViewModel? _aircraft;
+    private ScenarioValidationViewModel? _validation;
     private int _openSeq;
     private bool _disposed;
 
@@ -58,10 +63,22 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     /// <summary>Initializes a new instance of the <see cref="ScenarioEditorViewModel"/> class over a browser.</summary>
     /// <param name="browser">The browser whose opens and deletes it follows, and whose leave guard it answers.</param>
     /// <param name="services">The browser's services: the store, the prompts, the pickers' config source and the post.</param>
-    public ScenarioEditorViewModel(ScenarioBrowserViewModel browser, ScenarioBrowserServices services)
+    /// <param name="layouts">
+    /// The airport ground layouts the live validation routes TAXI presets on: the app's
+    /// <see cref="ScenarioValidationViewModel.AppLayouts"/>, a test's committed layouts or none.
+    /// </param>
+    /// <param name="navDataReady">The startup navdata load; the live validation runs the checks again once it ends.</param>
+    public ScenarioEditorViewModel(
+        ScenarioBrowserViewModel browser,
+        ScenarioBrowserServices services,
+        Func<string, CancellationToken, Task<AirportGroundLayout?>> layouts,
+        Task navDataReady
+    )
     {
         _browser = browser ?? throw new ArgumentNullException(nameof(browser));
         _services = services ?? throw new ArgumentNullException(nameof(services));
+        _layouts = layouts ?? throw new ArgumentNullException(nameof(layouts));
+        _navDataReady = navDataReady ?? throw new ArgumentNullException(nameof(navDataReady));
         _guard = ConfirmLeaveAsync;
         _replaceGuard = ConfirmReplaceAsync;
         _exportGuard = PrepareForExportAsync;
@@ -101,6 +118,22 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         get => _aircraft;
         private set => SetProperty(ref _aircraft, value);
     }
+
+    /// <summary>Gets the open copy's live validation; null when nothing is open.</summary>
+    public ScenarioValidationViewModel? Validation
+    {
+        get => _validation;
+        private set
+        {
+            if (SetProperty(ref _validation, value))
+            {
+                OnPropertyChanged(nameof(ValidationStatusText));
+            }
+        }
+    }
+
+    /// <summary>Gets the live validation's scenario-level finding (navdata not loaded), for the status bar; null for none.</summary>
+    public string? ValidationStatusText => Validation?.ScenarioIssue;
 
     /// <summary>Gets a value indicating whether a working copy is open.</summary>
     public bool IsOpen => Session is not null;
@@ -286,13 +319,23 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
             PositionCatalog = general.PositionCatalog,
             PrimaryAirportId = general.PrimaryAirportId,
         };
+        var validation = new ScenarioValidationViewModel(
+            session,
+            _services.Post,
+            () => NavigationDatabase.InstanceOrNull is not null,
+            _layouts,
+            _navDataReady
+        );
         session.DocumentReplaced += OnDocumentReplaced;
         general.Edited += OnEdited;
         general.PropertyChanged += OnGeneralPropertyChanged;
         aircraft.Edited += OnEdited;
+        validation.PropertyChanged += OnValidationPropertyChanged;
         Session = session;
         General = general;
         Aircraft = aircraft;
+        Validation = validation;
+        validation.SetPositionIds(general.CheckedPositionIds);
     }
 
     private bool CanSave() => IsDirty;
@@ -499,12 +542,33 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     {
         General?.Reload();
         Aircraft?.Reload();
+        Validation?.Recompute();
     }
 
     private void OnEdited(object? sender, EventArgs e)
     {
         _edits++;
         NotifyState();
+        Validation?.Recompute();
+    }
+
+    // The live validation's latest findings: beside the fields of both tabs, and its scenario-level finding in the status bar.
+    private void OnValidationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if ((sender is not ScenarioValidationViewModel validation) || !ReferenceEquals(sender, Validation))
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(ScenarioValidationViewModel.Issues))
+        {
+            Aircraft?.ApplyIssues(validation.Issues);
+            General?.ApplyIssues(validation.Issues);
+        }
+        else if (e.PropertyName == nameof(ScenarioValidationViewModel.ScenarioIssue))
+        {
+            OnPropertyChanged(nameof(ValidationStatusText));
+        }
     }
 
     // The General tab's position catalog arrived: the Aircraft tab's auto-track picker offers it too. Its primary airport
@@ -519,6 +583,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         if (e.PropertyName == nameof(ScenarioGeneralViewModel.PositionCatalog))
         {
             aircraft.PositionCatalog = general.PositionCatalog;
+            Validation?.SetPositionIds(general.CheckedPositionIds);
         }
         else if (e.PropertyName == nameof(ScenarioGeneralViewModel.PrimaryAirportId))
         {
@@ -545,6 +610,13 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
             aircraft.Edited -= OnEdited;
         }
 
+        if (Validation is { } validation)
+        {
+            validation.PropertyChanged -= OnValidationPropertyChanged;
+            validation.Dispose();
+        }
+
+        Validation = null;
         Aircraft = null;
         General = null;
         Session = null;

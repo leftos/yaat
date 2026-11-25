@@ -162,6 +162,9 @@
       <Setter Property="Foreground" Value="#FF8A8A" />
       <Setter Property="FontSize" Value="11" />
     </Style>
+    <Style Selector="TextBlock.err.hint">
+      <Setter Property="Foreground" Value="#E0A33A" />
+    </Style>
     <Style Selector="TextBlock.problem">
       <Setter Property="Foreground" Value="#E0A33A" />
       <Setter Property="FontSize" Value="11" />
@@ -284,22 +287,27 @@
             SelectedItem="{Binding MinimumRatingSelection}"
           />
           <TextBlock Grid.Row="3" Classes="lbl" Text="Student position" />
-          <ComboBox
-            x:Name="StudentPositionPicker"
-            Grid.Row="3"
-            Grid.Column="1"
-            IsVisible="{Binding !IsStudentPositionFreeText}"
-            ItemsSource="{Binding StudentPositionOptions}"
-            DisplayMemberBinding="{Binding Label}"
-            SelectedItem="{Binding StudentPositionSelection}"
-          />
-          <TextBox
-            Grid.Row="3"
-            Grid.Column="1"
-            IsVisible="{Binding IsStudentPositionFreeText}"
-            Text="{Binding StudentPositionId}"
-            Tag="{Binding CommitStudentPositionCommand}"
-          />
+          <StackPanel Grid.Row="3" Grid.Column="1">
+            <ComboBox
+              x:Name="StudentPositionPicker"
+              IsVisible="{Binding !IsStudentPositionFreeText}"
+              ItemsSource="{Binding StudentPositionOptions}"
+              DisplayMemberBinding="{Binding Label}"
+              SelectedItem="{Binding StudentPositionSelection}"
+            />
+            <TextBox
+              IsVisible="{Binding IsStudentPositionFreeText}"
+              Text="{Binding StudentPositionId}"
+              Tag="{Binding CommitStudentPositionCommand}"
+            />
+            <TextBlock
+              x:Name="StudentPositionIssueText"
+              Classes="err"
+              Classes.hint="{Binding StudentPositionIssue.IsAdvisory, FallbackValue=False}"
+              Text="{Binding StudentPositionIssue.Text}"
+              IsVisible="{Binding StudentPositionIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+          </StackPanel>
           <TextBlock Grid.Row="3" Grid.Column="2" Classes="lbl" Text="Auto-delete" />
           <ComboBox
             x:Name="AutoDeletePicker"
@@ -366,11 +374,20 @@
               <DataTemplate x:DataType="vm:ScenarioAtcRowViewModel">
                 <Border Classes="row">
                   <Grid Classes="cells" ColumnDefinitions="*,90,120,24">
-                    <ComboBox
-                      ItemsSource="{Binding PositionOptions}"
-                      DisplayMemberBinding="{Binding Label}"
-                      SelectedItem="{Binding PositionSelection}"
-                    />
+                    <StackPanel>
+                      <ComboBox
+                        ItemsSource="{Binding PositionOptions}"
+                        DisplayMemberBinding="{Binding Label}"
+                        SelectedItem="{Binding PositionSelection}"
+                      />
+                      <TextBlock
+                        x:Name="AtcPositionIssueText"
+                        Classes="err"
+                        Classes.hint="{Binding PositionIssue.IsAdvisory, FallbackValue=False}"
+                        Text="{Binding PositionIssue.Text}"
+                        IsVisible="{Binding PositionIssue, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      />
+                    </StackPanel>
                     <CheckBox Grid.Column="1" IsChecked="{Binding AutoConnect}" HorizontalAlignment="Center" />
                     <TextBox Grid.Column="2" Text="{Binding AutoTrackAirportsText}" Tag="{Binding CommitAutoTrackAirportsCommand}" />
                     <Button

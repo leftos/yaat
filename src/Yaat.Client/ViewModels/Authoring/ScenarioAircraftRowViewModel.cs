@@ -24,6 +24,7 @@ public sealed class ScenarioAircraftRowViewModel : ObservableObject
     private string _presets = "";
     private int _presetCount;
     private string _autoTrack = "";
+    private ScenarioFieldIssue? _issue;
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioAircraftRowViewModel"/> class from an aircraft.</summary>
     /// <param name="aircraft">The aircraft, as the document holds it now.</param>
@@ -120,6 +121,16 @@ public sealed class ScenarioAircraftRowViewModel : ObservableObject
     {
         get => _autoTrack;
         private set => SetProperty(ref _autoTrack, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the aircraft's live-validation errors and warnings, the grid's row marker; null when it has none. Set by the
+    /// Aircraft tab from the latest findings, never from the document.
+    /// </summary>
+    public ScenarioFieldIssue? Issue
+    {
+        get => _issue;
+        set => SetProperty(ref _issue, value);
     }
 
     /// <summary>Refreshes the row's texts from its aircraft as the document holds it now, raising a change for each that differs.</summary>

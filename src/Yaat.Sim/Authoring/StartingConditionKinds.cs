@@ -62,6 +62,25 @@ public static class StartingConditionKinds
     public static IReadOnlyList<string> FieldsOf(string kind) => Row(kind);
 
     /// <summary>
+    /// The members <see cref="ScenarioLoader"/> needs to place an aircraft of <paramref name="kind"/>, by JSON name: without one
+    /// it defers or drops the aircraft. The airport the start is looked up at is the aircraft's, not a member, and is not listed.
+    /// </summary>
+    /// <param name="kind">One of <see cref="Kinds"/>, matched exactly as the loader matches it.</param>
+    /// <returns>The member names.</returns>
+    /// <exception cref="ArgumentException"><paramref name="kind"/> is not one of <see cref="Kinds"/>.</exception>
+    public static IReadOnlyList<string> RequiredOf(string kind)
+    {
+        _ = Row(kind);
+        return kind switch
+        {
+            Parking => [ScenarioEditFields.Parking],
+            OnRunway or OnFinal => [ScenarioEditFields.Runway],
+            Coordinates => [ScenarioEditFields.Coordinates],
+            _ => [ScenarioEditFields.Fix],
+        };
+    }
+
+    /// <summary>
     /// New starting conditions of <paramref name="newKind"/>: the members it uses are carried over from
     /// <paramref name="current"/>, every other one is cleared, and the unmodelled members are kept. A switch to the kind
     /// <paramref name="current"/> already has is an equal copy.

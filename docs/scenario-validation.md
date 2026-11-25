@@ -2,9 +2,9 @@
 
 YAAT validates every vNAS training scenario offline so ARTCC training staff can catch typos, unsupported commands, stale procedure versions and inconsistent aircraft data before students hit them.
 
-There is no in-app validation surface: the client's batch window was removed once the CLI covered it, and a scenario *load* only reports the data problems `ScenarioLoader` finds while building the aircraft (missing parking, a SID/STAR resolved to a newer version) on `LoadScenarioResult.Warnings` — a separate channel from the validator below.
+The client has no batch validation window (it was removed once the CLI covered it); its one in-app surface is the Scenario Editor's live findings (below). A scenario *load* only reports the data problems `ScenarioLoader` finds while building the aircraft (missing parking, a SID/STAR resolved to a newer version) on `LoadScenarioResult.Warnings` — a separate channel from the validator below.
 
-Three surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scenarios/ScenarioValidator.cs`):
+Three offline surfaces, all driven by `ScenarioValidator.Validate()` (`src/Yaat.Sim/Scenarios/ScenarioValidator.cs`):
 
 1. **yaat-server CLI** — `dotnet run --project tools/Yaat.ScenarioValidator -- --all --json` (or one ARTCC / one file / one folder) fetches the scenarios from the vNAS data API, checks the ground map of every airport they use (below), and prints a text report or JSON: a report object `{ "Scenarios": [ScenarioValidationResult…], "GroundMaps": [GroundMapCheckResult…] }` for one unit, or one such object per ARTCC in multi mode.
 2. **Discord CI** — `.github/workflows/discord-scenario-validation.yml` in yaat-server runs the CLI weekly (and on the `/validate` button) and posts one report per ARTCC to that ARTCC's "Scenario Validation" channel. The post is built by hand from the JSON in the workflow's embedded Python (`format_message`), so **a new check only reaches Discord once that function extracts its list** — see "Adding a check".
@@ -37,6 +37,18 @@ The check parses it with `GeoJsonParser.ParseWithDiagnostics` as the runtime doe
 The Discord post and `validate-all-scenarios.py` add a "Ground maps" section after the scenario sections, failures first, then advisories, airports alphabetical; an error message is cut to 200 characters there.
 
 Failures that are known scenario defects rather than parser bugs are catalogued in [scenario-validation-known-failures.md](scenario-validation-known-failures.md); check it before chasing one.
+
+## Live validation in the Scenario Editor
+
+The editor checks the open working copy as the author edits, with `ScenarioEditChecks.Run(scenario, ScenarioEditInputs)` (`src/Yaat.Sim/Authoring/ScenarioEditChecks.cs`). It runs `ScenarioValidator.Validate` once per aircraft (so a finding belongs to that aircraft even when another shares its callsign) and adds the editor's own checks: duplicate callsigns, auto-track without a position, a position no config lists (the ARTCC's and its neighbours'; skipped when a config could not be read), the members a starting-condition kind needs (`StartingConditionKinds.RequiredOf`) and the airport a start looks up, and whether each aircraft's first TAXI preset routes from where `ScenarioLoader` places it.
+
+Each `ScenarioEditIssue` has a severity (`Error`, `Warning` or `NotChecked`), the aircraft and preset ids, and a field key from `ScenarioEditFields`; the client shows it beside that field. A preset that does not parse, a procedure not in the navdata, a duplicate callsign, a missing start member and a TAXI that does not route are errors; a changed procedure version, a substituted transition fix, a type that differs from the filed one and an unlisted position are warnings. A TAXI is `NotChecked` when there is no airport map, the destination is `@GATE` or a stand prefix, or the aircraft was not placed.
+
+With navdata not loaded nothing is checked and the one finding is the scenario-level `ScenarioEditChecks.NavdataNotLoadedText`.
+
+`ScenarioValidationViewModel` (`src/Yaat.Client/ViewModels/Authoring/`) runs the checks off the UI thread on a snapshot of the document after each edit, undo, redo, reload and position-catalog load, applies only the latest run and none after the session closes, and fetches each TAXI airport's layout once per session through the shared `AirportLayoutDownloader`. An editor opened before the startup navdata load ends checks itself again once it ends. `ScenarioAircraftViewModel.ApplyIssues` and `ScenarioGeneralViewModel.ApplyIssues` hand the findings to the fields; the scenario-level finding shows in the window's status bar.
+
+The export's `WorkingCopyExporter.DefaultChecks` is a separate, narrower check set (see [scenario-loading-and-generation.md](scenario-loading-and-generation.md) File map).
 
 ## Adding a check
 

@@ -31,6 +31,10 @@ public sealed partial class ScenarioAtcRowViewModel : ObservableObject
     [ObservableProperty]
     private bool _autoConnect;
 
+    /// <summary>The position's live-validation finding (a position no config lists); null for none.</summary>
+    [ObservableProperty]
+    private ScenarioFieldIssue? _positionIssue;
+
     [ObservableProperty]
     private string _autoTrackAirportsText;
 

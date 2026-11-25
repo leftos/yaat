@@ -3558,7 +3558,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         _scenarioEditorWindow = new ScenarioEditorWindow(
             vm.Preferences,
             prompts => ScenarioBrowserServices.ForApp(vm.Preferences, prompts, access),
-            FilePickerFactory.Create
+            FilePickerFactory.Create,
+            ScenarioValidationViewModel.AppLayouts,
+            vm.NavDataInitialization
         );
         _scenarioEditorWindow.Closed += (_, _) => _scenarioEditorWindow = null;
         _scenarioEditorWindow.Show();
