@@ -148,7 +148,7 @@ git -C "$YAAT" push --force-with-lease origin pr-<PR>:<head-branch>
 
 **Expect a `CHANGELOG.md` conflict when a release was cut since the pin.** A nightly-review PR already carries its own `## Unreleased` block in its single commit; once `main` has promoted its `## Unreleased` into a release heading, the rebase conflicts on that block every time.
 
-Resolve it as `/ship` Phase 2 does: keep both sides, placing the bot's `## Unreleased` block above the newest release header and leaving `main`'s released sections untouched; confirm with `rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md` that no markers remain; then `git add --resolved CHANGELOG.md` (a refusal means markers remain: resolve them, never fall back to a plain `git add`) and `git rebase --continue`.
+Resolve it as `/ship-to-main` Phase 2 does: keep both sides, placing the bot's `## Unreleased` block above the newest release header and leaving `main`'s released sections untouched; confirm with `rg -n '^(<<<<<<<|=======|>>>>>>>)' CHANGELOG.md` that no markers remain; then `git add --resolved CHANGELOG.md` (a refusal means markers remain: resolve them, never fall back to a plain `git add`) and `git rebase --continue`.
 
 The same rule covers `docs/plans/*.md`, `docs/architecture.md` and a subsystem doc's `## File map` section when both sides only added lines — keep `main`'s lines first, then the PR's; a block with a removal or a rewritten heading is resolved by hand.
 
@@ -172,7 +172,7 @@ cannot see. Neither command checks formatting — that is Step 6's ranged
 
 ## Step 8: Merge with `--merge`, never `--rebase`
 
-**Read and validate every review first.** Before the merge, read every review on the PR, human or bot (`gh pr view <PR> --repo leftos/yaat --comments` and `gh api repos/leftos/yaat/pulls/<PR>/comments`), and check each finding against the head, as `/ship` Phase 2F step 4 does: a real one is fixed on the branch (back to Step 7's gate) or booked as its own issue, never merged past unread.
+**Read and validate every review first.** Before the merge, read every review on the PR, human or bot (`gh pr view <PR> --repo leftos/yaat --comments` and `gh api repos/leftos/yaat/pulls/<PR>/comments`), and check each finding against the head, as `/ship-to-main` Phase 2F step 4 does: a real one is fixed on the branch (back to Step 7's gate) or booked as its own issue, never merged past unread.
 
 **Consequence of trap 3:** `gh pr merge --rebase` makes GitHub replay the
 commits it *thinks* belong to the PR — creating duplicate SHAs of commits
@@ -183,7 +183,7 @@ gh pr merge <PR> --repo leftos/yaat --merge --delete-branch
 ```
 
 A bot PR merges through `gh pr merge --merge`, where a feature PR lands by a
-pushed fast-forward of its caught-up branch, never `gh pr merge` (`/ship`
+pushed fast-forward of its caught-up branch, never `gh pr merge` (`/ship-to-main`
 Phase 2F).
 
 `--merge` is safe: the parents are `main`'s tip and the PR head, the tree is

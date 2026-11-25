@@ -93,7 +93,7 @@ Aviation constants: validated category values live in docs/flight-physics.md (Ca
 
 **Prefer the skill over ad-hoc CLI**: `layout-inspect` (never compose LayoutInspector flags from memory), `bug-bundle` (any `*-recording.zip` / `*.yaat-bug-report-bundle.zip`, before running any `tools/bug_bundle.py` subcommand), `stt-pipeline-debugging` (any speech sample or "why doesn't this transcript match"), `guide-capture` (any GuideCapture screenshot scene; the tool is in yaat-server).
 
-Landing (cross-repo cherry-pick, hooks exception, push, issue refs): /ship with the yaat-nextup profile.
+Landing (cross-repo cherry-pick, hooks exception, push, issue refs): /ship-to-main with the yaat-nextup profile.
 
 ## Problem Solving
 
@@ -138,6 +138,6 @@ Tests: writing or debugging one, read tests/CLAUDE.md and docs/test-harness.md f
 
 ### Git & Issues
 
-- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` in a Linear project's content) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship` Phase 2F). Branches and PRs outside a marker only when the user asks.
+- **Commit directly to `main`, feature branches by marker**: the sole maintainer commits and pushes directly to `main` in both yaat and yaat-server. Work under a feature marker (`branch: feat/<name>` in a Linear project's content) lives on `feat/<name>` in both repos with a feature PR into `main` each, by the user-level route (`nextup` §3 "Feature branches", `/ship-to-main` Phase 2F). Branches and PRs outside a marker only when the user asks.
 - **Cross-repo completeness**: Features spanning both repos must be implemented together — no half-done features.
 - **Plans**: Linear team YAAT, which also plans yaat-server; the active programme is YAAT Scope ([`docs/plans/yaat-scope/README.md`](docs/plans/yaat-scope/README.md)), then controller AI ([`docs/plans/controller-ai/README.md`](docs/plans/controller-ai/README.md)).

@@ -1,6 +1,6 @@
 # yaat profile: Ship
 
-Read by the user-level `ship`; each rule names the phase it adds to or overrides.
+Read by the user-level `ship-to-main`; each rule names the phase it adds to or overrides.
 
 - Sibling (Phase 0): yaat-server, shipped by the same phases. Source: the `yaat-server` beside the yaat worktree when it is on the same branch (a paired session), else the main checkout's sibling. Target: always the main checkout's sibling, `"$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)/../yaat-server"`; never a drive letter.
 
