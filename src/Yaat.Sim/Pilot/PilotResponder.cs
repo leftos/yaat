@@ -3433,6 +3433,32 @@ public static partial class PilotResponder
     }
 
     /// <summary>
+    /// A readback of a clearance whose cleared path enters a Class B the pilot is not cleared into, saying so: the terminal
+    /// form gains <c>", that'll take us into the bravo"</c> at the end, and with <paramref name="requestClearance"/> also
+    /// <c>", request bravo clearance"</c> (7110.65 §7-9-2.a NOTE 1, AIM 3-2-1.d); the spoken form gains them ahead of the
+    /// closing callsign (<c>"enter right downwind runway 28R, that'll take us into the bravo, request bravo clearance,
+    /// november …"</c>), or at the end when the readback does not close with the callsign. Told to remain outside that
+    /// Class B, the pilot advises and asks nothing.
+    /// </summary>
+    public static PilotSpeechText WithBravoAdvisory(
+        AircraftState aircraft,
+        PilotSpeechText readback,
+        bool requestClearance,
+        PilotSpeechContext speechContext
+    )
+    {
+        string clause = requestClearance ? ", that'll take us into the bravo, request bravo clearance" : ", that'll take us into the bravo";
+        string callsignTail = NormalizeForTts($", {SpokenReadbackCallsign(aircraft, speechContext)}.");
+        string tts = WithClauseBeforeCallsign(readback.Tts, clause, callsignTail);
+        return readback with
+        {
+            Terminal = readback.Terminal + clause,
+            Tts = tts,
+            RpoTerminal = readback.RpoTerminal is null ? null : readback.RpoTerminal + clause,
+        };
+    }
+
+    /// <summary>
     /// A readback of an instruction the pilot took as its Class B clearance, saying so: the terminal form gains
     /// <c>", cleared into the bravo"</c> (or <c>"through"</c>) at the end (<c>"fly heading 090, cleared into the bravo"</c>),
     /// the spoken form gains it ahead of the closing callsign (<c>"fly heading zero nine zero, cleared into the bravo,

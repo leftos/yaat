@@ -37,15 +37,18 @@ public sealed record PreDispatchCapture(BravoClearanceWait? BravoWait, IReadOnly
 
 /// <summary>
 /// What a successful dispatch changes in the pilot's readback about Class B: the implicit clearance it granted
-/// (<see cref="ImplicitBravoClearance.TryGrant"/>), and the vector or direct that takes the pilot into a Class B it is told to
-/// remain outside (<see cref="ImplicitBravoClearance.FindRemainOutsideConflict"/>), whose clause is the advisory.
+/// (<see cref="ImplicitBravoClearance.TryGrant"/>), the vector or direct that takes the pilot into a Class B it is told to
+/// remain outside (<see cref="ImplicitBravoClearance.FindRemainOutsideConflict"/>), whose clause is the advisory, and the
+/// Class B a landing clearance's cleared path enters uncleared (<see cref="PilotProactive.FindDispatchBravoAdvisory"/>),
+/// which the solo pilot reads back as "that'll take us into the bravo".
 /// </summary>
 /// <param name="Grant">How the pilot words the clearance it took, or null when none was granted.</param>
 /// <param name="NotCleared">The instruction whose clause the pilot reads back as the "we're not cleared" advisory, or null.</param>
-internal sealed record BravoReadback(BravoClearanceWording? Grant, ParsedCommand? NotCleared)
+/// <param name="Advisory">The Class B the cleared path enters uncleared, or null; never set beside a grant or a NotCleared clause.</param>
+internal sealed record BravoReadback(BravoClearanceWording? Grant, ParsedCommand? NotCleared, PilotProactive.BravoDispatchAdvisory? Advisory)
 {
     /// <summary>No grant and no advisory.</summary>
-    public static BravoReadback None { get; } = new(null, null);
+    public static BravoReadback None { get; } = new(null, null, null);
 }
 
 // Command entry points and the aircraft mutations they drive. Routing is the ActionRouter's (Simulation/Actions/);
@@ -236,7 +239,6 @@ public sealed partial class SimulationEngine
         bool answering = Scenario?.PilotContacts.AnyAnswering ?? false;
         bool human = origin == DispatchOrigin.Human;
         double elapsedSeconds = Scenario?.ElapsedSeconds ?? 0;
-        BravoReadback bravo = BravoReadback.None;
         // Whether the controller had acknowledged the pilot's contact before this command, so the read-back to the command
         // that acknowledges it keeps the full callsign: read before the registration below, and false for a compound
         // carrying a STBY/ROGER, whose dispatch has already set the flag.
@@ -246,25 +248,13 @@ public sealed partial class SimulationEngine
 
         if (result.Success)
         {
-            // A vector or direct into a Class B the pilot is told to remain outside draws the NOTE 1 advisory instead of
-            // the readback; it never grants (TryGrant skips that Class B).
-            bravo = Scenario is { } scenario
-                ? new BravoReadback(
-                    ImplicitBravoClearance.TryGrant(aircraft, compound, capture.BravoWait, scenario, AirspaceDatabase.Default, LookupAirportPosition),
-                    ImplicitBravoClearance.FindRemainOutsideConflict(aircraft, compound, scenario, AirspaceDatabase.Default)
-                )
-                : BravoReadback.None;
-
-            if (human)
-            {
-                TuneOnHumanInstruction(aircraft, compound);
-                RecordStudentCommand(aircraft, compound, elapsedSeconds, soloTrainingMode);
-            }
-
-            if (answering)
-            {
-                AnswerAcceptedCommand(aircraft, compound, result, elapsedSeconds, acknowledgedBefore, bravo);
-            }
+            ApplyAcceptedDispatch(
+                aircraft,
+                compound,
+                result,
+                capture,
+                new DispatchFlags(human, answering, soloTrainingMode, elapsedSeconds, acknowledgedBefore)
+            );
         }
         else if (answering)
         {
@@ -284,6 +274,125 @@ public sealed partial class SimulationEngine
         if (answering && (queuedReadbacks.Length > 0))
         {
             World.ExpectPilotReadback(queuedReadbacks, elapsedSeconds);
+        }
+    }
+
+    /// <summary>What <see cref="ApplyPostDispatch"/> knows about a dispatch before it runs the accepted-command side.</summary>
+    private readonly record struct DispatchFlags(bool Human, bool Answering, bool SoloTrainingMode, double ElapsedSeconds, bool AcknowledgedBefore);
+
+    /// <summary>
+    /// The side of a successful dispatch, in the order each part depends on the one before: the Class B judgement, the
+    /// student's tuning and scored command (human dispatch only), the read-back (when anyone answers pilots), then the Class B
+    /// request and RPO warning that follow the read-back. All of it reads the one scenario taken at its start.
+    /// </summary>
+    private void ApplyAcceptedDispatch(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        CommandResult result,
+        PreDispatchCapture capture,
+        DispatchFlags flags
+    )
+    {
+        SimScenarioState? scenario = Scenario;
+        BravoReadback bravo = BravoReadback.None;
+        PilotProactive.BravoDispatchAdvisory? pathAdvisory = null;
+        if (scenario is { } judged)
+        {
+            (bravo, pathAdvisory) = JudgeBravoAtDispatch(aircraft, compound, capture, judged, flags.SoloTrainingMode);
+        }
+
+        if (flags.Human)
+        {
+            TuneOnHumanInstruction(aircraft, compound);
+            RecordStudentCommand(aircraft, compound, flags.ElapsedSeconds, flags.SoloTrainingMode);
+        }
+
+        if (flags.Answering)
+        {
+            AnswerAcceptedCommand(aircraft, compound, result, flags.ElapsedSeconds, flags.AcknowledgedBefore, bravo);
+        }
+
+        if (scenario is { } room)
+        {
+            RecordBravoDispatchOutcome(aircraft, pathAdvisory, room, flags.SoloTrainingMode, flags.Answering);
+        }
+    }
+
+    /// <summary>
+    /// What a successful dispatch decides about Class B, in the order the decisions depend on each other: the implicit
+    /// clearance it granted (<see cref="ImplicitBravoClearance.TryGrant"/> — first, so a grant suppresses the advisory), the
+    /// vector or direct that takes the pilot into a Class B it is told to remain outside
+    /// (<see cref="ImplicitBravoClearance.FindRemainOutsideConflict"/>, whose clause is the 7110.65 §7-9-2 NOTE 1 advisory),
+    /// and the Class B a landing clearance's cleared path enters uncleared
+    /// (<see cref="PilotProactive.FindDispatchBravoAdvisory"/>), judged only with no grant, no NotCleared clause, and no
+    /// reaction delay holding the command back — a delayed clearance builds no phase list now, so the in-phase hold says the
+    /// words once the phase runs. The read-back carries the advisory for a solo pilot alone; the RPO warning gets it either way.
+    /// </summary>
+    private (BravoReadback Bravo, PilotProactive.BravoDispatchAdvisory? Advisory) JudgeBravoAtDispatch(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        PreDispatchCapture capture,
+        SimScenarioState scenario,
+        bool soloTrainingMode
+    )
+    {
+        BravoClearanceWording? grant = ImplicitBravoClearance.TryGrant(
+            aircraft,
+            compound,
+            capture.BravoWait,
+            scenario,
+            AirspaceDatabase.Default,
+            LookupAirportPosition
+        );
+        ParsedCommand? notCleared = ImplicitBravoClearance.FindRemainOutsideConflict(aircraft, compound, scenario, AirspaceDatabase.Default);
+        PilotProactive.BravoDispatchAdvisory? advisory = null;
+        if ((grant is null) && (notCleared is null) && !IsHeldByReactionDelay(aircraft, compound))
+        {
+            advisory = PilotProactive.FindDispatchBravoAdvisory(
+                aircraft,
+                compound,
+                AirspaceDatabase.Default,
+                includeVerticalEntries: !soloTrainingMode,
+                BuildBoundaryHoldContext
+            );
+        }
+
+        return (new BravoReadback(grant, notCleared, soloTrainingMode ? advisory : null), advisory);
+    }
+
+    /// <summary>
+    /// The two Class B side effects of a successful dispatch that follow the read-back: the solo pilot's Class B request,
+    /// recorded only once the controller response has resolved or kept the previous one
+    /// (<see cref="PilotProactive.RecordBravoRequestFromAdvisory"/>), and the RPO session's one instructor warning
+    /// (<see cref="PilotProactive.WarnRpoAtDispatch"/>) — each only when the dispatch drew an advisory, and the request only
+    /// when someone answers pilots.
+    /// </summary>
+    private static void RecordBravoDispatchOutcome(
+        AircraftState aircraft,
+        PilotProactive.BravoDispatchAdvisory? advisory,
+        SimScenarioState scenario,
+        bool soloTrainingMode,
+        bool answering
+    )
+    {
+        if (advisory is not { } pathAdvisory)
+        {
+            return;
+        }
+
+        if (soloTrainingMode && answering)
+        {
+            PilotProactive.RecordBravoRequestFromAdvisory(
+                aircraft,
+                pathAdvisory.Area,
+                pathAdvisory.Reference,
+                new PilotProactive.InPhaseSpeech(scenario, AirspaceDatabase.Default, LookupAirportPosition)
+            );
+        }
+
+        if (!soloTrainingMode)
+        {
+            PilotProactive.WarnRpoAtDispatch(aircraft, pathAdvisory);
         }
     }
 
@@ -333,6 +442,13 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Whether <paramref name="compound"/> is still waiting on a pilot reaction delay: the dispatch has not run, so the
+    /// phase list it would build does not exist and there is no cleared path to judge.
+    /// </summary>
+    private static bool IsHeldByReactionDelay(AircraftState aircraft, CompoundCommand compound) =>
+        aircraft.DeferredDispatches.Exists(deferred => deferred.IsReactionDelay && ReferenceEquals(deferred.Payload, compound));
+
+    /// <summary>
     /// The tuning a successful human instruction records at issue time.
     /// <para>
     /// In solo training, a compound whose immediately-applied commands carry a CT or FCA moves the pilot off the
@@ -380,14 +496,14 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Queues the pilot's read-back of a successful dispatch, worded for the frequency's load now, with the airtime of the
-    /// same read-back said canonically for the meter. A granted Class B clearance joins both forms. A compound with no
-    /// read-back queues nothing.
+    /// same read-back said canonically for the meter. A granted Class B clearance, or a cleared path that enters an
+    /// uncleared one, joins both forms. A compound with no read-back queues nothing.
     /// </summary>
     /// <param name="acknowledgedBefore">Whether the controller had acknowledged the pilot's contact before this command.</param>
     /// <param name="bravo">
-    /// The implicit Class B clearance this dispatch granted, if any, and the vector or direct that takes the pilot into a
+    /// The implicit Class B clearance this dispatch granted, if any; the vector or direct that takes the pilot into a
     /// Class B it is told to remain outside, whose clause the pilot reads back as the advisory, the rest of the compound
-    /// read back in order around it.
+    /// read back in order around it; and the Class B the cleared path enters uncleared, which the readback advises.
     /// </param>
     private void QueueAppliedReadback(
         AircraftState aircraft,
@@ -418,6 +534,14 @@ public sealed partial class SimulationEngine
         {
             readback = PilotResponder.WithBravoClearance(aircraft, readback, wording, speechContext);
             canonical = PilotResponder.WithBravoClearance(aircraft, canonical, wording, PilotSpeechContext.Canonical);
+        }
+        else if (bravo.Advisory is { } advisory)
+        {
+            // After the controller response has closed or kept the previous request, so the clause and the recorded request
+            // agree: a compound that answers the open request without granting it asks again here.
+            bool requestClearance = PilotProactive.ShouldAskForBravoClearance(aircraft, advisory.Area);
+            readback = PilotResponder.WithBravoAdvisory(aircraft, readback, requestClearance, speechContext);
+            canonical = PilotResponder.WithBravoAdvisory(aircraft, canonical, requestClearance, PilotSpeechContext.Canonical);
         }
 
         PilotResponder.QueueSoloPilotTransmission(aircraft, readback, canonical, PilotTransmissionKind.Readback, initialContact: false);

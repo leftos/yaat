@@ -71,10 +71,28 @@ public static class BravoPathPredictor
         PredictFrom(
             aircraft,
             phases,
-            new PlanStart(phases.Phases.IndexOf(from), from, ctx.Targets.NavigationRoute, ResumedBy: null),
+            new PlanStart(phases.Phases.IndexOf(from), from, ctx.Targets.NavigationRoute, ResumedBy: null, Pending: false),
             ctx,
             horizonSeconds
         );
+
+    /// <summary>
+    /// The path the phase at the list's current index will fly once it starts, from the aircraft's present position,
+    /// <paramref name="horizonSeconds"/> of travel long: the plan <see cref="Predict"/> builds, read with an empty live route
+    /// (a lead-in the aircraft has not passed) and no live altitude target (the target standing at dispatch is the old
+    /// phase's, where that phase was going), so a clearance dispatched now is judged on the path it just cleared. Null when
+    /// the list has no current phase or that phase has no path source.
+    /// </summary>
+    public static PredictedPath? PredictPending(AircraftState aircraft, PhaseList phases, PhaseContext ctx, double horizonSeconds) =>
+        phases.CurrentPhase is { } current
+            ? PredictFrom(
+                aircraft,
+                phases,
+                new PlanStart(phases.Phases.IndexOf(current), current, Route: [], ResumedBy: null, Pending: true),
+                ctx,
+                horizonSeconds
+            )
+            : null;
 
     /// <summary>
     /// Whether <paramref name="phase"/> is a kind the predictor builds a path for: a pattern entry, an approach's fixes, a
@@ -107,7 +125,7 @@ public static class BravoPathPredictor
             return null;
         }
 
-        var start = new PlanStart(phases.Phases.IndexOf(held), resumed, hold.StashedRoute, ResumedBy: hold);
+        var start = new PlanStart(phases.Phases.IndexOf(held), resumed, hold.StashedRoute, ResumedBy: hold, Pending: false);
         return PredictFrom(aircraft, phases, start, ctx, ReleaseHorizonSeconds);
     }
 
@@ -147,9 +165,12 @@ public static class BravoPathPredictor
         }
 
         // A resumed plan flies a controller altitude issued during the hold, else its own planned altitude: the live target is
-        // the orbit's level-off, not where the phase goes.
-        VerticalPlan vertical = start.ResumedBy is { } hold
-            ? new VerticalPlan(hold.ControllerAltitudeLeftStanding(ctx) ?? plan.PlannedAltitude ?? ctx.Targets.TargetAltitude, ctx.Category)
+        // the orbit's level-off, not where the phase goes. A pending phase flies its own planned altitude, since the live target
+        // is still the old phase's.
+        VerticalPlan vertical =
+            start.ResumedBy is { } hold
+                ? new VerticalPlan(hold.ControllerAltitudeLeftStanding(ctx) ?? plan.PlannedAltitude ?? ctx.Targets.TargetAltitude, ctx.Category)
+            : start.Pending ? new VerticalPlan(plan.PlannedAltitude, null)
             : new VerticalPlan(ctx.Targets.TargetAltitude ?? plan.PlannedAltitude, null);
         return new PredictedPath(Walk(aircraft, plan, vertical, horizonSeconds));
     }
@@ -247,10 +268,17 @@ public static class BravoPathPredictor
 
     /// <summary>
     /// Where a plan starts: the index in the phase list the phases behind it follow, the phase whose leg comes first (the
-    /// phase at that index, or a restart copy of it), the route read as that phase's live route, and the boundary hold whose
-    /// end the plan resumes from (null for the running phase's own plan).
+    /// phase at that index, or a restart copy of it), the route read as that phase's live route, the boundary hold whose
+    /// end the plan resumes from (null for the running phase's own plan), and whether the phase has not started yet
+    /// (<see cref="PredictPending"/>: no live route and no live altitude target).
     /// </summary>
-    private readonly record struct PlanStart(int Index, Phase First, IReadOnlyList<NavigationTarget> Route, AirspaceBoundaryHoldPhase? ResumedBy);
+    private readonly record struct PlanStart(
+        int Index,
+        Phase First,
+        IReadOnlyList<NavigationTarget> Route,
+        AirspaceBoundaryHoldPhase? ResumedBy,
+        bool Pending
+    );
 
     /// <summary>One waypoint of a plan: where, at what turn rate its leg is flown, and whether it is flown over (no lead).</summary>
     private readonly record struct PathWaypoint(LatLon Position, double TurnRateDegPerSec, bool IsFlyOver);
@@ -293,10 +321,13 @@ public static class BravoPathPredictor
 
     /// <summary>
     /// The altitude target standing as the plan's first leg starts: the one the end of the hold it resumes from leaves
-    /// (<see cref="AirspaceBoundaryHoldPhase.TargetAltitudeAfterEnd"/>), else the live one.
+    /// (<see cref="AirspaceBoundaryHoldPhase.TargetAltitudeAfterEnd"/>), else the live one; none for a phase that has not
+    /// started, whose live target belongs to the phase before it.
     /// </summary>
     private static double? StandingTargetFt(PlanStart start, PhaseContext ctx) =>
-        start.ResumedBy is { } hold ? hold.TargetAltitudeAfterEnd(ctx) : ctx.Targets.TargetAltitude;
+        start.ResumedBy is { } hold ? hold.TargetAltitudeAfterEnd(ctx)
+        : start.Pending ? null
+        : ctx.Targets.TargetAltitude;
 
     private static PathPlan? BuildPlan(AircraftState aircraft, PhaseList phases, PlanStart start, PhaseContext ctx)
     {

@@ -507,6 +507,55 @@ public sealed class BravoPathPredictorTests : IDisposable
     }
 
     [Fact]
+    public void Predict_PendingPatternEntryAtOak28R_EqualsThePathOfTheStartedPhaseAtTick0()
+    {
+        // A phase that has not started, with nothing standing on the aircraft: the pending plan is the running one's.
+        AircraftState ac = Airborne(NearWestRing, trueHeading: 90, altitude: 7500);
+        PatternEntryPhase entry = Active(OakPatternEntry());
+        ac.Phases!.Add(entry);
+        PhaseContext ctx = Context(ac, Oak28R());
+        Assert.Empty(ctx.Targets.NavigationRoute);
+        Assert.Null(ctx.Targets.TargetAltitude);
+
+        PredictedPath pending = Assert.IsType<PredictedPath>(BravoPathPredictor.PredictPending(ac, ac.Phases, ctx, Horizon));
+        PredictedPath started = Assert.IsType<PredictedPath>(BravoPathPredictor.Predict(ac, ac.Phases, entry, ctx, Horizon));
+
+        Assert.Equal(started.Points, pending.Points);
+    }
+
+    [Fact]
+    public void Dispatch_PredictPendingIgnoresTheOldPhasesRouteAndTarget()
+    {
+        // At dispatch the live route and altitude target are the old phase's: a route without the lead-in reads as "lead-in
+        // passed", and the old target is where that phase was going.
+        AircraftState ac = Airborne(NearWestRing, trueHeading: 90, altitude: 7500);
+        LatLon leadIn = GeoMath.ProjectPoint(NearWestRing, new TrueHeading(270), 3);
+        LatLon entryPoint = GeoMath.ProjectPoint(leadIn, new TrueHeading(0), 3);
+        PatternEntryPhase entry = Active(EntryAt(entryPoint, leadIn));
+        ac.Phases!.Add(entry);
+        ac.Targets.NavigationRoute.Add(
+            new NavigationTarget { Name = "OLDPHASE", Position = GeoMath.ProjectPoint(NearWestRing, new TrueHeading(180), 5) }
+        );
+        ac.Targets.TargetAltitude = 9000;
+        ac.VerticalSpeed = 1500;
+        PhaseContext ctx = Context(ac, Oak28R());
+
+        PredictedPath pending = Assert.IsType<PredictedPath>(
+            BravoPathPredictor.PredictPending(ac, ac.Phases, ctx, BravoPathPredictor.ReleaseHorizonSeconds)
+        );
+        PredictedPath stale = Assert.IsType<PredictedPath>(
+            BravoPathPredictor.Predict(ac, ac.Phases, entry, ctx, BravoPathPredictor.ReleaseHorizonSeconds)
+        );
+
+        Assert.Contains(pending.Points, p => GeoMath.DistanceNm(p.Position, leadIn) < 0.5);
+        Assert.DoesNotContain(stale.Points, p => GeoMath.DistanceNm(p.Position, leadIn) < 0.5);
+        // Climbing 1,500 fpm toward the old phase's 9,000 ft target: the pending plan holds the present altitude, since
+        // that climb points away from where its own plan goes.
+        Assert.All(pending.Points, p => Assert.Equal(7500, p.AltitudeFt));
+        Assert.True(stale.Points[^1].AltitudeFt > 7500, $"the stale plan climbs to the old target, reaching {stale.Points[^1].AltitudeFt:F0} ft");
+    }
+
+    [Fact]
     public void AFlyOverFix_GetsNoTurnLead()
     {
         Assert.True(ClosestApproachToTheFirstFix(flyOver: true) < 0.05);

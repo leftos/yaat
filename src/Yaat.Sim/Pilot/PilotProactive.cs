@@ -9,6 +9,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Approach;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Training;
 
 namespace Yaat.Sim.Pilot;
 
@@ -1338,7 +1339,11 @@ public static class PilotProactive
         }
 
         PhaseContext ctx = phaseContextFor(aircraft);
-        AirspaceBoundaryCrossing? crossing = FindInPhaseBravoEntry(aircraft, airspace, new InPhaseRun(phases, current, ctx));
+        AirspaceBoundaryCrossing? crossing = FindInPhaseBravoEntry(
+            aircraft,
+            airspace,
+            new InPhaseRun(phases, current, ctx, Pending: false, HorizonSeconds: BravoPathPredictor.TriggerLookaheadSeconds)
+        );
         ExpireUnableToHoldEncounter(aircraft, scenario.ElapsedSeconds, current, crossing);
         if (crossing is null)
         {
@@ -1362,10 +1367,18 @@ public static class PilotProactive
     }
 
     /// <summary>What the in-phase step words the orbit advisory and records its request with.</summary>
-    private readonly record struct InPhaseSpeech(SimScenarioState Scenario, AirspaceDatabase Airspace, Func<string, LatLon?> AirportLookup);
+    internal readonly record struct InPhaseSpeech(SimScenarioState Scenario, AirspaceDatabase Airspace, Func<string, LatLon?> AirportLookup);
 
     /// <summary>The running phase list, its current phase, and the Class B entry that holds that phase.</summary>
     private readonly record struct InPhaseEntry(PhaseList Phases, Phase Current, AirspaceBoundaryCrossing Crossing);
+
+    /// <summary>
+    /// The Class B a controller clearance's cleared path enters uncleared, as the dispatch sees it: the area name, where the
+    /// path crosses in, how many seconds of travel ahead, whether the entry is vertical (from inside the footprint, which the
+    /// in-phase cap owns in solo training), and the phase that path belongs to. Whether the read-back asks for the clearance
+    /// is decided once the dispatch's controller response has run (<see cref="ShouldAskForBravoClearance"/>).
+    /// </summary>
+    public sealed record BravoDispatchAdvisory(string Area, LatLon Reference, double Seconds, bool Vertical, string PhaseName);
 
     /// <summary>How long a below-400 ft boundary encounter outlasts the last second its Class B entry was projected.</summary>
     private const double UnableToHoldEncounterGapSeconds = 30.0;
@@ -1376,11 +1389,16 @@ public static class PilotProactive
     private static bool IsInsideBravoArea(AircraftState aircraft, AirspaceDatabase airspace, string area) =>
         airspace.ClassBArea(area).Any(v => v.Contains(aircraft.Position, aircraft.Altitude));
 
-    /// <summary>The running phase list, its current phase, and the phase context the path is predicted under.</summary>
-    private readonly record struct InPhaseRun(PhaseList Phases, Phase Current, PhaseContext Context);
+    /// <summary>
+    /// The running phase list, its current phase, the phase context the path is predicted under, how far ahead the path is
+    /// judged, and whether the phase has not started yet: then it is planned by
+    /// <see cref="BravoPathPredictor.PredictPending"/> (no live route or altitude target), else by
+    /// <see cref="BravoPathPredictor.Predict"/> as it runs.
+    /// </summary>
+    private readonly record struct InPhaseRun(PhaseList Phases, Phase Current, PhaseContext Context, bool Pending, double HorizonSeconds);
 
     /// <summary>
-    /// The Class B entry that would hold the running phase: the phase's predicted path over the next 60 s
+    /// The Class B entry that would hold the running phase: the phase's predicted path over the run's horizon
     /// (<see cref="FindPathBravoEntry"/>) enters a Class B through its side (from inside the footprint is a vertical
     /// entry), and the aircraft is not cleared into it. Whether the phase can be suspended is asked after.
     /// </summary>
@@ -1391,10 +1409,11 @@ public static class PilotProactive
     }
 
     /// <summary>
-    /// The first entry into an uncleared Class B within 60 s along the running phase's predicted path
-    /// (<see cref="BravoPathPredictor"/>), at the path's altitude, with whether it is vertical (from inside the volume's
-    /// footprint). A phase with no path keeps the straight 60 s ray, on which an entry is vertical when the present
-    /// position is already inside the footprint. Null when there is none, or when the aircraft is cleared into it.
+    /// The first entry into an uncleared Class B within the run's horizon (<see cref="InPhaseRun.HorizonSeconds"/>: 60 s from
+    /// the in-phase tick, 600 s from a dispatch) along the phase's predicted path (<see cref="BravoPathPredictor"/>), at the
+    /// path's altitude, with whether it is vertical (from inside the volume's footprint). A phase with no path keeps the
+    /// straight 60 s ray, on which an entry is vertical when the present position is already inside the footprint. Null when
+    /// there is none, or when the aircraft is cleared into it.
     /// </summary>
     private static (AirspaceBoundaryCrossing? Crossing, bool Vertical) FindPathBravoEntry(
         AircraftState aircraft,
@@ -1402,7 +1421,9 @@ public static class PilotProactive
         InPhaseRun run
     )
     {
-        PredictedPath? path = BravoPathPredictor.Predict(aircraft, run.Phases, run.Current, run.Context, BravoPathPredictor.TriggerLookaheadSeconds);
+        PredictedPath? path = run.Pending
+            ? BravoPathPredictor.PredictPending(aircraft, run.Phases, run.Context, run.HorizonSeconds)
+            : BravoPathPredictor.Predict(aircraft, run.Phases, run.Current, run.Context, run.HorizonSeconds);
         if (path is null)
         {
             AirspaceBoundaryCrossing? ray = airspace.FindFirstProjectedEntry(aircraft, lookaheadSeconds: 60, AirspaceClass.Bravo);
@@ -1427,7 +1448,7 @@ public static class PilotProactive
             Volume = entry.Volume,
             Intersection = entry.Point,
             DistanceNm = entry.AlongNm,
-            LookaheadSeconds = BravoPathPredictor.TriggerLookaheadSeconds,
+            LookaheadSeconds = run.HorizonSeconds,
             TimeToEntrySeconds = entry.Seconds,
             EntryAltitudeFtMsl = entry.AltitudeFt,
         };
@@ -1463,7 +1484,11 @@ public static class PilotProactive
             return;
         }
 
-        (AirspaceBoundaryCrossing? crossing, _) = FindPathBravoEntry(aircraft, airspace, new InPhaseRun(phases, current, phaseContextFor(aircraft)));
+        (AirspaceBoundaryCrossing? crossing, _) = FindPathBravoEntry(
+            aircraft,
+            airspace,
+            new InPhaseRun(phases, current, phaseContextFor(aircraft), Pending: false, HorizonSeconds: BravoPathPredictor.TriggerLookaheadSeconds)
+        );
 
         // Already inside a volume of that Class B, the aircraft cannot enter it: nothing to warn of.
         if ((crossing is null) || IsInsideBravoArea(aircraft, airspace, ImplicitBravoClearance.AreaName(crossing.Volume)))
@@ -1579,37 +1604,149 @@ public static class PilotProactive
     /// behind whatever is queued. Not told to remain outside, a queued repeat of the open request gives up its place to it,
     /// and the pilot's Class B request is recorded as <see cref="TryRequestBravoClearance"/> records it, so CLBRV or RMOB
     /// answer it and the tracker repeats it; it replaces any other open request, and an open request for this same Class B
-    /// is kept as it stands. Under RMOB the advisory asks nothing, no request is recorded, and it replaces no queued line:
-    /// the open request stands, so its queued repeat or unspoken first call still goes out.
+    /// is kept as it stands and its request clause dropped (no repeat of "request bravo clearance", whoever recorded it).
+    /// With the clause dropped, or under RMOB where it asks nothing and records no request, it replaces no queued line and
+    /// goes behind the open request's queued repeat or unspoken first call, which still asks for the clearance.
     /// </summary>
     private static void SayOrbitAdvisory(AircraftState aircraft, AirspaceBoundaryHoldPhase hold, InPhaseSpeech speech)
     {
         string area = hold.Ident;
         bool remainOutside = aircraft.IsRemainOutsideBravo(area);
-        PilotSpeechText line = PilotResponder.BuildBravoOrbitAdvisory(aircraft, hold.OrbitDirection, requestClearance: !remainOutside);
-        if (remainOutside)
-        {
-            PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
-        }
-        else
+        bool requestClearance = !remainOutside && !IsOpenBravoRequestFor(aircraft, area);
+        PilotSpeechText line = PilotResponder.BuildBravoOrbitAdvisory(aircraft, hold.OrbitDirection, requestClearance);
+        if (requestClearance)
         {
             QueueInPlaceOfARepeat(aircraft, line);
         }
+        else
+        {
+            PilotResponder.QueueSoloPilotTransmission(aircraft, line, PilotTransmissionKind.Proactive, initialContact: false);
+        }
 
         LogBoundaryHold(aircraft, "said the orbit advisory for the {Area} Class B (remain outside: {RemainOutside})", area, remainOutside);
-        if (remainOutside || IsOpenBravoRequestFor(aircraft, area))
+        RecordBravoRequestFromAdvisory(aircraft, area, hold.ReferencePosition, speech);
+    }
+
+    /// <summary>
+    /// The Class B entry a controller clearance's cleared path would take an unprotected aircraft into, judged at dispatch:
+    /// the first entry, along <see cref="BravoPathPredictor.ReleaseHorizonSeconds"/> of travel (the straight 60 s ray for a
+    /// phase with no path source), into a Class B the aircraft is not cleared into. The phase is planned as it runs when it has
+    /// started (<see cref="BravoPathPredictor.Predict"/>) and as it will start when it has not
+    /// (<see cref="BravoPathPredictor.PredictPending"/>). It returns null unless the aircraft is airborne and VFR, a landing
+    /// clearance applies now, the phase list has a current phase that is not the pilot's own hold, and a Class B is inside the
+    /// path's reach (<see cref="IsDispatchAdvisoryCandidate"/>); and then also for an aircraft already inside a volume of that
+    /// Class B (it cannot enter it) and — with <paramref name="includeVerticalEntries"/> false — for a vertical entry, which
+    /// the in-phase cap owns. The RPO warning passes true: no cap runs there. Whether the read-back asks for the clearance
+    /// is decided once the dispatch's controller response has run (<see cref="ShouldAskForBravoClearance"/>).
+    /// </summary>
+    public static BravoDispatchAdvisory? FindDispatchBravoAdvisory(
+        AircraftState aircraft,
+        CompoundCommand compound,
+        AirspaceDatabase airspace,
+        bool includeVerticalEntries,
+        Func<AircraftState, PhaseContext> phaseContextFor
+    )
+    {
+        if (!IsDispatchAdvisoryCandidate(aircraft, compound, airspace) || (aircraft.Phases is not { CurrentPhase: { } current } phases))
+        {
+            return null;
+        }
+
+        (AirspaceBoundaryCrossing? crossing, bool vertical) = FindPathBravoEntry(
+            aircraft,
+            airspace,
+            new InPhaseRun(
+                phases,
+                current,
+                phaseContextFor(aircraft),
+                Pending: current.Status == PhaseStatus.Pending,
+                HorizonSeconds: BravoPathPredictor.ReleaseHorizonSeconds
+            )
+        );
+        if ((crossing is null) || (vertical && !includeVerticalEntries))
+        {
+            return null;
+        }
+
+        string area = ImplicitBravoClearance.AreaName(crossing.Volume);
+        if (IsInsideBravoArea(aircraft, airspace, area))
+        {
+            return null;
+        }
+
+        return new BravoDispatchAdvisory(area, crossing.Intersection, crossing.TimeToEntrySeconds, vertical, current.Name);
+    }
+
+    /// <summary>
+    /// Whether the read-back of a cleared path into <paramref name="area"/>'s Class B asks for the clearance: not told to
+    /// remain outside it, and no request for that Class B standing — judged after the dispatch's controller response has
+    /// closed or kept the previous request, so what the pilot says and what the tracker records agree.
+    /// </summary>
+    internal static bool ShouldAskForBravoClearance(AircraftState aircraft, string area) =>
+        !aircraft.IsRemainOutsideBravo(area) && !IsOpenBravoRequestFor(aircraft, area);
+
+    /// <summary>
+    /// Whether a dispatch can draw the Class B advisory at all: an airborne VFR aircraft, a phase list with a current phase
+    /// that is not the pilot's own hold, an immediately applied command of <paramref name="compound"/> that ends in a landing
+    /// (<see cref="ImplicitBravoClearance.IsLandingClearanceCommand"/>), and a Class B within the whole path's reach
+    /// (<see cref="BravoPathPredictor.AnyBravoWithin"/>) — so no phase context is built for nothing.
+    /// </summary>
+    private static bool IsDispatchAdvisoryCandidate(AircraftState aircraft, CompoundCommand compound, AirspaceDatabase airspace) =>
+        !aircraft.IsOnGround
+        && aircraft.FlightPlan.IsVfr
+        && (aircraft.Phases is { IsComplete: false, CurrentPhase: { } current })
+        && (current is not AirspaceBoundaryHoldPhase)
+        && (SoloTrainingEvaluator.EnumerateImmediatelyAppliedCommands(compound).Any(ImplicitBravoClearance.IsLandingClearanceCommand))
+        && (BravoPathPredictor.AnyBravoWithin(airspace, aircraft, BravoPathPredictor.ReleaseHorizonSeconds));
+
+    /// <summary>
+    /// Records the Class B request an advisory just voiced, as <see cref="TryRequestBravoClearance"/> records it
+    /// (<see cref="PilotResponder.BuildBravoClearanceRequest"/> is the recorded line, so the tracker's re-ask asks for the
+    /// clearance again): an open request for the same Class B is kept as it stands, a new one replaces whatever other
+    /// request stands, and a pilot told to remain outside that Class B asks for nothing.
+    /// </summary>
+    internal static void RecordBravoRequestFromAdvisory(AircraftState aircraft, string area, LatLon reference, InPhaseSpeech speech)
+    {
+        if (aircraft.IsRemainOutsideBravo(area) || IsOpenBravoRequestFor(aircraft, area))
         {
             return;
         }
 
+        BravoClearanceWording wording = ImplicitBravoClearance.WordingFor(aircraft, area, speech.Airspace, speech.AirportLookup);
         PilotPendingRequest request = PilotRequestTracker.RecordRequest(
             aircraft,
             PilotPendingRequestKind.AirspaceEntry,
             speech.Scenario.ElapsedSeconds,
-            line,
-            PilotRequestContext.Airspace(AirspaceClass.Bravo, area, hold.ReferencePosition)
+            PilotResponder.BuildBravoClearanceRequest(aircraft, wording),
+            PilotRequestContext.Airspace(AirspaceClass.Bravo, area, reference)
         );
-        request.BravoWording = ImplicitBravoClearance.WordingFor(aircraft, area, speech.Airspace, speech.AirportLookup);
+        request.BravoWording = wording;
+    }
+
+    /// <summary>
+    /// The instructor's warning that a clearance just issued takes an RPO session's aircraft into an uncleared Class B
+    /// (<see cref="FindDispatchBravoAdvisory"/> with vertical entries kept): one amber line on the aircraft and nothing
+    /// else, since there the pilot flies every command as given (RPO session: no hold). The warning latches
+    /// (<see cref="AircraftState.InPhaseWarnedArea"/>) only when the entry is inside the in-phase lookahead, so the tick
+    /// warns again once a farther entry comes inside it; an encounter the tick already warned of is not warned twice.
+    /// </summary>
+    public static void WarnRpoAtDispatch(AircraftState aircraft, BravoDispatchAdvisory advisory)
+    {
+        if (string.Equals(aircraft.InPhaseWarnedArea, advisory.Area, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        int seconds = (int)Math.Round(advisory.Seconds);
+        string phase = advisory.PhaseName;
+        string area = advisory.Area;
+        aircraft.PendingWarnings.Add(
+            $"{aircraft.Callsign}: {phase} cleared path enters the {area} Class B uncleared in {seconds} s (RPO session: no hold)"
+        );
+        if (advisory.Seconds <= BravoPathPredictor.TriggerLookaheadSeconds)
+        {
+            aircraft.InPhaseWarnedArea = area;
+        }
     }
 
     /// <summary>Queues <paramref name="line"/>, in the place of a queued repeat of the open request when there is one.</summary>

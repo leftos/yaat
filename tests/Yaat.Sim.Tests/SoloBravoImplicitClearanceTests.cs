@@ -332,7 +332,8 @@ public sealed class SoloBravoImplicitClearanceTests
 
     /// <summary>
     /// As <see cref="WaitingThenPatternEntryAtSatelliteOutsideBravo_GrantsNothingAndKeepsTheRequestOpen"/>, for an approach
-    /// clearance.
+    /// clearance. The approach's cleared path runs into the SFO Class B, so the readback advises it; the open request for that
+    /// Class B stands, so the readback asks nothing again, and the clearance is still no answer to it.
     /// </summary>
     [Fact]
     public void WaitingThenApproachClearanceAtSatelliteOutsideBravo_GrantsNothingAndKeepsTheRequestOpen()
@@ -346,7 +347,8 @@ public sealed class SoloBravoImplicitClearanceTests
 
         Assert.True(result.Success, result.Message);
         Assert.Null(ac.ClearedBravoIdent);
-        AssertNoBravoClause(ac);
+        PilotTransmission readback = Assert.Single(ac.PendingPilotTransmissions, t => t.Kind == PilotTransmissionKind.Readback);
+        Assert.EndsWith(", that'll take us into the bravo", readback.Text);
         PilotPendingRequest request = Assert.IsType<PilotPendingRequest>(ac.PendingPilotRequest);
         Assert.Equal(PilotPendingRequestKind.AirspaceEntry, request.Kind);
         Assert.True(request.IsOpen, "a satellite airport's approach clearance is no answer to the Class B request");
