@@ -33,12 +33,15 @@ public class ScopeCanvasHoverTests
             Assert.Equal(ScopeBlockLevel.Full, track.Level);
 
             Move(window, view.Canvas, new Point(callsign.Rect.MidX, callsign.Rect.MidY));
-            ScopeFrame dwelled = view.Canvas.CurrentFrame;
-            Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(dwelled.Tracks).Level);
+            Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
 
-            // No forced render tick here, so only the move handler could replace the kept frame.
+            // A move that stays on the dwelled block changes no hovered callsign, so the move handler builds no frame for
+            // its hit test: it tests against whatever frame is kept, which a render tick may rebuild at any time.
+            int built = view.Canvas.HoverFramesBuilt;
             MoveOnly(window, view.Canvas, new Point(callsign.Rect.MidX + 1, callsign.Rect.MidY));
-            Assert.Same(dwelled, view.Canvas.CurrentFrame);
+            Assert.Equal(built, view.Canvas.HoverFramesBuilt);
+            Assert.Equal("UAL238", view.Canvas.HoveredCallsign);
+            Assert.Equal(ScopeBlockLevel.Dwell, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
 
             Move(window, view.Canvas, new Point(600, 500));
             Assert.Equal(ScopeBlockLevel.Full, Assert.Single(view.Canvas.CurrentFrame.Tracks).Level);
