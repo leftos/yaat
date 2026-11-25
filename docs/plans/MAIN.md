@@ -144,6 +144,7 @@
 - [/] YAAT-2820 CRC rundown: active lists do not appear for a position that logs on later (SECA, PMRY list) · release vNext
 - [/] YAAT-2818 CRC rundown: lists do not consolidate to the active position in the consolidation tree · release vNext
 - [/] YAAT-2817 A student's point-out is dropped at once, as if auto-rejected · release vNext
+  - [ ] YAAT-2830 Radar view: show a pending point-out in the datablock for the instructor · release vNext
 - [/] YAAT-2816 Loading S3-NCTA-2 zooms the radar to SJC instead of the scenario's saved view · release vNext
 - [ ] YAAT-2815 Notepad: text-editing features (find and replace, word count, spellcheck, autosave) · release vNext
 - [ ] YAAT-2814 Radar view: a rundown panel listing the active rundowns · release vNext
@@ -153,6 +154,10 @@
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
 - [ ] YAAT-2798 DVXM after a crossing speed in the same transmission: define and test the pair · release vNext
+- [/] YAAT-2813 A heading given before a JRADO intercepts leaves the intercept armed: it turns onto the radial anyway · release vNext
+- [ ] YAAT-2831 RDH for an aircraft with a sent RD item adds a second, Unsent item
+- [ ] YAAT-2832 RDH and RDR with a named list skip the sender check
+- [ ] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation
 
 ## Context-menu quick commands (#471)
 
@@ -181,7 +186,6 @@
 - [ ] YAAT-1009 Keep a filter-picked aircraft visible in the solo advisory flyout once the box empties
 - [ ] YAAT-1010 Fix three solo advisory builder follow-ups: tab re-click, stale form tabs, Tab on the over form
 - [ ] YAAT-2315 Build the Cleared visual approach menu entry without throwing when navdata is not loaded
-- [/] YAAT-2824 Offer IDENT in the quick commands for an aircraft no STARS or ERAM facility tracks · release vNext
 
 ## Say again
 
@@ -824,7 +828,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (6/27 done)
+### 1 Defects (6/26 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
@@ -843,9 +847,8 @@
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
 - [ ] YAAT-2244 Keep FH 360 / TL 360 / TR 360 as 360 in canonical text (today FH 000, which does not re-parse)
 - [ ] YAAT-2398 PRA 0 is refused as an invalid altitude instead of clearing the pilot-reported altitude
-- [ ] YAAT-2807 Hold a ; chain after JRADI or JAWY until the aircraft is established, not at once or at the station · release vNext
+- [/] YAAT-2807 Hold a ; chain after JRADI or JAWY until the aircraft is established, not at once or at the station · release vNext
 - [ ] YAAT-2811 Fire a typed AS-prefixed WAIT coordination command (AS 1Z WAIT 5 RD PMRY) with its acting position
-- [ ] YAAT-2813 A heading given before a JRADO intercepts leaves the intercept armed: it turns onto the radial anyway
 
 ### 2 Refinements and rulings (2/9 done)
 - [/] YAAT-88 Give the command queue a per-dispatch frontier for independent chains · release vNext
@@ -1528,7 +1531,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (26/38 done)
+### 1 Defects (27/39 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
