@@ -440,6 +440,35 @@ public class CommandBlock
 public class CommandQueue
 {
     public List<CommandBlock> Blocks { get; } = [];
+
+    /// <summary>
+    /// The block whose apply action is running, set around it by the dispatcher's and the physics loop's block apply and
+    /// restored after; null outside an apply. A handler that queues a follow-on block places it behind this one
+    /// (<see cref="InsertFollowUp"/>). Transient: never snapshotted.
+    /// </summary>
+    internal CommandBlock? Applying { get; set; }
+
+    /// <summary>
+    /// Queues <paramref name="followUp"/> directly behind <see cref="Applying"/>, ahead of the later blocks of its chain, so
+    /// the next block waits on the follow-on; appends when no block is applying or the applying block is not in the queue.
+    /// A cursor past the applying block moves with the block it points at.
+    /// </summary>
+    internal void InsertFollowUp(CommandBlock followUp)
+    {
+        int index = (Applying is { } applying) ? Blocks.IndexOf(applying) : -1;
+        if (index < 0)
+        {
+            Blocks.Add(followUp);
+            return;
+        }
+
+        Blocks.Insert(index + 1, followUp);
+        if (CurrentBlockIndex > index)
+        {
+            CurrentBlockIndex++;
+        }
+    }
+
     public int CurrentBlockIndex { get; set; }
 
     public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;

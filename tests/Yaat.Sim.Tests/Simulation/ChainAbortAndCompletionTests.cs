@@ -159,6 +159,50 @@ public class ChainAbortAndCompletionTests
         Assert.True(ac.Altitude > 1200, $"Pre-armed climb never engaged after departure; altitude={ac.Altitude:F0}");
     }
 
+    /// <summary>
+    /// YAAT-2806: a climb pre-issued to a departure that sits in a ground phase (lined up and waiting, as every scenario runway
+    /// spawn does) must not hold a later, separate chain once airborne. Completion tracking does not run while a phase is
+    /// active, so the on-ground escape in UpdateBlockCompletion never completed the climb; airborne, the regime-A cursor
+    /// then waited for the whole climb.
+    /// </summary>
+    [Fact]
+    public void GroundedAltitudeCommand_InAGroundPhase_DoesNotHoldALaterChainOnceAirborne()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = LinedUpAircraft.AtOak28R("CHN110");
+        engine.World.AddAircraft(ac);
+        Assert.True(engine.SendCommand(ac.Callsign, "CM 7000").Success);
+        Assert.True(engine.SendCommand(ac.Callsign, "LV 015 FH 329; WAIT 10; DCT SUNOL").Success);
+        for (int t = 0; t < 10; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(engine.SendCommand(ac.Callsign, "CTO").Success);
+        double? altitudeAtDirect = null;
+        for (int t = 0; (t < 400) && (altitudeAtDirect is null); t++)
+        {
+            engine.TickOneSecond();
+            if (ac.Targets.NavigationRoute.Any(n => n.Name == "SUNOL"))
+            {
+                altitudeAtDirect = ac.Altitude;
+            }
+        }
+
+        DumpQueue(ac);
+        Assert.True(
+            altitudeAtDirect is < 6000,
+            $"DCT SUNOL ran at {altitudeAtDirect?.ToString("F0") ?? "never"} ft: the chain waited for the separate CM 7000"
+        );
+        Assert.Equal(7000, ac.Targets.TargetAltitude); // the pre-issued climb is still armed
+    }
+
     // ------------------------------------------------------------------
     // Abort-remainder matrix: a block that FAILS at fire time must discard
     // the rest of its own chain (equal SourceCommandText), warn naming the

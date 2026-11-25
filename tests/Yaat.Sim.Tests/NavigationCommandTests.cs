@@ -63,6 +63,172 @@ public class NavigationCommandTests : IDisposable
     }
 
     /// <summary>
+    /// A ';' block chained behind JRADO waits until the radial is joined: the intercept block sits directly behind the JRADO,
+    /// and its heading holds the chain until the outbound turn is flown.
+    /// </summary>
+    [Fact]
+    public void Jrado_ChainedNextBlock_WaitsUntilTheRadialIsJoined()
+    {
+        using IDisposable realScope = RealNavdata();
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("SNS")!.Value;
+        LatLon start = GeoMath.ProjectPoint(new LatLon(lat, lon), new TrueHeading(240), 14); // near KMRY, south of the R-264
+        var ac = new AircraftState
+        {
+            Callsign = "EJA802",
+            AircraftType = "B738",
+            Position = start,
+            TrueHeading = new TrueHeading(293),
+            TrueTrack = new TrueHeading(293),
+            Altitude = 3000,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KMRY",
+                Destination = "KSJC",
+                FlightRules = "IFR",
+            },
+        };
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("FH 329; JRADO SNS264; DCT SHOEY");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        Assert.True(CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false)).Success);
+
+        bool joined = false;
+        for (int t = 1; t <= 600; t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+            joined |= ac.Queue.Blocks.Any(b => (b.Trigger?.Type == BlockTriggerType.InterceptRadial) && b.IsApplied);
+            if (ac.Targets.NavigationRoute.Any(n => n.Name == "SHOEY"))
+            {
+                Assert.True(joined, $"DCT SHOEY applied at t={t}, before the aircraft joined the SNS 264 radial");
+                double outbound = NavigationCommandHandler.RadialToTrueBearing("SNS", lat, lon, 264).Degrees;
+                Assert.True(
+                    DegreesOff(ac.TrueHeading.Degrees, outbound) <= 5,
+                    $"DCT SHOEY applied at t={t} on heading {ac.TrueHeading.Degrees:F1} true, before the turn to {outbound:F1} finished"
+                );
+                return;
+            }
+        }
+
+        Assert.Fail("DCT SHOEY never applied");
+    }
+
+    /// <summary>
+    /// JRADO applied by the dispatch itself (first in the chain) still holds the next ';' block until the intercept.
+    /// </summary>
+    [Fact]
+    public void Jrado_First_ChainedDirectWaitsForTheIntercept()
+    {
+        using IDisposable realScope = RealNavdata();
+        AircraftState ac = AircraftSouthwestOfSns();
+        DispatchText(ac, "JRADO SNS264; DCT SHOEY");
+
+        bool joined = false;
+        for (int t = 1; t <= 1800; t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+            joined |= InterceptApplied(ac);
+            if (HasShoey(ac))
+            {
+                Assert.True(t > 1, "DCT SHOEY applied at t=1, the tick after the JRADO");
+                Assert.True(joined, $"DCT SHOEY applied at t={t}, before the InterceptRadial block applied");
+                return;
+            }
+        }
+
+        Assert.Fail("DCT SHOEY never applied");
+    }
+
+    /// <summary>
+    /// A ';' block chained behind DEPART waits until the fix is reached and the depart heading flown.
+    /// </summary>
+    [Fact]
+    public void Depart_ChainedDirectWaitsForTheFixAndTheHeading()
+    {
+        using IDisposable realScope = RealNavdata();
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("SNS")!.Value;
+        var sns = new LatLon(lat, lon);
+        LatLon start = GeoMath.ProjectPoint(sns, new TrueHeading(180), 15);
+        var toward = new TrueHeading(GeoMath.BearingTo(start, sns));
+        var ac = new AircraftState
+        {
+            Callsign = "N2806",
+            AircraftType = "B738",
+            Position = start,
+            TrueHeading = toward,
+            TrueTrack = toward,
+            Altitude = 5000,
+            IndicatedAirspeed = 220,
+            IsOnGround = false,
+        };
+        DispatchText(ac, "DEPART SNS 090; DCT SHOEY");
+
+        bool reachedFix = false;
+        for (int t = 1; t <= 900; t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+            reachedFix |= ac.Queue.Blocks.Any(b => (b.Trigger?.Type == BlockTriggerType.ReachFix) && b.IsApplied);
+            if (HasShoey(ac))
+            {
+                Assert.True(reachedFix, $"DCT SHOEY applied at t={t}, before the ReachFix block applied at SNS");
+                double departTrue = new MagneticHeading(90).ToTrue(ac.Declination).Degrees;
+                Assert.True(
+                    DegreesOff(ac.TrueHeading.Degrees, departTrue) <= 5,
+                    $"DCT SHOEY applied at t={t} on heading {ac.TrueHeading.Degrees:F1} true, before the turn to {departTrue:F1} finished"
+                );
+                return;
+            }
+        }
+
+        Assert.Fail("DCT SHOEY never applied");
+    }
+
+    /// <summary>Scopes the real navigation data (SNS, SHOEY) over this class's empty test database.</summary>
+    private static IDisposable RealNavdata() => NavigationDatabase.ScopedOverride(Assert.IsType<NavigationDatabase>(TestVnasData.NavigationDb));
+
+    /// <summary>An airborne departure near KMRY, 14 nm southwest of SNS and south of its R-264, on heading 293 true.</summary>
+    private static AircraftState AircraftSouthwestOfSns()
+    {
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("SNS")!.Value;
+        return new AircraftState
+        {
+            Callsign = "EJA802",
+            AircraftType = "B738",
+            Position = GeoMath.ProjectPoint(new LatLon(lat, lon), new TrueHeading(240), 14),
+            TrueHeading = new TrueHeading(293),
+            TrueTrack = new TrueHeading(293),
+            Altitude = 3000,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                Departure = "KMRY",
+                Destination = "KSJC",
+                FlightRules = "IFR",
+            },
+        };
+    }
+
+    /// <summary>Parses and dispatches one transmission, asserting both succeed.</summary>
+    private static void DispatchText(AircraftState ac, string text)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, TestDispatch.Context(Random.Shared, validateDctFixes: false));
+        Assert.True(result.Success, $"'{text}': {result.Message}");
+    }
+
+    /// <summary>True once a JRADO's InterceptRadial block has applied.</summary>
+    private static bool InterceptApplied(AircraftState ac) =>
+        ac.Queue.Blocks.Any(b => (b.Trigger?.Type == BlockTriggerType.InterceptRadial) && b.IsApplied);
+
+    /// <summary>True while SHOEY is on the aircraft's route.</summary>
+    private static bool HasShoey(AircraftState ac) => ac.Targets.NavigationRoute.Any(n => n.Name == "SHOEY");
+
+    /// <summary>The unsigned difference between two headings, 0-180 degrees.</summary>
+    private static double DegreesOff(double a, double b) => Math.Abs((((a - b) % 360) + 540) % 360 - 180);
+
+    /// <summary>
     /// The variation a radial from OAK (37.72/-122.22) is referenced to under this class's navdata, which carries no station
     /// record for OAK: the modelled declination at the fix.
     /// </summary>

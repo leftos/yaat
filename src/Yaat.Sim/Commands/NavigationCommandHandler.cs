@@ -44,8 +44,9 @@ internal static class NavigationCommandHandler
         aircraft.Targets.AssignedMagneticHeading = aircraft.MagneticHeading;
         aircraft.Targets.PreferredTurnDirection = null;
 
-        // Block 1: on radial intercept, fly outbound heading (the radial is magnetic, referenced to the station's variation)
-        aircraft.Queue.Blocks.Add(BuildJradoInterceptBlock(cmd));
+        // Block 1: on radial intercept, fly outbound heading (the radial is magnetic, referenced to the station's variation).
+        // It goes directly behind this block, so the next ';' block of the chain waits until the radial is joined.
+        aircraft.Queue.InsertFollowUp(BuildJradoInterceptBlock(cmd, aircraft.Queue.Applying?.TransmissionId ?? 0));
 
         return CommandDispatcher.Ok($"Fly present heading, intercept {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial outbound");
     }
@@ -54,9 +55,9 @@ internal static class NavigationCommandHandler
     /// The block a JRADO leaves queued behind itself: on intercepting the radial, fly it outbound. Built here
     /// rather than inline so <c>CommandDispatcher.RehydrateRestoredBlock</c> rebuilds a restored block from the
     /// same closure; applying the re-parsed instruction instead would set the immediate half and queue a
-    /// second block.
+    /// second block. <paramref name="transmissionId"/> is the JRADO block's own, so the follow-on belongs to its transmission.
     /// </summary>
-    internal static CommandBlock BuildJradoInterceptBlock(JoinRadialOutboundCommand cmd)
+    internal static CommandBlock BuildJradoInterceptBlock(JoinRadialOutboundCommand cmd, int transmissionId)
     {
         TrueHeading trueRadial = RadialToTrueBearing(cmd.FixName, cmd.FixLat, cmd.FixLon, cmd.Radial);
         var block = new CommandBlock
@@ -83,6 +84,7 @@ internal static class NavigationCommandHandler
             NaturalDescription = $"On {FixDisplay(cmd.FixName)} {cmd.Radial:D3} radial: fly heading {cmd.Radial:D3}",
             ParsedCommands = [cmd],
             SourceCommandText = CommandDescriber.DescribeCommand(cmd),
+            TransmissionId = transmissionId,
         };
         block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
         return block;
@@ -187,8 +189,9 @@ internal static class NavigationCommandHandler
             }
         );
 
-        // Block 1: on reaching fix, fly heading (controller heading)
-        aircraft.Queue.Blocks.Add(BuildDepartBlock(cmd));
+        // Block 1: on reaching fix, fly heading (controller heading). It goes directly behind this block, so the next ';'
+        // block of the chain waits until the fix is reached and the heading flown.
+        aircraft.Queue.InsertFollowUp(BuildDepartBlock(cmd, aircraft.Queue.Applying?.TransmissionId ?? 0));
 
         return (fixIndex >= 0)
             ? CommandDispatcher.Ok($"Depart {FixDisplay(cmd.FixName)} heading {cmd.MagneticHeading.ToDisplayInt():000}")
@@ -198,9 +201,9 @@ internal static class NavigationCommandHandler
     /// <summary>
     /// The block a DEPART leaves queued behind itself: on reaching the fix, turn to the depart heading and
     /// publish any crossing-restriction speed stamped on that fix as the aircraft's ceiling. Built here for
-    /// the same reason as <see cref="BuildJradoInterceptBlock"/>.
+    /// the same reason as <see cref="BuildJradoInterceptBlock"/>, and carries <paramref name="transmissionId"/> the same way.
     /// </summary>
-    internal static CommandBlock BuildDepartBlock(DepartFixCommand cmd)
+    internal static CommandBlock BuildDepartBlock(DepartFixCommand cmd, int transmissionId)
     {
         var block = new CommandBlock
         {
@@ -234,6 +237,7 @@ internal static class NavigationCommandHandler
             NaturalDescription = $"At {FixDisplay(cmd.FixName)}: fly heading {cmd.MagneticHeading.ToDisplayInt():000}",
             ParsedCommands = [cmd],
             SourceCommandText = CommandDescriber.DescribeCommand(cmd),
+            TransmissionId = transmissionId,
         };
         block.Commands.Add(new TrackedCommand { Type = TrackedCommandType.Heading });
         return block;

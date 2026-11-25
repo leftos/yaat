@@ -4657,7 +4657,17 @@ public static class CommandDispatcher
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft, false);
+        CommandBlock? previous = aircraft.Queue.Applying;
+        aircraft.Queue.Applying = block;
+        CommandResult? result;
+        try
+        {
+            result = block.ApplyAction?.Invoke(aircraft, false);
+        }
+        finally
+        {
+            aircraft.Queue.Applying = previous;
+        }
 
         if (result is not null && !result.Success)
         {
@@ -5154,9 +5164,9 @@ public static class CommandDispatcher
 
         CommandBlock? rebuilt = command switch
         {
-            JoinRadialOutboundCommand jrado => NavigationCommandHandler.BuildJradoInterceptBlock(jrado),
+            JoinRadialOutboundCommand jrado => NavigationCommandHandler.BuildJradoInterceptBlock(jrado, block.TransmissionId),
             JoinRadialInboundCommand jradi => NavigationCommandHandler.BuildJradiInterceptBlock(jradi),
-            DepartFixCommand depart => NavigationCommandHandler.BuildDepartBlock(depart),
+            DepartFixCommand depart => NavigationCommandHandler.BuildDepartBlock(depart, block.TransmissionId),
             _ => null,
         };
 

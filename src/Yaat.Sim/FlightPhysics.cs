@@ -4681,6 +4681,7 @@ public static class FlightPhysics
         // phase never completes on its own, so the queue is the only source of progress.
         if (aircraft.Phases?.CurrentPhase is { } activePhase)
         {
+            CompleteGroundedAltitudeCommands(aircraft);
             int triggerStart = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
             if (activePhase.IsIdleAwaitingCommands)
             {
@@ -5439,6 +5440,38 @@ public static class FlightPhysics
         aircraft.Ground.HoldElapsedSeconds = 0;
     }
 
+    /// <summary>
+    /// While a phase owns a grounded aircraft (lined up, taking off, taxiing), completion tracking does not run, so
+    /// the on-ground Altitude escape in <see cref="UpdateBlockCompletion"/> never reaches a climb issued there.
+    /// Marks every applied block's pending Altitude command complete on the ground, giving the same answer that
+    /// escape gives, so the cursor walks past the climb once the phases end. The altitude target stays armed for
+    /// departure, and no other command type is touched: the phase owns heading and navigation, and a WAIT
+    /// countdown runs elsewhere.
+    /// </summary>
+    private static void CompleteGroundedAltitudeCommands(AircraftState aircraft)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (!block.IsApplied)
+            {
+                continue;
+            }
+
+            foreach (TrackedCommand cmd in block.Commands)
+            {
+                if (cmd.Type == TrackedCommandType.Altitude)
+                {
+                    cmd.IsComplete = true;
+                }
+            }
+        }
+    }
+
     private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         foreach (TrackedCommand cmd in block.Commands)
@@ -5988,7 +6021,17 @@ public static class FlightPhysics
         }
 
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft, true);
+        CommandBlock? previous = aircraft.Queue.Applying;
+        aircraft.Queue.Applying = block;
+        CommandResult? result;
+        try
+        {
+            result = block.ApplyAction?.Invoke(aircraft, true);
+        }
+        finally
+        {
+            aircraft.Queue.Applying = previous;
+        }
 
         if (result is not null && !result.Success)
         {
