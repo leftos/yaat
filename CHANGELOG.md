@@ -37,6 +37,7 @@
 - A FOLLOW pilot ahead of its lead now turns out to fall in behind, instead of S-turning and cutting the lead off.
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 - After a Shift+F12 switch of the active STARS position, CRC now redraws every track's ownership instead of keeping the old sector's tracks white.
+- Departures on a SID whose transition ends in a fly-heading, expect-vectors leg, such as LOUPE1, now fly that heading instead of turning for the next fix.
 
 ## v0.19.3-beta [2026/11/23]
 

@@ -2155,7 +2155,28 @@ internal static class DepartureClearanceHandler
             return null;
         }
 
-        AppendPostSidEnrouteFixes(targets, routeTokens, enrouteStartIdx, targets[^1].Name, aircraft.FlightPlan.Departure);
+        // Past a mid-procedure FM/VM manual termination the pilot flies the published course and waits for
+        // vectors, so the route ends at that fix and nothing after it is flown on its own (AIM 1-2-1, 5-2-8b3;
+        // 7110.65 5-6-2e). A later DCT into the rest of the filed route rejoins it.
+        int droppedAfterTermination = TruncateAtManualTermination(targets);
+        if (droppedAfterTermination > 0)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug(
+                    "{Callsign} SID {Sid}: route ends at manual termination {Fix}, {Dropped} later target(s) dropped",
+                    aircraft.Callsign,
+                    sidName,
+                    targets[^1].Name,
+                    droppedAfterTermination
+                );
+            }
+        }
+        else
+        {
+            AppendPostSidEnrouteFixes(targets, routeTokens, enrouteStartIdx, targets[^1].Name, aircraft.FlightPlan.Departure);
+        }
+
         StripNearDepartureTargets(targets, aircraft.FlightPlan.Departure);
 
         // Typed legs preserve the VA/VI/VM/CA heading legs and course-tracked CF that the flat
@@ -2164,6 +2185,26 @@ internal static class DepartureClearanceHandler
         List<ProcedureLeg>? procedureLegs = ProcedureLegResolver.ExtractActiveDepartureLegs(ProcedureLegResolver.Resolve(orderedLegs));
 
         return targets.Count > 0 ? new DepartureRouteResult(targets, sid.ProcedureId, ProcedureLegs: procedureLegs, Source: procedureSource) : null;
+    }
+
+    /// <summary>
+    /// Ends a resolved departure route at its first mid-procedure FM/VM manual termination: the pilot flies the
+    /// published course from that fix and waits for vectors, so every target after it is dropped. A termination
+    /// already at the route's end, or none at all, leaves the route unchanged. Returns the number of targets dropped.
+    /// </summary>
+    private static int TruncateAtManualTermination(List<NavigationTarget> targets)
+    {
+        for (int i = 0; i < (targets.Count - 1); i++)
+        {
+            if (targets[i].TerminalCourseMagnetic is not null)
+            {
+                int dropped = targets.Count - i - 1;
+                targets.RemoveRange(i + 1, dropped);
+                return dropped;
+            }
+        }
+
+        return 0;
     }
 
     /// <summary>
