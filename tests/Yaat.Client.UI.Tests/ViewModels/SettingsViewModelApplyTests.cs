@@ -203,7 +203,8 @@ public class SettingsViewModelApplyTests
 
     [AvaloniaTheory(Timeout = 60_000)]
     [InlineData(Key.M, "Also used by Measure tool")]
-    [InlineData(Key.F, "Also used by Strips and vTDLS find")]
+    [InlineData(Key.F, "Also used by Strips and vTDLS find, Notes find")]
+    [InlineData(Key.H, "Also used by Notes replace")]
     [InlineData(Key.D, "Also used by Ground view debug overlay")]
     public void AClashWithAFixedChord_BlocksApply_AndNamesTheFixedAction(Key key, string message)
     {

@@ -1,3 +1,4 @@
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
@@ -45,12 +46,23 @@ public partial class NotesViewModel : ObservableObject
         _loaded = true;
     }
 
-    /// <summary>Asks the window to insert a stamp at its caret, through <see cref="InsertStamp"/>.</summary>
+    /// <summary>Asks the window to insert a stamp at its caret.</summary>
     public event EventHandler? StampRequested;
 
     /// <summary>The notes.</summary>
     [ObservableProperty]
     private string _text = "";
+
+    /// <summary>The number of words in <see cref="Text"/>: its runs of non-whitespace.</summary>
+    public int WordCount => Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
+    /// <summary>
+    /// The number of characters in <see cref="Text"/>, whitespace and newlines included; a Windows line break counts once.
+    /// </summary>
+    public int CharCount => Text.Count(c => c != '\r');
+
+    /// <summary>The footer's line: the word and character counts, with the singular form for one of either.</summary>
+    public string CountText => $"{WordCount} {(WordCount == 1 ? "word" : "words")} · {CharCount} {(CharCount == 1 ? "character" : "characters")}";
 
     /// <summary>
     /// The stamp for a sim time and a callsign: <c>"[75:05 N123AB] "</c>, <c>"[75:05] "</c> with no callsign, and null (no
@@ -68,6 +80,10 @@ public partial class NotesViewModel : ObservableObject
         return string.IsNullOrEmpty(callsign) ? $"[{simTime}] " : $"[{simTime} {callsign}] ";
     }
 
+    /// <summary>The stamp the window should insert now, from the current sim time and selected callsign.</summary>
+    /// <returns>The stamp text, or null when there is no stamp to insert.</returns>
+    public string? CurrentStamp() => FormatStamp(_simTime(), _selectedCallsign());
+
     /// <summary>
     /// Puts the current stamp in place of the text between two positions (the caret when they are equal), keeping the order
     /// of the two either way.
@@ -77,7 +93,7 @@ public partial class NotesViewModel : ObservableObject
     /// <returns>The position just after the stamp, or null when there is no stamp to insert.</returns>
     public int? InsertStamp(int selectionStart, int selectionEnd)
     {
-        string? stamp = FormatStamp(_simTime(), _selectedCallsign());
+        string? stamp = CurrentStamp();
         if (stamp is null)
         {
             return null;
@@ -93,6 +109,14 @@ public partial class NotesViewModel : ObservableObject
     /// <summary>Re-reads whether a stamp can be made, after the scenario was loaded or unloaded.</summary>
     public void RefreshCanStamp() => StampCommand.NotifyCanExecuteChanged();
 
+    /// <summary>Writes the notes to a stream as UTF-8, with no byte-order mark.</summary>
+    /// <param name="destination">The stream the notes are written to; it stays open.</param>
+    public void SaveAs(Stream destination)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(Text);
+        destination.Write(bytes, 0, bytes.Length);
+    }
+
     /// <summary>Writes the text now if a save is still waiting.</summary>
     public void Flush()
     {
@@ -100,7 +124,7 @@ public partial class NotesViewModel : ObservableObject
         SavePending();
     }
 
-    private bool CanStamp() => FormatStamp(_simTime(), _selectedCallsign()) is not null;
+    private bool CanStamp() => CurrentStamp() is not null;
 
     [RelayCommand(CanExecute = nameof(CanStamp))]
     private void Stamp() => StampRequested?.Invoke(this, EventArgs.Empty);
@@ -114,6 +138,10 @@ public partial class NotesViewModel : ObservableObject
 
     partial void OnTextChanged(string value)
     {
+        OnPropertyChanged(nameof(WordCount));
+        OnPropertyChanged(nameof(CharCount));
+        OnPropertyChanged(nameof(CountText));
+
         if (!_loaded)
         {
             return;

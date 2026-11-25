@@ -52,6 +52,8 @@ internal static class WindowHotkeys
     [
         ("Measure tool", MeasureChord),
         ("Strips and vTDLS find", "Ctrl+F"),
+        ("Notes find", "Ctrl+F"),
+        ("Notes replace", "Ctrl+H"),
         ("Ground view debug overlay", "Ctrl+D"),
         ("Notes stamp", NotesStampChord),
     ];

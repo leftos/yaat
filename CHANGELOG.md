@@ -14,6 +14,7 @@
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 - Quick commands offer Ident for an airborne aircraft no STARS or ERAM facility tracks yet.
 - The terminal announces a point-out to a position nobody is working, so the RPO can answer it with `OK` or `UN`.
+- The Notes window gains find (Ctrl+F) and replace (Ctrl+H), a word and character count, Save as and, on Windows, Print.
 
 ### Changed
 

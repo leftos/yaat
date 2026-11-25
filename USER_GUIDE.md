@@ -217,7 +217,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS and in Notes, Ctrl+H replace in Notes, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
 
 Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 
@@ -3168,9 +3168,9 @@ Favorites are shared with the **Import** and **Export** buttons in the pop-out *
 
 ### Notes
 
-**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text box (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text; **Clear** asks first, then empties the box (there is no undo).
+**View > Bars > Notes…** opens a scratch pad for your own notes: one multi-line text area with undo and redo, word wrap, **Ctrl+F** find (regex, match case, whole words) and **Ctrl+H** replace with Replace and Replace All (on macOS **Cmd+F** and **Cmd+Option+F**) (a second click on the menu item brings the window forward). **Stamp**, or **Ctrl+Shift+N** while the window is focused, inserts the sim time and the selected aircraft at the cursor, such as `[75:05 N123AB] `, or `[75:05] ` when no aircraft is selected; with no scenario loaded **Stamp** is disabled. **Copy all** copies the text; **Save as...** writes the notes to a `.txt` file you pick (suggesting `notes.txt`, UTF-8) and leaves the autosave file alone; on Windows **Print** prints the notes through the system print verb; **Clear** asks first, then empties the box (there is no undo).
 
-The text is saved to `%LOCALAPPDATA%/yaat/notes.txt` a second after you stop typing and when the window closes. It survives a restart and loading another scenario, and it is not part of your settings or the Import / Export bundle. The window's position and size are remembered. If a key you set in **Settings › Keys** is already **Ctrl+Shift+N**, Settings names it "Notes stamp".
+The text is saved to `%LOCALAPPDATA%/yaat/notes.txt` a second after you stop typing and when the window closes. It survives a restart and loading another scenario, and it is not part of your settings or the Import / Export bundle. A footer under the text counts words and characters as you type, such as "12 words · 64 characters" or "1 word · 1 character". The window's position and size are remembered. If a key you set in **Settings › Keys** is already **Ctrl+Shift+N**, **Ctrl+F** or **Ctrl+H**, Settings names it "Notes stamp", "Notes find" or "Notes replace".
 
 ### Command History
 

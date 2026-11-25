@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -106,6 +107,60 @@ public sealed class NotesViewModelTests : IDisposable
         NotesViewModel vm = NewViewModel(simTime: null, callsign: "N123AB");
 
         Assert.False(vm.StampCommand.CanExecute(null));
+    }
+
+    [Theory]
+    [InlineData("", 0, 0)]
+    [InlineData("a b", 2, 3)]
+    [InlineData("  one\n two  ", 2, 12)]
+    [InlineData("a\r\nb", 2, 3)]
+    [InlineData("a\nb", 2, 3)]
+    public void The_Counts_Follow_The_Text(string text, int words, int chars)
+    {
+        NotesViewModel vm = NewViewModel();
+
+        vm.Text = text;
+
+        Assert.Equal(words, vm.WordCount);
+        Assert.Equal(chars, vm.CharCount);
+    }
+
+    [Theory]
+    [InlineData("", "0 words · 0 characters")]
+    [InlineData("a", "1 word · 1 character")]
+    [InlineData("a b", "2 words · 3 characters")]
+    public void The_Footer_Text_Uses_Singular_Forms_For_One(string text, string expected)
+    {
+        NotesViewModel vm = NewViewModel();
+
+        vm.Text = text;
+
+        Assert.Equal(expected, vm.CountText);
+    }
+
+    [Fact]
+    public void The_Stamp_Updates_Both_Counts()
+    {
+        NotesViewModel vm = NewViewModel();
+        vm.Text = "ab";
+
+        vm.InsertStamp(2, 2);
+
+        Assert.Equal("ab[75:05 N123AB] ", vm.Text);
+        Assert.Equal(2, vm.WordCount);
+        Assert.Equal(17, vm.CharCount);
+    }
+
+    [Fact]
+    public void SaveAs_Writes_The_Text_As_Utf8()
+    {
+        NotesViewModel vm = NewViewModel();
+        vm.Text = "note é";
+        using var target = new MemoryStream();
+
+        vm.SaveAs(target);
+
+        Assert.Equal("note é", Encoding.UTF8.GetString(target.ToArray()));
     }
 
     private NotesViewModel NewViewModel(string? simTime = "75:05", string? callsign = "N123AB") =>
