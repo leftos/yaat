@@ -138,15 +138,7 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-2823 CRC rundown: recalling an RD already in the list adds a second, half-present entry that keeps flashing · release vNext
-- [ ] YAAT-2822 LOUPE1 departure turns far too early and skips the 120 vector leg · release vNext
-- [/] YAAT-2821 CRC rundown: an acknowledged RD stays listed after the departure is tracked by STARS · release vNext
-- [/] YAAT-2820 CRC rundown: active lists do not appear for a position that logs on later (SECA, PMRY list) · release vNext
-- [/] YAAT-2818 CRC rundown: lists do not consolidate to the active position in the consolidation tree · release vNext
-- [/] YAAT-2817 A student's point-out is dropped at once, as if auto-rejected · release vNext
-  - [ ] YAAT-2830 Radar view: show a pending point-out in the datablock for the instructor · release vNext
-- [/] YAAT-2816 Loading S3-NCTA-2 zooms the radar to SJC instead of the scenario's saved view · release vNext
-- [ ] YAAT-2815 Notepad: text-editing features (find and replace, word count, spellcheck, autosave) · release vNext
+- [ ] YAAT-2830 Radar view: show a pending point-out in the datablock for the instructor · release vNext
 - [ ] YAAT-2814 Radar view: a rundown panel listing the active rundowns · release vNext
 - [/] YAAT-2806 LV 011 FH 329; JRADO SNS264; DCT SHOEY: the departure flies the heading and never runs the later blocks · release vNext
 - [ ] YAAT-2805 Preset AS 1Z RD PMRY fails with 'No active position', and with a WAIT is refused as a chained command · release vNext
@@ -158,6 +150,8 @@
 - [ ] YAAT-2831 RDH for an aircraft with a sent RD item adds a second, Unsent item
 - [ ] YAAT-2832 RDH and RDR with a named list skip the sender check
 - [ ] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation
+- [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS
+- [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked
 
 ## Context-menu quick commands (#471)
 
@@ -859,19 +853,21 @@
 - [ ] YAAT-2808 Warn at dispatch when a JRADO or JRADI heading never intercepts the radial
 - [ ] YAAT-2812 Carry an AS acting position to a conditional block (AS 1Z AT fix TRACK)
 
-### 3 Hygiene and tests (0/6 done)
+### 3 Hygiene and tests (0/7 done)
 - [ ] YAAT-89 Declare each verb's fired dimension on CommandDefinition (FiredDimension)
 - [ ] YAAT-90 Trim applied ground blocks; cover EL/ER/ET in the dry-run ground guard
 - [ ] YAAT-966 Harden the transmission id wind-back and test its snapshot fields
 - [ ] YAAT-2176 Split ArgumentSuggester.AddRegistrySuggestions under the 100-line limit
 - [ ] YAAT-2193 Split CommandDispatcher.DispatchCompoundCore under the function limit
 - [ ] YAAT-2651 Split CommandDispatcher.DispatchWithPhase under the 100-line and complexity-8 limits
+- [ ] YAAT-2854 Split CommandDispatcher.DispatchCompoundBody under the 100-line limit
 
 ### No milestone
 - [ ] YAAT-1945 Judge a queued tower block's non-tower siblings at the phase gate, as a live block does
 - [ ] YAAT-2354 Add REPORT OFF REACHING and REPORT OFF LEAVING; stop parsing them as fix cancels
 - [ ] YAAT-2356 Carry PilotReadback and ReRouteAppliedAs through ApplyTransparentCompound
 - [ ] YAAT-2384 Make GIVE without initials answer its usage line (the branch is unreachable)
+- [/] YAAT-2834 JAWY with no fix behind the aircraft may never trigger its intercept (reciprocal radial) · release vNext
 
 ## Speed control and performance limits
 
@@ -1767,6 +1763,23 @@
 - [ ] YAAT-2796 Name the STAR in descend-via readbacks instead of 'Descend via STAR'
 - [ ] YAAT-2797 Split FlightPhysics.UpdateNavigation under the 100-line and complexity-8 limits
 - [ ] YAAT-2801 Spawned arrivals on STARs without common legs miss their enroute-transition restrictions
+- [ ] YAAT-2835 Point-outs issued from a preset or condition skip consolidation
+- [ ] YAAT-2836 Pass the point-out start time into the unanswered-point-out announcement instead of InitiatedAt!
+- [ ] YAAT-2837 Test the preset point-out path and the CRC point-out terminal lines
+- [ ] YAAT-2838 Assert the Scope viewer is cleared when a scenario unloads
+- [ ] YAAT-2839 Opening an extra Scope with no scenario applies the facility state twice
+- [ ] YAAT-2840 CRC rundown: a bare FLID can delete a sent item on another list
+- [ ] YAAT-2841 CRC: binding an already-active lobby client into a room pushes no consolidation or coordination
+- [ ] YAAT-2842 CRC coordination: reads under the room gate rely on BroadcastAsync completing synchronously
+- [ ] YAAT-2843 JRADI flies direct to the station after the intercept instead of tracking the radial
+- [ ] YAAT-2844 JRADO follow-on flies the radial as a heading with no wind correction
+- [ ] YAAT-2845 Bring FlightPhysics.NotifyGroundEntityReached under the complexity limit
+- [ ] YAAT-2846 A JRADI or JAWY whose intercept never comes holds its chain forever with no notice to the RPO
+- [ ] YAAT-2847 Test DispatchCompound with a failing first block end to end
+- [ ] YAAT-2848 Clear the coordination floor mark on landing
+- [ ] YAAT-2849 Cover RemoveCoordinationAtFloor in a JSON snapshot round trip
+- [ ] YAAT-2850 Notepad: a stamp over a rectangular selection deletes the text between its columns
+- [ ] YAAT-2851 Re-capture the Notes window screenshot after the editor change
 
 ## Design files
 
