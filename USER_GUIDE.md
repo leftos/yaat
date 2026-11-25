@@ -111,7 +111,7 @@ Typed `.scope`, `.view`, map-tool and marker commands act on the Radar whose can
 
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window, the Radar's included (Controllers, METAR and the favorites panel too), the docked terminal's size, which extra Radar and Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
 
-A layout never holds Radar, ground or terminal view settings (a Radar window keeps its own saved state), so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save layout "name"** (greyed out until a layout is loaded), **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
+A layout never holds Radar, ground or terminal view settings (a Radar window keeps its own saved state, per scenario too), so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save layout "name"** (greyed out until a layout is loaded), **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
 
 Applying a layout brings its saved windows to the front (un-minimizing them if needed) and leaves focus on the main window; a window the layout saved minimized is restored minimized. A layout saved before it recorded the open Strips/vTDLS tabs leaves your open tabs as they are, and a saved tab that no longer exists is skipped. Applying a layout pops the Radar in or out and opens or closes extra Radar windows to match, each extra window starting from its own saved state and placed at the layout's geometry; a layout saved before it recorded the Radar leaves your Radars as they are.
 
@@ -1228,6 +1228,8 @@ Sets belong to a facility, the one of your active position's track or listing, a
 
 The Radar also saves its own state per facility, in `%LOCALAPPDATA%/yaat/scope/current/<facility>.json`, when its pop-out window closes, when YAAT exits, and for the old facility when your active position changes facility. The state comes back when the Radar starts for that facility, or when your position moves to it, with the active set's name if that set still exists.
 
+Each scenario also remembers its own Radar view (range, centre, maps and the rest of the saved state), in `%LOCALAPPDATA%/yaat/scope/current-scenario/<scenario id>.json`. It is saved when you unload the scenario and when another scenario or a recording replaces it, and it comes back when the scenario is loaded again. A scenario you have not seen before starts from the facility's saved state until its maps seed.
+
 A facility with no saved state keeps the screen as it is and clears the active set. A file that cannot be read is left alone and copied to a `.bak`; a bad entry is dropped with a warning in the client log.
 
 **Typing on the Radar.** A click on the Radar gives it keyboard focus; what you type then shows on the Radar, not in the main command line, which keeps its text and status. Enter runs the entry: a STARS or ERAM entry of the profile's dialect, a `.` dot command, or a YAAT command, which starts with `$` (`$DM 110`, `$ DM 110`, `$UAL1 DM 110`, `$ ** UAL1 FH 270`) and goes to the same command pipeline as the command line, for the selected aircraft unless it names one. An entry that is none of these sends nothing and answers `FORMAT - $ FOR A YAAT COMMAND`. **Backspace** edits it, **Up** and **Down** walk the Radar's own entry history, and on ERAM and Mixed **Ctrl+R** (**Cmd+R** on macOS) recalls the last entry. Every Radar entry is also added to the terminal command history.
@@ -1721,7 +1723,7 @@ The instructor radar can color and shape each aircraft's data block to match wha
 
 Video maps load automatically from the vNAS data API based on your [ARTCC](#glossary) ID.
 
-**No per-scenario settings** — the Radar keeps its own state per facility. The former radar view's per-scenario settings (range, centre, maps, range ring, FIX overlay, pins, pan/zoom lock, TDM, history and the brightness groups the Radar has) carry into the Radar the first time each scenario loads, where the facility has no Radar state yet; a facility that already has state keeps it.
+**Per-scenario persistence** — the Radar saves its view per scenario as well as per facility, and each scenario restores its own view when it is loaded again. The former radar view's per-scenario settings (range, centre, maps, range ring, FIX overlay, pins, pan/zoom lock, TDM, history and the brightness groups the Radar has) carry into the scenario's Radar state the first time that scenario loads, where it has none yet; a scenario that already has state keeps it.
 
 ### Flight Strips
 

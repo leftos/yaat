@@ -826,6 +826,7 @@ public partial class MainViewModel
     /// </summary>
     internal void ApplyScenarioBootstrap(ScenarioBootstrap bootstrap)
     {
+        SaveOutgoingScopeStates();
         ActiveScenarioId = bootstrap.ScenarioId;
         ActiveScenarioName = bootstrap.ScenarioName;
         SessionStartUtc = bootstrap.SessionStartUtc;
@@ -898,9 +899,13 @@ public partial class MainViewModel
         _ = BootstrapStudentTdlsAsync(bootstrap.PrimaryAirportId);
 
         // Seed the active-position indicator with the student position (server default) before any AS.
-        string? scopeFacilityBefore = PrimaryScope.Viewer.EramFacilityId;
         SetActivePositionFromServer(bootstrap.PositionDisplayConfig);
-        MigrateRadarSettings(bootstrap.ScenarioId, scopeFacilityBefore);
+
+        // Each Scope saved the outgoing scenario's view first thing; now it restores the incoming scenario's view over
+        // the facility's.
+        SetScopeScenario(bootstrap.ScenarioId);
+
+        MigrateRadarSettings(bootstrap.ScenarioId);
 
         // Scenario auto-connect ATC positions appear in the controller list.
         _ = RefreshOnlineControllersAsync();
@@ -1076,6 +1081,13 @@ public partial class MainViewModel
         foreach (GroundViewModel ground in AllGroundViews)
         {
             ground.ClearLayout();
+        }
+
+        // Each Scope saves the scenario's view before the maps go, then detaches from the scenario and the facility, so
+        // the cleared view and the drop to no viewer below save under no key.
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.EndScenario();
         }
 
         ScopeMaps.Clear();

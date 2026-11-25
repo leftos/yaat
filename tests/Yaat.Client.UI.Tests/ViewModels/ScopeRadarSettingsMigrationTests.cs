@@ -11,7 +11,8 @@ namespace Yaat.Client.UI.Tests.ViewModels;
 
 /// <summary>
 /// A scenario load copies the old per-scenario Radar settings the preferences hold for it into the primary Scope's saved
-/// state for the student position's facility, once, when that facility has none, and drops the entry.
+/// state for the scenario, once, when the scenario has none (and into the student position's facility state when there
+/// is a safe one with none), and drops the entry.
 /// </summary>
 public class ScopeRadarSettingsMigrationTests
 {
@@ -91,20 +92,26 @@ public class ScopeRadarSettingsMigrationTests
     }
 
     [AvaloniaFact]
-    public async Task SavedState_IsKept_AndTheEntryIsRemoved()
+    public async Task SavedScenarioState_IsKept_AndTheEntryIsRemoved()
     {
         WritePreferences(("S1", new JsonObject { ["rangeNm"] = 55 }));
         string root = ScopeStoreFixture.NewStoreRoot();
         using IDisposable store = ScopeStoreFixture.UseStore(root);
         try
         {
-            MainViewModel seeded = await LoadAsync("S9");
-            seeded.PrimaryScope.RangeNm = 25;
-            seeded.PrimaryScope.SaveState();
+            MainViewModel seeded = await ScopeTestFixture.MainAsync();
+            ScopePrefSet seededState = seeded.PrimaryScope.CapturePrefSet(null) with { RangeNm = 25 };
+            ScopeStoreFixture.Store(root).SaveScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot, seededState);
 
-            await LoadAsync("S1");
+            MainViewModel vm = await LoadAsync("S1");
 
-            Assert.Equal(25, SavedState(root)!.RangeNm);
+            ScopePrefSet kept = ScopeStoreFixture.Store(root).LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot)!;
+            Assert.Equal(25, kept.RangeNm);
+            Assert.Equal(seededState.CenterLat, kept.CenterLat);
+            Assert.Equal(seededState.CenterLon, kept.CenterLon);
+            Assert.Equal(seededState.Maps, kept.Maps);
+            Assert.Equal(seededState.TemplateId, kept.TemplateId);
+            Assert.Equal(25, vm.PrimaryScope.CapturePrefSet(null).RangeNm);
             Assert.Null(RadarSettings()["S1"]);
         }
         finally
@@ -114,7 +121,7 @@ public class ScopeRadarSettingsMigrationTests
     }
 
     [AvaloniaFact]
-    public async Task SecondScenarioAtTheSameFacility_DoesNotOverwriteTheFirst()
+    public async Task SecondScenarioAtTheSameFacility_MigratesIntoItsOwnScenarioState()
     {
         WritePreferences(("S1", new JsonObject { ["rangeNm"] = 55 }), ("S2", new JsonObject { ["rangeNm"] = 70 }));
         string root = ScopeStoreFixture.NewStoreRoot();
@@ -125,8 +132,10 @@ public class ScopeRadarSettingsMigrationTests
             vm.ApplyScenarioBootstrap(Bootstrap("S1", Config(Sector44)));
             vm.ApplyScenarioBootstrap(Bootstrap("S2", Config(Sector44)));
 
-            Assert.Equal(55, vm.PrimaryScope.CapturePrefSet(null).RangeNm);
+            Assert.Equal(70, vm.PrimaryScope.CapturePrefSet(null).RangeNm);
             Assert.Equal(55, SavedState(root)!.RangeNm);
+            Assert.Equal(55, ScopeStoreFixture.Store(root).LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+            Assert.Equal(70, ScopeStoreFixture.Store(root).LoadScenarioCurrent("S2", ScopePrefSetStore.PrimarySlot)!.RangeNm);
             Assert.Null(RadarSettings()["S1"]);
             Assert.Null(RadarSettings()["S2"]);
         }
@@ -168,7 +177,7 @@ public class ScopeRadarSettingsMigrationTests
     }
 
     [AvaloniaFact]
-    public async Task NoStudentPosition_WritesNothing_AndKeepsTheEntry()
+    public async Task NoStudentPosition_MigratesIntoTheScenarioStateOnly_AndRemovesTheEntry()
     {
         WritePreferences(("S1", new JsonObject { ["rangeNm"] = 55 }));
         string root = ScopeStoreFixture.NewStoreRoot();
@@ -179,7 +188,8 @@ public class ScopeRadarSettingsMigrationTests
             vm.ApplyScenarioBootstrap(Bootstrap("S1", config: null));
 
             Assert.False(File.Exists(Path.Combine(root, "current", "ZOA.json")));
-            Assert.NotNull(RadarSettings()["S1"]);
+            Assert.Equal(55, ScopeStoreFixture.Store(root).LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+            Assert.Null(RadarSettings()["S1"]);
         }
         finally
         {
@@ -188,7 +198,7 @@ public class ScopeRadarSettingsMigrationTests
     }
 
     [AvaloniaFact]
-    public async Task UnsafeFacility_WritesNothing_AndKeepsTheEntry()
+    public async Task UnsafeFacility_MigratesIntoTheScenarioStateOnly_AndRemovesTheEntry()
     {
         WritePreferences(("S1", new JsonObject { ["rangeNm"] = 55 }));
         string root = ScopeStoreFixture.NewStoreRoot();
@@ -198,7 +208,8 @@ public class ScopeRadarSettingsMigrationTests
             await LoadAsync("S1", Position(facilityId: "BAD/ID"));
 
             Assert.False(Directory.Exists(Path.Combine(root, "current")));
-            Assert.NotNull(RadarSettings()["S1"]);
+            Assert.Equal(55, ScopeStoreFixture.Store(root).LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+            Assert.Null(RadarSettings()["S1"]);
         }
         finally
         {

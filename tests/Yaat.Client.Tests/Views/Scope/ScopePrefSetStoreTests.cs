@@ -179,6 +179,68 @@ public class ScopePrefSetStoreTests : IDisposable
     }
 
     [Fact]
+    public void ScenarioCurrent_RoundTrips_AnUlidScenarioId_ApartFromTheFacilityState()
+    {
+        const string ulid = "01H06NVK7VN8BS7MCDXHKJZ7MQ";
+        ScopePrefSetStore store = NewStore();
+        store.SaveScenarioCurrent(ulid, ScopePrefSetStore.PrimarySlot, Set("SR-DAY", 25));
+        store.SaveScenarioCurrent(ulid, 2, Set(null, 60));
+
+        ScopePrefSet? primary = NewStore().LoadScenarioCurrent(ulid, ScopePrefSetStore.PrimarySlot);
+        ScopePrefSet? second = NewStore().LoadScenarioCurrent(ulid, 2);
+
+        Assert.NotNull(primary);
+        Assert.Equal("SR-DAY", primary.Name);
+        Assert.Equal(25.0, primary.RangeNm);
+        Assert.Equal(60.0, second!.RangeNm);
+        Assert.True(File.Exists(Path.Combine(_root, "current-scenario", ulid + ".json")));
+        Assert.Null(NewStore().LoadCurrent("ZOA", ScopePrefSetStore.PrimarySlot));
+        Assert.Null(NewStore().LoadScenarioCurrent("OTHER", ScopePrefSetStore.PrimarySlot));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("BAD/ID")]
+    [InlineData("..")]
+    [InlineData("NUL")]
+    [InlineData("A1234567890123456789012345678901234567890123456789012345678901234")]
+    public void ScenarioCurrent_RefusesAnUnsafeScenarioId(string unsafeId)
+    {
+        ScopePrefSetStore store = NewStore();
+
+        Assert.False(ScopePrefSetStore.IsSafeScenarioId(unsafeId));
+        Assert.Throws<ArgumentException>(() => store.LoadScenarioCurrent(unsafeId, ScopePrefSetStore.PrimarySlot));
+        Assert.Throws<ArgumentException>(() => store.SaveScenarioCurrent(unsafeId, ScopePrefSetStore.PrimarySlot, Set(null)));
+        Assert.False(Directory.Exists(Path.Combine(_root, "current-scenario")));
+    }
+
+    [Fact]
+    public void ScenarioId_UpTo64Characters_IsSafe_AndTheFacilityCapStays16()
+    {
+        Assert.True(ScopePrefSetStore.IsSafeScenarioId(new string('A', 64)));
+        Assert.False(ScopePrefSetStore.IsSafeScenarioId(new string('A', 65)));
+        Assert.False(ScopePrefSetStore.IsSafeFacility("01H06NVK7VN8BS7MCDXHKJZ7MQ"));
+    }
+
+    [Fact]
+    public void CorruptScenarioCurrentFile_LoadsNull_LogsAWarning_AndKeepsABackup_AndTheNextSaveWritesAgain()
+    {
+        string path = Path.Combine(_root, "current-scenario", "S1.json");
+        byte[] corrupt = "{not json"u8.ToArray();
+        WriteFile(path, corrupt);
+
+        ScopePrefSetStore store = NewStore();
+        Assert.Null(store.LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot));
+
+        Assert.Contains(_log.Warnings, warning => warning.Contains("not valid JSON"));
+        Assert.Contains(_log.Warnings, warning => warning.Contains("Kept the corrupt"));
+        Assert.Equal(corrupt, File.ReadAllBytes(path + ".bak"));
+
+        store.SaveScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot, Set(null, 33));
+        Assert.Equal(33.0, store.LoadScenarioCurrent("S1", ScopePrefSetStore.PrimarySlot)!.RangeNm);
+    }
+
+    [Fact]
     public void RootNotAnObject_LoadsEmpty_AndKeepsABackup()
     {
         string path = SetsPath("ZOA");

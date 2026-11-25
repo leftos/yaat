@@ -40,6 +40,7 @@
 - After a Shift+F12 switch of the active STARS position, CRC now redraws every track's ownership instead of keeping the old sector's tracks white.
 - Departures on a SID whose transition ends in a fly-heading, expect-vectors leg, such as LOUPE1, now fly that heading instead of turning for the next fix.
 - A point-out to a position nobody is working now stays pending until answered instead of being dropped; solo sessions approve it after a short delay.
+- Loading a scenario now restores the Scope view saved for that scenario, its range, centre and maps, instead of the facility's default view.
 
 ## v0.19.3-beta [2026/11/23]
 

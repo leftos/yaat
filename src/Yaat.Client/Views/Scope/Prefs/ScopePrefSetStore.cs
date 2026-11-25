@@ -10,16 +10,19 @@ using Yaat.Sim;
 namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
-/// Per-facility store for the YAAT Scope pref sets and the Scope's saved current state: the named sets in
+/// Per-facility and per-scenario store for the YAAT Scope pref sets and the Scope's saved current state: the named sets in
 /// <c>&lt;root&gt;/prefsets/&lt;facility&gt;.json</c> and the current state in
-/// <c>&lt;root&gt;/current/&lt;facility&gt;.json</c>. Each file is an envelope carrying a <c>version</c> beside its
+/// <c>&lt;root&gt;/current/&lt;facility&gt;.json</c>, beside each scenario's own current state in
+/// <c>&lt;root&gt;/current-scenario/&lt;scenario&gt;.json</c>. Each file is an envelope carrying a <c>version</c> beside its
 /// <c>sets</c> or <c>state</c>; a file with no version, or version 0, is read as the current version, and a newer or
 /// unrecognised version is read for the fields this build knows, with one warning and no rewrite. Every entry is read on
 /// its own, so one malformed set is dropped with a warning while the rest load, and a file that is not valid JSON is copied
 /// to <c>.bak</c>. A file whose contents a save cannot read is never written over, so a failed read cannot lose the
 /// other sets.
 /// </summary>
-/// <param name="rootDir">The folder holding the <c>prefsets</c> and <c>current</c> directories, created on write.</param>
+/// <param name="rootDir">
+/// The folder holding the <c>prefsets</c>, <c>current</c> and <c>current-scenario</c> directories, created on write.
+/// </param>
 /// <param name="log">The logger unreadable and unwritable files are reported to.</param>
 public sealed class ScopePrefSetStore(string rootDir, ILogger log)
 {
@@ -28,6 +31,15 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
 
     /// <summary>The current-state slot of the primary Scope; an extra Scope window #n keeps its state in slot n.</summary>
     public const int PrimarySlot = 1;
+
+    // The longest facility id or set name; a scenario id may run to MaxScenarioIdLength.
+    private const int MaxTokenLength = 16;
+
+    private const int MaxScenarioIdLength = 64;
+
+    private const string CurrentDir = "current";
+
+    private const string ScenarioCurrentDir = "current-scenario";
 
     // Serializes file IO across instances (parallel tests share processes).
     private static readonly Lock FileLock = new();
@@ -69,7 +81,14 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     /// and not a device name.
     /// </summary>
     /// <param name="facility">The facility id to check.</param>
-    public static bool IsSafeFacility([NotNullWhen(true)] string? facility) => IsSafeToken(facility);
+    public static bool IsSafeFacility([NotNullWhen(true)] string? facility) => IsSafeToken(facility, MaxTokenLength);
+
+    /// <summary>
+    /// True when <paramref name="scenarioId"/> can name a scenario's current-state files: 1 to 64 letters, digits,
+    /// <c>_</c> or <c>-</c>, and not a device name. A scenario id is a 26-character ULID, past the 16 a facility may use.
+    /// </summary>
+    /// <param name="scenarioId">The scenario id to check.</param>
+    public static bool IsSafeScenarioId([NotNullWhen(true)] string? scenarioId) => IsSafeToken(scenarioId, MaxScenarioIdLength);
 
     /// <summary>
     /// True with <paramref name="normalized"/> set to the uppercase form when <paramref name="name"/> is 1 to 16 letters,
@@ -79,7 +98,7 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     /// <param name="normalized">The uppercase invariant form, or null when the name is refused.</param>
     public static bool TryNormalizeName(string? name, [NotNullWhen(true)] out string? normalized)
     {
-        if (!IsSafeToken(name))
+        if (!IsSafeToken(name, MaxTokenLength))
         {
             normalized = null;
             return false;
@@ -249,7 +268,22 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     public ScopePrefSet? LoadCurrent(string facility, int slot)
     {
         EnsureSafeFacility(facility);
-        string path = CurrentPath(facility, slot);
+        return LoadCurrentAt(CurrentPath(CurrentDir, facility, slot));
+    }
+
+    /// <summary>The current state saved in the scenario's <paramref name="slot"/>, or null when it has none or it cannot be read.</summary>
+    /// <param name="scenarioId">The scenario whose current state to load.</param>
+    /// <param name="slot">The Scope window's slot: <see cref="PrimarySlot"/> for the primary Scope, n for extra window #n.</param>
+    /// <exception cref="ArgumentException"><paramref name="scenarioId"/> is not a safe scenario id.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is below <see cref="PrimarySlot"/>.</exception>
+    public ScopePrefSet? LoadScenarioCurrent(string scenarioId, int slot)
+    {
+        EnsureSafeScenarioId(scenarioId);
+        return LoadCurrentAt(CurrentPath(ScenarioCurrentDir, scenarioId, slot));
+    }
+
+    private ScopePrefSet? LoadCurrentAt(string path)
+    {
         lock (FileLock)
         {
             RootRead read = ReadRoot(path);
@@ -274,7 +308,25 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
     {
         ArgumentNullException.ThrowIfNull(state);
         EnsureSafeFacility(facility);
-        string path = CurrentPath(facility, slot);
+        SaveCurrentAt(CurrentPath(CurrentDir, facility, slot), state);
+    }
+
+    /// <summary>Saves <paramref name="state"/> as the current state in the scenario's <paramref name="slot"/>, text and name as given.</summary>
+    /// <param name="scenarioId">The scenario to save the state for.</param>
+    /// <param name="slot">The Scope window's slot: <see cref="PrimarySlot"/> for the primary Scope, n for extra window #n.</param>
+    /// <param name="state">The Scope's state; its name is the active set's, or null.</param>
+    /// <exception cref="ArgumentException"><paramref name="scenarioId"/> is not a safe scenario id.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is below <see cref="PrimarySlot"/>.</exception>
+    /// <exception cref="IOException">The file is corrupt with no backup, or its version is unknown, so writing would lose its contents.</exception>
+    public void SaveScenarioCurrent(string scenarioId, int slot, ScopePrefSet state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        EnsureSafeScenarioId(scenarioId);
+        SaveCurrentAt(CurrentPath(ScenarioCurrentDir, scenarioId, slot), state);
+    }
+
+    private void SaveCurrentAt(string path, ScopePrefSet state)
+    {
         lock (FileLock)
         {
             RootRead read = ReadRoot(path);
@@ -295,9 +347,10 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         }
     }
 
-    private static bool IsSafeToken([NotNullWhen(true)] string? token) =>
+    private static bool IsSafeToken([NotNullWhen(true)] string? token, int maxLength) =>
         (token is not null)
-        && (token.Length is >= 1 and <= 16)
+        && (token.Length >= 1)
+        && (token.Length <= maxLength)
         && token.All(c => char.IsAsciiLetterOrDigit(c) || (c == '_') || (c == '-'))
         && !DeviceNames.Contains(token);
 
@@ -311,14 +364,25 @@ public sealed class ScopePrefSetStore(string rootDir, ILogger log)
         }
     }
 
+    private static void EnsureSafeScenarioId(string scenarioId)
+    {
+        if (!IsSafeScenarioId(scenarioId))
+        {
+            throw new ArgumentException(
+                $"'{scenarioId}' is not a safe scenario id: 1 to {MaxScenarioIdLength} letters, digits, '_' or '-'.",
+                nameof(scenarioId)
+            );
+        }
+    }
+
     private string SetsPath(string facility) => Path.Combine(rootDir, "prefsets", $"{facility}.json");
 
-    // The primary Scope's slot keeps the file name it always had; extra window #n's is "{facility}#n.json".
-    private string CurrentPath(string facility, int slot)
+    // The primary Scope's slot keeps the file name it always had; extra window #n's is "{key}#n.json".
+    private string CurrentPath(string dir, string key, int slot)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(slot, PrimarySlot);
-        string name = (slot == PrimarySlot) ? facility : $"{facility}#{slot.ToString(CultureInfo.InvariantCulture)}";
-        return Path.Combine(rootDir, "current", $"{name}.json");
+        string name = (slot == PrimarySlot) ? key : $"{key}#{slot.ToString(CultureInfo.InvariantCulture)}";
+        return Path.Combine(rootDir, dir, $"{name}.json");
     }
 
     /// <summary>

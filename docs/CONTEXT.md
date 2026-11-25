@@ -902,7 +902,7 @@ The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain 
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
 
 **Pref set (Radar)**:
-A named snapshot of a Radar's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility as the same record and comes back when the Scope opens for that facility, and a pref set is a named copy on top.
+A named snapshot of a Radar's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility, and per scenario, as the same record and comes back when the Scope opens for that facility or the scenario loads, and a pref set is a named copy on top.
 
 **Press ladder (Radar)**:
 The ordered list of rungs a pointer press on the Scope runs through (`ScopeCanvas.RunPressLadder`); the first rung that handles the press ends it, so an interactive mode inserted at the wrong place steals clicks from a lower rung. The release ladder and the move hooks are the same shape.

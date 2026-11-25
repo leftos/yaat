@@ -1011,6 +1011,7 @@ public partial class MainViewModel
         SeedSessionSoloAdvisorySettings();
         RelabelRoomTitle(result.ArtccId);
         ResetPilotVoiceWarningSession();
+        SaveOutgoingScopeStates();
         ActiveScenarioId = result.ScenarioId;
         ActiveScenarioName = result.ScenarioName;
         SessionStartUtc = result.SessionStartUtc;
@@ -1080,6 +1081,9 @@ public partial class MainViewModel
         // Stashed so an extra window opened later keys its saved view on this recording's scenario,
         // exactly as the docked views just did.
         _lastScenarioId = result.ScenarioId;
+
+        // Each Scope saved the outgoing scenario's view first thing; now it restores the recording's scenario's view.
+        SetScopeScenario(result.ScenarioId);
 
         // Extra Ground windows follow their own airport, not the recording's: each re-evaluates whether it
         // mirrors the primary's layout.

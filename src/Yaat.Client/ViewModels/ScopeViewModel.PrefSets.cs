@@ -27,6 +27,9 @@ public sealed partial class ScopeViewModel
     /// <summary>The facility the scope's state was last saved or restored for, or null when it has none.</summary>
     private string? _stateFacility;
 
+    /// <summary>The scenario the scope shows, whose own state it saves beside the facility's, or null when it has none.</summary>
+    private string? _stateScenario;
+
     /// <summary>The active set's uppercase name, or null when no set is active.</summary>
     [ObservableProperty]
     private string? _activePrefSet;
@@ -196,25 +199,93 @@ public sealed partial class ScopeViewModel
         _stateFacility = facility;
     }
 
-    /// <summary>Saves the scope's state as its facility's current state, as a facility change and <see cref="Dispose"/> do.</summary>
+    /// <summary>
+    /// Saves the scope's state as its facility's and its scenario's current state, as a facility change and
+    /// <see cref="Dispose"/> do.
+    /// </summary>
     public void SaveState() => SaveStateFor(_stateFacility);
 
-    /// <summary>Saves the scope's state as <paramref name="facility"/>'s current state, warning when the file cannot be written.</summary>
-    private void SaveStateFor(string? facility)
+    /// <summary>
+    /// Makes <paramref name="scenarioId"/> the scenario the scope shows, and restores that scenario's saved state over
+    /// the facility's; a scenario with no saved state restores the facility's last state again, so a map load in flight
+    /// holds it for the seed, and with neither the seed stands. An unsafe or empty id gives the scope no scenario state.
+    /// The caller saves the outgoing scenario's state (<see cref="SaveState"/>) before the load changes the viewer, since
+    /// by now the screen may hold the new facility's state.
+    /// </summary>
+    /// <param name="scenarioId">The scenario just loaded, or null.</param>
+    internal void SetScenario(string? scenarioId)
     {
-        if ((PrefStore is not { } store) || (!ScopePrefSetStore.IsSafeFacility(facility)))
+        _stateScenario = ScopePrefSetStore.IsSafeScenarioId(scenarioId) ? scenarioId : null;
+        if (PrefStore is not { } store)
         {
             return;
         }
 
+        ScopePrefSet? state = (_stateScenario is { } scenario) ? store.LoadScenarioCurrent(scenario, Ordinal) : null;
+        state ??= (ScopePrefSetStore.IsSafeFacility(_stateFacility)) ? store.LoadCurrent(_stateFacility, Ordinal) : null;
+        if (state is not null)
+        {
+            ApplySavedState(store, _stateFacility, state);
+        }
+    }
+
+    /// <summary>
+    /// Saves the scope's state under its facility and scenario, then detaches from both, as an unload does: the view
+    /// left on screen, and the drop to no viewer that follows, save under no key.
+    /// </summary>
+    internal void EndScenario()
+    {
+        SaveState();
+        _stateScenario = null;
+        _stateFacility = null;
+    }
+
+    /// <summary>
+    /// Saves the scope's state as <paramref name="facility"/>'s current state and as the scenario's, warning when a file
+    /// cannot be written.
+    /// </summary>
+    private void SaveStateFor(string? facility)
+    {
+        string? safe = SafeFacility(facility);
+        if ((PrefStore is not { } store) || ((safe is null) && (_stateScenario is null)))
+        {
+            return;
+        }
+
+        ScopePrefSet state = CapturePrefSet(ActivePrefSet);
+        if (safe is not null)
+        {
+            TrySave(() => store.SaveCurrent(safe, Ordinal, state), "facility", safe);
+        }
+
+        if (_stateScenario is { } scenario)
+        {
+            TrySave(() => store.SaveScenarioCurrent(scenario, Ordinal, state), "scenario", scenario);
+        }
+    }
+
+    /// <summary>Runs <paramref name="save"/>, warning with the kind and id of the key when the file cannot be written.</summary>
+    private static void TrySave(Action save, string kind, string key)
+    {
         try
         {
-            store.SaveCurrent(facility, Ordinal, CapturePrefSet(ActivePrefSet));
+            save();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.LogWarning(ex, "Could not save the scope's state for {Facility}", facility);
+            Log.LogWarning(ex, "Could not save the scope's state for {Key} ({Kind})", key, kind);
         }
+    }
+
+    /// <summary>
+    /// Applies a saved current state and makes its named set the active one when <paramref name="facility"/> holds a set
+    /// of that name; otherwise no set is active.
+    /// </summary>
+    private void ApplySavedState(ScopePrefSetStore store, string? facility, ScopePrefSet state)
+    {
+        ApplyPrefSet(state);
+        bool known = (state.Name is { } name) && (ScopePrefSetStore.IsSafeFacility(facility)) && (store.FindSet(facility, name) is not null);
+        ActivePrefSet = known ? state.Name : null;
     }
 
     /// <summary>
@@ -235,8 +306,7 @@ public sealed partial class ScopeViewModel
             return;
         }
 
-        ApplyPrefSet(state);
-        ActivePrefSet = (state.Name is { } name) && (store.FindSet(facility, name) is not null) ? name : null;
+        ApplySavedState(store, facility, state);
     }
 
     /// <summary><paramref name="facility"/> when it can name a facility's files, else null.</summary>

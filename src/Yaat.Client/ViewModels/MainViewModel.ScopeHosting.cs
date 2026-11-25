@@ -171,8 +171,37 @@ public partial class MainViewModel
     {
         (ScopePrefSetStore? prefStore, ScopeProfileStore? profileStore) = ScopeStoreFactory();
         var instance = new ScopeViewInstance { Ordinal = ordinal, Vm = new ScopeViewModel(this, prefStore, profileStore, ordinal) };
+
+        // Its slot's state for the scenario showing wins over the facility's, as on a scenario load.
+        instance.Vm.SetScenario(ActiveScenarioId);
         ExtraScopeViews.Add(instance);
         return instance;
+    }
+
+    /// <summary>
+    /// Saves every Scope's view under the facility and the scenario it shows, before a scenario or recording load
+    /// replaces it; a no-op with no scenario active, whose view an unload already saved.
+    /// </summary>
+    private void SaveOutgoingScopeStates()
+    {
+        if (ActiveScenarioId is null)
+        {
+            return;
+        }
+
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.SaveState();
+        }
+    }
+
+    /// <summary>Makes <paramref name="scenarioId"/> the scenario every Scope shows, restoring each one's saved view of it.</summary>
+    private void SetScopeScenario(string? scenarioId)
+    {
+        foreach (ScopeViewModel scope in AllScopeViews)
+        {
+            scope.SetScenario(scenarioId);
+        }
     }
 
     private ScopeViewModel CreatePrimaryScope()
@@ -182,48 +211,88 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Copies a scenario's old per-scenario Radar settings into the primary Scope's saved state for the student position's
-    /// facility, once, when that facility has none, then drops the entry from the preferences. A facility the primary Scope
-    /// was already on counts as having state, so the first old scenario loaded at a facility wins.
+    /// Copies a scenario's old per-scenario Radar settings into the primary Scope's saved state for that scenario, once,
+    /// when the scenario has none, and into the student position's facility state when that has none, then drops the
+    /// entry from the preferences. A scenario that already has state only drops the entry. Nothing happens, and the entry
+    /// stays, without a safe scenario id; without a safe student facility only the scenario state is written.
     /// </summary>
     /// <param name="scenarioId">The scenario whose settings to migrate.</param>
-    /// <param name="facilityBefore">The primary Scope's facility before the load set the student position.</param>
-    private void MigrateRadarSettings(string? scenarioId, string? facilityBefore)
+    private void MigrateRadarSettings(string? scenarioId)
     {
-        if ((string.IsNullOrEmpty(scenarioId)) || (PrimaryScope.PrefStore is not { } store))
+        if ((!ScopePrefSetStore.IsSafeScenarioId(scenarioId)) || (PrimaryScope.PrefStore is not { } store))
         {
             return;
         }
 
-        string? facility = PrimaryScope.Viewer.EramFacilityId;
-        if ((!ScopePrefSetStore.IsSafeFacility(facility)) || (!_preferences.TryGetRadarSettings(scenarioId, out SavedRadarSettings? settings)))
+        if (!_preferences.TryGetRadarSettings(scenarioId, out SavedRadarSettings? settings))
         {
             return;
         }
 
-        bool live = string.Equals(facilityBefore, facility, StringComparison.Ordinal);
-        if ((live) || (store.LoadCurrent(facility, ScopePrefSetStore.PrimarySlot) is not null))
+        if (store.LoadScenarioCurrent(scenarioId, ScopePrefSetStore.PrimarySlot) is not null)
         {
             _preferences.RemoveRadarSettings(scenarioId);
             return;
         }
 
+        string? facilityToWrite = MigrationFacility(store);
         ScopePrefSet migrated = BuildMigratedPrefSet(PrimaryScope.CapturePrefSet(null), settings);
         PrimaryScope.ApplyPrefSet(migrated);
-        try
+        if (!TrySaveMigrated(store, scenarioId, facilityToWrite, migrated))
         {
-            store.SaveCurrent(facility, ScopePrefSetStore.PrimarySlot, migrated);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _log.LogWarning(ex, "Could not migrate scenario {ScenarioId}'s old Radar settings to the {Facility} Scope state", scenarioId, facility);
             return;
         }
 
         _preferences.RemoveRadarSettings(scenarioId);
         if (_log.IsEnabled(LogLevel.Information))
         {
-            _log.LogInformation("Migrated scenario {ScenarioId}'s old Radar settings into the {Facility} Scope state", scenarioId, facility);
+            _log.LogInformation(
+                "Migrated scenario {ScenarioId}'s old Radar settings into its Scope state on {Facility}",
+                scenarioId,
+                facilityToWrite
+            );
+        }
+    }
+
+    /// <summary>The student position's facility when it is safe and has no saved state yet, else null.</summary>
+    /// <param name="store">The store the facility state will be read from.</param>
+    private string? MigrationFacility(ScopePrefSetStore store)
+    {
+        string? facility = PrimaryScope.Viewer.EramFacilityId;
+        return ((ScopePrefSetStore.IsSafeFacility(facility)) && (store.LoadCurrent(facility, ScopePrefSetStore.PrimarySlot) is null))
+            ? facility
+            : null;
+    }
+
+    /// <summary>
+    /// Writes <paramref name="migrated"/> as the scenario's Scope state, and as the facility's when
+    /// <paramref name="facilityToWrite"/> is not null. False, with a warning logged, when the write fails.
+    /// </summary>
+    /// <param name="store">The store to write to.</param>
+    /// <param name="scenarioId">The scenario whose state is written.</param>
+    /// <param name="facilityToWrite">The facility whose state is written, or null for none.</param>
+    /// <param name="migrated">The state to write.</param>
+    private bool TrySaveMigrated(ScopePrefSetStore store, string scenarioId, string? facilityToWrite, ScopePrefSet migrated)
+    {
+        try
+        {
+            store.SaveScenarioCurrent(scenarioId, ScopePrefSetStore.PrimarySlot, migrated);
+            if (facilityToWrite is not null)
+            {
+                store.SaveCurrent(facilityToWrite, ScopePrefSetStore.PrimarySlot, migrated);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning(
+                ex,
+                "Could not migrate scenario {ScenarioId}'s old Radar settings to its Scope state on {Facility}",
+                scenarioId,
+                facilityToWrite
+            );
+            return false;
         }
     }
 
