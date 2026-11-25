@@ -19,6 +19,8 @@ The generic loop is the user-level `nextup` skill; this file supplies only what 
 
   Within the fence, the project order below decides. The only items pulled into the release without the owner asking are user submissions (next paragraph) and their blockers.
 
+  **Releases are cut around user submissions.** `vNext` holds the user submissions, their blockers and what the owner pulls in; internal planning work (programmes, solo-training and controller-AI items, analyzer and hygiene passes) waits in `vNext+1` and joins a release only once it is done in time for it.
+
   A **user submission** is a bug report or feature request from a person other than the owner: a defect they hit or a feature they asked for (a Discord thread, a named reporter, an attached bug bundle or recording), whoever filed it, an agent included. A defect or idea only an agent, a nightly review or an audit found does not count.
 
   The Discord bot labels `/create-issue` reports `bug`; an unlabelled issue (agent-filed, Linear-synced) is judged from its body. **Triage** places each user submission in `Bug reports and feature requests` and adds it to the open release, and no release is cut while a user-reported bug is open unless the user explicitly agreed to defer it (`prepare-release` step 2.5).
