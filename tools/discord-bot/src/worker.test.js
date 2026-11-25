@@ -928,3 +928,94 @@ describe("GitHub issue title edits", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("formatMessage with forwarded messages", () => {
+  it("formats the text of a forwarded message", () => {
+    const msg = {
+      content: "",
+      message_snapshots: [
+        { message: { content: "Ground stop at TPA", attachments: [], embeds: [] } },
+      ],
+    };
+
+    expect(worker.formatMessage(msg)).toBe("*Forwarded message:*\nGround stop at TPA");
+  });
+
+  it("formats an image attachment of a forwarded message, mapped through urlMap", () => {
+    const msg = {
+      content: "",
+      message_snapshots: [
+        {
+          message: {
+            content: "",
+            attachments: [
+              {
+                url: "https://cdn.discordapp.com/a.png",
+                filename: "a.png",
+                content_type: "image/png",
+              },
+            ],
+            embeds: [],
+          },
+        },
+      ],
+    };
+    const urlMap = new Map([["https://cdn.discordapp.com/a.png", "https://r2/x"]]);
+
+    expect(worker.formatMessage(msg)).toBe(
+      "*Forwarded message:*\n![a.png](https://cdn.discordapp.com/a.png)",
+    );
+    expect(worker.formatMessage(msg, urlMap)).toBe("*Forwarded message:*\n![a.png](https://r2/x)");
+  });
+
+  it("formats a message's own content before the forwarded one", () => {
+    const msg = {
+      content: "see this",
+      attachments: [],
+      embeds: [],
+      message_snapshots: [{ message: { content: "hello", attachments: [], embeds: [] } }],
+    };
+
+    expect(worker.formatMessage(msg)).toBe("see this\n*Forwarded message:*\nhello");
+  });
+
+  it("still formats an empty message as an empty placeholder", () => {
+    const msg = { content: "", attachments: [], embeds: [], message_snapshots: [] };
+
+    expect(worker.formatMessage(msg)).toBe("*[empty message]*");
+  });
+
+  it("re-uploads a forwarded message's attachments", async () => {
+    const msg = {
+      id: "999",
+      attachments: [],
+      message_snapshots: [
+        {
+          message: {
+            content: "",
+            attachments: [
+              {
+                url: "https://cdn.discordapp.com/a.png",
+                filename: "a.png",
+                content_type: "image/png",
+              },
+            ],
+            embeds: [],
+          },
+        },
+      ],
+    };
+    queueResponses([() => new Response(new Uint8Array([1, 2, 3]))]);
+    const r2Bucket = { put: vi.fn() };
+
+    const urlMap = await worker.reuploadAttachments([msg], r2Bucket);
+
+    expect(r2Bucket.put).toHaveBeenCalledTimes(1);
+    expect(r2Bucket.put).toHaveBeenCalledWith("999-a.png", expect.any(ArrayBuffer), {
+      httpMetadata: { contentType: "image/png" },
+    });
+    expect(urlMap.get("https://cdn.discordapp.com/a.png")).toBe(
+      "https://pub-1f460757f70f46d8b557747a4d0ffe0d.r2.dev/999-a.png",
+    );
+  });
+});

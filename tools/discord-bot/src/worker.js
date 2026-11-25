@@ -1390,22 +1390,30 @@ async function syncThread(env, threadId, mapping, githubToken, budgetMs) {
 
 // --- Attachment re-upload ---
 
-async function reuploadAttachments(messages, r2Bucket) {
+async function reuploadMessageAttachments(msg, attachments, r2Bucket, urlMap) {
+  for (const att of attachments || []) {
+    try {
+      const res = await fetch(att.url);
+      if (!res.ok) continue;
+      const data = await res.arrayBuffer();
+      const key = `${msg.id}-${att.filename}`;
+      await r2Bucket.put(key, data, {
+        httpMetadata: { contentType: att.content_type || "application/octet-stream" },
+      });
+      urlMap.set(att.url, `${R2_PUBLIC_URL}/${key}`);
+    } catch (err) {
+      console.error(`Failed to reupload ${att.filename}:`, err);
+    }
+  }
+}
+
+export async function reuploadAttachments(messages, r2Bucket) {
   const urlMap = new Map();
   for (const msg of messages) {
-    for (const att of msg.attachments || []) {
-      try {
-        const res = await fetch(att.url);
-        if (!res.ok) continue;
-        const data = await res.arrayBuffer();
-        const key = `${msg.id}-${att.filename}`;
-        await r2Bucket.put(key, data, {
-          httpMetadata: { contentType: att.content_type || "application/octet-stream" },
-        });
-        urlMap.set(att.url, `${R2_PUBLIC_URL}/${key}`);
-      } catch (err) {
-        console.error(`Failed to reupload ${att.filename}:`, err);
-      }
+    await reuploadMessageAttachments(msg, msg.attachments, r2Bucket, urlMap);
+    for (const snapshot of msg.message_snapshots ?? []) {
+      if (!snapshot.message) continue;
+      await reuploadMessageAttachments(msg, snapshot.message.attachments, r2Bucket, urlMap);
     }
   }
   return urlMap;
@@ -1413,22 +1421,27 @@ async function reuploadAttachments(messages, r2Bucket) {
 
 // --- Formatting ---
 
-function formatMessage(msg, urlMap = new Map()) {
-  const parts = [];
-  if (msg.content) parts.push(msg.content);
-  if (msg.attachments?.length) {
-    for (const att of msg.attachments) {
-      const url = urlMap.get(att.url) || att.url;
-      const isImage = att.content_type?.startsWith("image/");
-      parts.push(isImage ? `![${att.filename}](${url})` : `[${att.filename}](${url})`);
+function appendMessageParts(message, parts, urlMap) {
+  if (message.content) parts.push(message.content);
+  for (const att of message.attachments || []) {
+    const url = urlMap.get(att.url) || att.url;
+    const isImage = att.content_type?.startsWith("image/");
+    parts.push(isImage ? `![${att.filename}](${url})` : `[${att.filename}](${url})`);
+  }
+  for (const embed of message.embeds || []) {
+    if (embed.title || embed.description) {
+      parts.push(`> ${embed.title || ""}: ${embed.description || ""}`);
     }
   }
-  if (msg.embeds?.length) {
-    for (const embed of msg.embeds) {
-      if (embed.title || embed.description) {
-        parts.push(`> ${embed.title || ""}: ${embed.description || ""}`);
-      }
-    }
+}
+
+export function formatMessage(msg, urlMap = new Map()) {
+  const parts = [];
+  appendMessageParts(msg, parts, urlMap);
+  for (const snapshot of msg.message_snapshots ?? []) {
+    if (!snapshot.message) continue;
+    parts.push("*Forwarded message:*");
+    appendMessageParts(snapshot.message, parts, urlMap);
   }
   return parts.length > 0 ? parts.join("\n") : "*[empty message]*";
 }
