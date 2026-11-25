@@ -134,8 +134,11 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Drops every coordination item for <paramref name="callsign"/>: once a controller owns the track, the release
-    /// rundown that got it there is moot. Run by the <c>TRACK</c> arm on every run kind.
+    /// Drops every coordination item for <paramref name="callsign"/>: once STARS acquires the track, the release
+    /// rundown that got it there is moot. Run, on every run kind, by each path that gives an untracked aircraft an
+    /// owner: the <c>TRACK</c> arm, the deferred autotrack's display-floor crossing, the <c>.AUTOTRACK</c> claim of an
+    /// airborne departure and the flight-plan-creator autotrack of an aircraft above the display floor. A handoff
+    /// accept moves an owned track and is not one.
     /// </summary>
     public void RemoveCoordinationOnRadarAcquisition(string callsign)
     {

@@ -137,7 +137,9 @@ CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (
                                # RDAUTO (HandleGlobal) against SimScenarioState.CoordinationChannels. InferSenderListId resolves a list-less sender verb
                                # ahead of time so the recorded canonical carries the list explicitly. Item ids are {ListId}-{SequenceNumber} off the
                                # channel's snapshotted counter, not a fresh draw, so a rebuilt list holds the same items under the same ids; every
-                               # successful mutation calls SimulationEngine.MarkCoordinationChanged
+                               # successful mutation calls SimulationEngine.MarkCoordinationChanged; an RD / RDH for a recalled item inside its linger revives it in place
+CoordinationAuthority.cs       # The TCPs a position answers for on the coordination lists (its own plus every TCP consolidated under it); AnswersFor / IsSender / IsReceiver,
+                               # the one rule the verbs and yaat-server's F13 entry share
 
 # Simulation/Bookmarks/ — timeline-bookmark verb logic, engine-owned (SimulationEngine.Bookmarks.cs owns the bodies + dirty flag)
 BookmarkCommandHandler.cs      # Static dispatch of BM ADD / RENAME / DELETE / DEL ALL (HandleAdd/HandleRename/HandleDelete/HandleDeleteAll) onto the engine bodies;

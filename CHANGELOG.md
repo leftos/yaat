@@ -41,6 +41,9 @@
 - Departures on a SID whose transition ends in a fly-heading, expect-vectors leg, such as LOUPE1, now fly that heading instead of turning for the next fix.
 - A point-out to a position nobody is working now stays pending until answered instead of being dropped; solo sessions approve it after a short delay.
 - Loading a scenario now restores the Scope view saved for that scenario, its range, centre and maps, instead of the facility's default view.
+- CRC rundown (RD) lists now consolidate to the position working a consolidated TCP, and appear for a position that signs on later.
+- An acknowledged CRC rundown item is removed once STARS tracks the departure, at the latest when it climbs into radar coverage.
+- Recalling a CRC rundown item already on the list re-sends it instead of adding a second, flashing entry.
 
 ## v0.19.3-beta [2026/11/23]
 

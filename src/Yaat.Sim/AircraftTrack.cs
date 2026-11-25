@@ -43,6 +43,12 @@ public class AircraftTrack
     public double? HandoffInitiatedAt { get; set; }
     public StarsPointout? Pointout { get; set; }
 
+    /// <summary>
+    /// Acquired below the display floor: the aircraft's coordination items are removed, and this cleared, once it
+    /// is above the floor.
+    /// </summary>
+    public bool RemoveCoordinationAtFloor { get; set; }
+
     public AircraftTrackDto ToSnapshot() =>
         new()
         {
@@ -54,6 +60,7 @@ public class AircraftTrack
             HandoffAccepted = HandoffAccepted,
             HandoffInitiatedAt = HandoffInitiatedAt,
             Pointout = Pointout?.ToSnapshot(),
+            RemoveCoordinationAtFloor = RemoveCoordinationAtFloor,
         };
 
     public static AircraftTrack FromSnapshot(AircraftTrackDto dto)
@@ -67,6 +74,7 @@ public class AircraftTrack
             HandoffAccepted = dto.HandoffAccepted,
             HandoffInitiatedAt = dto.HandoffInitiatedAt,
             Pointout = dto.Pointout is not null ? StarsPointout.FromSnapshot(dto.Pointout) : null,
+            RemoveCoordinationAtFloor = dto.RemoveCoordinationAtFloor,
         };
         if (dto.OwnerFromLiveFeed)
         {

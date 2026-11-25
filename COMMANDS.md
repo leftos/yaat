@@ -2285,7 +2285,7 @@ Coordination commands manage departure releases between tower and approach contr
 
 The `text` of `RDH` and `RDTXT` runs to the end of the line, separators included: `RDTXT /1 HOLD, GO` sets the message `HOLD, GO` rather than chaining a `GO`. Put the message last when chaining (`HO 3G; RDTXT /1 HOLD, GO`).
 
-When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists.
+When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists. A position answers for its own TCP's lists and those of every TCP consolidated under it.
 
 Example flow using `AS` to role-play both sides:
 ```
@@ -2298,7 +2298,8 @@ Release lifecycle:
 - **Unacknowledged** — sent to receiver, awaiting acknowledgment
 - **Acknowledged** — receiver has accepted; expires after 5 minutes (warning at 3 minutes)
 - **Recalled** — sender recalled the release; removed after 10 seconds
-- Coordination items are automatically removed when an aircraft is tracked (radar acquisition)
+- Coordination items are automatically removed when STARS acquires the aircraft (a `TRACK`, an autotrack, a flight-plan creator's autotrack); a departure acquired below the display floor keeps its item until it climbs above the floor
+- `RD` on an item recalled within the last 10 seconds sends that same item again rather than adding a second one
 
 ### Consolidation
 

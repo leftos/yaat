@@ -1130,8 +1130,14 @@ The CRC connection whose session a direct connection joins; the joiner reads the
 **Negotiated joiner**:
 A direct connection that also negotiated first (Tower Cab 3D): it keeps its negotiate id as its connection token, so it can register for UDP entity updates, while its CID comes from its access token.
 
+**RD list**:
+A STARS coordination (rundown) list: the items a tower sends a departure on, to the receiving sector (`CoordinationChannel`, the `RD` verbs). A position shows the lists of its own TCP and of every TCP consolidated under it, and an item leaves the list when STARS acquires the departure. Not the hold-for-release rundown.
+
 **Room session**:
 The synthetic `room:<roomId>` session `GetSessions` offers a Tower Cab 3D connection whose CID has no CRC primary: joining it attaches the connection to the room its CID joined most recently (`TowerCabRooms`, docs/vatsim-auth.md).
+
+**Rundown (hold-for-release)**:
+The live list of departures held at each armed field (`HeldDeparturesChanged`, the Releases flyout), in docs/hold-for-release.md. Not an RD list.
 
 **Tower Cab member**:
 A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed by its CRC client id): it never counts toward attendance or OpenPositions, is never persisted, and a kick of its CID removes it with the CID's other connections.

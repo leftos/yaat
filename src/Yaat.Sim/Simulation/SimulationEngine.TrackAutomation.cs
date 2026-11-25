@@ -373,6 +373,7 @@ public sealed partial class SimulationEngine
 
             ac.Track.Owner = atcPos.Owner;
             ScratchpadRuleEngine.Apply(ac, starsConfig);
+            RemoveOrDeferCoordination(ac);
             if (_logger.IsEnabled(LogLevel.Information))
             {
                 _logger.LogInformation(
@@ -490,10 +491,9 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        List<AircraftState> snapshot = World.GetSnapshot();
-
-        foreach (AircraftState ac in snapshot)
+        foreach (AircraftState ac in World.GetSnapshot())
         {
+            RemoveCoordinationAtFloorCrossing(ac);
             if (
                 ac.Track.Owner is not null
                 || FieldElevationResolver.IsBelowDisplayFloor(ac, NavigationDatabase.Instance)
@@ -503,47 +503,70 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            string dep = ac.FlightPlan.Departure;
-            foreach (ResolvedAtcPosition atcPos in scenario.AtcPositions)
+            if (FindAutoTrackPosition(scenario, ac.FlightPlan.Departure) is { } match)
             {
-                if (atcPos.Source.AutoTrackAirportIds.Count == 0)
-                {
-                    continue;
-                }
+                AcquireOnStars(scenario, ac, match.Position, match.AirportId);
+            }
+        }
+    }
 
-                string? matchedAirportId = null;
-                foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
-                {
-                    if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
-                    {
-                        ac.Track.Owner = atcPos.Owner;
-                        matchedAirportId = airportId;
-                        break;
-                    }
-                }
+    /// <summary>
+    /// A departure acquired below the display floor kept its coordination items; once it is above the floor STARS
+    /// displays it, so the deferred removal runs and the mark clears, owned or not.
+    /// </summary>
+    private void RemoveCoordinationAtFloorCrossing(AircraftState ac)
+    {
+        if ((!ac.Track.RemoveCoordinationAtFloor) || FieldElevationResolver.IsBelowDisplayFloor(ac, NavigationDatabase.Instance))
+        {
+            return;
+        }
 
-                if (ac.Track.Owner is not null)
+        ac.Track.RemoveCoordinationAtFloor = false;
+        RemoveCoordinationOnRadarAcquisition(ac.Callsign);
+    }
+
+    /// <summary>The first roster position whose auto-track airports take <paramref name="departure"/>, with the airport that matched.</summary>
+    private static (ResolvedAtcPosition Position, string AirportId)? FindAutoTrackPosition(SimScenarioState scenario, string departure)
+    {
+        foreach (ResolvedAtcPosition atcPos in scenario.AtcPositions)
+        {
+            foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
+            {
+                if (NavigationDatabase.Instance.AirportIdsMatchResolved(departure, airportId))
                 {
-                    ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
-                    if (_logger.IsEnabled(LogLevel.Information))
-                    {
-                        _logger.LogInformation(
-                            "[DeferredAutoTrack] {Callsign} appeared on STARS — owned by {Owner} (departure {Dep}, matched {Airport})",
-                            ac.Callsign,
-                            TrackEngine.FormatOwner(atcPos.Owner),
-                            dep,
-                            matchedAirportId
-                        );
-                    }
-                    EmitTerminal(
-                        "System",
-                        ac.Callsign,
-                        $"[AutoTrack] On STARS — owned by {TrackEngine.FormatOwner(atcPos.Owner)} (autoTrackAirportIds: {matchedAirportId})"
-                    );
-                    break;
+                    return (atcPos, airportId);
                 }
             }
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The deferred autotrack's acquisition: the position owns the departure that has just appeared on STARS, its
+    /// scratchpad rules apply, and the release rundown that got it there is over.
+    /// </summary>
+    private void AcquireOnStars(SimScenarioState scenario, AircraftState ac, ResolvedAtcPosition atcPos, string matchedAirportId)
+    {
+        ac.Track.Owner = atcPos.Owner;
+        ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "[DeferredAutoTrack] {Callsign} appeared on STARS — owned by {Owner} (departure {Dep}, matched {Airport})",
+                ac.Callsign,
+                TrackEngine.FormatOwner(atcPos.Owner),
+                ac.FlightPlan.Departure,
+                matchedAirportId
+            );
+        }
+
+        EmitTerminal(
+            "System",
+            ac.Callsign,
+            $"[AutoTrack] On STARS — owned by {TrackEngine.FormatOwner(atcPos.Owner)} (autoTrackAirportIds: {matchedAirportId})"
+        );
+        RemoveCoordinationOnRadarAcquisition(ac.Callsign);
     }
 
     /// <summary>
@@ -559,40 +582,64 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        List<AircraftState> snapshot = World.GetSnapshot();
-
-        foreach (AircraftState ac in snapshot)
+        foreach (AircraftState ac in World.GetSnapshot())
         {
-            if (ac.Track.Owner is not null)
+            if (FlightPlanCreatorToAcquire(ac) is { } creator)
             {
-                continue;
+                AcquireForFlightPlanCreator(scenario, ac, creator);
             }
-
-            TrackOwner? creator = ac.FlightPlan.CreatedByOwner;
-            if (creator is null)
-            {
-                continue;
-            }
-
-            if (ac.Transponder.AssignedCode == 0 || ac.Transponder.Code != ac.Transponder.AssignedCode)
-            {
-                continue;
-            }
-
-            ac.Track.Owner = creator;
-            ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
-
-            if (_logger.IsEnabled(LogLevel.Information))
-            {
-                _logger.LogInformation(
-                    "[FlightPlanCreatorAutoTrack] {Callsign} squawking assigned code {Code:D4} — owned by {Owner} (FP creator)",
-                    ac.Callsign,
-                    ac.Transponder.Code,
-                    TrackEngine.FormatOwner(creator)
-                );
-            }
-            EmitTerminal("System", ac.Callsign, $"[AutoTrack] Squawking assigned code — owned by {TrackEngine.FormatOwner(creator)} (FP creator)");
         }
+    }
+
+    /// <summary>The creator of an untracked aircraft's flight plan once the pilot squawks the code it assigned, else null.</summary>
+    private static TrackOwner? FlightPlanCreatorToAcquire(AircraftState ac)
+    {
+        if ((ac.Track.Owner is not null) || (ac.FlightPlan.CreatedByOwner is not { } creator))
+        {
+            return null;
+        }
+
+        bool squawkingAssigned = (ac.Transponder.AssignedCode != 0) && (ac.Transponder.Code == ac.Transponder.AssignedCode);
+        return squawkingAssigned ? creator : null;
+    }
+
+    /// <summary>
+    /// The flight-plan-creator acquisition: the creator owns the track and its scratchpad rules apply. The release
+    /// rundown ends only once STARS displays the aircraft — above the display floor, as the deferred autotrack's
+    /// acquisition — since a departure squawking at the gate is not yet a radar acquisition. One acquired below the
+    /// floor is marked so the deferred pass removes its items when it climbs above it.
+    /// </summary>
+    private void AcquireForFlightPlanCreator(SimScenarioState scenario, AircraftState ac, TrackOwner creator)
+    {
+        ac.Track.Owner = creator;
+        ScratchpadRuleEngine.Apply(ac, scenario.ArtccConfig?.GetStarsConfigForFacility(scenario.StudentPosition?.FacilityId ?? ""));
+
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "[FlightPlanCreatorAutoTrack] {Callsign} squawking assigned code {Code:D4} — owned by {Owner} (FP creator)",
+                ac.Callsign,
+                ac.Transponder.Code,
+                TrackEngine.FormatOwner(creator)
+            );
+        }
+        EmitTerminal("System", ac.Callsign, $"[AutoTrack] Squawking assigned code — owned by {TrackEngine.FormatOwner(creator)} (FP creator)");
+        RemoveOrDeferCoordination(ac);
+    }
+
+    /// <summary>
+    /// The coordination removal of an acquisition: at once when STARS displays the aircraft, else marked for the
+    /// deferred pass to run once it is above the display floor.
+    /// </summary>
+    private void RemoveOrDeferCoordination(AircraftState ac)
+    {
+        if (FieldElevationResolver.IsBelowDisplayFloor(ac, NavigationDatabase.Instance))
+        {
+            ac.Track.RemoveCoordinationAtFloor = true;
+            return;
+        }
+
+        RemoveCoordinationOnRadarAcquisition(ac.Callsign);
     }
 
     internal void TickDelayedHandoffs()

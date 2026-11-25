@@ -3,6 +3,7 @@ using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
 using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.ControllerAi;
@@ -591,5 +592,361 @@ public class CoordinationStepTests
         Assert.Equal(live.Id, item.Id);
         Assert.Equal(live.AircraftId, item.AircraftId);
         Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);
+    }
+
+    /// <summary>The connection a third position acts on: the parent a receiver consolidates into, or an unrelated one.</summary>
+    private const string ThirdConnection = "conn-3";
+
+    /// <summary>
+    /// A receiver's list follows its airspace: with only 2B worked, 4U (a <c>POAK</c> receiver, NCT's child of 2B)
+    /// consolidates into 2B, so 2B acknowledges the release though 2B is not on the list itself.
+    /// </summary>
+    [Fact]
+    public void RdAck_FromAPositionTheReceiverIsConsolidatedInto_Acknowledges()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Issue(engine, host, ThirdConnection, "", "AS 2B").Success);
+        AttendanceTestSupport.Attend(engine, "2B");
+        Assert.True(Send(engine, host, CallsignA, "RD").Success);
+
+        CommandResult ack = Issue(engine, host, ThirdConnection, CallsignA, "RDACK POAK");
+
+        Assert.True(ack.Success, ack.Message);
+        Assert.Equal(StarsCoordinationStatus.Acknowledged, Assert.Single(Channel(engine).Items).Status);
+    }
+
+    /// <summary>1J neither receives on <c>POAK</c> nor holds any of its receivers' airspace, so its acknowledge is refused.</summary>
+    [Fact]
+    public void RdAck_FromAnUnrelatedPosition_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Issue(engine, host, ThirdConnection, "", "AS 1J").Success);
+        AttendanceTestSupport.Attend(engine, "1J");
+        Assert.True(Send(engine, host, CallsignA, "RD").Success);
+
+        CommandResult ack = Issue(engine, host, ThirdConnection, CallsignA, "RDACK POAK");
+
+        Assert.False(ack.Success);
+        Assert.Contains("not a receiver on list POAK", ack.Message);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, Assert.Single(Channel(engine).Items).Status);
+    }
+
+    /// <summary>
+    /// One item per aircraft per list holds through a recall: an <c>RD</c> inside the recall linger sends the recalled
+    /// item again under its own id, as a fresh release would, and the linger no longer reverts it afterwards.
+    /// </summary>
+    [Fact]
+    public void Rd_DuringRecallLinger_RevivesTheSameItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RD").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDR").Success);
+        int beforeRevive = spine.CoordinationChangeCount;
+
+        CommandResult released = Send(engine, spine, CallsignA, "RD");
+
+        Assert.True(released.Success, released.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
+        Assert.Equal("POAK-1", item.Id);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);
+        Assert.Null(item.ExpireTime);
+        Assert.False(item.WasAutomaticRelease);
+        Assert.True(spine.CoordinationChangeCount > beforeRevive, "the revive should have reached the host");
+
+        for (int i = 0; i < (int)SimScenarioState.CoordinationRecallLingerSeconds + 1; i++)
+        {
+            engine.RunSecond(spine);
+        }
+
+        CoordinationItem after = Assert.Single(Channel(engine).Items);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, after.Status);
+    }
+
+    /// <summary>An <c>RDH</c> inside the recall linger holds the recalled item again, as a fresh hold would, keeping its id and text.</summary>
+    [Fact]
+    public void Rdh_DuringRecallLinger_RevivesTheSameItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK EXPECT 28R").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDH POAK").Success);
+        Assert.True(Send(engine, spine, CallsignA, "RDR").Success);
+
+        CommandResult held = Send(engine, spine, CallsignA, "RDH POAK");
+
+        Assert.True(held.Success, held.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items);
+        Assert.Equal("POAK-1", item.Id);
+        Assert.Equal(StarsCoordinationStatus.Unsent, item.Status);
+        Assert.Null(item.ExpireTime);
+        Assert.Equal("EXPECT 28R", item.Message);
+
+        for (int i = 0; i < (int)SimScenarioState.CoordinationRecallLingerSeconds + 1; i++)
+        {
+            engine.RunSecond(spine);
+        }
+
+        Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
+    }
+
+    /// <summary>The 4U roster entry that auto-tracks OAK departures, so a departure crossing the display floor is acquired.</summary>
+    private static void AddOakAutoTracker(SimulationEngine engine)
+    {
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AtcPositions.Add(
+            new ResolvedAtcPosition
+            {
+                Source = new ScenarioAtc { PositionId = "POS-4U", AutoTrackAirportIds = ["OAK"] },
+                Owner = TrackOwner.CreateStars("NCT_4U", "NCT", 4, "U"),
+                Tcp = TrackResolver.FindTcpByCode(scenario, "4U")!,
+            }
+        );
+    }
+
+    /// <summary>
+    /// STARS acquiring the departure ends its release rundown whichever path acquires it: here the deferred autotrack,
+    /// as the departure climbs through the display floor. The other aircraft, still on the ground, keeps its item.
+    /// </summary>
+    [Fact]
+    public void AutoTrackAcquisition_RemovesTheDeparturesCoordinationItems()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        AddOakAutoTracker(engine);
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RD").Success);
+        Assert.True(Send(engine, spine, CallsignB, "RD").Success);
+        Assert.True(Receive(engine, spine, CallsignA, "RDACK").Success);
+        int before = spine.CoordinationChangeCount;
+
+        AircraftState departure = engine.FindAircraft(CallsignA)!;
+        departure.IsOnGround = false;
+        departure.Altitude = 3000;
+        engine.RunSecond(spine);
+
+        Assert.NotNull(departure.Track.Owner);
+        Assert.Equal(CallsignB, Assert.Single(Channel(engine).Items).AircraftId);
+        Assert.True(spine.CoordinationChangeCount > before, "the acquisition removal should have reached the host");
+    }
+
+    /// <summary>The same removal on the claim a <c>.AUTOTRACK</c> change makes of an airborne untracked departure.</summary>
+    [Fact]
+    public void AutoTrackClaim_RemovesTheDeparturesCoordinationItems()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD").Success);
+        Assert.True(Send(engine, host, CallsignB, "RD").Success);
+        Assert.True(Receive(engine, host, CallsignA, "RDACK").Success);
+        AircraftState departure = engine.FindAircraft(CallsignA)!;
+        departure.IsOnGround = false;
+        departure.Altitude = 3000;
+        int before = host.CoordinationChanges;
+
+        CommandResult claimed = engine.Actions.IssueDerived(
+            new RecordedAutoTrackChange(engine.Scenario!.ElapsedSeconds, OakTwrPositionId, ["KOAK"]),
+            host
+        );
+
+        Assert.True(claimed.Success, claimed.Message);
+        Assert.NotNull(departure.Track.Owner);
+        Assert.Equal(CallsignB, Assert.Single(Channel(engine).Items).AircraftId);
+        Assert.True(host.CoordinationChanges > before, "the claim removal should have reached the host");
+    }
+
+    /// <summary>
+    /// The <c>.AUTOTRACK</c> claim of an airborne departure STARS does not yet display keeps its acknowledged release
+    /// item; once it climbs above the display floor the item is removed.
+    /// </summary>
+    [Fact]
+    public void AutoTrackClaimBelowTheFloor_RemovesTheItemOnceAboveTheFloor()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RD").Success);
+        Assert.True(Send(engine, spine, CallsignB, "RD").Success);
+        Assert.True(Receive(engine, spine, CallsignA, "RDACK").Success);
+        AircraftState departure = engine.FindAircraft(CallsignA)!;
+        departure.IsOnGround = false;
+        departure.Altitude = 50;
+
+        CommandResult claimed = engine.Actions.IssueDerived(
+            new RecordedAutoTrackChange(engine.Scenario!.ElapsedSeconds, OakTwrPositionId, ["KOAK"]),
+            spine
+        );
+
+        Assert.True(claimed.Success, claimed.Message);
+        Assert.NotNull(departure.Track.Owner);
+        Assert.Equal([CallsignA, CallsignB], Channel(engine).Items.Select(i => i.AircraftId));
+        Assert.True(departure.Track.RemoveCoordinationAtFloor);
+
+        departure.Altitude = 3000;
+        engine.RunSecond(spine);
+
+        Assert.Equal([CallsignB], Channel(engine).Items.Select(i => i.AircraftId));
+        Assert.False(departure.Track.RemoveCoordinationAtFloor);
+    }
+
+    /// <summary>A handoff accept moves a track between two positions; STARS already had it, so nothing is acquired or removed.</summary>
+    [Fact]
+    public void HandoffAccept_DoesNotRemoveItems()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD").Success);
+        Assert.True(engine.PositionSelections.TryGet(ReceiverConnection, out TrackOwner? receiver));
+        AircraftState aircraft = engine.FindAircraft(CallsignA)!;
+        aircraft.Track.Owner = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+        aircraft.Track.HandoffPeer = receiver;
+        aircraft.Track.HandoffInitiatedAt = engine.Scenario!.ElapsedSeconds;
+
+        CommandResult accepted = Receive(engine, host, CallsignA, "ACCEPT");
+
+        Assert.True(accepted.Success, accepted.Message);
+        Assert.Equal(CallsignA, Assert.Single(Channel(engine).Items).AircraftId);
+    }
+
+    /// <summary>
+    /// The flight-plan-creator autotrack acquires a departure squawking at the gate before STARS displays it, which is
+    /// not the radar acquisition that ends its release rundown; one acquired above the display floor is.
+    /// </summary>
+    [Fact]
+    public void FlightPlanCreatorAcquisition_KeepsTheItemBelowTheFloor_AndRemovesItAbove()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RD").Success);
+        Assert.True(Send(engine, spine, CallsignB, "RD").Success);
+        var creator = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+        AircraftState atGate = engine.FindAircraft(CallsignA)!;
+        AircraftState airborne = engine.FindAircraft(CallsignB)!;
+        airborne.IsOnGround = false;
+        airborne.Altitude = 3000;
+        AircraftState[] acquired = [atGate, airborne];
+        foreach (AircraftState ac in acquired)
+        {
+            ac.FlightPlan.CreatedByOwner = creator;
+            ac.Transponder.AssignedCode = 1234;
+            ac.Transponder.Code = 1234;
+        }
+
+        engine.RunSecond(spine);
+
+        Assert.NotNull(atGate.Track.Owner);
+        Assert.NotNull(airborne.Track.Owner);
+        Assert.Equal(CallsignA, Assert.Single(Channel(engine).Items).AircraftId);
+    }
+
+    /// <summary>
+    /// A departure the flight-plan creator acquires at the gate keeps its acknowledged release item while STARS does
+    /// not yet display it; once it climbs above the display floor the item is removed.
+    /// </summary>
+    [Fact]
+    public void FlightPlanCreatorAcquisitionAtTheGate_RemovesTheItemOnceAboveTheFloor()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var spine = new SpineCapturingHost(engine);
+        SelectPositions(engine, spine);
+        Assert.True(Send(engine, spine, CallsignA, "RD").Success);
+        Assert.True(Send(engine, spine, CallsignB, "RD").Success);
+        Assert.True(Receive(engine, spine, CallsignA, "RDACK").Success);
+        AircraftState atGate = engine.FindAircraft(CallsignA)!;
+        atGate.FlightPlan.CreatedByOwner = TrackOwner.CreateStars("NCT_4Q", "NCT", 4, "Q");
+        atGate.Transponder.AssignedCode = 1234;
+        atGate.Transponder.Code = 1234;
+
+        engine.RunSecond(spine);
+
+        Assert.NotNull(atGate.Track.Owner);
+        Assert.Equal([CallsignA, CallsignB], Channel(engine).Items.Select(i => i.AircraftId));
+        Assert.True(atGate.Track.RemoveCoordinationAtFloor);
+        Assert.True(AircraftTrack.FromSnapshot(atGate.Track.ToSnapshot()).RemoveCoordinationAtFloor);
+
+        atGate.IsOnGround = false;
+        atGate.Altitude = 3000;
+        engine.RunSecond(spine);
+
+        Assert.Equal([CallsignB], Channel(engine).Items.Select(i => i.AircraftId));
+        Assert.False(atGate.Track.RemoveCoordinationAtFloor);
+    }
+
+    /// <summary>
+    /// A recalled item is its own sender's to send again: another sender on the list, during the linger, is refused
+    /// on both <c>RD</c> and <c>RDH</c>, and the item stays recalled.
+    /// </summary>
+    [Fact]
+    public void RdAndRdh_ByAnotherSenderDuringRecallLinger_AreRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        Channel(engine).SendingTcps.Add(TrackResolver.FindTcpByCode(engine.Scenario!, "1J")!);
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Issue(engine, host, ThirdConnection, "", "AS 1J").Success);
+        Assert.True(Send(engine, host, CallsignA, "RD POAK").Success);
+        Assert.True(Send(engine, host, CallsignA, "RDR POAK").Success);
+
+        CommandResult released = Issue(engine, host, ThirdConnection, CallsignA, "RD POAK");
+        CommandResult held = Issue(engine, host, ThirdConnection, CallsignA, "RDH POAK");
+
+        Assert.False(released.Success);
+        Assert.Equal($"{CallsignA} is recalled by 3O", released.Message);
+        Assert.False(held.Success);
+        Assert.Equal($"{CallsignA} is recalled by 3O", held.Message);
+        Assert.Equal(StarsCoordinationStatus.Recalled, Assert.Single(Channel(engine).Items).Status);
     }
 }

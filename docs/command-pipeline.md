@@ -337,11 +337,17 @@ The walk runs over the `NormalizeSeparatorAliases` output — `THEN`→`;`, `AND
 
 `SimulationEngine.TickCoordinationTimers` (post-physics) expires an acknowledged release `SimScenarioState.CoordinationAckExpirySeconds` (180 s) after the ack, flags the departure-expiration warning once `CoordinationExpiryWarningSeconds` (120 s) remain, and reverts a recalled item to Unsent after `CoordinationRecallLingerSeconds` (10 s).
 
-The sender keeps the item with its text, and CRC draws an Unsent item only at its origin TCP (`docs/crc/stars.md` §Recalled), so no per-viewer split is needed; a later `RDH` re-sends it, `RDR` deletes it, and `RD` is refused while it stands. A `TRACK` removes the aircraft's items (`RemoveCoordinationOnRadarAcquisition`, from the Track arm).
+The sender keeps the item with its text, and CRC draws an Unsent item only at its origin TCP (`docs/crc/stars.md` §Recalled), so no per-viewer split is needed; a later `RDH` re-sends it, `RDR` deletes it, and `RD` is refused while it stands. Any STARS acquisition of the departure removes the aircraft's items (`RemoveCoordinationOnRadarAcquisition`): the `TRACK` arm, the deferred autotrack, the `.AUTOTRACK` claim of an airborne departure and the flight-plan creator's autotrack. A departure acquired below the display floor keeps them, marked `AircraftTrack.RemoveCoordinationAtFloor`, until it climbs above the floor and STARS displays it. A handoff accept moves an owned track and removes nothing.
 
-Every mutation sets the engine's coordination dirty flag, drained as `IStateChangeConsumer.OnCoordinationChanged()` — the live room re-pushes the whole `StarsCoordination` topic.
+Every mutation sets the engine's coordination dirty flag, drained as `IStateChangeConsumer.OnCoordinationChanged()` — the live room re-pushes the whole `StarsCoordination` topic. A consolidation change (a position activating, deactivating or disconnecting) re-pushes it too, for that room only and right after the consolidation push, because CRC builds a list's items only when a coordination push arrives, judged by the consolidated set it holds then: a position that logs on later gets its lists.
 
 CRC's F13 entries (`CrcClientState.CrcCoordination` in yaat-server `CrcClientState.Stars.cs`) build the verb, fill a list-less sender verb with the sender's single list (`CoordinationCommandHandler.InferSenderListId`), and issue its canonical text through `RoomEngine.RecordAndDispatch`, so every entry is a recorded `AS {tcp} RD…` command a rewind re-applies.
+
+A position answers for the lists of its own TCP and of every TCP consolidated under it (`CoordinationAuthority`: `AnswersFor`, `IsSender`, `IsReceiver`, over the engine's attendance and manual overrides), the one rule the engine's verbs and the F13 entry both judge by, so a list whose receiver consolidated into the active position is that position's to acknowledge.
+
+A bare FLID resolves sender first: a position that is both sender and receiver on a list is shown it as its sender, so an existing item is its to delete, not acknowledge. A receiver's bare FLID with no list is CRC's one-pending shorthand, standing for the single unacknowledged message across every list the position receives on; any other count answers `AMB MSG`, as bare `<F13><ENTER>` does.
+
+`RD` for an aircraft whose recalled item is still inside its linger sends that item again in place, under the same id, never a second entry; only the item's own sender revives it.
 
 The canonical forms round-trip through the parser (`CoordinationCanonicalRoundTripTests`): `RDH {list} {text}` carries the held text, and a list-qualified modify is `RDTXT /{list} {text}` — a leading `/token` is the list, a message never starts with a slash.
 

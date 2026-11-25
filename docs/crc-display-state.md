@@ -82,7 +82,7 @@ Triggered by specific state changes:
 | Helper | When it fires |
 |---|---|
 | `BroadcastOpenPositionsAsync` | RegisterPosition / SetPositionActive / disconnect |
-| `BroadcastStarsConsolidationAsync` | position registry changes (TCP attendance) |
+| `BroadcastStarsConsolidationAsync` | position registry changes (TCP attendance); the bound room's whole coordination topic follows, since CRC builds list items only on a coordination push |
 | `BroadcastConflictAlertsAsync` | ATPA detector add/clear |
 | `BroadcastCoordinationAsync` | coordination list / tower list changes |
 | `BroadcastDeletesAsync` / `BroadcastStarsDeletesAsync` | aircraft departure |
