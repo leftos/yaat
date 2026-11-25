@@ -449,7 +449,7 @@ A field can differ by **viewer type**, not only by facility or sector: the Fligh
 
 CRC's STARS reads that field for its `R{alt}` requested-altitude fallback and the DF readout; ERAM Field B falls back to it after the interim, local interim and procedure altitudes. The `Altitude` text (`170/SJC/110`) is the same for every viewer.
 
-Per connection is the finest split: CRC keeps one flight-plan repository per session, so a CRC instance with both a STARS and an ERAM display gets the altitude of the position it is acting as, and a switch between an ERAM and a non-ERAM position resends the whole topic (`HandleChangeActivePosition`). Both variants are built once per tick (`FlightPlansEram` / `FlightPlansOther`), so every viewer sees the same snapshot.
+Per connection is the finest split: CRC keeps one flight-plan repository per session, so a CRC instance with both a STARS and an ERAM display gets the altitude of the position it is acting as, and a switch between an ERAM and a non-ERAM position resends the whole topic (`HandleChangeActivePosition`). That handler also resends the full StarsTracks payload for every StarsTracks topic the client holds, because CRC's STARS `TrackManager` computes `IsOurTrack` only inside a track's own update, so tracks CRC already holds would keep the previous position's ownership. Response order: FlightPlans resend (viewer-type change only), StarsTracks resend, conflict resend, ack last. Both variants are built once per tick (`FlightPlansEram` / `FlightPlansOther`), so every viewer sees the same snapshot.
 
 When you add a field that should appear on a CRC client, you must touch **all** of these:
 
