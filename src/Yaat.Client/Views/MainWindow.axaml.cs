@@ -211,7 +211,9 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (layoutItem is not null)
         {
             PopulateLayoutMenu(layoutItem, vm);
-            vm.Preferences.LayoutsChanged += () => PopulateLayoutMenu(layoutItem, vm);
+            // Posted, not run inline: the named save raises LayoutsChanged inside its own click, and clearing the items
+            // there would leave the clicked item parentless, so the menu could not close behind it.
+            vm.Preferences.LayoutsChanged += () => Avalonia.Threading.Dispatcher.UIThread.Post(() => PopulateLayoutMenu(layoutItem, vm));
         }
 
         MenuItem? favoritesPanelItem = this.FindControl<MenuItem>("FavoritesPanelMenuItem");
@@ -2232,6 +2234,17 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         menu.Items.Add(new Separator());
 
+        string? loaded = vm.Preferences.LoadedLayoutName;
+        var quickSaveItem = new MenuItem { Header = loaded is null ? "Save layout" : $"Save layout \"{loaded}\"", IsEnabled = loaded is not null };
+        quickSaveItem.Click += (_, _) =>
+        {
+            if (vm.Preferences.LoadedLayoutName is { } name)
+            {
+                SaveCurrentOverLayout(vm, name, null);
+            }
+        };
+        menu.Items.Add(quickSaveItem);
+
         var saveItem = new MenuItem { Header = "Save current as layout…" };
         saveItem.Click += async (_, _) => await OnSaveCurrentLayoutAsync(vm);
         menu.Items.Add(saveItem);
@@ -2259,9 +2272,20 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             return;
         }
 
-        SavedLayout layout = _layoutService.CaptureCurrent(dlg.LayoutName, vm);
+        SaveCurrentOverLayout(vm, dlg.LayoutName, null);
+    }
+
+    /// <summary>
+    /// Captures the current arrangement over the saved layout with this name, makes it the loaded layout and shows the
+    /// status text, by default <c>Saved layout "&lt;name&gt;"</c> with the saved (trimmed) name. Used by the View &gt; Layout
+    /// named save, Save current as layout… and Manage layouts' Update from current.
+    /// </summary>
+    private void SaveCurrentOverLayout(MainViewModel vm, string name, string? statusText)
+    {
+        SavedLayout layout = _layoutService.CaptureCurrent(name, vm);
         vm.Preferences.SaveLayout(layout);
-        vm.StatusText = $"Saved layout \"{layout.Name}\"";
+        vm.Preferences.SetLoadedLayout(layout.Name);
+        vm.StatusText = statusText ?? $"Saved layout \"{layout.Name}\"";
     }
 
     private async System.Threading.Tasks.Task OnManageLayoutsAsync(MainViewModel vm)
@@ -2275,9 +2299,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
                 await ApplyLayoutByNameAsync(vm, name);
                 break;
             case ManageLayoutsAction.UpdateFromCurrent when dlg.SelectedLayoutName is { } name:
-                SavedLayout refreshed = _layoutService.CaptureCurrent(name, vm);
-                vm.Preferences.SaveLayout(refreshed);
-                vm.StatusText = $"Updated layout \"{name}\" from current arrangement";
+                SaveCurrentOverLayout(vm, name, $"Updated layout \"{name}\" from current arrangement");
                 break;
         }
     }
@@ -2292,6 +2314,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         }
 
         string notes = await ApplyLayoutAsync(vm, layout, ViewSettingsCopyCatalog.AllLayoutKeys(layout));
+        vm.Preferences.SetLoadedLayout(layout.Name);
         vm.StatusText = $"Applied layout \"{name}\"{notes}";
     }
 

@@ -8,6 +8,7 @@
 - RPO sessions warn the instructor, at the clearance or in flight, when an uncleared VFR pattern or approach path will enter a Class B; the pilot flies on.
 - Radar: ERAM-template tracks draw CRC's ERAM look: a target glyph per state, track symbols, glyph history, CRC's leader and ERAM yellow.
 - Settings › Appearance › Scope text draws STARS and ERAM datablocks Compact or Realistic: Terminus Bold at CRC's text sizes, sized per kind.
+- View › Layout › Save layout "{name}" saves the current windows over the layout you last loaded; YAAT remembers which one across restarts.
 - `TAXI … @B*` and `TAXIAUTO @B*` taxi an arrival to a free stand whose name starts with B and fits its type; the readback names the stand.
 - Solo: a pattern entry, approach or `PTAC` clearance whose path enters an uncleared Class B is read back "that'll take us into the bravo, request bravo clearance".
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.

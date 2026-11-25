@@ -111,9 +111,11 @@ Typed `.scope`, `.view`, map-tool and marker commands act on the Radar whose can
 
 **Layouts** save and restore named window arrangements — geometry, minimized/maximized/always-on-top state, dock/pop-out state of every pop-out window, the Radar's included (Controllers, METAR and the favorites panel too), the docked terminal's size, which extra Radar and Ground windows are open, whether the favorites bar is shown, DataGrid columns, which [favorite sets](#favorite-sets) are loaded and in what bar order, and which Strips and vTDLS tabs are open.
 
-A layout never holds Radar, ground or terminal view settings (a Radar window keeps its own saved state), so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
+A layout never holds Radar, ground or terminal view settings (a Radar window keeps its own saved state), so one layout works in every scenario. The **View > Layout** submenu lists your saved layouts (click one to apply it), then **Save layout "name"** (greyed out until a layout is loaded), **Save current as layout…**, **From this scenario's views…** (see [Applying a Layout or Another Scenario's Views](#applying-a-layout-or-another-scenarios-views)), **Manage layouts…** (apply, update from the current arrangement, rename or delete) and **Reset aircraft list columns**.
 
 Applying a layout brings its saved windows to the front (un-minimizing them if needed) and leaves focus on the main window; a window the layout saved minimized is restored minimized. A layout saved before it recorded the open Strips/vTDLS tabs leaves your open tabs as they are, and a saved tab that no longer exists is skipped. Applying a layout pops the Radar in or out and opens or closes extra Radar windows to match, each extra window starting from its own saved state and placed at the layout's geometry; a layout saved before it recorded the Radar leaves your Radars as they are.
+
+Applying a layout by name, saving with **Save current as layout…** and **Update from current** in Manage layouts each make that layout the loaded one, and YAAT remembers it across restarts. **Save layout "name"** (for example `Save layout "Tower cab"`) then saves the current windows over the loaded layout at once, with no confirmation, and the status line reads `Saved layout "Tower cab"`; with no layout loaded it reads **Save layout** and is greyed out. Renaming the loaded layout keeps it loaded; deleting it leaves none loaded.
 
 Window profiles saved by an earlier version appear as layouts with the same names. Useful for keeping separate GC and LC layouts (each with its own favorite sets) and switching between them in one click.
 
@@ -2018,7 +2020,7 @@ See [Session Report](SOLO_TRAINING.md#session-report) in the Solo Training guide
 
 ### Applying a Layout or Another Scenario's Views
 
-![The View menu open on its Layout submenu, listing a saved layout named Tower cab above Save current as layout…, From this scenario's views… (greyed out with no scenario loaded), Manage layouts… and Reset aircraft list columns](docs/user-guide/img/menu-view-layouts.png)
+![The View menu open on its Layout submenu, listing a saved layout named Tower cab, then Save layout "Tower cab" above Save current as layout…, From this scenario's views… (greyed out with no scenario loaded), Manage layouts… and Reset aircraft list columns](docs/user-guide/img/menu-view-layouts.png)
 
 Use **View > Layout > From this scenario's views…** to open the **Apply Layout** dialog, which copies settings into the current scenario from one of two sources: **Scenario views** (another scenario's saved Ground view settings, including selected video maps, range, brightness, labels, and filters; only scenarios with saved Ground settings are listed) or a **Saved layout** (window geometry, every pop-out window, extra Radar/Ground windows, favorites, open Strips/vTDLS tabs, and the Aircraft List column layout).
 

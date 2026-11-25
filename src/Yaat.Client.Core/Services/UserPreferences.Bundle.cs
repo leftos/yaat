@@ -172,6 +172,7 @@ public sealed partial class UserPreferences
         ["macros"] = "has its own bundle entry (macros)",
         ["gridLayout"] = "has its own bundle entry (grid layout)",
         ["layouts"] = "has its own bundle entry (layouts)",
+        ["loadedLayoutName"] = "which layout this machine last loaded",
         ["quickCommandLists"] = "the quick-command lists, shared as their own file (*.yaat-quickcommands.json)",
         ["windowProfiles"] = "legacy key, migrated into layouts on load",
         ["loadedFavoriteSetIds"] = "favorites state; the favorites entry carries the loaded-set ids",
@@ -427,6 +428,11 @@ public sealed partial class UserPreferences
 
         kept.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
         _data.Layouts = kept;
+        if ((_data.LoadedLayoutName is { } loaded) && (!names.Contains(loaded)))
+        {
+            _data.LoadedLayoutName = null;
+        }
+
         Save();
         RaiseLayoutsChanged();
     }

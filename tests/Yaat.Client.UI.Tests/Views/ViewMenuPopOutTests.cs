@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Xunit;
@@ -154,13 +156,102 @@ public class ViewMenuPopOutTests
             Assert.Contains(items.Take(separator), i => i is MenuItem { Header: "VMT-Layout-B" });
             // ...then the fixed items below the separator.
             Assert.Equal(
-                ["Save current as layout…", "From this scenario's views…", "Manage layouts…", "Reset aircraft list columns"],
+                ["Save layout", "Save current as layout…", "From this scenario's views…", "Manage layouts…", "Reset aircraft list columns"],
                 items.Skip(separator + 1).Select(i => ((MenuItem)i!).Header as string)
             );
+            // With no layout loaded the named save shows greyed.
+            Assert.False(ViewMenuItem(window, "Save layout").IsEnabled);
         }
         finally
         {
             vm.Preferences.DeleteLayout("VMT-Layout-A");
+            vm.Preferences.DeleteLayout("VMT-Layout-B");
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ViewMenu_LayoutSubmenu_NamedSave_SavesOverTheLoadedLayout()
+    {
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        await vm.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        try
+        {
+            vm.Preferences.SaveLayout(new SavedLayout { Name = "VMT-Layout-A" });
+            vm.Preferences.SetLoadedLayout("VMT-Layout-A");
+            Dispatcher.UIThread.RunJobs();
+            SavedLayout before = vm.Preferences.GetLayout("VMT-Layout-A")!;
+            DateTime createdBefore = before.CreatedUtc;
+
+            MenuItem item = ViewMenuItem(window, "Save layout \"VMT-Layout-A\"");
+            Assert.True(item.IsEnabled);
+
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            SavedLayout after = vm.Preferences.GetLayout("VMT-Layout-A")!;
+            // SaveLayout swaps in the newly captured layout, keeping the original creation time.
+            Assert.NotSame(before, after);
+            Assert.Equal(createdBefore, after.CreatedUtc);
+            Assert.Equal("Saved layout \"VMT-Layout-A\"", vm.StatusText);
+        }
+        finally
+        {
+            vm.Preferences.DeleteLayout("VMT-Layout-A");
+        }
+    }
+
+    [AvaloniaFact]
+    public void ViewMenu_LayoutSubmenu_NamedSaveByKeyboard_ClosesTheViewMenu()
+    {
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        try
+        {
+            vm.Preferences.SaveLayout(new SavedLayout { Name = "VMT-Layout-A" });
+            vm.Preferences.SetLoadedLayout("VMT-Layout-A");
+            Dispatcher.UIThread.RunJobs();
+            SavedLayout before = vm.Preferences.GetLayout("VMT-Layout-A")!;
+
+            MenuItem view = ViewMenu(window);
+            view.Open();
+            Dispatcher.UIThread.RunJobs();
+            MenuItem layout = ViewMenuItem(window, "_Layout");
+            layout.Open();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(view.IsSubMenuOpen);
+            Assert.True(layout.IsSubMenuOpen);
+
+            MenuItem item = ViewMenuItem(window, "Save layout \"VMT-Layout-A\"");
+            Assert.True(item.Focus(NavigationMethod.Directional));
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            // The save ran (a new captured layout), and the menu closed behind it as for any other item.
+            Assert.NotSame(before, vm.Preferences.GetLayout("VMT-Layout-A"));
+            Assert.False(layout.IsSubMenuOpen);
+            Assert.False(view.IsSubMenuOpen);
+        }
+        finally
+        {
+            vm.Preferences.DeleteLayout("VMT-Layout-A");
+        }
+    }
+
+    [AvaloniaFact]
+    public void ViewMenu_LayoutSubmenu_ApplyingALayout_MakesItTheLoadedLayout()
+    {
+        (MainWindow? window, MainViewModel? vm) = BootMainWindow();
+        try
+        {
+            vm.Preferences.SaveLayout(new SavedLayout { Name = "VMT-Layout-B" });
+            Dispatcher.UIThread.RunJobs();
+
+            ViewMenuItem(window, "VMT-Layout-B").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("VMT-Layout-B", vm.Preferences.LoadedLayoutName);
+        }
+        finally
+        {
             vm.Preferences.DeleteLayout("VMT-Layout-B");
         }
     }

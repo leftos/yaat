@@ -406,5 +406,92 @@ public class UserPreferencesLayoutTests
         Assert.Equal(["WPT-Both-A", "WPT-Both-B", "WPT-Both-C"], written["layouts"]!.AsArray().Select(l => l!["name"]!.GetValue<string>()));
     }
 
+    [Fact]
+    public void SetLoadedLayout_PersistsAcrossInstances()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-Loaded" });
+
+        prefs.SetLoadedLayout("WPT-Loaded");
+
+        Assert.Equal("WPT-Loaded", new UserPreferences().LoadedLayoutName);
+        prefs.DeleteLayout("WPT-Loaded");
+    }
+
+    [Fact]
+    public void RenameLayout_OfTheLoadedLayout_MovesTheLoadedName()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedOld" });
+        prefs.SetLoadedLayout("WPT-LoadedOld");
+
+        Assert.True(prefs.RenameLayout("wpt-loadedold", "  WPT-LoadedNew "));
+
+        Assert.Equal("WPT-LoadedNew", prefs.LoadedLayoutName);
+        prefs.DeleteLayout("WPT-LoadedNew");
+    }
+
+    [Fact]
+    public void DeleteLayout_OfTheLoadedLayout_ClearsTheLoadedName()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedDel" });
+        prefs.SetLoadedLayout("WPT-LoadedDel");
+
+        prefs.DeleteLayout("WPT-LoadedDel");
+        // A layout saved again under the name does not bring the loaded name back: it was cleared, not hidden.
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedDel" });
+
+        Assert.Null(prefs.LoadedLayoutName);
+        prefs.DeleteLayout("WPT-LoadedDel");
+    }
+
+    [Fact]
+    public void ReplaceLayouts_WithoutTheLoadedLayout_ClearsTheLoadedName()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedGone" });
+        prefs.SetLoadedLayout("WPT-LoadedGone");
+
+        prefs.ReplaceLayouts([new SavedLayout { Name = "WPT-Other" }]);
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedGone" });
+
+        Assert.Null(prefs.LoadedLayoutName);
+    }
+
+    [Fact]
+    public void ReplaceLayouts_KeepingTheLoadedLayout_KeepsTheLoadedName()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedKept" });
+        prefs.SetLoadedLayout("WPT-LoadedKept");
+
+        prefs.ReplaceLayouts([new SavedLayout { Name = "wpt-loadedkept" }]);
+
+        Assert.Equal("wpt-loadedkept", new UserPreferences().LoadedLayoutName);
+    }
+
+    [Fact]
+    public void ExportBundlePreferences_LeavesOutTheLoadedLayout()
+    {
+        var prefs = new UserPreferences();
+        prefs.SaveLayout(new SavedLayout { Name = "WPT-LoadedExport" });
+        prefs.SetLoadedLayout("WPT-LoadedExport");
+
+        JsonObject written = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
+        Assert.Equal("WPT-LoadedExport", written["loadedLayoutName"]!.GetValue<string>());
+        Assert.False(prefs.ExportBundlePreferences().ContainsKey("loadedLayoutName"));
+        prefs.DeleteLayout("WPT-LoadedExport");
+    }
+
+    [Fact]
+    public void LoadedLayoutName_WhoseLayoutIsGone_ReadsNull()
+    {
+        var file = new JsonObject { ["preferencesVersion"] = 1, ["loadedLayoutName"] = "WPT-LoadedMissing" };
+        File.WriteAllText(PreferencesPath, file.ToJsonString());
+
+        Assert.Null(new UserPreferences().LoadedLayoutName);
+    }
+
     private static string PreferencesPath => UserPreferences.FilePath;
 }

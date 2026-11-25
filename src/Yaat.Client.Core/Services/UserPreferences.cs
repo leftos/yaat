@@ -900,6 +900,11 @@ public sealed partial class UserPreferences
         int removed = _data.Layouts.RemoveAll(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
         if (removed > 0)
         {
+            if (string.Equals(_data.LoadedLayoutName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                _data.LoadedLayoutName = null;
+            }
+
             Save();
             RaiseLayoutsChanged();
         }
@@ -930,6 +935,11 @@ public sealed partial class UserPreferences
             }
         }
 
+        if (string.Equals(_data.LoadedLayoutName, oldName, StringComparison.OrdinalIgnoreCase))
+        {
+            _data.LoadedLayoutName = trimmed;
+        }
+
         existing.Name = trimmed;
         existing.ModifiedUtc = DateTime.UtcNow;
         _data.Layouts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
@@ -939,6 +949,28 @@ public sealed partial class UserPreferences
     }
 
     public SavedLayout? GetLayout(string name) => _data.Layouts.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// The layout last applied by name, saved or updated from the current arrangement, while a saved layout has that
+    /// name; null when none is loaded or it is gone. Kept on this machine only: it never travels in a settings bundle.
+    /// </summary>
+    public string? LoadedLayoutName => (_data.LoadedLayoutName is { } name) ? GetLayout(name)?.Name : null;
+
+    /// <summary>
+    /// Records the loaded layout, saves, and raises <see cref="LayoutsChanged"/>; does nothing when it is already the
+    /// stored name, so re-applying the same layout writes nothing.
+    /// </summary>
+    public void SetLoadedLayout(string name)
+    {
+        if (string.Equals(_data.LoadedLayoutName, name, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _data.LoadedLayoutName = name;
+        Save();
+        RaiseLayoutsChanged();
+    }
 
     /// <summary>Raised after the Layouts collection changes (add/delete/rename) so the View menu can re-populate.</summary>
     public event Action? LayoutsChanged;
@@ -3115,6 +3147,9 @@ public sealed partial class UserPreferences
         public Dictionary<string, double> GroundRotationByAirport { get; set; } = [];
         public Dictionary<string, SavedWindowGeometry> WindowGeometries { get; set; } = [];
         public List<SavedLayout> Layouts { get; set; } = [];
+
+        // The layout the View > Layout named save writes over; see LoadedLayoutName.
+        public string? LoadedLayoutName { get; set; }
 
         // Layouts were saved as window profiles under this key; kept deserializable only so the load-time rename
         // (MigrateLegacyWindowProfiles) can move them into Layouts, nulled (and thus dropped from the file) afterwards.
