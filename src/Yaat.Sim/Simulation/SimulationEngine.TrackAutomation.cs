@@ -7,8 +7,8 @@ using Yaat.Sim.Simulation.Actions;
 
 namespace Yaat.Sim.Simulation;
 
-// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept, the point-out
-// timeout and the two autotrack passes in post-physics, plus the autotrack conditions a scenario or
+// The track-automation spine steps: the delayed-handoff queue in pre-physics, auto-accept, the solo point-out
+// approval and the two autotrack passes in post-physics, plus the autotrack conditions a scenario or
 // generator aircraft carries. They decide from engine state alone — the scenario's queue and delay, its ATC
 // roster and ARTCC config, the recorded CRC attendance and the consolidation hierarchy — so every run kind
 // reaches the same verdict.
@@ -663,27 +663,20 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Withdraws a pointout addressed to a simulated/unattended position that has sat unanswered for
-    /// <see cref="SimScenarioState.PointoutNoActionSeconds"/>, and tells the sender to coordinate verbally.
-    /// 7110.65 §5-4-7.a.1.(a): when the receiving controller takes no action, revert to verbal procedures — a
-    /// non-response is not approval, so nothing acknowledges the pointout on the absent controller's behalf. That
-    /// sub-paragraph is en route; terminal automated approval (§5-4-7.a.1.(b)) still requires a facility directive and
-    /// the receiving controller's own system response, so silence is not approval there either.
-    /// A pointout to an attended CRC position, or in solo mode to the student's own position, is left pending:
-    /// there is a receiving controller and they are the one who must act.
+    /// Approves a point-out a solo student files to a simulated position after the auto-accept delay, since nobody
+    /// else is in the room to answer it. In a non-solo room a point-out to a position nobody is working stays pending
+    /// with no timeout, as on a real STARS display: the RPO answers it by hand (<c>OK</c> / <c>UN</c>). A point-out to
+    /// an attended CRC position, or in solo mode to the student's own position, is left pending — there is a receiving
+    /// controller and they are the one who must act.
     /// </summary>
-    internal void TickPointoutTimeout()
+    internal void TickSoloPointoutApproval()
     {
-        if (Scenario is not { } scenario)
+        if ((Scenario is not { } scenario) || (!scenario.SoloTrainingMode))
         {
             return;
         }
 
-        bool soloMode = scenario.SoloTrainingMode;
-        if (!soloMode && scenario.AutoAcceptDelay <= TimeSpan.Zero)
-        {
-            return;
-        }
+        double effectiveDelaySeconds = scenario.EffectiveAutoAcceptDelaySeconds;
 
         foreach (AircraftState aircraft in World.GetSnapshot())
         {
@@ -692,42 +685,75 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
-            if (Attendance.IsTcpControlledByCrc(pointout.Recipient, scenario, ConsolidationState))
+            bool recipientAttended = Attendance.IsTcpControlledByCrc(pointout.Recipient, scenario, ConsolidationState);
+            if (!IsSoloApprovalDue(pointout, scenario, effectiveDelaySeconds, recipientAttended))
             {
                 continue;
             }
 
-            if (soloMode && IsStudentRecipient(pointout.Recipient, scenario))
-            {
-                continue;
-            }
-
-            if (scenario.ElapsedSeconds - pointout.InitiatedAt.Value < SimScenarioState.PointoutNoActionSeconds)
-            {
-                continue;
-            }
-
-            CommandResult result = TrackEngine.HandleRetractPointout(aircraft);
+            CommandResult result = TrackEngine.HandleAcknowledge(aircraft);
             if (result.Success)
             {
-                EmitTerminal(
-                    "System",
-                    aircraft.Callsign,
-                    $"[Pointout] {pointout.Sender} → {pointout.Recipient}: no action taken — point-out withdrawn, "
-                        + "coordinate verbally before entering their airspace"
-                );
+                EmitTerminal("System", aircraft.Callsign, $"[AutoAck] Pointout approved by {pointout.Recipient}");
                 if (_logger.IsEnabled(LogLevel.Information))
                 {
                     _logger.LogInformation(
-                        "Point-out withdrawn (no action): {Callsign} {Sender}→{Recipient} at t={T}s",
+                        "Auto-approved pointout: {Callsign} to {Recipient} at t={T}s",
                         aircraft.Callsign,
-                        pointout.Sender,
                         pointout.Recipient,
                         scenario.ElapsedSeconds
                     );
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a pending point-out is one the solo room answers on the simulated position's behalf: the recipient is
+    /// neither CRC-attended nor the student's own position, and the auto-accept delay has run since it was filed.
+    /// </summary>
+    private static bool IsSoloApprovalDue(StarsPointout pointout, SimScenarioState scenario, double delaySeconds, bool recipientAttended)
+    {
+        return (!recipientAttended)
+            && (!IsStudentRecipient(pointout.Recipient, scenario))
+            && (scenario.ElapsedSeconds - pointout.InitiatedAt!.Value >= delaySeconds);
+    }
+
+    /// <summary>
+    /// The tail every successful track dispatch runs beyond the track itself, on every path into
+    /// <see cref="TrackEngine.Dispatch"/> (the command arm, an immediate all-track preset, a triggered queue block): a
+    /// point-out that has just been filed is announced to the instructor when nobody works its recipient.
+    /// </summary>
+    internal void AfterTrackDispatch(ParsedCommand command, AircraftState aircraft, SimScenarioState scenario)
+    {
+        if ((command is PointOutCommand) && (aircraft.Track.Pointout is { IsPending: true } pointout))
+        {
+            AnnounceUnansweredPointout(aircraft, pointout, scenario);
+        }
+    }
+
+    /// <summary>
+    /// Tells the instructor a non-solo room's point-out to a position nobody is working is waiting for an answer: the
+    /// RPO works that position from the client, nothing else announces the point-out, and it now stays pending until
+    /// they answer it (<c>OK</c> / <c>UN</c>). A solo room's simulated approval (<see cref="TickSoloPointoutApproval"/>),
+    /// an attended CRC recipient and the student as recipient all have a controller who acts, so they stay silent.
+    /// </summary>
+    private void AnnounceUnansweredPointout(AircraftState aircraft, StarsPointout pointout, SimScenarioState scenario)
+    {
+        if (
+            scenario.SoloTrainingMode
+            || Attendance.IsTcpControlledByCrc(pointout.Recipient, scenario, ConsolidationState)
+            || IsStudentRecipient(pointout.Recipient, scenario)
+        )
+        {
+            return;
+        }
+
+        EmitTerminal(
+            "System",
+            aircraft.Callsign,
+            $"[Pointout] {pointout.Sender} → {pointout.Recipient}: {aircraft.Callsign} awaits OK or UN (nobody works {pointout.Recipient})"
+        );
     }
 
     /// <summary>

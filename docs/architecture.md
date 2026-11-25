@@ -647,7 +647,7 @@ One entry per project: what it owns, what it may reference, and what it must nev
 
     `Simulation/ReplayAtcRosterTests.cs` (the resolved ATC roster round-trips a snapshot without aliasing the DTO's lists; a snapshot without the field leaves the loader's roster; a replay restores snapshot 0's roster and auto-tracks a departure crossing the display floor, while a recording without it replays unowned).
 
-    `Simulation/TrackAutomationStepTests.cs` (delayed handoffs, auto-accept and the point-out timeout on the bare engine: a pending point-out to an unattended recipient is withdrawn at 30 s and not before, the student's own waits in solo mode by TCP or by position, an attended recipient is untouched, auto-accept off leaves point-outs pending).
+    `Simulation/TrackAutomationStepTests.cs` (delayed handoffs, auto-accept and the solo point-out approval on the bare engine: a solo room approves a point-out to an unattended recipient after the auto-accept delay, the student's own waits by TCP or by position, an attended recipient is untouched, a non-solo point-out stays pending with no timeout and is announced once on every filing path).
 
     `Simulation/Actions/AutoTrackChangeRecordTests.cs` (a `RecordedAutoTrackChange` round-trips the polymorphic serializer; issued derived it creates the roster entry from the ARTCC config, steals the airport, claims an airborne untracked departure; `-X` removes globally and `none` clears the caller only; an unresolvable position is refused and not logged; `ApplyRecorded` reproduces the roster).
 

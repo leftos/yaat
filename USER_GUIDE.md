@@ -3604,9 +3604,9 @@ By contrast, handoffs between the automated background positions always auto-acc
 
 Auto-accept never takes a handoff of an aircraft that is on the ground, below 1,500 ft above its field, or on a coast track: ERAM may show such a track as CST, and a controller must coordinate verbally before accepting it (7110.65 §5-4-6.f.3). The handoff stays pending until the aircraft climbs into coverage, at any facility, so a departure handed off right after takeoff is accepted once it passes 1,500 ft above the field.
 
-**Point-outs** are different. A point-out to a position nobody is working is never acknowledged on that controller's behalf: if it sits for 30 seconds with no action, YAAT withdraws it and tells the initiator to coordinate verbally, because 7110.65 §5-4-7 requires reverting to verbal procedures when the receiving controller takes no action — a non-response is never approval.
+**Point-outs** are different. A point-out stays pending until the receiving position answers it, with no timeout, as on a real STARS display, because 7110.65 §5-4-7 requires reverting to verbal procedures when the receiving controller takes no action — a non-response is never approval.
 
-The 30-second interval and the withdrawal itself are YAAT's mechanism for that; the order sets no timer. A point-out to a position a CRC client is working is left for that controller, and in solo mode a point-out to your own position always waits for you. Switching auto-accept off (outside solo mode) also switches the withdrawal off, so point-outs then sit until someone acts — the real STARS display.
+In solo mode a point-out you file to a simulated position is approved on that position's behalf once the auto-accept delay has run (never faster than 5 seconds), since nobody else is in the room to answer it; a point-out to your own position waits for you. Outside solo mode a point-out to a position nobody is working waits for you to answer it from the client (`OK` or `UN`), and the terminal says so when it is filed (`[Pointout] … awaits OK or UN (nobody works …)`), whichever way it was issued. A point-out to a position a CRC client is working is left for that controller.
 
 #### Command Run Delay
 

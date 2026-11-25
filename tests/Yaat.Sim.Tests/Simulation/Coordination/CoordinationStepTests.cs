@@ -247,8 +247,8 @@ public class CoordinationStepTests
         int beforeWarning = spine.CoordinationChangeCount;
 
         // The second that drops the remaining life to 30 s (t = ack + 150) is the one that warns. 30 s because the
-        // warning is a short "about to expire" caution — the same judgement as PointoutNoActionSeconds above it:
-        // long enough for the RPO to act by hand, short enough that the state still means the item is nearly gone.
+        // warning is a short "about to expire" caution — long enough for the RPO to act by hand, short enough that the
+        // state still means the item is nearly gone.
         engine.Scenario!.ElapsedSeconds = SimScenarioState.CoordinationAckExpirySeconds - 30 - 1;
         engine.RunSecond(spine);
 

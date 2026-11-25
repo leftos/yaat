@@ -26,7 +26,7 @@ public enum StepId
     EramVerticalConformance,
     EramCoverageCoast,
     AutoAccept,
-    PointoutTimeout,
+    SoloPointoutApproval,
     FlightPlanCreatorAutoTrack,
     DeferredAutoTrack,
     PostPhysicsTerminalEntries,

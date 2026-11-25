@@ -13,6 +13,7 @@
 - Solo: a pattern entry, approach or `PTAC` clearance whose path enters an uncleared Class B is read back "that'll take us into the bravo, request bravo clearance".
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 - Quick commands offer Ident for an airborne aircraft no STARS or ERAM facility tracks yet.
+- The terminal announces a point-out to a position nobody is working, so the RPO can answer it with `OK` or `UN`.
 
 ### Changed
 
@@ -38,6 +39,7 @@
 - `SEP` with a rack past the bay's last now names the rack you typed in its out-of-range error, not one less.
 - After a Shift+F12 switch of the active STARS position, CRC now redraws every track's ownership instead of keeping the old sector's tracks white.
 - Departures on a SID whose transition ends in a fly-heading, expect-vectors leg, such as LOUPE1, now fly that heading instead of turning for the next fix.
+- A point-out to a position nobody is working now stays pending until answered instead of being dropped; solo sessions approve it after a short delay.
 
 ## v0.19.3-beta [2026/11/23]
 

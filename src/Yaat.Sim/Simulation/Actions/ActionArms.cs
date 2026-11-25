@@ -428,6 +428,8 @@ internal static class ActionArms
             return result;
         }
 
+        engine.AfterTrackDispatch(ctx.Parsed!, aircraft, scenario);
+
         switch (ctx.Parsed)
         {
             case TrackAircraftCommand:

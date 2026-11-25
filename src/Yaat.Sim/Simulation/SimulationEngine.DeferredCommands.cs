@@ -250,6 +250,10 @@ public sealed partial class SimulationEngine
             {
                 aircraft.PendingWarnings.Add($"{aircraft.Callsign}: {result.Message}");
             }
+            else
+            {
+                AfterTrackDispatch(command, aircraft, scenario);
+            }
         }
 
         return true;
@@ -307,6 +311,8 @@ public sealed partial class SimulationEngine
                         aircraft.PendingWarnings.Add(warning);
                         break;
                     }
+
+                    AfterTrackDispatch(trackCommand, aircraft, scenario);
                 }
             }
         }

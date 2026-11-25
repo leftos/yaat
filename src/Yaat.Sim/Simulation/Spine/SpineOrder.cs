@@ -49,7 +49,7 @@ public static class SpineOrder
         // Immediately before auto-accept, which withholds a handoff while the track is coverage-coasting or below coverage.
         SpineStep.Sim(StepId.EramCoverageCoast, static (engine, _) => engine.TickEramCoverageCoast()),
         SpineStep.Sim(StepId.AutoAccept, static (engine, _) => engine.TickAutoAccept()),
-        SpineStep.Sim(StepId.PointoutTimeout, static (engine, _) => engine.TickPointoutTimeout()),
+        SpineStep.Sim(StepId.SoloPointoutApproval, static (engine, _) => engine.TickSoloPointoutApproval()),
         // FP-creator autotrack runs before the airport-based deferred autotrack so a controller who explicitly
         // types VP/DA wins over scenario AutoTrackAirportIds for the aircraft they just created the FP for.
         SpineStep.Sim(StepId.FlightPlanCreatorAutoTrack, static (engine, _) => engine.TickFlightPlanCreatorAutoTrack()),

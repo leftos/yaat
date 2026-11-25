@@ -534,15 +534,6 @@ public sealed class SimScenarioState
     // student sees each handoff they initiate sit pending before the receiving position takes it.
     public const double SoloAutoAcceptFloorSeconds = 5;
 
-    /// <summary>
-    /// How long a point-out addressed to a position nobody is working may sit before it is withdrawn. 7110.65
-    /// §5-4-7.a.1.(a) prescribes no interval — it says only to revert to verbal procedures when the receiving
-    /// controller takes no action — so 30 s is a product judgement: long enough that an RPO working an unattended
-    /// position from the YAAT client can still answer the point-out (<c>OK</c>) before it goes away. Deliberately not
-    /// the 5 s handoff auto-accept, which is flow-critical (traffic stops moving until it fires) where this is not.
-    /// </summary>
-    public const double PointoutNoActionSeconds = 30;
-
     /// <summary>How long an acknowledged release stands before it voids itself.</summary>
     public const double CoordinationAckExpirySeconds = 180;
 
@@ -550,7 +541,7 @@ public sealed class SimScenarioState
     /// Seconds of life left — not elapsed — at which an acknowledged release starts showing the departure-expiration
     /// warning on the coordination list. STARS words the state as "the acknowledgement is about to expire", so it is a
     /// short caution at the end of the <see cref="CoordinationAckExpirySeconds"/> window rather than most of it: 30 s,
-    /// the same judgement as <see cref="PointoutNoActionSeconds"/> — long enough for the RPO to act by hand.
+    /// long enough for the RPO to act by hand.
     /// </summary>
     public const double CoordinationExpiryWarningSeconds = 30;
 

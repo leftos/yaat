@@ -288,9 +288,9 @@ sets it true locally): `TrackEngine.AcceptIncomingPointout` (from `HandleAcknowl
 `SharedState[recipient.Id].IsRecentlyAcceptedIncomingPointout = true` on accept, and `TrackEngine.ClearDismissedIncomingPointout` drops the
 stale accepted pointout on the true→false slew flip.
 
-**An unanswered pointout is withdrawn, never accepted.** `TickPointoutTimeout` (a sim spine step) withdraws a pointout still pending after `PointoutNoActionSeconds` (30 s) and advises the initiator to coordinate verbally, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response must never become approval.
+**An unanswered pointout stays pending, never timed out.** Outside solo mode a pointout to a position nobody works waits for the RPO's `OK` / `UN`, as on real STARS; `SimulationEngine.AfterTrackDispatch` (run on every `TrackEngine.Dispatch` path) announces it once on the terminal when it is filed, because 7110.65 §5-4-7.a.1 says that when the receiver takes no action the controllers revert to verbal procedures: non-response is never approval, so nothing answers it for the absent controller.
 
-The withdrawal applies everywhere, with no carve-out for the a.1.(b) terminal case. Real STARS never times a pointout out, so this display divergence is deliberate: the timeout exists to clear the flashing pending indicator, and withdrawing (rather than accepting) is what keeps it faithful to §5-4-7.
+Solo mode is the one exception: `TickSoloPointoutApproval` (a sim spine step) acknowledges a pointout to a simulated, unattended, non-student recipient after the effective auto-accept delay, because nobody else is in the room to answer; the student's own position and an attended CRC recipient are left pending.
 
 ### ERAM pointouts — `AircraftEramState.Pointouts`
 

@@ -4,13 +4,14 @@ using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
+using Yaat.Sim.Simulation.Actions;
 using Yaat.Sim.Tests.ControllerAi;
 
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// The three track-automation spine steps on the bare engine: delayed handoffs fire in pre-physics, auto-accept and
-/// the point-out timeout run post-physics. They decide from engine state alone — the scenario's queue and delay,
+/// the solo point-out approval run post-physics. They decide from engine state alone — the scenario's queue and delay,
 /// the recorded CRC attendance, the consolidation hierarchy — so a plain <see cref="SimulationEngine.TickOneSecond"/>
 /// over the real OAK data reaches every gate the live room reaches. Real NCT hierarchy from the ZOA config: <c>4U</c>
 /// is the parent of <c>4Q</c>, and the student works <c>2B</c>.
@@ -403,11 +404,11 @@ public class TrackAutomationStepTests
     }
 
     /// <summary>
-    /// Nobody answers for an absent controller: after the no-action interval the point-out is withdrawn and the
-    /// sender is told to coordinate verbally (7110.65 §5-4-7.a.1.(a)), never acknowledged on the recipient's behalf.
+    /// A point-out to a position nobody is working stays pending with no timeout, as on a real STARS display: the RPO
+    /// answers it by hand (<c>OK</c> / <c>UN</c>), and nothing withdraws it or approves it on the recipient's behalf.
     /// </summary>
     [Fact]
-    public void PendingPointoutToAnUnattendedRecipientIsWithdrawnAfterThirtySeconds()
+    public void PendingPointoutToAnUnattendedRecipient_StaysPendingWithNoTimeout()
     {
         if (Engine() is not { } engine)
         {
@@ -421,16 +422,12 @@ public class TrackAutomationStepTests
         Tcp recipient = TrackResolver.FindTcpByCode(scenario, "4U")!;
         aircraft.Track.Pointout = new StarsPointout(recipient, scenario.StudentTcp!) { InitiatedAt = scenario.ElapsedSeconds };
 
-        AiTestFixture.Tick(engine, 29);
+        AiTestFixture.Tick(engine, 120);
 
-        Assert.True(aircraft.Track.Pointout!.IsPending);
-
-        AiTestFixture.Tick(engine, 1);
-
-        Assert.Null(aircraft.Track.Pointout);
-        Assert.Contains(lines, line => line.Contains("[Pointout] ", StringComparison.Ordinal));
-        Assert.Contains(lines, line => line.Contains("point-out withdrawn, coordinate verbally", StringComparison.Ordinal));
-        Assert.DoesNotContain(lines, line => line.Contains("[AutoAck]", StringComparison.Ordinal));
+        Assert.NotNull(aircraft.Track.Pointout);
+        Assert.True(aircraft.Track.Pointout.IsPending);
+        Assert.Equal("4U", aircraft.Track.Pointout.Recipient.ToString());
+        Assert.DoesNotContain(lines, line => line.Contains("withdrawn", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -503,8 +500,12 @@ public class TrackAutomationStepTests
         Assert.True(aircraft.Track.Pointout!.IsPending);
     }
 
+    /// <summary>
+    /// Solo mode has no RPO: a point-out to a simulated position is approved after the auto-accept delay (the 5 s solo
+    /// floor), where a handoff to the same position is auto-accepted.
+    /// </summary>
     [Fact]
-    public void SoloModeWithdrawsAPointoutToAnAiPositionAfterThirtySeconds()
+    public void SoloMode_ApprovesAPointoutToASimulatedPositionAfterTheAutoAcceptDelay()
     {
         if (Engine() is not { } engine)
         {
@@ -515,18 +516,94 @@ public class TrackAutomationStepTests
         scenario.SoloTrainingMode = true;
         scenario.AutoAcceptDelay = TimeSpan.Zero;
         AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
         aircraft.Track.Pointout = new StarsPointout(TrackResolver.FindTcpByCode(scenario, "4U")!, scenario.StudentTcp!)
         {
             InitiatedAt = scenario.ElapsedSeconds,
         };
 
-        AiTestFixture.Tick(engine, 29);
+        AiTestFixture.Tick(engine, 4);
 
         Assert.True(aircraft.Track.Pointout!.IsPending);
 
         AiTestFixture.Tick(engine, 1);
 
-        Assert.Null(aircraft.Track.Pointout);
+        Assert.NotNull(aircraft.Track.Pointout);
+        Assert.True(aircraft.Track.Pointout.IsAccepted);
+        string approval = Assert.Single(lines, line => line.Contains("[AutoAck]", StringComparison.Ordinal));
+        Assert.Equal("[AutoAck] Pointout approved by 4U", approval);
+    }
+
+    /// <summary>
+    /// Point-outs follow STARS consolidation: a point-out addressed to a TCP consolidated to the attended student
+    /// position flashes to the student's position, the one working the combined airspace. The server's
+    /// <c>PointoutConsolidationRedirectTests</c> covers the config's automatic hierarchy through the CRC seam; this
+    /// drives the engine's own command arm with a manual override and the engine's attendance.
+    /// </summary>
+    [Fact]
+    public void PointoutToAConsolidatedTcp_GoesToThePositionItIsConsolidatedTo()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        AircraftState aircraft = Owned(engine, Nct4Q);
+        Tcp studentTcp = scenario.StudentTcp!;
+        Tcp fourU = TrackResolver.FindTcpByCode(scenario, "4U")!;
+        Assert.True(engine.ConsolidationState.Consolidate(studentTcp, fourU, basic: true));
+        AttendanceTestSupport.Attend(engine, "2B");
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+
+        Assert.Equal("2B", aircraft.Track.Pointout!.Recipient.ToString());
+    }
+
+    /// <summary>
+    /// A non-solo room's point-out to a position nobody works tells the instructor it is waiting for an answer — once,
+    /// when it is filed — since the RPO works that position and nothing else announces the point-out.
+    /// </summary>
+    [Fact]
+    public void PointoutToAnUnattendedPosition_AnnouncesItAwaitsAnAnswer()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+
+        string announcement = Assert.Single(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+        Assert.Equal($"[Pointout] 2B → 4U: {aircraft.Callsign} awaits OK or UN (nobody works 4U)", announcement);
+    }
+
+    /// <summary>
+    /// The announcement is only for a position nobody works: a CRC-attended recipient's controller answers the
+    /// point-out on their own display.
+    /// </summary>
+    [Fact]
+    public void PointoutToAnAttendedPosition_AnnouncesNothing()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        AttendanceTestSupport.Attend(engine, "4U");
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+
+        Assert.DoesNotContain(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -552,5 +629,123 @@ public class TrackAutomationStepTests
         AiTestFixture.Tick(engine, 60);
 
         Assert.True(aircraft.Track.Pointout!.IsPending);
+    }
+
+    /// <summary>
+    /// A point-out filed by a triggered queue block — the path into the track table a chained or conditioned command
+    /// takes — announces like one filed directly: exactly one line, and only once it actually files.
+    /// </summary>
+    [Fact]
+    public void PointoutFiledByATriggeredBlock_AnnouncesOnce()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "WAIT 1 PO 4U", "conn-1", "XX", Baked: null));
+
+        Assert.DoesNotContain(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+
+        AiTestFixture.Tick(engine, 3);
+
+        Assert.Equal("4U", aircraft.Track.Pointout!.Recipient.ToString());
+        string announcement = Assert.Single(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+        Assert.Equal($"[Pointout] 2B → 4U: {aircraft.Callsign} awaits OK or UN (nobody works 4U)", announcement);
+    }
+
+    /// <summary>
+    /// A point-out chained behind a flight command on one transmission announces exactly once: the compound routes its
+    /// point-out unit through the same track table, not a second creation site.
+    /// </summary>
+    [Fact]
+    public void PointoutInACompoundTransmission_AnnouncesOnce()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U; FH 090", "conn-1", "XX", Baked: null));
+
+        Assert.Equal("4U", aircraft.Track.Pointout!.Recipient.ToString());
+        Assert.Single(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Nobody works a point-out addressed to the student's own position: the student answers it, so no instructor line.
+    /// </summary>
+    [Fact]
+    public void PointoutToTheStudent_AnnouncesNothing()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Nct4U);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 2B", "conn-1", "XX", Baked: null));
+
+        Assert.Equal("2B", aircraft.Track.Pointout!.Recipient.ToString());
+        Assert.DoesNotContain(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A solo room approves its own point-outs instead of asking an instructor, so it announces none.
+    /// </summary>
+    [Fact]
+    public void SoloModePointout_AnnouncesNothing()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.SoloTrainingMode = true;
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+
+        Assert.Equal("4U", aircraft.Track.Pointout!.Recipient.ToString());
+        Assert.DoesNotContain(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Re-issuing a point-out while one is pending is refused and announces nothing: one line per filed point-out.
+    /// </summary>
+    [Fact]
+    public void ReissuedPointoutWhilePending_AnnouncesOnlyOnce()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        SimScenarioState scenario = engine.Scenario!;
+        scenario.AutoAcceptDelay = TimeSpan.FromSeconds(5);
+        AircraftState aircraft = Owned(engine, Student);
+        List<string> lines = CaptureTerminal(engine);
+
+        engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+        ActionOutcome second = engine.Actions.Issue(new ActionInput(aircraft.Callsign, "PO 4U", "conn-1", "XX", Baked: null));
+
+        Assert.False(second.Result.Success);
+        Assert.Single(lines, line => line.Contains("awaits OK or UN", StringComparison.Ordinal));
     }
 }

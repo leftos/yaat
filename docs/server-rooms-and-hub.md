@@ -258,7 +258,7 @@ restart / rewind reload, and on return to live (`TakeControl`, `LeavePlayback`, 
 while the room is replaying or playing a tape back, when the log is the authority. A room nobody attends records
 nothing.
 
-Readers of the engine's set: `SimulationEngine.TickAutoAccept` / `TickPointoutTimeout`
+Readers of the engine's set: `SimulationEngine.TickAutoAccept` / `TickSoloPointoutApproval`
 (`Attendance.IsTcpControlledByCrc`), `TickDelayedHandoffs` (`Attendance.ConsolidationOwnerOf`), and in Yaat.Sim the
 `Consolidate` arm and the handoff / point-out `ConsolidationRedirect`. Readers that stay on the registry, on
 purpose — live handler-time questions that never run on a reconstruction, and the registry is what the set is
@@ -276,7 +276,7 @@ spine's (`SpineOrder` in Yaat.Sim, [tick-loop.md](tick-loop.md)), and `RoomHost`
 - **Pre-physics**: `HandlePrePhysicsResult` broadcasts each newly-spawned aircraft (the spawn hooks — the PDC auto-queue and the strip auto-print — are the engine's `SimulationEngine.AfterAircraftSpawned`, run before the result reaches the host; with AI Ground active the hook also plans the spawn's push-back stand into `TrainingRoom.PushPlans`, while placing a load's aircraft goes through `AfterLoadedAircraftPlaced`, which never plans).
 
   It records generator spawns *after* their autotrack so the recorded snapshot carries the owner, and `BroadcastTerminalEntries` takes the spine's drain. The delayed-handoff queue and the live-traffic sync are Sim spine steps (`SimulationEngine.TickDelayedHandoffs`, `TickLiveTrafficSync`, fed by the host's `LiveTrafficFeed` port) — the pre-physics mutator of the aircraft set (see [live-traffic.md](live-traffic.md)).
-- **Post-physics**: no ATC pass of its own (auto-accept, the point-out timeout, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).
+- **Post-physics**: no ATC pass of its own (auto-accept, the solo point-out approval, the two autotrack passes, the coordination timers and the tower lists are Yaat.Sim spine steps now, `SimulationEngine.TrackAutomation` / `SimulationEngine.Coordination.cs`, and the first three read the recorded `Attendance`).
 
   It runs the consumers of the engine's detectors (`BroadcastConflictAlerts`, `BroadcastEramConflictAlerts`; the ASDE-X alert diff goes through `RoomHost.OnAsdexAlertsChanged` → `ICrcBroadcast.BroadcastAsdexAlertsAsync`, and the changed hold bars through `RoomHost.OnAsdexHoldBarsChanged` → `ICrcBroadcast.BroadcastAsdexHoldBarsAsync`, with no `TickProcessor` body) and `BroadcastSoloTrainingEvents`.
 
