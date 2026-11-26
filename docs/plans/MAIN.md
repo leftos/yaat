@@ -118,6 +118,7 @@
 - [ ] YAAT-2658 Scope STARS *J/*P removal and MIN leftovers answer with CRC categories
 - [ ] YAAT-2659 Scope home centre follows CRC's order: area visibility centre, then tower-list airport
 - [ ] YAAT-2661 Scope wheel zoom-out stores a range past 256 NM
+- [ ] YAAT-2855 Radar view: a STARS-like DCB on the STARS template and an ERAM-like DCB on ERAM; Mixed keeps today's · release vNext
 
 ## ASDE-X alert parity (feat/asdex-safety-logic)
 
@@ -138,15 +139,12 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2830 Radar view: show a pending point-out in the datablock for the instructor · release vNext
-- [ ] YAAT-2814 Radar view: a rundown panel listing the active rundowns · release vNext
-- [/] YAAT-2806 LV 011 FH 329; JRADO SNS264; DCT SHOEY: the departure flies the heading and never runs the later blocks · release vNext
+- [/] YAAT-2814 Radar view: a rundown panel listing the active rundowns · release vNext
 - [ ] YAAT-2805 Preset AS 1Z RD PMRY fails with 'No active position', and with a WAIT is refused as a chained command · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext+1
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
 - [ ] YAAT-2798 DVXM after a crossing speed in the same transmission: define and test the pair · release vNext
-- [/] YAAT-2813 A heading given before a JRADO intercepts leaves the intercept armed: it turns onto the radial anyway · release vNext
 - [ ] YAAT-2831 RDH for an aircraft with a sent RD item adds a second, Unsent item
 - [ ] YAAT-2832 RDH and RDR with a named list skip the sender check
 - [ ] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation
@@ -822,7 +820,7 @@
 
 ## Command parser and queue
 
-### 1 Defects (6/26 done)
+### 1 Defects (7/26 done)
 - [ ] YAAT-1864 Command pipeline: with the pilot-reaction delay on, a fresh immediate command fails to supersede a pending triggered queue block (#420 sibling for conditionals, not just WAIT/BEHIND)
 - [ ] YAAT-52 Keep the line-up yaw rate when a command fires mid resumed rollout
 - [ ] YAAT-91 Close dry-run fidelity gaps: split re-parse fallback, FinalApproach DTO field
@@ -841,11 +839,9 @@
 - [ ] YAAT-1889 Dry-run a queued or conditional block as a unit when it fires, so a refused altitude does not leave its speed half-applied
 - [ ] YAAT-2244 Keep FH 360 / TL 360 / TR 360 as 360 in canonical text (today FH 000, which does not re-parse)
 - [ ] YAAT-2398 PRA 0 is refused as an invalid altitude instead of clearing the pilot-reported altitude
-- [/] YAAT-2807 Hold a ; chain after JRADI or JAWY until the aircraft is established, not at once or at the station · release vNext
 - [ ] YAAT-2811 Fire a typed AS-prefixed WAIT coordination command (AS 1Z WAIT 5 RD PMRY) with its acting position
 
-### 2 Refinements and rulings (2/9 done)
-- [/] YAAT-88 Give the command queue a per-dispatch frontier for independent chains · release vNext
+### 2 Refinements and rulings (3/9 done)
 - [ ] YAAT-431 Decide whether a split queued block keeps its original dispatch's scripted provenance
 - [ ] YAAT-202 BEHIND grammar extensions
 - [ ] YAAT-1098 Fail a REPORT cancel with unrecognised tokens instead of cancelling every report
@@ -867,7 +863,6 @@
 - [ ] YAAT-2354 Add REPORT OFF REACHING and REPORT OFF LEAVING; stop parsing them as fix cancels
 - [ ] YAAT-2356 Carry PilotReadback and ReRouteAppliedAs through ApplyTransparentCompound
 - [ ] YAAT-2384 Make GIVE without initials answer its usage line (the branch is unreachable)
-- [/] YAAT-2834 JAWY with no fix behind the aircraft may never trigger its intercept (reciprocal radial) · release vNext
 
 ## Speed control and performance limits
 
@@ -1013,6 +1008,7 @@
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
 - [ ] YAAT-1868 Climb at no less than the profile rate toward a far constrained fix
 - [ ] YAAT-2828 Fly a SID FM leg as a wind-corrected track, not a heading
+- [ ] YAAT-2856 Probe DVXM as an alias for DVIA plus SPD … UNTIL: which DVXM tests differ · release vNext
 
 ## Approaches and holds
 
@@ -1807,6 +1803,5 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-88-queue-frontier.md](yaat-88-queue-frontier.md) — YAAT-88
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
 - [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
