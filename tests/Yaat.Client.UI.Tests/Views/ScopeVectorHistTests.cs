@@ -18,9 +18,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ScopeVectorHistTests : IDisposable
 {
-    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
+    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|auto> | .scope vector <own|all>";
 
-    private const string HistUsage = "Usage: .scope hist <0-10>";
+    private const string HistUsage = "Usage: .scope hist <0-10|auto>";
 
     private static readonly ActivePositionDto Sector44 = new(
         Callsign: "OAK_44_CTR",

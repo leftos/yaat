@@ -234,6 +234,114 @@ public class StarsDcbAuxTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task History_Unpinned_EscAfterAWheel_PutsTheCountBack_AndLeavesItUnpinned()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Assert.Null(scope.Pins.History);
+            int before = scope.EffectiveBand.History;
+            OpenAux(window, host);
+            DcbTile history = Labelled(host, "HISTORY");
+
+            Press(window, history);
+            Wheel(window, history, 1);
+            Assert.Equal(before + 1, scope.EffectiveBand.History);
+            Assert.NotNull(scope.Pins.History);
+
+            Esc(window);
+
+            Assert.False(history.IsLatched);
+            Assert.Equal(before, scope.EffectiveBand.History);
+            Assert.Null(scope.Pins.History);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task History_PinnedAt5_EscAfterAWheel_PutsBack5_AndKeepsItPinned()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            scope.RunCommand(ScopeToolbarButtons.HistCommand(5));
+            OpenAux(window, host);
+            DcbTile history = Labelled(host, "HISTORY");
+
+            Press(window, history);
+            Wheel(window, history, 1);
+            Assert.Equal(6, scope.EffectiveBand.History);
+
+            Esc(window);
+
+            Assert.False(history.IsLatched);
+            Assert.Equal(5, scope.EffectiveBand.History);
+            Assert.Equal(5, scope.Pins.History);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PtlLnth_Unpinned_EscAfterAWheel_PutsTheMinutesBack_AndLeavesThemUnpinned()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Assert.Null(scope.Pins.VectorMin);
+            double before = scope.EffectiveBand.VectorMin;
+            OpenAux(window, host);
+            DcbTile ptl = Labelled(host, "PTL");
+
+            Press(window, ptl);
+            Wheel(window, ptl, 1);
+            Assert.NotEqual(before, scope.EffectiveBand.VectorMin);
+            Assert.NotNull(scope.Pins.VectorMin);
+
+            Esc(window);
+
+            Assert.False(ptl.IsLatched);
+            Assert.Equal(before, scope.EffectiveBand.VectorMin);
+            Assert.Null(scope.Pins.VectorMin);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PtlLnth_PinnedAt1_EscAfterAWheel_PutsBack1_AndKeepsItPinned()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            scope.RunCommand(ScopeToolbarButtons.VectorCommand(1));
+            OpenAux(window, host);
+            DcbTile ptl = Labelled(host, "PTL");
+
+            Press(window, ptl);
+            Wheel(window, ptl, 1);
+            Assert.Equal(1.5, scope.EffectiveBand.VectorMin);
+
+            Esc(window);
+
+            Assert.False(ptl.IsLatched);
+            Assert.Equal(1, scope.EffectiveBand.VectorMin);
+            Assert.Equal(1, scope.Pins.VectorMin);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task PtlAll_LightsAndSetsAll_ItsSecondPressChangesNothing_AndPtlOwnSetsOwnBack()
     {
         (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();

@@ -32,11 +32,12 @@ public sealed class StarsDcbBar : UserControl
     private ScopeViewModel? _submenuOn;
     private TopLevel? _escapeOn;
 
-    // The latched spinner, the view model it was latched on and the command that puts its value back there, all set when the
-    // latch began; null while none is latched.
+    // The latched spinner, the view model it was latched on, the command that puts its value back there and, for a band value
+    // that was not pinned, the command that unpins it again, all set when the latch began; null while none is latched.
     private ScopeButtonId? _latched;
     private ScopeViewModel? _latchedOn;
     private string? _restoreCommand;
+    private string? _unpinCommand;
 
     /// <summary>A Main page with no Scope behind it until its DataContext is a ScopeViewModel.</summary>
     public StarsDcbBar()
@@ -256,7 +257,10 @@ public sealed class StarsDcbBar : UserControl
         && (view.ActiveFieldPopup is not { IsOpen: true })
         && (view.ActiveEntryPopup is not { IsOpen: true });
 
-    /// <summary>A spinner latched: Esc now goes to it, and its value at this moment is the one a cancel puts back.</summary>
+    /// <summary>
+    /// A spinner latched: Esc now goes to it, and its value at this moment, and for HISTORY and PTL LNTH whether that value is
+    /// pinned, is what a cancel puts back.
+    /// </summary>
     private void Latch(ScopeButtonId id)
     {
         if (_viewModel is not { } vm)
@@ -268,7 +272,26 @@ public sealed class StarsDcbBar : UserControl
         _latched = id;
         _latchedOn = vm;
         _restoreCommand = RestoreCommand(vm, id);
+        _unpinCommand = IsPinned(vm, id) ? null : UnpinCommand(id);
     }
+
+    /// <summary>Whether the band value the spinner with <paramref name="id"/> steps is pinned; false for a spinner that never pins.</summary>
+    private static bool IsPinned(ScopeViewModel vm, ScopeButtonId id) =>
+        id switch
+        {
+            ScopeButtonId.Hist => vm.Pins.History is not null,
+            ScopeButtonId.Vector => vm.Pins.VectorMin is not null,
+            _ => false,
+        };
+
+    /// <summary>The command that unpins the band value the spinner with <paramref name="id"/> steps, or null for one that never pins.</summary>
+    private static string? UnpinCommand(ScopeButtonId id) =>
+        id switch
+        {
+            ScopeButtonId.Hist => ScopeToolbarButtons.HistAutoCommand(),
+            ScopeButtonId.Vector => ScopeToolbarButtons.VectorAutoCommand(),
+            _ => null,
+        };
 
     /// <summary>The command that sets the spinner with <paramref name="id"/> to the value it shows now.</summary>
     private static string? RestoreCommand(ScopeViewModel vm, ScopeButtonId id) =>
@@ -288,19 +311,30 @@ public sealed class StarsDcbBar : UserControl
         _latched = null;
         _latchedOn = null;
         _restoreCommand = null;
+        _unpinCommand = null;
     }
 
     /// <summary>
     /// Cancels the latch, if one is held: puts the value back on the view model it was latched on, unless it is already the
-    /// value the latch took.
+    /// value the latch took, then unpins it again when it was not pinned at the latch and is now.
     /// </summary>
     private void CancelLatch()
     {
-        (ScopeButtonId? id, ScopeViewModel? on, string? restore) = (_latched, _latchedOn, _restoreCommand);
+        (ScopeButtonId? id, ScopeViewModel? on, string? restore, string? unpin) = (_latched, _latchedOn, _restoreCommand, _unpinCommand);
         EndLatch();
-        if ((on is { } vm) && (id is { } latched) && (restore is not null) && (restore != RestoreCommand(vm, latched)))
+        if ((on is not { } vm) || (id is not { } latched))
+        {
+            return;
+        }
+
+        if ((restore is not null) && (restore != RestoreCommand(vm, latched)))
         {
             vm.RunCommand(restore);
+        }
+
+        if ((unpin is not null) && IsPinned(vm, latched))
+        {
+            vm.RunCommand(unpin);
         }
     }
 

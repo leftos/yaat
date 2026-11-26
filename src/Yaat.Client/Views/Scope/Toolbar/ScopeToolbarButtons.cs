@@ -591,11 +591,17 @@ public static class ScopeToolbarButtons
     /// <summary>The command that pins the vector length to <paramref name="minutes"/> minutes.</summary>
     public static string VectorCommand(double minutes) => $".scope vector {minutes.ToString(CultureInfo.InvariantCulture)}";
 
+    /// <summary>The command that unpins the vector length alone, so it follows the band again: <c>.scope vector auto</c>.</summary>
+    public static string VectorAutoCommand() => ".scope vector auto";
+
     /// <summary>The command that draws vectors on the tracks <paramref name="ownership"/> names (<c>own</c> or <c>all</c>).</summary>
     public static string VectorOwnershipCommand(ScopeVectorOwnership ownership) => $".scope vector {ScopeVectorOwnerships.NameOf(ownership)}";
 
     /// <summary>The command that pins the history dot count to <paramref name="count"/>.</summary>
     public static string HistCommand(int count) => $".scope hist {count.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>The command that unpins the history dot count alone, so it follows the band again: <c>.scope hist auto</c>.</summary>
+    public static string HistAutoCommand() => ".scope hist auto";
 
     /// <summary>
     /// The command that places, resizes or removes the ring <paramref name="tool"/> arms on the track with

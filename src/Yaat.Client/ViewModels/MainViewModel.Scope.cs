@@ -16,15 +16,18 @@ namespace Yaat.Client.ViewModels;
 /// </summary>
 public partial class MainViewModel
 {
-    // The HIST range text, built from the largest count the scope takes.
-    private static readonly string ScopeHistRange = $"<0-{ScopeViewModel.MaxHistory.ToString(CultureInfo.InvariantCulture)}>";
+    // The HIST range text, built from the largest count the scope takes, with the word that unpins it.
+    private static readonly string ScopeHistRange = $"<0-{ScopeViewModel.MaxHistory.ToString(CultureInfo.InvariantCulture)}|{ScopeUnpinWord}>";
+
+    // The word that unpins one band value: .scope hist auto, .scope vector auto.
+    private const string ScopeUnpinWord = "auto";
 
     private static readonly string ScopeUsage =
         "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all> | .scope hist {ScopeHistRange}"
+        + $" | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
@@ -46,7 +49,7 @@ public partial class MainViewModel
 
     private const string ScopeOthersUsage = "Usage: .scope others <full|partial>";
 
-    private const string ScopeVectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
+    private const string ScopeVectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|auto> | .scope vector <own|all>";
 
     private static readonly string ScopeHistUsage = $"Usage: .scope hist {ScopeHistRange}";
 
@@ -477,8 +480,8 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <c>.scope vector 0|0.5|1|1.5|2|2.5|3|4|8</c>: pins the vector minutes until <c>.scope auto</c>; <c>.scope vector own|all</c>: the
-    /// tracks vectors draw on, a setting that never pins.
+    /// <c>.scope vector 0|0.5|1|1.5|2|2.5|3|4|8</c>: pins the vector minutes until <c>.scope auto</c> or <c>.scope vector auto</c>,
+    /// which unpins them alone; <c>.scope vector own|all</c>: the tracks vectors draw on, a setting that never pins.
     /// </summary>
     private static string SetScopeVector(ScopeViewModel scope, string[] parts)
     {
@@ -493,6 +496,12 @@ public partial class MainViewModel
             return $"Radar vector {ScopeVectorOwnerships.NameOf(ownership).ToUpperInvariant()}";
         }
 
+        if (string.Equals(parts[2], ScopeUnpinWord, StringComparison.OrdinalIgnoreCase))
+        {
+            scope.UnpinVectorMin();
+            return "Radar vector AUTO";
+        }
+
         if (
             (!double.TryParse(parts[2], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double minutes))
             || (!ScopeViewModel.IsVectorMinutes(minutes))
@@ -505,9 +514,18 @@ public partial class MainViewModel
         return $"Radar vector {minutes.ToString(CultureInfo.InvariantCulture)} MIN (pinned)";
     }
 
-    /// <summary><c>.scope hist &lt;0-10&gt;</c>: pins the history dot count until <c>.scope auto</c>.</summary>
+    /// <summary>
+    /// <c>.scope hist &lt;0-10&gt;</c>: pins the history dot count until <c>.scope auto</c>; <c>.scope hist auto</c> unpins it
+    /// alone.
+    /// </summary>
     private static string PinScopeHist(ScopeViewModel scope, string[] parts)
     {
+        if ((parts.Length == 3) && string.Equals(parts[2], ScopeUnpinWord, StringComparison.OrdinalIgnoreCase))
+        {
+            scope.UnpinHistory();
+            return "Radar history AUTO";
+        }
+
         if (
             (parts.Length != 3)
             || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int count)

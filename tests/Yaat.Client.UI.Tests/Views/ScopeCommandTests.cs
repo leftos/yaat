@@ -22,7 +22,7 @@ public class ScopeCommandTests
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
         + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
-        + " | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all> | .scope hist <0-10>"
+        + " | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto> | .scope hist <0-10|auto>"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
@@ -32,7 +32,7 @@ public class ScopeCommandTests
 
     private const string TearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
-    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8> | .scope vector <own|all>";
+    private const string VectorUsage = "Usage: .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|auto> | .scope vector <own|all>";
 
     private const string BriteUsage =
         "Usage: .scope brite <group> <value>: mapa, mapb, targets, fdb, alerts, hist, vector, rings, lens 0-100; line4 -20-0; dwell 0-20";

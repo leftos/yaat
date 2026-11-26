@@ -86,6 +86,12 @@ public sealed partial class ScopeViewModel
             }
             : throw new ArgumentOutOfRangeException(nameof(count), count, $"History counts are 0 to {MaxHistory}.");
 
+    /// <summary>Unpins the vector length alone, as <c>.scope vector auto</c> does, so it follows the band again.</summary>
+    internal void UnpinVectorMin() => Pins = Pins with { VectorMin = null };
+
+    /// <summary>Unpins the history dot count alone, as <c>.scope hist auto</c> does, so it follows the band again.</summary>
+    internal void UnpinHistory() => Pins = Pins with { History = null };
+
     /// <summary>The OWN or ALL a VECTOR click flips to: the other of the current one.</summary>
     internal ScopeVectorOwnership FlippedVectorOwnership() =>
         (VectorOwnership == ScopeVectorOwnership.All) ? ScopeVectorOwnership.Own : ScopeVectorOwnership.All;
