@@ -320,6 +320,8 @@ public class ScopePrefMenuTests : IDisposable
         SeedSource(main);
         var scope = new ScopeViewModel(main, Store(), profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
+        // The ERAM position gives the pref sets their facility; the PREF tray is the classic bar's, so the room runs Mixed.
+        main.RunScopeCommand(".scope profile mixed");
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Dispatcher.UIThread.RunJobs();

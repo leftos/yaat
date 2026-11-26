@@ -126,6 +126,38 @@ public class EramMasterToolbarTests
         Assert.Equal(EramColors.MenuBlue, ColourOf(views.PickArea.Background));
     }
 
+    [AvaloniaFact]
+    public void OpenMenu_ExpandsItsButtonsRightOfItsButton_AndHidesTheOthersInPlace()
+    {
+        (Window window, EramMasterToolbar bar) = Host();
+        EramToolbarButton radarFilter = bar.Find(EramButtonType.RadarFilterMenu)!;
+        EramToolbarButton views = bar.Find(EramButtonType.ViewsMenu)!;
+        Rect viewsBounds = views.Bounds;
+
+        bar.OpenMenu = EramButtonType.RadarFilterMenu;
+        window.UpdateLayout();
+
+        Assert.Equal(EramMenus.RadarFilter.Select(b => b.Type), bar.MenuButtons.Select(b => b.Type));
+        Assert.All(bar.MenuButtons, b => Assert.True(b.IsVisible));
+        Assert.NotNull(bar.Expansion);
+        Assert.Equal(EramColors.BurntCoral, ColourOf(bar.Expansion!.BorderBrush));
+        Point menuLeft = bar.MenuButtons[0].TranslatePoint(default, window)!.Value;
+        Point ownerRight = radarFilter.TranslatePoint(new Point(radarFilter.Bounds.Width, 0), window)!.Value;
+        Assert.True(menuLeft.X >= ownerRight.X);
+        Assert.Equal(0, views.Opacity);
+        Assert.False(views.IsHitTestVisible);
+        Assert.Equal(viewsBounds, views.Bounds);
+        Assert.Equal(1, radarFilter.Opacity);
+
+        bar.OpenMenu = null;
+        window.UpdateLayout();
+
+        Assert.Empty(bar.MenuButtons);
+        Assert.Null(bar.Expansion);
+        Assert.Equal(1, views.Opacity);
+        Assert.True(views.IsHitTestVisible);
+    }
+
     [AvaloniaTheory]
     [InlineData(EramButtonType.ViewsMenu, 0, 0, 212, false)]
     [InlineData(EramButtonType.RangeView, 0, 0, 0, false)]

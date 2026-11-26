@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Client.Views.Scope.Toolbar.Dcb;
+using Yaat.Client.Views.Scope.Toolbar.Eram;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -10,12 +11,19 @@ namespace Yaat.Client.Views.Scope;
 /// The YAAT Scope as one control: its bar, its view and its views dock, over the <see cref="ViewModels.ScopeViewModel"/>
 /// in its DataContext. The main window's Scope tab and the Scope window each build their own host over the same view model,
 /// never both at once, since a control has one parent. The bar slot shows the bar <see cref="ScopeViewModel.BarKind"/>
-/// names, so the bar follows the room's profile kind: the STARS DCB Main page under the STARS profile, the classic
-/// <see cref="Toolbar.ScopeToolbar"/> under any other.
+/// names, so the bar follows the room's profile kind: the STARS DCB Main page under the STARS profile, the ERAM Master
+/// Toolbar under the ERAM profile and the classic <see cref="Toolbar.ScopeToolbar"/> under Mixed; the bar's row is as tall
+/// as the bar shown.
 /// </summary>
 public partial class ScopeHost : UserControl
 {
     private const string NoBarMessage = "The Scope host shows no classic bar: its DataContext is no ScopeViewModel, or its profile shows another bar";
+
+    /// <summary>
+    /// The height of the classic bar's row. ScopeHost.axaml's 45 is the same height for the designer and the first layout;
+    /// the constructor and every bar change set the row from here.
+    /// </summary>
+    private const double ClassicBarHeight = 45;
 
     private ScopeViewModel? _viewModel;
     private ScopeBarKind? _builtFor;
@@ -23,12 +31,14 @@ public partial class ScopeHost : UserControl
     public ScopeHost()
     {
         InitializeComponent();
+        HostGrid.RowDefinitions[0].Height = new GridLength(ClassicBarHeight);
     }
 
     /// <summary>The Scope's view: its canvas and its key handling.</summary>
     internal ScopeView ScopeView => View;
 
-    /// <summary>The Scope's classic bar, while its bar slot shows it; it throws while the slot shows another bar or none.</summary>
+    /// <summary>The Scope's classic bar, while its bar slot shows it.</summary>
+    /// <exception cref="InvalidOperationException">The slot shows another bar (the STARS or the ERAM bar) or none yet.</exception>
     internal ScopeToolbar ScopeToolbar => (BarSlot.Content as ScopeToolbar) ?? throw new InvalidOperationException(NoBarMessage);
 
     /// <summary>The Scope's views dock.</summary>
@@ -56,7 +66,8 @@ public partial class ScopeHost : UserControl
     }
 
     /// <summary>
-    /// Shows the bar for <paramref name="kind"/> in the slot; a kind whose bar type is already shown keeps that instance.
+    /// Shows the bar for <paramref name="kind"/> in the slot, its row as tall as the bar so the bar never covers the scope's
+    /// top; a kind whose bar type is already shown keeps that instance.
     /// </summary>
     private void ShowBar(ScopeBarKind kind)
     {
@@ -70,6 +81,7 @@ public partial class ScopeHost : UserControl
             BarSlot.Content = BuildBar(kind);
         }
 
+        HostGrid.RowDefinitions[0].Height = new GridLength((kind == ScopeBarKind.Eram) ? EramMasterLayout.BarHeight : ClassicBarHeight);
         _builtFor = kind;
     }
 
@@ -79,7 +91,7 @@ public partial class ScopeHost : UserControl
         {
             ScopeBarKind.Classic => typeof(ScopeToolbar),
             ScopeBarKind.Stars => typeof(StarsDcbBar),
-            ScopeBarKind.Eram => typeof(ScopeToolbar),
+            ScopeBarKind.Eram => typeof(EramBar),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope bar kind"),
         };
 
@@ -89,7 +101,7 @@ public partial class ScopeHost : UserControl
         {
             ScopeBarKind.Classic => new ScopeToolbar(),
             ScopeBarKind.Stars => new StarsDcbBar(),
-            ScopeBarKind.Eram => new ScopeToolbar(),
+            ScopeBarKind.Eram => new EramBar(),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope bar kind"),
         };
 }

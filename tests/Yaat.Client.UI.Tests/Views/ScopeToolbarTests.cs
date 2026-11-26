@@ -20,6 +20,7 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Eram;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -182,7 +183,7 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task ProfileMenu_ShowsTheProfile_AndPickingEramSwitchesAndLightsIt()
+    public async Task ProfileMenu_ShowsTheProfile_AndPickingEramSwitchesToTheEramBar()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
@@ -200,11 +201,7 @@ public class ScopeToolbarTests
 
             Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
             Assert.Equal("Radar profile ERAM", main.StatusText);
-            Assert.Empty(TrayButtons(window));
-            Assert.Equal("ERAM", ((TextBlock)ButtonOf(window, ScopeButtonId.Profile).Content!).Inlines!.OfType<Run>().Last().Text);
-            Click(ButtonOf(window, ScopeButtonId.Profile));
-            Assert.Contains("active", ButtonOf(window, ScopeButtonId.ProfileEram).Classes);
-            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.ProfileMixed).Classes);
+            Assert.Single(window.GetVisualDescendants().OfType<EramBar>());
         }
         finally
         {

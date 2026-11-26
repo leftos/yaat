@@ -6,6 +6,7 @@
 
 - Radar: the room's STARS rundown lists show as one RUNDOWN list in CRC's colours; drag it anywhere and right-click an entry to act on it.
 - View › Bars › Rundowns… opens a window of the room's rundown lists and hold-for-release, which replaces the command bar's Releases button.
+- Radar: under the ERAM profile the Radar bar is CRC's ERAM Master Toolbar; its menus reach today's Scope features, the rest dimmed.
 - Radar: under the STARS profile the Radar bar is a STARS-style DCB in CRC's order; RANGE and RR latch and spin with the wheel.
 - Radar: a pending point-out, whoever it is addressed to, shows its STARS block full and steady yellow with `PO` after the callsign.
 - `DVXM 250 SUNOL` (or `DVXM 250`, `DVXM M.78 SUNOL`) clears a descend via, except maintain a speed until a fix; published speeds resume past it.

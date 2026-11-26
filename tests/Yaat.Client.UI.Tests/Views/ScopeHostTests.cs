@@ -9,6 +9,7 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Client.Views.Scope.Toolbar.Dcb;
+using Yaat.Client.Views.Scope.Toolbar.Eram;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -98,7 +99,7 @@ public class ScopeHostTests
     }
 
     [AvaloniaFact]
-    public async Task TheHost_ShowsTheStarsDcb_UnderStars_AndTodaysBarOtherwise()
+    public async Task TheHost_ShowsTheStarsDcbUnderStars_TheEramBarUnderEram_AndTodaysBarUnderMixed()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
         var host = new ScopeHost { DataContext = scope };
@@ -122,12 +123,14 @@ public class ScopeHostTests
 
             main.RunScopeCommand(".scope profile eram");
             Dispatcher.UIThread.RunJobs();
-            ScopeToolbar eram = host.ScopeToolbar;
+            Assert.Single(host.GetVisualDescendants().OfType<EramBar>());
             Assert.Empty(host.GetVisualDescendants().OfType<StarsDcbBar>());
+            Assert.Empty(host.GetVisualDescendants().OfType<ScopeToolbar>());
 
             main.RunScopeCommand(".scope profile mixed");
             Dispatcher.UIThread.RunJobs();
-            Assert.Same(eram, host.ScopeToolbar);
+            Assert.Empty(host.GetVisualDescendants().OfType<EramBar>());
+            Assert.NotNull(host.ScopeToolbar);
         }
         finally
         {
