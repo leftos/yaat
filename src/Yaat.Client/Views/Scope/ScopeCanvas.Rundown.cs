@@ -23,6 +23,12 @@ public sealed partial class ScopeCanvas
     private Point _dragRundownStartOrigin;
     private Point _dragRundownStartMouse;
 
+    /// <summary>
+    /// Fired on a right press on a RUNDOWN row, with the row and the press position: the entry's menu opens there. A right press
+    /// on the title or past a line's text is the map's, as before.
+    /// </summary>
+    public event Action<RundownRow, Point>? RundownRowRightClicked;
+
     // A left press on the list starts its drag and is taken, so it neither selects, pans nor clears the selection. A press
     // where the list draws nothing (no rows, past a line's text) falls through.
     partial void PressRundownDrag(in ScopePress press, ref bool handled)
@@ -40,6 +46,23 @@ public sealed partial class ScopeCanvas
         _isDraggingRundown = true;
         _dragRundownStartOrigin = ClampRundownOrigin(RundownOrigin);
         _dragRundownStartMouse = press.Pos;
+        handled = true;
+    }
+
+    // A right press on a row opens its entry menu and is taken, so it neither pans nor opens the map's or an aircraft's menu.
+    partial void PressRundownMenu(in ScopePress press, ref bool handled)
+    {
+        if (handled || (press.Props.PointerUpdateKind != PointerUpdateKind.RightButtonPressed))
+        {
+            return;
+        }
+
+        if (CurrentFrame.Rundown.RowAt((float)press.Pos.X, (float)press.Pos.Y) is not { } row)
+        {
+            return;
+        }
+
+        RundownRowRightClicked?.Invoke(row, press.Pos);
         handled = true;
     }
 
