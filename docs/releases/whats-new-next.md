@@ -13,3 +13,7 @@ Settings › Appearance › Scope text picks how STARS and ERAM datablocks draw:
 The Radar view now draws the room's RUNDOWN list at its top-left: every STARS coordination (RD) list in one place, with CRC's coordination lines in green or yellow and countdowns that follow the simulation clock. Drag it where you like, and right-click an entry for its coordination menu: Acknowledge, Release, Recall, Hold…, Modify…, Delete, Move up and Move down.
 
 View › Bars › Rundowns… opens a Rundowns window with the same lists, one section per list, and the same right-click menu on each row. Hold-for-release moved into it: while an airport is armed, a Hold for release section offers Release next for each field and Release for each held departure. The command bar's Releases button is gone. Layouts keep whether the window is open.
+
+![The RUNDOWN list on the Radar with two RD entries on the POAK list and a third held with the text EXPECT 28R](img/whats-new-rundown-list.png)
+
+![The Rundowns window with the OAK DEP section holding the same three entries and the Hold for release section with OAK armed](img/whats-new-rundowns-window.png)
