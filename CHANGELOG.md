@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## v0.20.0-beta [2026/11/26]
+
+### Highlights
+
+- Radar: the STARS profile shows CRC's STARS DCB and the ERAM profile CRC's ERAM Master Toolbar; YAAT's own controls sit behind a YAAT tile or menu.
+- Rundowns: the room's STARS rundown lists show on the Radar as one RUNDOWN list, and View › Bars › Rundowns… opens them in a window with hold-for-release.
+- Radar: ERAM-template tracks draw in CRC's ERAM look, and datablocks can use Terminus text at CRC's sizes.
+- Solo: uncleared VFR pilots respect Class B: they stay under its shelves, orbit outside and ask for the bravo; `RMOB` keeps them out.
 
 ### Added
 
@@ -21,11 +28,13 @@
 - Solo: a pattern entry, approach or `PTAC` clearance whose path enters an uncleared Class B is read back "that'll take us into the bravo, request bravo clearance".
 - Solo: `RMOB` or `RMOB {minutes}` keeps a VFR pilot outside the Class B, holding at its boundary until `CLBRV`; it asks once for an estimate.
 - Quick commands offer Ident for an airborne aircraft no STARS or ERAM facility tracks yet.
-- The terminal announces a point-out to a position nobody is working, so the RPO can answer it with `OK` or `UN`.
+- RPO sessions: the terminal announces a point-out to a position nobody is working, so the RPO can answer it with `OK` or `UN`.
+- Radar: each scenario keeps its own Scope view, its range, centre and maps, restored when the scenario loads instead of the facility's.
 - The Notes window gains find (Ctrl+F) and replace (Ctrl+H), a word and character count, Save as and, on Windows, Print.
 
 ### Changed
 
+- `CFIX {fix} A{alt}` at or below the aircraft's cleared or held altitude is only a floor: it assigns nothing, and the aircraft keeps its level.
 - Solo: a VFR pilot's first call names its type and asks for a transition, Bravo transition or flight following, and re-calls once if unanswered.
 - Quick commands offer Accept handoff for every handoff in progress, including one from your own position, beside Cancel handoff.
 - Aircraft taxiing, rolling out, exiting a runway or lining up now ease their nose into and out of turns, following the taxi route through bends and fillets, and turn more gently at high speed.
@@ -37,9 +46,7 @@
 - Radar: toolbar buttons no longer tear off onto the scope; `.scope tearoff` and the DEL TEAROFF tiles are gone. View cards still float.
 
 ### Fixed
-- Hold for release lists the departures held at an airport armed by its FAA id (`HFR OAK`), not only by its ICAO id.
 - Scenario presets may lead with `AS {tcp}`, also after `WAIT` or `WAITD`: `AS 1Z RD PMRY` now releases acting as 1Z instead of failing.
-- A `CFIX` with a speed and a `DVXM` in one transmission are flown in route order: each crossing at its speed, the DVXM speed to its fix, then published speeds.
 - Presets and chained commands no longer stall behind an unrelated earlier instruction: each transmission's commands now advance on their own.
 - A `;` after `JRADO`, `JRADI`, `JAWY` or `DEPART` now waits until the aircraft joins the radial, is established on it, or reaches the fix.
 - A heading given before a `JRADO`, `JRADI`, `JAWY` or `DEPART` takes effect cancels the pending join and the rest of that transmission.
@@ -60,7 +67,6 @@
 - After a Shift+F12 switch of the active STARS position, CRC now redraws every track's ownership instead of keeping the old sector's tracks white.
 - Departures on a SID whose transition ends in a fly-heading, expect-vectors leg, such as LOUPE1, now fly that heading instead of turning for the next fix.
 - A point-out to a position nobody is working now stays pending until answered instead of being dropped; solo sessions approve it after a short delay.
-- Loading a scenario now restores the Scope view saved for that scenario, its range, centre and maps, instead of the facility's default view.
 - CRC rundown (RD) lists now consolidate to the position working a consolidated TCP, and appear for a position that signs on later.
 - An acknowledged CRC rundown item is removed once STARS tracks the departure, at the latest when it climbs into radar coverage.
 - Recalling a CRC rundown item already on the list re-sends it instead of adding a second, flashing entry.

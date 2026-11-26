@@ -471,7 +471,7 @@
       "id": "keys-radar",
       "name": "Keys — Radar",
       "rows": [
-        { "verb": "Esc", "aliases": [], "description": "Cancel, in order: a view move, the measuring tool, a heading vector, a route being drawn, the typed entry, a measurement anchor, the armed Rings tool" },
+        { "verb": "Esc", "aliases": [], "description": "Cancel, in order: a latched bar spinner (its value put back), an open bar submenu or menu, a view move, the measuring tool, a heading vector, a route being drawn, the typed entry, a measurement anchor, the armed Rings tool" },
         { "verb": "Ctrl+M", "aliases": [], "description": "Arm the measuring tool" },
         { "verb": "Ctrl+Shift+T", "aliases": [], "description": "Toggle TDM" },
         { "verb": "Enter", "aliases": [], "description": "Run the typed entry; while a route is being drawn, send the route" },

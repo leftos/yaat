@@ -255,7 +255,7 @@ These keys reach the Radar only while keyboard focus is in it when it is docked 
 
 | Key | Action |
 |-----|--------|
-| Esc | Cancel, in order: a view move, the measuring tool, a heading vector being drawn, a route being drawn, the typed entry and its response, a measurement anchor, the armed Rings tool |
+| Esc | Cancel, in order: a latched bar spinner (its value put back), an open bar submenu or menu, a view move, the measuring tool, a heading vector being drawn, a route being drawn, the typed entry and its response, a measurement anchor, the armed Rings tool |
 | Ctrl+M | Arm the [measuring tool](#measuring-distance-and-bearing) |
 | Ctrl+Shift+T | Toggle TDM |
 | Enter | Run the typed entry; while a route is being drawn, send the route |

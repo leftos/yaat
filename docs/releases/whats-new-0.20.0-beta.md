@@ -22,7 +22,7 @@ View › Bars › Rundowns… opens a Rundowns window with the same lists, one s
 
 The bar across the top of the Radar now matches the room's Radar profile. Under STARS it is CRC's STARS DCB, a black band of green bevelled tiles with its Main page, submenus and Aux page (SHIFT); under ERAM it is CRC's ERAM Master Toolbar with its menus; under Mixed it is the classic navy bar.
 
-YAAT's own controls (profile, template, others, tools, TDM, MVA, display, DB, views and the pilot lens) are on the DCB's YAAT page and in the Master Toolbar's YAAT menu. Any bar hides to a small SHOW tile with its HIDE button or `.scope bar hide`, and `.scope bar show` brings it back.
+YAAT's own controls (profile, template, others, tools, TDM, MVA, display, DB, views and the pilot lens) are on the DCB's YAAT page and in the Master Toolbar's YAAT menu. Any bar hides to a small SHOW tile with its HIDE button or `.scope bar hide`, and `.scope bar show` brings it back. Toolbar tiles no longer tear off onto the scope; view cards still float.
 
 ![The Radar under the STARS profile with the STARS DCB's YAAT page open](../user-guide/img/radar-bar-stars.png)
 
