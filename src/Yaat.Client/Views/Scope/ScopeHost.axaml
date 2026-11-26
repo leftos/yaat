@@ -3,7 +3,6 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:scope="using:Yaat.Client.Views.Scope"
   xmlns:dock="using:Yaat.Client.Views.Scope.Dock"
-  xmlns:toolbar="using:Yaat.Client.Views.Scope.Toolbar"
   xmlns:vm="using:Yaat.Client.ViewModels"
   x:Class="Yaat.Client.Views.Scope.ScopeHost"
   x:DataType="vm:ScopeViewModel"
@@ -13,6 +12,6 @@
   <Grid RowDefinitions="45,*" ColumnDefinitions="*,Auto">
     <scope:ScopeView x:Name="View" Grid.Row="1" Grid.Column="0" />
     <dock:ScopeDock x:Name="Dock" Grid.Row="1" Grid.Column="1" Width="360" IsVisible="{Binding HasDockedViews}" />
-    <toolbar:ScopeToolbar x:Name="Toolbar" Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="2" VerticalAlignment="Top" ZIndex="1" />
+    <ContentControl x:Name="BarSlot" Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="2" VerticalAlignment="Top" ZIndex="1" />
   </Grid>
 </UserControl>

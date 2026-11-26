@@ -18,6 +18,10 @@ public sealed partial class ScopeViewModel
     [ObservableProperty]
     private ScopeProfileKind _profileKind = ScopeProfileKind.Mixed;
 
+    /// <summary>The bar the scope shows, picked from <see cref="ProfileKind"/>; a template pick never changes it.</summary>
+    [ObservableProperty]
+    private ScopeBarKind _barKind = ScopeBarKind.Classic;
+
     /// <summary>The bar's top-level buttons, left to right, in the order the profile gives them; every button is on it.</summary>
     [ObservableProperty]
     private IReadOnlyList<ScopeButton> _toolbarButtons = ScopeToolbarButtons.All;
@@ -102,6 +106,7 @@ public sealed partial class ScopeViewModel
     {
         Profile = profile;
         ProfileKind = kind;
+        BarKind = ScopeBarPicker.KindFor(kind);
         RecomputeBand();
         List<string> unknown = [];
         IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(

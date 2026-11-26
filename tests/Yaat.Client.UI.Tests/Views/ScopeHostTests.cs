@@ -54,6 +54,83 @@ public class ScopeHostTests
     }
 
     [AvaloniaFact]
+    public async Task BarKind_FollowsTheRoomProfile()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope profile stars");
+            Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
+
+            main.RunScopeCommand(".scope profile eram");
+            Assert.Equal(ScopeBarKind.Eram, scope.BarKind);
+
+            main.RunScopeCommand(".scope profile mixed");
+            Assert.Equal(ScopeBarKind.Classic, scope.BarKind);
+        }
+        finally
+        {
+            scope.Dispose();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task BarKind_IgnoresATemplatePick()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope profile stars");
+            Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
+
+            scope.PickTemplateCommand.Execute("eram");
+
+            Assert.Equal("eram", scope.TemplateId);
+            Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
+        }
+        finally
+        {
+            scope.Dispose();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheHost_ShowsTodaysBar_ForEveryKind()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        var host = new ScopeHost { DataContext = scope };
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 800,
+            Content = host,
+        };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        try
+        {
+            ScopeToolbar first = host.ScopeToolbar;
+            Assert.NotNull(first);
+
+            foreach (string profile in new[] { "stars", "eram", "mixed" })
+            {
+                main.RunScopeCommand($".scope profile {profile}");
+                Dispatcher.UIThread.RunJobs();
+                Assert.Same(first, host.ScopeToolbar);
+            }
+        }
+        finally
+        {
+            window.Close();
+            scope.Dispose();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ScopeWindow_ShowsTheScopeThroughAHost()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
