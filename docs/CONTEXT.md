@@ -1147,6 +1147,9 @@ The synthetic `room:<roomId>` session `GetSessions` offers a Tower Cab 3D connec
 **Rundown (hold-for-release)**:
 The live list of departures held at each armed field (`HeldDeparturesChanged`, the Releases flyout), in docs/hold-for-release.md. Not an RD list.
 
+**RUNDOWN list**:
+The Radar view's overlay that merges the room's RD lists (every channel, unfiltered by position) into one screen-space list with a channel column, the user can drag (`ScopeRundownList`, docs/radar-rendering.md). Not the hold-for-release rundown.
+
 **Tower Cab member**:
 A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed by its CRC client id): it never counts toward attendance or OpenPositions, is never persisted, and a kick of its CID removes it with the CID's other connections.
 
