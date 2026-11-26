@@ -12,6 +12,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Client.Views.Scope.Toolbar.Eram;
 
@@ -419,6 +420,139 @@ public class EramBarTests : IDisposable
         Assert.Equal(EramColors.BurntCoral, ((ISolidColorBrush)geomap.PickArea.Background!).Color);
         Assert.Null(scope.Toolbar.Expansion);
         Assert.Empty(scope.Toolbar.MenuButtons);
+    }
+
+    [AvaloniaFact]
+    public async Task Yaat_OpensItsMenu_HidingTheOtherButtonsInPlace_AndAgainCloses()
+    {
+        await using Opened scope = await OpenAsync();
+        EramMasterToolbar toolbar = scope.Toolbar;
+        EramToolbarButton views = toolbar.Find(EramButtonType.ViewsMenu)!;
+        Rect viewsBounds = views.Bounds;
+
+        scope.Click(EramButtonType.YaatMenu);
+
+        Assert.Equal(EramButtonType.YaatMenu, toolbar.OpenMenu);
+        Assert.Equal(EramColors.BurntCoral, ((ISolidColorBrush)toolbar.Expansion!.BorderBrush!).Color);
+        Assert.True(toolbar.Find(EramButtonType.YaatMenu)!.IsOpenMenu);
+        Assert.Equal(EramMenus.Yaat.Select(b => b.Type).Order(), toolbar.MenuButtons.Select(b => b.Type).Order());
+        Assert.Equal(0, views.Opacity);
+        Assert.False(views.IsHitTestVisible);
+        Assert.Equal(viewsBounds, views.Bounds);
+
+        scope.Click(EramButtonType.YaatMenu);
+
+        Assert.Null(toolbar.OpenMenu);
+        Assert.Null(toolbar.Expansion);
+        Assert.Empty(toolbar.MenuButtons);
+        Assert.Equal(1, views.Opacity);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatDb_OpensItsSubmenu_AndAlertConesTogglesWhatTheClassicDbTrayToggles()
+    {
+        await using Opened scope = await OpenAsync();
+        bool before = scope.Scope.DbSettings.AtpaAlertCones;
+        scope.Click(EramButtonType.YaatMenu);
+
+        scope.Click(EramButtonType.YaatDbMenu);
+
+        Assert.Equal(EramButtonType.YaatDbMenu, scope.Toolbar.OpenSubmenu);
+        Assert.NotNull(scope.Toolbar.SubmenuExpansion);
+
+        scope.Click(EramButtonType.YaatDbAtpaAlertCones);
+
+        Assert.Equal(!before, scope.Scope.DbSettings.AtpaAlertCones);
+        Assert.Equal(!before, scope.Scope.IsActive(ScopeToolbarButtons.Find(ScopeButtonId.DbAtpaAlertCones)!));
+        Assert.Equal(!before, scope.Toolbar.Find(EramButtonType.YaatDbAtpaAlertCones)!.IsOn);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatToolsJRing_ArmsTheRingTool_AsTheClassicToolsTrayDoes()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+
+        scope.Click(EramButtonType.YaatToolsMenu);
+
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+        Assert.Equal(scope.Scope.BandRingTool(), scope.Scope.ArmedRingTool);
+
+        scope.Click(EramButtonType.YaatToolCone);
+        Assert.Equal(ScopeRingTool.Cone, scope.Scope.ArmedRingTool);
+
+        scope.Click(EramButtonType.YaatToolJRing);
+
+        Assert.Equal(ScopeRingTool.JRing, scope.Scope.ArmedRingTool);
+        Assert.True(scope.Toolbar.Find(EramButtonType.YaatToolJRing)!.IsOn);
+        Assert.False(scope.Toolbar.Find(EramButtonType.YaatToolCone)!.IsOn);
+
+        scope.Click(EramButtonType.YaatToolsMenu);
+
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatPilotLens_OpeningSetsTheScopesOpenMenuToLens_AndClosingClearsIt()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+
+        scope.Click(EramButtonType.YaatLensMenu);
+
+        Assert.Equal(EramButtonType.YaatLensMenu, scope.Toolbar.OpenSubmenu);
+        Assert.Equal(ScopeButtonId.Lens, scope.Scope.OpenMenu);
+
+        scope.Click(EramButtonType.YaatLensMenu);
+
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Scope.OpenMenu);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatOthers_WhileToolsIsOpen_ClosesTools_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+
+        scope.Click(EramButtonType.YaatOthers);
+
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingYaat_WhileToolsIsOpen_ClosesTools_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+
+        scope.Click(EramButtonType.YaatMenu);
+
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatProfileMixed_SwapsTheBarToTheClassicToolbar()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatProfileMenu);
+
+        scope.Click(EramButtonType.YaatProfileMixed);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(ScopeProfileKind.Mixed, scope.Scope.ProfileKind);
+        Assert.Single(scope.Host.GetVisualDescendants().OfType<ScopeToolbar>());
+        Assert.Empty(scope.Host.GetVisualDescendants().OfType<EramBar>());
     }
 
     [Fact]

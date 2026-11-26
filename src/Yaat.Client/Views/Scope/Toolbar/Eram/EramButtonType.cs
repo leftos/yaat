@@ -451,6 +451,123 @@ public enum EramButtonType
 
     /// <summary>The PREFSET item DELETE, which deletes the active pref set; YAAT's own.</summary>
     PrefsetDelete,
+
+    /// <summary>The YAAT button in the Master Toolbar's last cell, which opens the YAAT-only controls; YAAT's own.</summary>
+    YaatMenu,
+
+    /// <summary>The YAAT menu's PROFILE, which opens the profile picks; YAAT's own.</summary>
+    YaatProfileMenu,
+
+    /// <summary>The YAAT menu's TEMPLATE, which opens the template picks; YAAT's own.</summary>
+    YaatTemplateMenu,
+
+    /// <summary>The YAAT menu's TOOLS, which opens the ring tools and arms the band's kind as the classic TOOLS tray does; YAAT's own.</summary>
+    YaatToolsMenu,
+
+    /// <summary>The YAAT menu's DISPLAY, which opens FIX, LOCK, DCNF and OFF CNTR; YAAT's own.</summary>
+    YaatDisplayMenu,
+
+    /// <summary>The YAAT menu's DB, which opens the data-block items ERAM's DB FIELDS lacks; YAAT's own.</summary>
+    YaatDbMenu,
+
+    /// <summary>The YAAT menu's VIEWS, which opens the views ERAM's VIEWS lacks; YAAT's own.</summary>
+    YaatViewsMenu,
+
+    /// <summary>The YAAT menu's PILOT LENS, which opens the lens toggles as the classic PILOT LENS tray does; YAAT's own.</summary>
+    YaatLensMenu,
+
+    /// <summary>The YAAT menu's OTHERS, which flips others' level as the classic OTHERS does; YAAT's own.</summary>
+    YaatOthers,
+
+    /// <summary>The YAAT menu's AUTO, which unpins the band values as the classic AUTO does; YAAT's own.</summary>
+    YaatAuto,
+
+    /// <summary>The PROFILE item STARS, which switches the Scope to the STARS profile; YAAT's own.</summary>
+    YaatProfileStars,
+
+    /// <summary>The PROFILE item ERAM, which switches the Scope to the ERAM profile; YAAT's own.</summary>
+    YaatProfileEram,
+
+    /// <summary>The PROFILE item MIXED, which switches the Scope to the Mixed profile and its classic bar; YAAT's own.</summary>
+    YaatProfileMixed,
+
+    /// <summary>The TEMPLATE item STARS, which picks the STARS template; YAAT's own.</summary>
+    YaatTemplateStars,
+
+    /// <summary>The TEMPLATE item ERAM, which picks the ERAM template; YAAT's own.</summary>
+    YaatTemplateEram,
+
+    /// <summary>The TEMPLATE item MIXED, which picks the Mixed template; YAAT's own.</summary>
+    YaatTemplateMixed,
+
+    /// <summary>The TEMPLATE item EUROSCOPE, which picks the EuroScope template; YAAT's own.</summary>
+    YaatTemplateEuroScope,
+
+    /// <summary>The DISPLAY item DCNF, which steps deconfliction to its next mode; YAAT's own.</summary>
+    YaatDisplayDcnf,
+
+    /// <summary>The DISPLAY item OFF CNTR, which places the display's centre; YAAT's own.</summary>
+    YaatDisplayOffCntr,
+
+    /// <summary>The TOOLS item SIZE, which steps the ring tools' size; YAAT's own.</summary>
+    YaatToolSize,
+
+    /// <summary>The YAAT menu's TDM, which toggles top-down mode; YAAT's own.</summary>
+    YaatTdm,
+
+    /// <summary>The YAAT menu's MVA, which toggles the MVA map; YAAT's own.</summary>
+    YaatMva,
+
+    /// <summary>The TOOLS item J-RING, which arms the J-ring tool; YAAT's own.</summary>
+    YaatToolJRing,
+
+    /// <summary>The TOOLS item CONE, which arms the cone tool; YAAT's own.</summary>
+    YaatToolCone,
+
+    /// <summary>The TOOLS item DRI 5, which arms the standard DRI tool; YAAT's own.</summary>
+    YaatToolDri5,
+
+    /// <summary>The TOOLS item DRI 3, which arms the reduced DRI tool; YAAT's own.</summary>
+    YaatToolDri3,
+
+    /// <summary>The DISPLAY item FIX, which toggles the fix display; YAAT's own.</summary>
+    YaatDisplayFix,
+
+    /// <summary>The DISPLAY item LOCK, which toggles the display lock; YAAT's own.</summary>
+    YaatDisplayLock,
+
+    /// <summary>The DB item DWELL, which toggles hover dwell; YAAT's own.</summary>
+    YaatDbDwell,
+
+    /// <summary>The DB item ATPA DIST, which toggles the ATPA distance; YAAT's own.</summary>
+    YaatDbAtpa,
+
+    /// <summary>The DB item ALERT CONES, which toggles the ATPA alert cones; YAAT's own.</summary>
+    YaatDbAtpaAlertCones,
+
+    /// <summary>The DB item MONITOR CONES, which toggles the ATPA monitor cones; YAAT's own.</summary>
+    YaatDbAtpaMonitorCones,
+
+    /// <summary>The DB item CA RING, which toggles the conflict alert ring; YAAT's own.</summary>
+    YaatDbCaRing,
+
+    /// <summary>The VIEWS item SSA, which toggles the SSA view; YAAT's own.</summary>
+    YaatViewSsa,
+
+    /// <summary>The VIEWS item RPO QUEUE, which toggles the RPO queue view; YAAT's own.</summary>
+    YaatViewRpoQueue,
+
+    /// <summary>The PILOT LENS item ON, which toggles the pilot lens; YAAT's own.</summary>
+    YaatLensOn,
+
+    /// <summary>The PILOT LENS item PATH, which toggles the lens path; YAAT's own.</summary>
+    YaatLensPath,
+
+    /// <summary>The PILOT LENS item QUEUE, which toggles the lens queue; YAAT's own.</summary>
+    YaatLensQueue,
+
+    /// <summary>The PILOT LENS item CHECKIN, which toggles the lens check-ins; YAAT's own.</summary>
+    YaatLensCheckIn,
 }
 
 /// <summary>The two text lines CRC draws on an ERAM toolbar button, and the buttons YAAT has a feature for.</summary>
@@ -572,6 +689,45 @@ public static class EramButtonTypeExtensions
             EramButtonType.PrefsetSaveAs => ("SAVE", "AS"),
             EramButtonType.PrefsetRename => ("RENAME", ""),
             EramButtonType.PrefsetDelete => ("DELETE", ""),
+            EramButtonType.YaatMenu => ("YAAT", ""),
+            EramButtonType.YaatProfileMenu => ("PROFILE", ""),
+            EramButtonType.YaatTemplateMenu => ("TEMPLATE", ""),
+            EramButtonType.YaatToolsMenu => ("TOOLS", ""),
+            EramButtonType.YaatDisplayMenu => ("DISPLAY", ""),
+            EramButtonType.YaatDbMenu => ("DB", ""),
+            EramButtonType.YaatViewsMenu => ("VIEWS", ""),
+            EramButtonType.YaatLensMenu => ("PILOT", "LENS"),
+            EramButtonType.YaatOthers => ("OTHERS", ""),
+            EramButtonType.YaatAuto => ("AUTO", ""),
+            EramButtonType.YaatProfileStars => ("STARS", ""),
+            EramButtonType.YaatProfileEram => ("ERAM", ""),
+            EramButtonType.YaatProfileMixed => ("MIXED", ""),
+            EramButtonType.YaatTemplateStars => ("STARS", ""),
+            EramButtonType.YaatTemplateEram => ("ERAM", ""),
+            EramButtonType.YaatTemplateMixed => ("MIXED", ""),
+            EramButtonType.YaatTemplateEuroScope => ("EUROSCOPE", ""),
+            EramButtonType.YaatDisplayDcnf => ("DCNF", ""),
+            EramButtonType.YaatDisplayOffCntr => ("OFF", "CNTR"),
+            EramButtonType.YaatToolSize => ("SIZE", ""),
+            EramButtonType.YaatTdm => ("TDM", ""),
+            EramButtonType.YaatMva => ("MVA", ""),
+            EramButtonType.YaatToolJRing => ("J-RING", ""),
+            EramButtonType.YaatToolCone => ("CONE", ""),
+            EramButtonType.YaatToolDri5 => ("DRI 5", ""),
+            EramButtonType.YaatToolDri3 => ("DRI 3", ""),
+            EramButtonType.YaatDisplayFix => ("FIX", ""),
+            EramButtonType.YaatDisplayLock => ("LOCK", ""),
+            EramButtonType.YaatDbDwell => ("DWELL", ""),
+            EramButtonType.YaatDbAtpa => ("ATPA", "DIST"),
+            EramButtonType.YaatDbAtpaAlertCones => ("ALERT", "CONES"),
+            EramButtonType.YaatDbAtpaMonitorCones => ("MONITOR", "CONES"),
+            EramButtonType.YaatDbCaRing => ("CA", "RING"),
+            EramButtonType.YaatViewSsa => ("SSA", ""),
+            EramButtonType.YaatViewRpoQueue => ("RPO", "QUEUE"),
+            EramButtonType.YaatLensOn => ("ON", ""),
+            EramButtonType.YaatLensPath => ("PATH", ""),
+            EramButtonType.YaatLensQueue => ("QUEUE", ""),
+            EramButtonType.YaatLensCheckIn => ("CHECKIN", ""),
             >= EramButtonType.Filter1 and <= EramButtonType.Filter40 => ("", ""),
             EramButtonType.MapBcg1 or EramButtonType.MapBcg2 => ("", ""),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not an ERAM toolbar button"),
@@ -609,6 +765,7 @@ public static class EramButtonTypeExtensions
             EramButtonType.HistoryFilter => true,
             >= EramButtonType.Filter1 and <= EramButtonType.Filter40 => true,
             >= EramButtonType.PrefsetSet and <= EramButtonType.PrefsetDelete => true,
+            >= EramButtonType.YaatMenu and <= EramButtonType.YaatLensCheckIn => true,
             _ => false,
         };
 }

@@ -24,7 +24,9 @@ public static class EramButtonKindExtensions
     /// font-size, HISTORY, FDB LDR and VECTOR buttons go up and down, DELETE TEAROFF commands, and every type it names
     /// nowhere falls through to its toggle button (RANGE, ALT LIM, a view, a radar filter or a DB field among them). Two
     /// departures: ATC TOOLS' WX toggles, as YAAT has one weather display and no Weather menu, and CRC's press-and-hold
-    /// overrides (VRI, CODE, SPEED, DELAY FORMAT) command, as YAAT has no press-and-hold kind; the PREFSET items command.
+    /// overrides (VRI, CODE, SPEED, DELAY FORMAT) command, as YAAT has no press-and-hold kind; the PREFSET items command. The
+    /// YAAT menu's own buttons take their classic counterpart's kind: its menus open a menu, OTHERS, AUTO, the profile and
+    /// template picks, DCNF and OFF CNTR command, SIZE goes up and down, and the rest toggle.
     /// </summary>
     /// <param name="type">The button whose kind is asked for.</param>
     public static EramButtonKind Kind(this EramButtonType type) =>
@@ -51,6 +53,9 @@ public static class EramButtonKindExtensions
             or EramButtonType.SpeedDisplayOverride
             or EramButtonType.DelayFormatOverride => EramButtonKind.Command,
             >= EramButtonType.PrefsetSet and <= EramButtonType.PrefsetDelete => EramButtonKind.Command,
+            >= EramButtonType.YaatMenu and <= EramButtonType.YaatLensMenu => EramButtonKind.Menu,
+            >= EramButtonType.YaatOthers and <= EramButtonType.YaatDisplayOffCntr => EramButtonKind.Command,
+            EramButtonType.YaatToolSize => EramButtonKind.IncDec,
             >= EramButtonType.BackgroundBrightness and <= EramButtonType.DwellBrightness => EramButtonKind.IncDec,
             EramButtonType.MapBcg1 or EramButtonType.MapBcg2 or EramButtonType.NonAdsbBrightness => EramButtonKind.IncDec,
             >= EramButtonType.FdbFontSize and <= EramButtonType.FdbPortalFontSize => EramButtonKind.IncDec,

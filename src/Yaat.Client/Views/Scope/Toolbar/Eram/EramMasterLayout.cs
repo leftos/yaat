@@ -16,7 +16,7 @@ public static class EramMasterLayout
     /// <summary>The bar's rows.</summary>
     public const int Rows = 2;
 
-    /// <summary>The bar's columns; the second row's last cell is empty.</summary>
+    /// <summary>The bar's columns; YAAT's own YAAT button fills the second row's last cell, which CRC leaves empty.</summary>
     public const int Columns = 9;
 
     /// <summary>The height of one button: its two text lines and its border.</summary>
@@ -55,7 +55,7 @@ public static class EramMasterLayout
     /// <summary>The bar's height in DIP: its two button rows, their gap, CRC's padding and its interior border line: 75.</summary>
     public const double BarHeight = (2 * ButtonHeight) + RowGap + (2 * VerticalPadding) + InteriorBorder;
 
-    /// <summary>Every button in the bar, each row left to right, from CRC's <c>MasterMenu</c>.</summary>
+    /// <summary>Every button in the bar, each row left to right, from CRC's <c>MasterMenu</c>, then YAAT's own YAAT button.</summary>
     public static IReadOnlyList<EramButtonPlacement> Placements { get; } =
     [
         new(0, 0, EramButtonType.AnnotationMenu),
@@ -75,9 +75,10 @@ public static class EramMasterLayout
         new(1, 5, EramButtonType.RadarFilterMenu),
         new(1, 6, EramButtonType.PrefsetMenu),
         new(1, 7, EramButtonType.DeleteTearoff),
+        new(1, 8, EramButtonType.YaatMenu),
     ];
 
-    /// <summary>The button at <paramref name="row"/> and <paramref name="column"/>, or null for the bar's empty last cell.</summary>
+    /// <summary>The button at <paramref name="row"/> and <paramref name="column"/>, or null for a cell outside the bar.</summary>
     /// <param name="row">The 0-based row.</param>
     /// <param name="column">The 0-based column.</param>
     public static EramButtonType? At(int row, int column)

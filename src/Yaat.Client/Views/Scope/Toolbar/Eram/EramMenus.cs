@@ -145,6 +145,72 @@ public static class EramMenus
     ];
 
     /// <summary>
+    /// The YAAT menu, YAAT's own: the classic bar's YAAT-only buttons in two rows, column by column, as the YAAT-2870 mock
+    /// lays them out. ERAM's own menus already hold the classic entries it leaves out.
+    /// </summary>
+    public static IReadOnlyList<EramMenuButton> Yaat { get; } =
+    [
+        new(0, 0, EramButtonType.YaatProfileMenu),
+        new(1, 0, EramButtonType.YaatTemplateMenu),
+        new(0, 1, EramButtonType.YaatOthers),
+        new(1, 1, EramButtonType.YaatAuto),
+        new(0, 2, EramButtonType.YaatToolsMenu),
+        new(1, 2, EramButtonType.YaatTdm),
+        new(0, 3, EramButtonType.YaatMva),
+        new(1, 3, EramButtonType.YaatDisplayMenu),
+        new(0, 4, EramButtonType.YaatDbMenu),
+        new(1, 4, EramButtonType.YaatViewsMenu),
+        new(0, 5, EramButtonType.YaatLensMenu),
+    ];
+
+    /// <summary>The YAAT menu's PROFILE: the classic PROFILE tray's picks, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatProfile { get; } =
+        TwoRows(EramButtonType.YaatProfileStars, EramButtonType.YaatProfileEram, EramButtonType.YaatProfileMixed);
+
+    /// <summary>The YAAT menu's TEMPLATE: the classic TEMPLATE tray's picks, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatTemplate { get; } =
+        TwoRows(
+            EramButtonType.YaatTemplateStars,
+            EramButtonType.YaatTemplateEram,
+            EramButtonType.YaatTemplateMixed,
+            EramButtonType.YaatTemplateEuroScope
+        );
+
+    /// <summary>The YAAT menu's TOOLS: the classic TOOLS tray, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatTools { get; } =
+        TwoRows(
+            EramButtonType.YaatToolJRing,
+            EramButtonType.YaatToolCone,
+            EramButtonType.YaatToolDri5,
+            EramButtonType.YaatToolDri3,
+            EramButtonType.YaatToolSize
+        );
+
+    /// <summary>The YAAT menu's DISPLAY: the classic DISPLAY tray but WX, which ATC TOOLS holds, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatDisplay { get; } =
+        TwoRows(EramButtonType.YaatDisplayFix, EramButtonType.YaatDisplayLock, EramButtonType.YaatDisplayDcnf, EramButtonType.YaatDisplayOffCntr);
+
+    /// <summary>
+    /// The YAAT menu's DB: the classic DB tray but 4TH LINE, which DB FIELDS' DEST and TYPE press, and CHAR, which FONT's FDB
+    /// steps; two rows column by column.
+    /// </summary>
+    public static IReadOnlyList<EramMenuButton> YaatDb { get; } =
+        TwoRows(
+            EramButtonType.YaatDbDwell,
+            EramButtonType.YaatDbAtpa,
+            EramButtonType.YaatDbAtpaAlertCones,
+            EramButtonType.YaatDbAtpaMonitorCones,
+            EramButtonType.YaatDbCaRing
+        );
+
+    /// <summary>The YAAT menu's VIEWS: the classic VIEWS tray but LA/CA/MCI and CRR, which ERAM's VIEWS holds, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatViews { get; } = TwoRows(EramButtonType.YaatViewSsa, EramButtonType.YaatViewRpoQueue);
+
+    /// <summary>The YAAT menu's PILOT LENS: the classic PILOT LENS tray, two rows column by column.</summary>
+    public static IReadOnlyList<EramMenuButton> YaatLens { get; } =
+        TwoRows(EramButtonType.YaatLensOn, EramButtonType.YaatLensPath, EramButtonType.YaatLensQueue, EramButtonType.YaatLensCheckIn);
+
+    /// <summary>
     /// The fixed buttons of the menu <paramref name="menu"/> opens, or null for a menu whose buttons follow the Scope
     /// (GeoMap, PREFSET) and for any button with no YAAT menu.
     /// </summary>
@@ -159,6 +225,14 @@ public static class EramMenus
             EramButtonType.DbFieldsMenu => DbFields,
             EramButtonType.ViewsMenu => Views,
             EramButtonType.RadarFilterMenu => RadarFilter,
+            EramButtonType.YaatMenu => Yaat,
+            EramButtonType.YaatProfileMenu => YaatProfile,
+            EramButtonType.YaatTemplateMenu => YaatTemplate,
+            EramButtonType.YaatToolsMenu => YaatTools,
+            EramButtonType.YaatDisplayMenu => YaatDisplay,
+            EramButtonType.YaatDbMenu => YaatDb,
+            EramButtonType.YaatViewsMenu => YaatViews,
+            EramButtonType.YaatLensMenu => YaatLens,
             _ => null,
         };
 
@@ -207,6 +281,9 @@ public static class EramMenus
         buttons.AddRange(items.Select((type, i) => PrefsetCell(setNames.Count + i, type)));
         return buttons;
     }
+
+    /// <summary>A YAAT submenu: <paramref name="types"/> in order, two rows filled column by column, top then bottom.</summary>
+    private static EramMenuButton[] TwoRows(params EramButtonType[] types) => [.. types.Select((type, i) => new EramMenuButton(i % 2, i / 2, type))];
 
     private static EramMenuButton PrefsetCell(int index, EramButtonType type) => new(index % 2, index / 2, type);
 

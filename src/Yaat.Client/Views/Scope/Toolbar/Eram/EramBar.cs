@@ -86,6 +86,7 @@ public sealed class EramBar : UserControl
             EramButtonType.MapBcg2 => ScopeButtonId.BriteMapB,
             EramButtonType.FdbFontSize => ScopeButtonId.DbChar,
             EramButtonType.HistoryFilter => ScopeButtonId.Hist,
+            EramButtonType.YaatToolSize => ScopeButtonId.ToolSize,
             _ => null,
         };
 
@@ -104,7 +105,66 @@ public sealed class EramBar : UserControl
             EramButtonType.PrefsetSaveAs => ScopeButtonId.PrefSaveAs,
             EramButtonType.PrefsetRename => ScopeButtonId.PrefRename,
             EramButtonType.PrefsetDelete => ScopeButtonId.PrefDelete,
+            _ => YaatPressIdOf(type),
+        };
+
+    /// <summary>The classic button a YAAT menu toggle or command presses, or null for any other button.</summary>
+    private static ScopeButtonId? YaatPressIdOf(EramButtonType type) =>
+        type switch
+        {
+            EramButtonType.YaatOthers => ScopeButtonId.Others,
+            EramButtonType.YaatAuto => ScopeButtonId.Auto,
+            EramButtonType.YaatTdm => ScopeButtonId.Tdm,
+            EramButtonType.YaatMva => ScopeButtonId.Mva,
+            EramButtonType.YaatProfileStars => ScopeButtonId.ProfileStars,
+            EramButtonType.YaatProfileEram => ScopeButtonId.ProfileEram,
+            EramButtonType.YaatProfileMixed => ScopeButtonId.ProfileMixed,
+            EramButtonType.YaatTemplateStars => ScopeButtonId.TemplateStars,
+            EramButtonType.YaatTemplateEram => ScopeButtonId.TemplateEram,
+            EramButtonType.YaatTemplateMixed => ScopeButtonId.TemplateMixed,
+            EramButtonType.YaatTemplateEuroScope => ScopeButtonId.TemplateEuroScope,
+            EramButtonType.YaatToolJRing => ScopeButtonId.ToolJRing,
+            EramButtonType.YaatToolCone => ScopeButtonId.ToolCone,
+            EramButtonType.YaatToolDri5 => ScopeButtonId.ToolDri5,
+            EramButtonType.YaatToolDri3 => ScopeButtonId.ToolDri3,
+            EramButtonType.YaatDisplayFix => ScopeButtonId.DisplayFix,
+            EramButtonType.YaatDisplayLock => ScopeButtonId.DisplayLock,
+            EramButtonType.YaatDisplayDcnf => ScopeButtonId.DisplayDcnf,
+            EramButtonType.YaatDisplayOffCntr => ScopeButtonId.DisplayOffCntr,
+            EramButtonType.YaatDbDwell => ScopeButtonId.DbDwell,
+            EramButtonType.YaatDbAtpa => ScopeButtonId.DbAtpa,
+            EramButtonType.YaatDbAtpaAlertCones => ScopeButtonId.DbAtpaAlertCones,
+            EramButtonType.YaatDbAtpaMonitorCones => ScopeButtonId.DbAtpaMonitorCones,
+            EramButtonType.YaatDbCaRing => ScopeButtonId.DbCaRing,
+            EramButtonType.YaatViewSsa => ScopeButtonId.ViewSsa,
+            EramButtonType.YaatViewRpoQueue => ScopeButtonId.ViewRpoQueue,
+            EramButtonType.YaatLensOn => ScopeButtonId.LensOn,
+            EramButtonType.YaatLensPath => ScopeButtonId.LensPath,
+            EramButtonType.YaatLensQueue => ScopeButtonId.LensQueue,
+            EramButtonType.YaatLensCheckIn => ScopeButtonId.LensCheckIn,
             _ => null,
+        };
+
+    /// <summary>
+    /// The classic tray a YAAT submenu stands for in the Scope's open menu: TOOLS, whose opening arms the ring tool, and
+    /// PILOT LENS, the shared tray state the classic bar and IsActive of PILOT LENS read; null for any other submenu. An ERAM
+    /// menu button has no lit state, so on this bar the lens shows on the submenu's ON toggle, not on PILOT LENS itself.
+    /// </summary>
+    private static ScopeButtonId? TrayOf(EramButtonType? submenu) =>
+        submenu switch
+        {
+            EramButtonType.YaatToolsMenu => ScopeButtonId.Tools,
+            EramButtonType.YaatLensMenu => ScopeButtonId.Lens,
+            _ => null,
+        };
+
+    /// <summary>The classic button whose value a button shows on its second line: a spinner's, PROFILE's or OTHERS'.</summary>
+    private static ScopeButtonId? ValueIdOf(EramButtonType type) =>
+        type switch
+        {
+            EramButtonType.YaatProfileMenu => ScopeButtonId.Profile,
+            EramButtonType.YaatOthers => ScopeButtonId.Others,
+            _ => SpinnerOf(type),
         };
 
     /// <summary>The PREF tray's pref-set buttons, in file order.</summary>
@@ -140,7 +200,7 @@ public sealed class EramBar : UserControl
         }
 
         // MAP A and MAP B keep their labels: the letter is their second line.
-        if ((type is EramButtonType.MapBcg1 or EramButtonType.MapBcg2) || (SpinnerOf(type) is not { } id))
+        if ((type is EramButtonType.MapBcg1 or EramButtonType.MapBcg2) || (ValueIdOf(type) is not { } id))
         {
             return null;
         }
@@ -232,7 +292,40 @@ public sealed class EramBar : UserControl
             Toolbar.OpenSubmenu = (Toolbar.OpenSubmenu == e.Type) ? null : e.Type;
         }
 
+        MirrorTray();
         Refresh();
+    }
+
+    /// <summary>
+    /// Sets the Scope's open menu as the classic bar's tray would be: TOOLS or PILOT LENS while the YAAT submenu standing
+    /// for it is open, and none once it closes, so the ring tool arms as on the classic bar and the shared tray state
+    /// stays the classic bar's; the lens itself shows on the PILOT LENS submenu's ON toggle, as an ERAM menu button has no
+    /// lit state.
+    /// </summary>
+    private void MirrorTray()
+    {
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (TrayOf(Toolbar.OpenSubmenu) is { } tray)
+        {
+            viewModel.OpenMenu = tray;
+        }
+        else if (viewModel.OpenMenu is ScopeButtonId.Tools or ScopeButtonId.Lens)
+        {
+            viewModel.OpenMenu = null;
+        }
+    }
+
+    /// <summary>Closes the YAAT TOOLS or PILOT LENS submenu when the Scope closes the tray it stands for (a command press does).</summary>
+    private void FollowTray(ScopeViewModel viewModel)
+    {
+        if ((TrayOf(Toolbar.OpenSubmenu) is { } tray) && (viewModel.OpenMenu != tray))
+        {
+            Toolbar.OpenSubmenu = null;
+        }
     }
 
     private void OnPress(object? sender, EramButtonEventArgs e)
@@ -265,6 +358,11 @@ public sealed class EramBar : UserControl
         if (e.PropertyName is nameof(ScopeViewModel.MapToggles) or nameof(ScopeViewModel.PrefSetNames))
         {
             ScheduleMenuCheck();
+        }
+
+        if ((e.PropertyName == nameof(ScopeViewModel.OpenMenu)) && (_viewModel is { } viewModel))
+        {
+            FollowTray(viewModel);
         }
 
         Refresh();

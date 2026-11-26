@@ -283,6 +283,14 @@ public partial class EramMasterToolbar : UserControl
         Grid.SetColumn(anchor, Grid.GetColumn(owner));
         parent.Children.Add(anchor);
         _anchors.Add((parent, anchor));
+
+        // A submenu's anchor sits in its button's column of the open menu; the menu's later columns would draw and take
+        // the pointer over it, so its column rises above them. The menu is rebuilt on every change, so nothing resets.
+        if ((parent != Cells) && (parent.Parent is Control ownerColumn))
+        {
+            ownerColumn.ZIndex = 1;
+        }
+
         return expansion;
     }
 

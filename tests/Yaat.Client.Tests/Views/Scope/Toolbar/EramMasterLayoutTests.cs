@@ -41,10 +41,11 @@ public class EramMasterLayoutTests
             EramButtonType.RadarFilterMenu,
             EramButtonType.PrefsetMenu,
             EramButtonType.DeleteTearoff,
+            EramButtonType.YaatMenu,
         ];
 
         Assert.Equal(expected, Row(1));
-        Assert.Null(EramMasterLayout.At(1, EramMasterLayout.Columns - 1));
+        Assert.Equal(EramButtonType.YaatMenu, EramMasterLayout.At(1, EramMasterLayout.Columns - 1));
     }
 
     [Theory]
@@ -65,6 +66,7 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.RadarFilterMenu, "RADAR", "FILTER")]
     [InlineData(EramButtonType.PrefsetMenu, "PREFSET", "")]
     [InlineData(EramButtonType.DeleteTearoff, "DELETE", "TEAROFF")]
+    [InlineData(EramButtonType.YaatMenu, "YAAT", "")]
     public void EachButton_HasCrcsTwoLines(EramButtonType type, string line1, string line2) => Assert.Equal((line1, line2), type.Lines());
 
     [Theory]
@@ -85,6 +87,7 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.RadarFilterMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.PrefsetMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.DeleteTearoff, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatMenu, EramButtonKind.Menu)]
     public void EachButton_HasCrcsKind(EramButtonType type, EramButtonKind kind) => Assert.Equal(kind, type.Kind());
 
     [Fact]

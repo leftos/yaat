@@ -152,6 +152,24 @@ public class EramMenusTests
         EramButtonType.PrefsetSaveAs,
         EramButtonType.PrefsetRename,
         EramButtonType.PrefsetDelete,
+        .. Enumerable
+            .Range((int)EramButtonType.YaatMenu, (int)EramButtonType.YaatLensCheckIn - (int)EramButtonType.YaatMenu + 1)
+            .Select(i => (EramButtonType)i),
+    ];
+
+    private static readonly (EramButtonType Type, int Row, int Column)[] Yaat =
+    [
+        (EramButtonType.YaatProfileMenu, 0, 0),
+        (EramButtonType.YaatTemplateMenu, 1, 0),
+        (EramButtonType.YaatOthers, 0, 1),
+        (EramButtonType.YaatAuto, 1, 1),
+        (EramButtonType.YaatToolsMenu, 0, 2),
+        (EramButtonType.YaatTdm, 1, 2),
+        (EramButtonType.YaatMva, 0, 3),
+        (EramButtonType.YaatDisplayMenu, 1, 3),
+        (EramButtonType.YaatDbMenu, 0, 4),
+        (EramButtonType.YaatViewsMenu, 1, 4),
+        (EramButtonType.YaatLensMenu, 0, 5),
     ];
 
     [Fact]
@@ -187,6 +205,14 @@ public class EramMenusTests
     [InlineData(EramButtonType.DbFieldsMenu)]
     [InlineData(EramButtonType.ViewsMenu)]
     [InlineData(EramButtonType.RadarFilterMenu)]
+    [InlineData(EramButtonType.YaatMenu)]
+    [InlineData(EramButtonType.YaatProfileMenu)]
+    [InlineData(EramButtonType.YaatTemplateMenu)]
+    [InlineData(EramButtonType.YaatToolsMenu)]
+    [InlineData(EramButtonType.YaatDisplayMenu)]
+    [InlineData(EramButtonType.YaatDbMenu)]
+    [InlineData(EramButtonType.YaatViewsMenu)]
+    [InlineData(EramButtonType.YaatLensMenu)]
     public void Fixed_NamesEachFixedMenu(EramButtonType menu) => Assert.NotNull(EramMenus.Fixed(menu));
 
     [Theory]
@@ -278,6 +304,25 @@ public class EramMenusTests
     [InlineData(EramButtonType.VriOverride, EramButtonKind.Command)]
     [InlineData(EramButtonType.PrefsetSet, EramButtonKind.Command)]
     [InlineData(EramButtonType.PrefsetDelete, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatProfileMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatTemplateMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatToolsMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatDisplayMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatDbMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatViewsMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatLensMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.YaatOthers, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatAuto, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatTdm, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.YaatMva, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.YaatToolSize, EramButtonKind.IncDec)]
+    [InlineData(EramButtonType.YaatToolJRing, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.YaatDbAtpaAlertCones, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.YaatLensCheckIn, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.YaatProfileMixed, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatTemplateEuroScope, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatDisplayDcnf, EramButtonKind.Command)]
+    [InlineData(EramButtonType.YaatDisplayOffCntr, EramButtonKind.Command)]
     public void SubmenuButtons_HaveCrcsKind(EramButtonType type, EramButtonKind kind) => Assert.Equal(kind, type.Kind());
 
     [Fact]
@@ -286,6 +331,152 @@ public class EramMenusTests
         EramButtonType[] built = [.. Enum.GetValues<EramButtonType>().Where(type => type.IsBuilt()).OrderBy(type => type)];
 
         Assert.Equal([.. Live.OrderBy(type => type)], built);
+    }
+
+    /// <summary>Each YAAT button's classic counterpart's kind: a menu opens, a command commands, SIZE steps, a toggle toggles.</summary>
+    private static readonly Dictionary<EramButtonType, EramButtonKind> YaatKinds = new()
+    {
+        [EramButtonType.YaatMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatProfileMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatTemplateMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatToolsMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatDisplayMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatDbMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatViewsMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatLensMenu] = EramButtonKind.Menu,
+        [EramButtonType.YaatOthers] = EramButtonKind.Command,
+        [EramButtonType.YaatAuto] = EramButtonKind.Command,
+        [EramButtonType.YaatProfileStars] = EramButtonKind.Command,
+        [EramButtonType.YaatProfileEram] = EramButtonKind.Command,
+        [EramButtonType.YaatProfileMixed] = EramButtonKind.Command,
+        [EramButtonType.YaatTemplateStars] = EramButtonKind.Command,
+        [EramButtonType.YaatTemplateEram] = EramButtonKind.Command,
+        [EramButtonType.YaatTemplateMixed] = EramButtonKind.Command,
+        [EramButtonType.YaatTemplateEuroScope] = EramButtonKind.Command,
+        [EramButtonType.YaatDisplayDcnf] = EramButtonKind.Command,
+        [EramButtonType.YaatDisplayOffCntr] = EramButtonKind.Command,
+        [EramButtonType.YaatToolSize] = EramButtonKind.IncDec,
+        [EramButtonType.YaatTdm] = EramButtonKind.Toggle,
+        [EramButtonType.YaatMva] = EramButtonKind.Toggle,
+        [EramButtonType.YaatToolJRing] = EramButtonKind.Toggle,
+        [EramButtonType.YaatToolCone] = EramButtonKind.Toggle,
+        [EramButtonType.YaatToolDri5] = EramButtonKind.Toggle,
+        [EramButtonType.YaatToolDri3] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDisplayFix] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDisplayLock] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDbDwell] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDbAtpa] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDbAtpaAlertCones] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDbAtpaMonitorCones] = EramButtonKind.Toggle,
+        [EramButtonType.YaatDbCaRing] = EramButtonKind.Toggle,
+        [EramButtonType.YaatViewSsa] = EramButtonKind.Toggle,
+        [EramButtonType.YaatViewRpoQueue] = EramButtonKind.Toggle,
+        [EramButtonType.YaatLensOn] = EramButtonKind.Toggle,
+        [EramButtonType.YaatLensPath] = EramButtonKind.Toggle,
+        [EramButtonType.YaatLensQueue] = EramButtonKind.Toggle,
+        [EramButtonType.YaatLensCheckIn] = EramButtonKind.Toggle,
+    };
+
+    [Fact]
+    public void EveryYaatButton_HasItsClassicCounterpartsKind()
+    {
+        EramButtonType[] range =
+        [
+            .. Enum.GetValues<EramButtonType>().Where(type => type is >= EramButtonType.YaatMenu and <= EramButtonType.YaatLensCheckIn),
+        ];
+
+        Assert.Equal(range.Order(), YaatKinds.Keys.Order());
+        Assert.All(range, type => Assert.Equal(YaatKinds[type], type.Kind()));
+    }
+
+    [Fact]
+    public void Yaat_IsTheMocksTable() => Assert.Equal(Yaat, Cells(EramMenus.Yaat));
+
+    [Fact]
+    public void YaatDb_HoldsExactlyDwellAtpaDistAlertConesMonitorConesAndCaRing_ColumnByColumn() =>
+        Assert.Equal(
+            [
+                (EramButtonType.YaatDbDwell, 0, 0),
+                (EramButtonType.YaatDbAtpa, 1, 0),
+                (EramButtonType.YaatDbAtpaAlertCones, 0, 1),
+                (EramButtonType.YaatDbAtpaMonitorCones, 1, 1),
+                (EramButtonType.YaatDbCaRing, 0, 2),
+            ],
+            Cells(EramMenus.YaatDb)
+        );
+
+    [Fact]
+    public void YaatViews_HoldsExactlySsaAndRpoQueue() =>
+        Assert.Equal([(EramButtonType.YaatViewSsa, 0, 0), (EramButtonType.YaatViewRpoQueue, 1, 0)], Cells(EramMenus.YaatViews));
+
+    [Fact]
+    public void YaatDisplay_HoldsExactlyFixLockDcnfAndOffCntr() =>
+        Assert.Equal(
+            [
+                (EramButtonType.YaatDisplayFix, 0, 0),
+                (EramButtonType.YaatDisplayLock, 1, 0),
+                (EramButtonType.YaatDisplayDcnf, 0, 1),
+                (EramButtonType.YaatDisplayOffCntr, 1, 1),
+            ],
+            Cells(EramMenus.YaatDisplay)
+        );
+
+    [Fact]
+    public void YaatToolsLensProfileAndTemplate_HoldTheClassicTraysInOrder()
+    {
+        Assert.Equal(
+            [
+                (EramButtonType.YaatToolJRing, 0, 0),
+                (EramButtonType.YaatToolCone, 1, 0),
+                (EramButtonType.YaatToolDri5, 0, 1),
+                (EramButtonType.YaatToolDri3, 1, 1),
+                (EramButtonType.YaatToolSize, 0, 2),
+            ],
+            Cells(EramMenus.YaatTools)
+        );
+        Assert.Equal(
+            [
+                (EramButtonType.YaatLensOn, 0, 0),
+                (EramButtonType.YaatLensPath, 1, 0),
+                (EramButtonType.YaatLensQueue, 0, 1),
+                (EramButtonType.YaatLensCheckIn, 1, 1),
+            ],
+            Cells(EramMenus.YaatLens)
+        );
+        Assert.Equal(
+            [(EramButtonType.YaatProfileStars, 0, 0), (EramButtonType.YaatProfileEram, 1, 0), (EramButtonType.YaatProfileMixed, 0, 1)],
+            Cells(EramMenus.YaatProfile)
+        );
+        Assert.Equal(
+            [
+                (EramButtonType.YaatTemplateStars, 0, 0),
+                (EramButtonType.YaatTemplateEram, 1, 0),
+                (EramButtonType.YaatTemplateMixed, 0, 1),
+                (EramButtonType.YaatTemplateEuroScope, 1, 1),
+            ],
+            Cells(EramMenus.YaatTemplate)
+        );
+    }
+
+    [Fact]
+    public void YaatTables_HoldNoneOfTheEntriesEramAlreadyHas()
+    {
+        IReadOnlyList<EramMenuButton>[] tables =
+        [
+            EramMenus.Yaat,
+            EramMenus.YaatProfile,
+            EramMenus.YaatTemplate,
+            EramMenus.YaatTools,
+            EramMenus.YaatDisplay,
+            EramMenus.YaatDb,
+            EramMenus.YaatViews,
+            EramMenus.YaatLens,
+        ];
+        string[] labels = [.. tables.SelectMany(t => t).Select(b => $"{b.Lines.Line1} {b.Lines.Line2}".Trim())];
+
+        Assert.NotEmpty(labels);
+        Assert.All(["4TH LINE", "CHAR", "WX", "LA/CA/MCI", "CRR"], dropped => Assert.DoesNotContain(dropped, labels));
+        Assert.All(tables.SelectMany(t => t), b => Assert.InRange(b.Type, EramButtonType.YaatMenu, EramButtonType.YaatLensCheckIn));
     }
 
     private static (EramButtonType Type, int Row, int Column) Cell(EramMenuButton button) => (button.Type, button.Row, button.Column);
