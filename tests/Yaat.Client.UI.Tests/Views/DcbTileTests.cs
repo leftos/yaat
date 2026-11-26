@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Xunit;
+using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.Views.Scope.Toolbar.Dcb;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -240,6 +241,138 @@ public class DcbTileTests
 
             Assert.Equal(45d, accepted);
             Assert.Equal(0, clicks[0]);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>A spinner tile whose owner steps the value, its hooks the ones given.</summary>
+    private static DcbTile OwnerDrivenSpinner(Action onLatch, Action<int> onSpin, Action onCancel, Action<double> onAccept) =>
+        new(DcbTileShape.Full, DcbTileKind.Spinner, "RANGE\n40")
+        {
+            Value = 40,
+            MinValue = 20,
+            MaxValue = 60,
+            Step = 5,
+            OnLatch = onLatch,
+            OnSpin = onSpin,
+            OnCancel = onCancel,
+            OnAccept = onAccept,
+        };
+
+    [AvaloniaFact]
+    public void SpinnerTile_WithOnSpin_SendsTheWheelToTheOwner_AndEscCancels()
+    {
+        int latches = 0;
+        int cancels = 0;
+        int accepts = 0;
+        List<int> spins = [];
+        DcbTile spinner = OwnerDrivenSpinner(() => latches++, spins.Add, () => cancels++, _ => accepts++);
+        Window window = Show(spinner);
+        try
+        {
+            Press(window, Centre(window, spinner));
+            Assert.True(spinner.IsLatched);
+            Assert.Equal(1, latches);
+
+            window.MouseWheel(Centre(window, spinner), new Vector(0, 1));
+            window.MouseWheel(Centre(window, spinner), new Vector(0, 1));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([1, 1], spins);
+            Assert.Equal(40d, spinner.Value);
+
+            window.DispatchKey(Key.Escape);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(spinner.IsLatched);
+            Assert.Equal(1, cancels);
+            Assert.Equal(0, accepts);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SpinnerTile_WithOnSpin_SecondPressAccepts()
+    {
+        int latches = 0;
+        int cancels = 0;
+        int accepts = 0;
+        List<int> spins = [];
+        DcbTile spinner = OwnerDrivenSpinner(() => latches++, spins.Add, () => cancels++, _ => accepts++);
+        Window window = Show(spinner);
+        try
+        {
+            Press(window, Centre(window, spinner));
+            window.MouseWheel(Centre(window, spinner), new Vector(0, -1));
+            Dispatcher.UIThread.RunJobs();
+            Press(window, Centre(window, spinner));
+
+            Assert.False(spinner.IsLatched);
+            Assert.Equal([-1], spins);
+            Assert.Equal(1, accepts);
+            Assert.Equal(0, cancels);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SpinnerTile_WithOnSpin_RemovedWhileLatched_CancelsOnce()
+    {
+        int latches = 0;
+        int cancels = 0;
+        int accepts = 0;
+        List<int> spins = [];
+        DcbTile spinner = OwnerDrivenSpinner(() => latches++, spins.Add, () => cancels++, _ => accepts++);
+        var panel = new StackPanel { Children = { spinner } };
+        Window window = Show(panel);
+        try
+        {
+            Press(window, Centre(window, spinner));
+            Assert.True(spinner.IsLatched);
+
+            panel.Children.Remove(spinner);
+            Settle(window);
+
+            Assert.False(spinner.IsLatched);
+            Assert.Equal(1, cancels);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SpinnerTile_LosingTheFocusWhileLatched_CancelsOnce()
+    {
+        int latches = 0;
+        int cancels = 0;
+        int accepts = 0;
+        List<int> spins = [];
+        DcbTile spinner = OwnerDrivenSpinner(() => latches++, spins.Add, () => cancels++, _ => accepts++);
+        var other = new DcbTile(DcbTileShape.Full, DcbTileKind.Normal, "MAPS");
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Children = { spinner, other } };
+        Window window = Show(panel);
+        try
+        {
+            Press(window, Centre(window, spinner));
+            Assert.True(spinner.IsLatched);
+
+            other.Focus();
+            Settle(window);
+
+            Assert.False(spinner.IsLatched);
+            Assert.Equal(1, cancels);
+            Assert.Equal(0, accepts);
         }
         finally
         {

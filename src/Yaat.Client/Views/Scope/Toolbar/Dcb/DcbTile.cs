@@ -30,7 +30,8 @@ public enum DcbTileKind
 /// bold monospace. A <see cref="DcbTileKind.Normal"/> tile draws pushed while held and clicks on a release inside it, a
 /// <see cref="DcbTileKind.Toggle"/> flips on a press, a <see cref="DcbTileKind.Spinner"/> latches a
 /// <see cref="DcbSpinnerLatch"/> and holds the pointer until a second press on it accepts or Esc cancels, and a
-/// <see cref="DcbTileKind.Disabled"/> tile is dimmed and takes no input.
+/// <see cref="DcbTileKind.Disabled"/> tile is dimmed and takes no input. A spinner with <see cref="DcbTile.OnSpin"/> set hands
+/// each wheel step to its owner, which changes the value it stands for live.
 /// </summary>
 public sealed class DcbTile : Control
 {
@@ -88,6 +89,11 @@ public sealed class DcbTile : Control
         get => _label;
         set
         {
+            if (value == _label)
+            {
+                return;
+            }
+
             _label = value;
             AutomationProperties.SetName(this, value);
             InvalidateVisual();
@@ -144,6 +150,11 @@ public sealed class DcbTile : Control
         get => _isPushed;
         set
         {
+            if (value == _isPushed)
+            {
+                return;
+            }
+
             _isPushed = value;
             InvalidateVisual();
         }
@@ -169,8 +180,29 @@ public sealed class DcbTile : Control
     /// <summary>What a press on a toggle tile runs, with the state it flipped to.</summary>
     public Action<bool>? OnToggle { get; set; }
 
-    /// <summary>What accepting a latched spinner runs, with the value the wheel left.</summary>
+    /// <summary>
+    /// What accepting a latched spinner runs, with the value the wheel left; while <see cref="OnSpin"/> is set the wheel
+    /// never moves that value, so it carries no meaning and the owner reads its own.
+    /// </summary>
     public Action<double>? OnAccept { get; set; }
+
+    /// <summary>What a spinner runs once a press has latched it.</summary>
+    public Action? OnLatch { get; set; }
+
+    /// <summary>
+    /// What a wheel step on a latched spinner runs, with the step's sign (+1 for wheel up), in place of stepping the latch's
+    /// own value: the owner changes what the spinner stands for and sets <see cref="Label"/> to show it; <see cref="Value"/>
+    /// stays as the latch found it.
+    /// While null, the wheel steps the latch's value by <see cref="Step"/> within <see cref="MinValue"/> and
+    /// <see cref="MaxValue"/>.
+    /// </summary>
+    public Action<int>? OnSpin { get; set; }
+
+    /// <summary>
+    /// What cancelling a latched spinner runs: Esc on it, the tile losing the keyboard focus, or the tile leaving the tree
+    /// while latched.
+    /// </summary>
+    public Action? OnCancel { get; set; }
 
     /// <summary>The colours the tile draws with, after the dimming a disabled tile gets: its fill and its two bevel colours.</summary>
     public (Color Fill, Color TopLeft, Color BottomRight) Palette =>
@@ -221,12 +253,7 @@ public sealed class DcbTile : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         // A latched tile that leaves the tree stops holding the pointer: its Cancel restores the value the latch took.
-        if (_spinner is { } spinner)
-        {
-            spinner.Escape();
-            Unlatch(spinner.Value);
-        }
-
+        CancelLatch();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -283,16 +310,18 @@ public sealed class DcbTile : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if ((e.Key != Key.Escape) || (_spinner is not { } spinner))
+        if ((e.Key == Key.Escape) && CancelLatch())
         {
-            return;
-        }
-
-        if (spinner.Escape() is { } cancelled)
-        {
-            Unlatch(cancelled.Value);
             e.Handled = true;
         }
+    }
+
+    /// <inheritdoc/>
+    protected override void OnLostFocus(FocusChangedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        // A latched tile that loses the keyboard focus cancels, as Esc would, so no other control takes Esc while it holds.
+        CancelLatch();
     }
 
     /// <inheritdoc/>
@@ -337,6 +366,7 @@ public sealed class DcbTile : Control
             HoldPresses();
             Focus();
             InvalidateVisual();
+            OnLatch?.Invoke();
             return;
         }
 
@@ -348,6 +378,22 @@ public sealed class DcbTile : Control
         DcbLatchResult accepted = spinner.Press();
         Unlatch(accepted.Value);
         OnAccept?.Invoke(accepted.Value);
+    }
+
+    /// <summary>
+    /// Cancels a latched spinner: restores the value the latch took, lets the pointer go and runs <see cref="OnCancel"/>.
+    /// False, doing nothing, while the tile is not latched.
+    /// </summary>
+    private bool CancelLatch()
+    {
+        if ((_spinner is not { } spinner) || (spinner.Escape() is not { } cancelled))
+        {
+            return false;
+        }
+
+        Unlatch(cancelled.Value);
+        OnCancel?.Invoke();
+        return true;
     }
 
     /// <summary>Ends the latch at <paramref name="value"/> and lets the pointer go.</summary>
@@ -405,16 +451,25 @@ public sealed class DcbTile : Control
         }
     }
 
-    /// <summary>While latched the wheel steps the spinner wherever the pointer is.</summary>
+    /// <summary>While latched the wheel steps the spinner wherever the pointer is, through <see cref="OnSpin"/> when it is set.</summary>
     private void OnHeldWheel(object? sender, PointerWheelEventArgs e)
     {
-        if (_spinner is { } spinner)
+        e.Handled = true;
+        int sign = Math.Sign(e.Delta.Y);
+        if ((_spinner is not { } spinner) || (sign == 0))
         {
-            spinner.Wheel(Math.Sign(e.Delta.Y));
-            InvalidateVisual();
+            return;
         }
 
-        e.Handled = true;
+        if (OnSpin is { } spin)
+        {
+            spin(sign);
+        }
+        else
+        {
+            spinner.Wheel(sign);
+            InvalidateVisual();
+        }
     }
 
     private Color BevelTopLeft() => Pressed ? DcbColors.Shadow : DcbColors.Highlight;

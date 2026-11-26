@@ -8,6 +8,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Dcb;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -97,7 +98,7 @@ public class ScopeHostTests
     }
 
     [AvaloniaFact]
-    public async Task TheHost_ShowsTodaysBar_ForEveryKind()
+    public async Task TheHost_ShowsTheStarsDcb_UnderStars_AndTodaysBarOtherwise()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
         var host = new ScopeHost { DataContext = scope };
@@ -112,15 +113,21 @@ public class ScopeHostTests
         window.UpdateLayout();
         try
         {
-            ScopeToolbar first = host.ScopeToolbar;
-            Assert.NotNull(first);
+            Assert.NotNull(host.ScopeToolbar);
 
-            foreach (string profile in new[] { "stars", "eram", "mixed" })
-            {
-                main.RunScopeCommand($".scope profile {profile}");
-                Dispatcher.UIThread.RunJobs();
-                Assert.Same(first, host.ScopeToolbar);
-            }
+            main.RunScopeCommand(".scope profile stars");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Single(host.GetVisualDescendants().OfType<StarsDcbBar>());
+            Assert.Throws<InvalidOperationException>(() => host.ScopeToolbar);
+
+            main.RunScopeCommand(".scope profile eram");
+            Dispatcher.UIThread.RunJobs();
+            ScopeToolbar eram = host.ScopeToolbar;
+            Assert.Empty(host.GetVisualDescendants().OfType<StarsDcbBar>());
+
+            main.RunScopeCommand(".scope profile mixed");
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(eram, host.ScopeToolbar);
         }
         finally
         {

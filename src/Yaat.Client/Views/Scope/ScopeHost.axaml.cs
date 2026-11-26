@@ -1,8 +1,8 @@
 using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Dcb;
 
 namespace Yaat.Client.Views.Scope;
 
@@ -10,11 +10,12 @@ namespace Yaat.Client.Views.Scope;
 /// The YAAT Scope as one control: its bar, its view and its views dock, over the <see cref="ViewModels.ScopeViewModel"/>
 /// in its DataContext. The main window's Scope tab and the Scope window each build their own host over the same view model,
 /// never both at once, since a control has one parent. The bar slot shows the bar <see cref="ScopeViewModel.BarKind"/>
-/// names, so the bar follows the room's profile kind.
+/// names, so the bar follows the room's profile kind: the STARS DCB Main page under the STARS profile, the classic
+/// <see cref="Toolbar.ScopeToolbar"/> under any other.
 /// </summary>
 public partial class ScopeHost : UserControl
 {
-    private const string NoBarMessage = "The Scope host has no bar until its DataContext is a ScopeViewModel";
+    private const string NoBarMessage = "The Scope host shows no classic bar: its DataContext is no ScopeViewModel, or its profile shows another bar";
 
     private ScopeViewModel? _viewModel;
     private ScopeBarKind? _builtFor;
@@ -27,7 +28,7 @@ public partial class ScopeHost : UserControl
     /// <summary>The Scope's view: its canvas and its key handling.</summary>
     internal ScopeView ScopeView => View;
 
-    /// <summary>The Scope's bar: the one shown in its bar slot.</summary>
+    /// <summary>The Scope's classic bar, while its bar slot shows it; it throws while the slot shows another bar or none.</summary>
     internal ScopeToolbar ScopeToolbar => (BarSlot.Content as ScopeToolbar) ?? throw new InvalidOperationException(NoBarMessage);
 
     /// <summary>The Scope's views dock.</summary>
@@ -77,22 +78,17 @@ public partial class ScopeHost : UserControl
         kind switch
         {
             ScopeBarKind.Classic => typeof(ScopeToolbar),
-            ScopeBarKind.Stars => typeof(ScopeToolbar),
+            ScopeBarKind.Stars => typeof(StarsDcbBar),
             ScopeBarKind.Eram => typeof(ScopeToolbar),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope bar kind"),
         };
 
     /// <summary>The bar a Scope of <paramref name="kind"/> shows.</summary>
-    [SuppressMessage(
-        "Performance",
-        "CA1859:Use concrete types when possible for improved performance",
-        Justification = "A kind builds whatever bar control it names, and each kind names the same control"
-    )]
     private static Control BuildBar(ScopeBarKind kind) =>
         kind switch
         {
             ScopeBarKind.Classic => new ScopeToolbar(),
-            ScopeBarKind.Stars => new ScopeToolbar(),
+            ScopeBarKind.Stars => new StarsDcbBar(),
             ScopeBarKind.Eram => new ScopeToolbar(),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope bar kind"),
         };

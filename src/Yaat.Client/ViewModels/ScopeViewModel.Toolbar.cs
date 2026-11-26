@@ -20,6 +20,12 @@ public sealed partial class ScopeViewModel
     // so a part-step on one spinner never carries to another.
     private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
 
+    /// <summary>
+    /// Whether a spinner on the Scope's STARS DCB holds the pointer, so Esc goes to the spinner to cancel it before the Scope
+    /// view's own Esc chain runs. Set by the bar as the latch begins and cleared as it is accepted or cancelled.
+    /// </summary>
+    internal bool IsBarSpinnerLatched { get; set; }
+
     /// <summary>The menu whose tray shows under the bar, or null when no tray is open. One tray at a time.</summary>
     [ObservableProperty]
     private ScopeButtonId? _openMenu;

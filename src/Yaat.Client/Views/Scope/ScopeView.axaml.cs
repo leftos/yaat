@@ -227,12 +227,18 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc, unless a tear-off move is on (the tear-off layer cancels it), runs HandleEscape's chain.
+    // Esc while a DCB spinner is latched is the spinner's, which cancels it. Any other Esc, unless a tear-off move is on (the
+    // tear-off layer cancels it), runs HandleEscape's chain.
     // Ctrl+M arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     // Only while the Scope has the keyboard focus (IsKeyFocusInside): docked in the main window, Esc, Ctrl+M and
     // Ctrl+Shift+T typed in the command box or a grid stay theirs.
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
+        if (IsBarSpinnerEscape(e))
+        {
+            return;
+        }
+
         if (TakeEntryPopupKey(e))
         {
             return;
@@ -264,6 +270,9 @@ public partial class ScopeView : UserControl
             e.Handled = true;
         }
     }
+
+    // Esc while the Scope's DCB has a spinner latched: left unhandled, so it reaches the focused spinner, which cancels.
+    private bool IsBarSpinnerEscape(KeyEventArgs e) => (e.Key == Key.Escape) && (DataContext is ScopeViewModel { IsBarSpinnerLatched: true });
 
     // While the EuroScope scratchpad or handoff popup is open its keys are its box's: Esc closes it, leaving the preview's text,
     // and no Scope shortcut runs. False while none is open.
