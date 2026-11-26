@@ -365,6 +365,12 @@ public sealed class EramBar : UserControl
             FollowTray(viewModel);
         }
 
+        // A bar hiding to its SHOW tile closes its open menu, and with it any submenu.
+        if ((e.PropertyName == nameof(ScopeViewModel.IsBarHidden)) && (_viewModel is { IsBarHidden: true }))
+        {
+            Toolbar.OpenMenu = null;
+        }
+
         Refresh();
     }
 

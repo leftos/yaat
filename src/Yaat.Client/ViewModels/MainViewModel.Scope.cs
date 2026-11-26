@@ -33,11 +33,13 @@ public partial class MainViewModel
         + " | .scope lens <on|off> | .scope lens path <on|off|callsign> | .scope lens <queue|checkin> <on|off>"
         + " | .scope mva <on|off> | .scope lock <on|off> | .scope center"
         + " | .scope rr <on|off|place|center> | .scope rr size <2|5|10|15|20> | .scope wx <on|off> | .scope fix <on|off>"
-        + " | .scope dcnf <off|snap|free>";
+        + " | .scope dcnf <off|snap|free> | .scope bar <hide|show>";
 
     private const string ScopeLensUsage = "Usage: .scope lens <on|off> | .scope lens <path|queue|checkin> <on|off> | .scope lens path <callsign>";
 
     private const string ScopeTdmUsage = "Usage: .scope tdm <on|off>";
+
+    private const string ScopeBarUsage = "Usage: .scope bar <hide|show>";
 
     private const string ScopePtlUsage = "Usage: .scope ptl <callsign> | .scope ptl clear [callsign]";
 
@@ -225,6 +227,7 @@ public partial class MainViewModel
             "HIST" => PinScopeHist,
             "RINGS" => RunScopeRings,
             "TDM" => SetScopeTdm,
+            "BAR" => SetScopeBar,
             "PTL" => RunScopePtl,
             "LENS" => RunScopeLens,
             _ => null,
@@ -390,6 +393,27 @@ public partial class MainViewModel
 
         scope.IsTdm = on;
         return on ? "Radar TDM ON" : "Radar TDM OFF";
+    }
+
+    /// <summary><c>.scope bar hide|show</c>: hides the Scope's bar to its SHOW tile or shows it again.</summary>
+    private static string SetScopeBar(ScopeViewModel scope, string[] parts)
+    {
+        bool? hide =
+            (parts.Length == 3)
+                ? parts[2].ToLowerInvariant() switch
+                {
+                    "hide" => true,
+                    "show" => false,
+                    _ => null,
+                }
+                : null;
+        if (hide is not { } hidden)
+        {
+            return ScopeBarUsage;
+        }
+
+        scope.SetBarHidden(hidden);
+        return hidden ? ScopeToolbarButtons.BarHiddenEcho : ScopeToolbarButtons.BarShownEcho;
     }
 
     /// <summary><c>on</c> is true and <c>off</c> false (case-insensitive); any other word is null.</summary>

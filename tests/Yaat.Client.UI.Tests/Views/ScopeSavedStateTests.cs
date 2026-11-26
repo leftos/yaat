@@ -79,6 +79,24 @@ public class ScopeSavedStateTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Dispose_ThenReopen_KeepsTheBarHidden()
+    {
+        (MainViewModel main, ScopeViewModel first) = await SeededScopeAsync();
+        main.RunScopeCommand(".scope bar hide");
+        first.Dispose();
+
+        ScopeViewModel reopened = Reopen(main);
+        try
+        {
+            Assert.True(reopened.IsBarHidden);
+        }
+        finally
+        {
+            reopened.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Reopen_ShowsTheActiveSetName_AndClearsItOnceTheSetIsDeleted()
     {
         (MainViewModel main, ScopeViewModel first) = await SeededScopeAsync();

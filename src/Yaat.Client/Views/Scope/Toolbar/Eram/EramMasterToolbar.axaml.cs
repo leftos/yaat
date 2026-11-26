@@ -45,7 +45,7 @@ public partial class EramMasterToolbar : UserControl
         Cells.RowSpacing = EramMasterLayout.RowGap;
         Cells.ColumnSpacing = EramMasterLayout.ColumnGap;
         AddDefinitions();
-        _pickAreaWidth = (EramMasterLayout.PickAreaChars * charWidth) + EramMasterLayout.PickAreaExtraWidth;
+        _pickAreaWidth = PickAreaWidth(FontFamily, FontSize);
         AddButtons();
     }
 
@@ -176,6 +176,13 @@ public partial class EramMasterToolbar : UserControl
             fontSize,
             null
         ).WidthIncludingTrailingWhitespace;
+
+    /// <summary>
+    /// The width of a button's pick area in DIP, from the width of one character of <paramref name="font"/> at
+    /// <paramref name="size"/>: the Master Toolbar's own, and the ERAM SHOW TOOLBAR tile's in the Scope host.
+    /// </summary>
+    internal static double PickAreaWidth(FontFamily font, double size) =>
+        (EramMasterLayout.PickAreaChars * CharWidth(font, size)) + EramMasterLayout.PickAreaExtraWidth;
 
     private void BuildMoveDown(double charWidth)
     {

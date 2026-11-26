@@ -39,6 +39,7 @@ public class ScopePrefSetTests
         Assert.Equal(2, loaded.PinHistory);
         Assert.Equal("all", loaded.VectorOwnership);
         Assert.True(loaded.Tdm);
+        Assert.True(loaded.BarHidden);
     }
 
     [Fact]
@@ -106,6 +107,7 @@ public class ScopePrefSetTests
                 "pinRings",
                 "vectorOwnership",
                 "tdm",
+                "barHidden",
                 "lens",
                 "mapTools",
             ],
@@ -207,6 +209,38 @@ public class ScopePrefSetTests
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
         Assert.False(loaded.Tdm);
+    }
+
+    [Fact]
+    public void BarHidden_IsSavedAsBarHidden_AndRoundTrips()
+    {
+        ScopePrefSet set = FullSet() with { BarHidden = true };
+
+        string json = JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions);
+
+        Assert.True(JsonDocument.Parse(json).RootElement.GetProperty("barHidden").GetBoolean());
+        Assert.True(RoundTrip(set).BarHidden);
+        Assert.False(RoundTrip(set with { BarHidden = false }).BarHidden);
+    }
+
+    [Fact]
+    public void MissingBarHidden_LoadsAsShown()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "templateId": "stars",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+
+        Assert.False(loaded.BarHidden);
     }
 
     [Fact]
@@ -335,6 +369,7 @@ public class ScopePrefSetTests
             PinHistory = 2,
             VectorOwnership = "all",
             Tdm = true,
+            BarHidden = true,
         };
 
     private static ScopePrefSet RoundTrip(ScopePrefSet set) =>

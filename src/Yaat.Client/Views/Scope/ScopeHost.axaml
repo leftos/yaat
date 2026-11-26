@@ -9,11 +9,29 @@
 >
   <!-- The bar takes a row of its own height, 45 px for the classic bar and the ERAM Master Toolbar's height for the ERAM
        bar (ScopeHost.ClassicBarHeight and EramMasterLayout.BarHeight, set from the code); an open menu's tray or
-       expansion hangs over the scope, so it never resizes the scope. The views dock is a 360 px column right of the
-       scope, collapsed while no open view is docked. -->
+       expansion hangs over the scope, so it never resizes the scope. While the bar is hidden its row is 0, the scope grows
+       up into it, and the show slot holds the bar kind's SHOW tile in the scope's top-left corner; the slot has no
+       background, so a click beside the tile reaches the scope. The views dock is a 360 px column right of the scope,
+       collapsed while no open view is docked. -->
   <Grid x:Name="HostGrid" RowDefinitions="45,*" ColumnDefinitions="*,Auto">
     <scope:ScopeView x:Name="View" Grid.Row="1" Grid.Column="0" />
     <dock:ScopeDock x:Name="Dock" Grid.Row="1" Grid.Column="1" Width="360" IsVisible="{Binding HasDockedViews}" />
     <ContentControl x:Name="BarSlot" Grid.Row="0" Grid.RowSpan="2" Grid.ColumnSpan="2" VerticalAlignment="Top" ZIndex="1" />
+    <ContentControl
+      x:Name="ShowSlot"
+      Grid.Row="0"
+      Grid.RowSpan="2"
+      Grid.ColumnSpan="2"
+      HorizontalAlignment="Left"
+      VerticalAlignment="Top"
+      ZIndex="1"
+      IsVisible="False"
+      FontFamily="{StaticResource MonoFont}"
+      FontSize="12"
+    >
+      <ContentControl.Styles>
+        <StyleInclude Source="avares://Yaat.Client/Views/Scope/Toolbar/ScopeToolbarStyles.axaml" />
+      </ContentControl.Styles>
+    </ContentControl>
   </Grid>
 </UserControl>

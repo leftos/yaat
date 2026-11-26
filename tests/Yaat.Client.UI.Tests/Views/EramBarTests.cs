@@ -108,6 +108,23 @@ public class EramBarTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Hiding_WithAMenuAndItsSubmenuOpen_ClosesThem()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.BrightnessMenu);
+        scope.Click(EramButtonType.MapBrightnessMenu);
+        Assert.Equal(EramButtonType.BrightnessMenu, scope.Toolbar.OpenMenu);
+        Assert.Equal(EramButtonType.MapBrightnessMenu, scope.Toolbar.OpenSubmenu);
+
+        scope.Main.RunScopeCommand(".scope bar hide");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(scope.Toolbar.OpenMenu);
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Toolbar.Expansion);
+    }
+
+    [AvaloniaFact]
     public async Task Bright_OpensWithItsOutline_HidingTheOtherButtonsInPlace_AndAgainCloses()
     {
         await using Opened scope = await OpenAsync();

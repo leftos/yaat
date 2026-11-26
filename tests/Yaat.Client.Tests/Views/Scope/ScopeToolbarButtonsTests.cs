@@ -11,7 +11,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefThenDelTearoff()
+    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefDelTearoffThenHide()
     {
         Assert.Equal(
             [
@@ -34,6 +34,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
+                ScopeButtonId.BarHide,
             ],
             ScopeToolbarButtons.All.Select(b => b.Id)
         );
@@ -58,6 +59,7 @@ public class ScopeToolbarButtonsTests
                 "BRITE",
                 "PREF",
                 "DEL TEAROFF",
+                "HIDE",
             ],
             ScopeToolbarButtons.All.Select(b => b.Label)
         );
@@ -137,6 +139,7 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
                 ScopeButtonId.DeleteTearoff,
+                ScopeButtonId.BarHide,
             ],
             ordered.Select(b => b.Id)
         );

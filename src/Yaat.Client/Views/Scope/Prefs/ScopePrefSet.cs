@@ -8,8 +8,8 @@ namespace Yaat.Client.Views.Scope.Prefs;
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
 /// settings, the maps that are on, the open views with their places, the tear-offs, the classic bar's button names
 /// (empty when the Scope showed the STARS or ERAM bar) and the views array, the pinned band values, the vector lines' OWN
-/// or ALL, top-down mode and the pilot lens's switches. Every field holds text names rather than types from the app, so a
-/// rename in code leaves the file readable.
+/// or ALL, top-down mode, whether the bar is hidden and the pilot lens's switches. Every field holds text names rather
+/// than types from the app, so a rename in code leaves the file readable.
 /// </summary>
 public sealed record ScopePrefSet
 {
@@ -95,6 +95,9 @@ public sealed record ScopePrefSet
 
     /// <summary>Whether top-down mode shows ground targets.</summary>
     public bool Tdm { get; init; }
+
+    /// <summary>Whether the Scope's bar is hidden to its SHOW tile; a file without it loads with the bar shown.</summary>
+    public bool BarHidden { get; init; }
 
     /// <summary>The pilot lens's switches. The tracks whose intent path is toggled on are never saved.</summary>
     public required ScopePrefLens Lens { get; init; }

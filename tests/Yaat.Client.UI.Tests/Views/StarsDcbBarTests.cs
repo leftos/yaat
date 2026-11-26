@@ -132,6 +132,116 @@ public class StarsDcbBarTests
     }
 
     [AvaloniaFact]
+    public async Task Hiding_WhileRangeIsLatched_CancelsTheLatch()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            DcbTile range = TileOf(host, ScopeButtonId.Range);
+            double before = scope.RangeNm;
+            Press(window, range);
+            Wheel(window, range, 1);
+            Assert.True(scope.IsBarSpinnerLatched);
+
+            main.RunScopeCommand(".scope bar hide");
+            Settle(window);
+
+            Assert.False(range.IsLatched);
+            Assert.False(scope.IsBarSpinnerLatched);
+            Assert.Equal(before, scope.RangeNm);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Hiding_WhileASubmenuIsOpen_ReturnsTheBarToMain()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync(2, 10);
+        try
+        {
+            Press(window, Bar(host).Tiles[IndexOf(e => e.Opens == StarsDcbPage.Maps)]);
+            Assert.Equal(StarsDcbPage.Maps, Bar(host).Page);
+            Assert.True(scope.IsBarSubmenuOpen);
+
+            main.RunScopeCommand(".scope bar hide");
+            Settle(window);
+
+            Assert.Equal(StarsDcbPage.Main, Bar(host).Page);
+            Assert.Equal(StarsMainPage.Entries.Count, Bar(host).Tiles.Count);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task HidingOnTheAuxPage_ThenShowing_ShowsTheAuxPage()
+    {
+        (MainViewModel main, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Press(window, Labelled(host, "SHIFT"));
+            Assert.Equal(StarsDcbPage.Aux, Bar(host).Page);
+
+            main.RunScopeCommand(".scope bar hide");
+            Settle(window);
+            main.RunScopeCommand(".scope bar show");
+            Settle(window);
+
+            Assert.Equal(StarsDcbPage.Aux, Bar(host).Page);
+            Assert.Equal(StarsSubmenus.Aux.Count, Bar(host).Tiles.Count);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task HidingOnTheYaatToolsPage_ThenShowing_ShowsMain_WithTheTrayClosed()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Press(window, Bar(host).Tiles[IndexOf(e => e.Opens == StarsDcbPage.Yaat)]);
+            Press(window, Bar(host).Tiles[Bar(host).Entries.ToList().FindIndex(e => e.Opens == StarsDcbPage.YaatTools)]);
+            Assert.Equal(StarsDcbPage.YaatTools, Bar(host).Page);
+            Assert.Equal(ScopeButtonId.Tools, scope.OpenMenu);
+
+            main.RunScopeCommand(".scope bar hide");
+            Settle(window);
+            main.RunScopeCommand(".scope bar show");
+            Settle(window);
+
+            Assert.Equal(StarsDcbPage.Main, Bar(host).Page);
+            Assert.Null(scope.OpenMenu);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    /// <summary>The tile of the shown page whose label's first line is <paramref name="firstLine"/>.</summary>
+    private static DcbTile Labelled(ScopeHost host, string firstLine)
+    {
+        StarsDcbBar bar = Bar(host);
+        int index = bar.Entries.ToList().FindIndex(e => e.Label.Split('\n')[0] == firstLine);
+        Assert.True(index >= 0);
+        return bar.Tiles[index];
+    }
+
+    [AvaloniaFact]
     public async Task Range_WheelWhileLatched_StepsTheRangeLive_AndEscPutsItBack()
     {
         (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();

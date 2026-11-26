@@ -93,10 +93,10 @@ public partial class ScopeToolbar : UserControl
     /// <summary>
     /// Whether <paramref name="button"/> counts as showing a value on <paramref name="viewModel"/>'s bar: PREF always, with
     /// or without an active set, so loading or clearing one moves no tile; PILOT LENS always, as it shows a mode's lit
-    /// state; any other button while it has a value.
+    /// state; HIDE always, so it stands as a full tile at the bar's end; any other button while it has a value.
     /// </summary>
     private static bool ShowsValue(ScopeViewModel? viewModel, ScopeButton button) =>
-        (button.Id is ScopeButtonId.Pref or ScopeButtonId.Lens) || (viewModel?.SpinnerValue(button) is not null);
+        (button.Id is ScopeButtonId.Pref or ScopeButtonId.Lens or ScopeButtonId.BarHide) || (viewModel?.SpinnerValue(button) is not null);
 
     /// <summary>
     /// Which of the bar's <paramref name="buttons"/> are half tiles: a button that shows a value

@@ -92,13 +92,18 @@ public sealed class StarsDcbBar : UserControl
         // A bar that leaves the tree, as on a profile change or a re-parent, closes its submenu on the view model it was opened
         // on, showing the nearest page up from it that is no submenu (the Main or the Aux page), so the submenu flag, the Esc
         // handler and any tray a YAAT page opened are all cleared; the Main and Aux pages stay.
-        StarsDcbPage page = _page;
+        ShowPage(NearestPageOf(_page));
+    }
+
+    /// <summary>The nearest page up from <paramref name="page"/> that is no submenu: Main or Aux, the page itself when it is one.</summary>
+    private static StarsDcbPage NearestPageOf(StarsDcbPage page)
+    {
         while (StarsSubmenus.IsSubmenu(page))
         {
             page = StarsSubmenus.ParentOf(page);
         }
 
-        ShowPage(page);
+        return page;
     }
 
     private int MapsAvailable => Math.Min(_viewModel?.MapToggles.Count ?? 0, StarsSubmenus.MapSlotsOf(_page));
@@ -121,8 +126,31 @@ public sealed class StarsDcbBar : UserControl
         {
             FollowTray();
         }
+        else if ((e.PropertyName == nameof(ScopeViewModel.IsBarHidden)) && (_viewModel is { IsBarHidden: true }))
+        {
+            CloseForHide();
+        }
 
         RebuildOrRefresh();
+    }
+
+    /// <summary>
+    /// Closes what the bar holds open as it hides: a submenu, leaving for the nearest page up that is no submenu (Main or Aux,
+    /// its flag, Esc handler and tray cleared), and a latched spinner (its value put back), so nothing waits behind the SHOW
+    /// tile and the bar comes back on the page it left from.
+    /// </summary>
+    private void CloseForHide()
+    {
+        StarsDcbPage page = NearestPageOf(_page);
+        if (page == _page)
+        {
+            // ShowPage keeps a page that is already shown, so the rebuild is what ends a latch on it.
+            Rebuild();
+        }
+        else
+        {
+            ShowPage(page);
+        }
     }
 
     /// <summary>

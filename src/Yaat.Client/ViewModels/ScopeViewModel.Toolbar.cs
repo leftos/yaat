@@ -36,6 +36,36 @@ public sealed partial class ScopeViewModel
     [ObservableProperty]
     private ScopeButtonId? _openMenu;
 
+    /// <summary>
+    /// Whether the Scope's bar is hidden to its SHOW tile: the host collapses the bar's row, so the scope grows up into it,
+    /// and shows the SHOW tile for the bar kind in the scope's top-left corner. Set through <see cref="SetBarHidden"/>.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isBarHidden;
+
+    /// <summary>
+    /// Hides the Scope's bar to its SHOW tile (<paramref name="hidden"/>) or shows it again; no change when it already is.
+    /// Hiding first closes the open tray, ends DEL TEAROFF's mode and clears the bar's spinner-latch and submenu flags, so Esc
+    /// reaches the Scope view and a tear-off presses again; each bar closes its own menus as the flag turns.
+    /// </summary>
+    internal void SetBarHidden(bool hidden)
+    {
+        if (hidden == IsBarHidden)
+        {
+            return;
+        }
+
+        if (hidden)
+        {
+            OpenMenu = null;
+            IsDeletingTearoffs = false;
+            IsBarSpinnerLatched = false;
+            IsBarSubmenuOpen = false;
+        }
+
+        IsBarHidden = hidden;
+    }
+
     /// <summary>The wheel accumulator of the spinner with <paramref name="id"/>, made on first use.</summary>
     internal ScrollStepAccumulator SpinnerScroll(ScopeButtonId id)
     {

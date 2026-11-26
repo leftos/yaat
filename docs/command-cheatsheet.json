@@ -276,6 +276,7 @@
         { "verb": ".scope vector", "aliases": [], "args": "<0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto>", "description": "Radar vector length in minutes (pins), auto (unpins it alone), or whose tracks draw a vector (never pins) (client-local)" },
         { "verb": ".scope hist", "aliases": [], "args": "<0-10|auto>", "description": "Radar history dots per track, pinned until auto; hist auto unpins it alone (client-local)" },
         { "verb": ".scope tdm", "aliases": [], "args": "<on|off>", "description": "Radar top-down mode: also draws aircraft on the ground and below the display floor; Ctrl+Shift+T toggles it (client-local)" },
+        { "verb": ".scope bar", "aliases": [], "args": "<hide|show>", "description": "Radar bar hidden or shown; while hidden a SHOW tile at the scope's top left brings it back (client-local)" },
         { "verb": ".scope mva", "aliases": [], "args": "<on|off>", "description": "Radar MVA altitude tint on or off (client-local)" },
         { "verb": ".scope lock", "aliases": [], "args": "<on|off>", "description": "Radar: lock the wheel zoom and right-drag pan; RANGE and .scope range still work (client-local)" },
         { "verb": ".scope center", "aliases": [], "args": "", "description": "Radar: pan back to the facility's home centre, keeping the range (client-local)" },

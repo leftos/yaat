@@ -229,6 +229,12 @@ public enum ScopeButtonId
     /// DCNF F; lit while it is on.
     /// </summary>
     DisplayDcnf,
+
+    /// <summary>HIDE: hides the Scope's bar to its SHOW tile.</summary>
+    BarHide,
+
+    /// <summary>The SHOW tile's SHOW BAR, standing in the hidden classic bar's place: shows the bar again.</summary>
+    BarShow,
 }
 
 /// <summary>How a Scope toolbar button acts.</summary>
@@ -424,6 +430,7 @@ public static class ScopeToolbarButtons
         // The PREF tray lists the facility's pref sets: ScopeViewModel.TrayChildren builds this tray.
         new(ScopeButtonId.Pref, "PREF", ScopeButtonKind.Menu, [], null, null),
         new(ScopeButtonId.DeleteTearoff, "DEL TEAROFF", ScopeButtonKind.Command, [], null, null),
+        new(ScopeButtonId.BarHide, "HIDE", ScopeButtonKind.Command, [], null, BarHideCommand),
     ];
 
     /// <summary>The SSA's view name, as <c>.view</c> takes it.</summary>
@@ -514,8 +521,17 @@ public static class ScopeToolbarButtons
     /// <summary>The PREF tray's DELETE, which deletes the active set.</summary>
     public static readonly ScopeButton PrefDelete = new(ScopeButtonId.PrefDelete, "DELETE", ScopeButtonKind.Command, [], null, null);
 
-    /// <summary>The buttons that sit in a tray alone, in no bar slot and in no menu's children, so <see cref="Find"/> reaches them here.</summary>
-    private static readonly IReadOnlyList<ScopeButton> TrayOnly = [MapClear, PrefSave, PrefSaveAs, PrefRename, PrefDelete];
+    /// <summary>
+    /// The SHOW tile's SHOW BAR, which the host shows in the hidden classic bar's place as a half tile; it sits on no bar and
+    /// in no tray.
+    /// </summary>
+    public static readonly ScopeButton BarShow = new(ScopeButtonId.BarShow, "SHOW BAR", ScopeButtonKind.Command, [], null, BarShowCommand);
+
+    /// <summary>
+    /// The buttons that sit in a tray alone, in no bar slot and in no menu's children, so <see cref="Find"/> reaches them
+    /// here, and the SHOW tile's SHOW BAR.
+    /// </summary>
+    private static readonly IReadOnlyList<ScopeButton> TrayOnly = [MapClear, PrefSave, PrefSaveAs, PrefRename, PrefDelete, BarShow];
 
     /// <summary>The PREF tray's button for the pref set named <paramref name="name"/>, which loads it.</summary>
     public static ScopeButton PrefSetButton(string name) =>
@@ -548,6 +564,18 @@ public static class ScopeToolbarButtons
 
     /// <summary>The command that clears every pinned band value (AUTO).</summary>
     public const string AutoCommand = ".scope auto";
+
+    /// <summary>The command that hides the Scope's bar to its SHOW tile (HIDE).</summary>
+    public const string BarHideCommand = ".scope bar hide";
+
+    /// <summary>The command that shows the Scope's hidden bar again (the SHOW tile).</summary>
+    public const string BarShowCommand = ".scope bar show";
+
+    /// <summary>What <see cref="BarHideCommand"/> answers in the status line.</summary>
+    public const string BarHiddenEcho = "Radar bar hidden";
+
+    /// <summary>What <see cref="BarShowCommand"/> answers in the status line.</summary>
+    public const string BarShownEcho = "Radar bar shown";
 
     /// <summary>The verb that turns top-down mode on or off, without its <c>on</c> or <c>off</c>.</summary>
     public const string TdmCommandStem = ".scope tdm";
@@ -653,10 +681,11 @@ public static class ScopeToolbarButtons
     public static string NameOf(ScopeButtonKey key) => key.Id == ScopeButtonId.MapToggle ? $"map{key.Value}" : key.Id.ToString().ToLowerInvariant();
 
     /// <summary>
-    /// Whether the button with <paramref name="id"/> tears off: every button but DEL TEAROFF and a pref set, which have no
-    /// strip on the bar and no text name.
+    /// Whether the button with <paramref name="id"/> tears off: every button but DEL TEAROFF, a pref set, HIDE and the SHOW
+    /// tile's SHOW BAR, which have no strip and no text name.
     /// </summary>
-    public static bool CanTearOff(ScopeButtonId id) => id is not (ScopeButtonId.DeleteTearoff or ScopeButtonId.PrefSet);
+    public static bool CanTearOff(ScopeButtonId id) =>
+        id is not (ScopeButtonId.DeleteTearoff or ScopeButtonId.PrefSet or ScopeButtonId.BarHide or ScopeButtonId.BarShow);
 
     /// <summary>
     /// Parses a button's text name (<see cref="NameOf"/>), case-insensitive: <c>map</c> and a STARS id, or any id's name

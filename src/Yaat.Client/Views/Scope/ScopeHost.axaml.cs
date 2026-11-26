@@ -13,7 +13,9 @@ namespace Yaat.Client.Views.Scope;
 /// never both at once, since a control has one parent. The bar slot shows the bar <see cref="ScopeViewModel.BarKind"/>
 /// names, so the bar follows the room's profile kind: the STARS DCB Main page under the STARS profile, the ERAM Master
 /// Toolbar under the ERAM profile and the classic <see cref="Toolbar.ScopeToolbar"/> under Mixed; the bar's row is as tall
-/// as the bar shown.
+/// as the bar shown. While <see cref="ScopeViewModel.IsBarHidden"/> the bar row collapses, the bar stays in its slot unseen,
+/// and the show slot holds the bar kind's SHOW tile at the scope's top-left, which runs
+/// <see cref="ScopeToolbarButtons.BarShowCommand"/>.
 /// </summary>
 public partial class ScopeHost : UserControl
 {
@@ -25,8 +27,11 @@ public partial class ScopeHost : UserControl
     /// </summary>
     private const double ClassicBarHeight = 45;
 
+    /// <summary>The STARS SHOW tile's label, a DCB half tile's two lines.</summary>
+    private const string ShowDcbLabel = "SHOW\nDCB";
+
     private ScopeViewModel? _viewModel;
-    private ScopeBarKind? _builtFor;
+    private (ScopeBarKind Kind, bool Hidden)? _builtFor;
 
     public ScopeHost()
     {
@@ -52,26 +57,27 @@ public partial class ScopeHost : UserControl
         _viewModel?.PropertyChanged += OnViewModelPropertyChanged;
         if (_viewModel is { } viewModel)
         {
-            ShowBar(viewModel.BarKind);
+            ShowBar(viewModel.BarKind, viewModel.IsBarHidden);
         }
     }
 
-    /// <summary>Shows the bar for the view model's bar kind when that is the property that changed.</summary>
+    /// <summary>Shows the bar, or its SHOW tile, for the view model's bar kind when the kind or the hidden flag changed.</summary>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if ((e.PropertyName == nameof(ScopeViewModel.BarKind)) && (_viewModel is { } viewModel))
+        if ((e.PropertyName is nameof(ScopeViewModel.BarKind) or nameof(ScopeViewModel.IsBarHidden)) && (_viewModel is { } viewModel))
         {
-            ShowBar(viewModel.BarKind);
+            ShowBar(viewModel.BarKind, viewModel.IsBarHidden);
         }
     }
 
     /// <summary>
     /// Shows the bar for <paramref name="kind"/> in the slot, its row as tall as the bar so the bar never covers the scope's
-    /// top; a kind whose bar type is already shown keeps that instance.
+    /// top; a kind whose bar type is already shown keeps that instance. While <paramref name="hidden"/> the bar stays in its
+    /// slot unseen, its row is 0 so the scope grows up into it, and the show slot holds the kind's SHOW tile.
     /// </summary>
-    private void ShowBar(ScopeBarKind kind)
+    private void ShowBar(ScopeBarKind kind, bool hidden)
     {
-        if ((_builtFor == kind) && (BarSlot.Content is not null))
+        if ((_builtFor == (kind, hidden)) && (BarSlot.Content is not null))
         {
             return;
         }
@@ -81,9 +87,53 @@ public partial class ScopeHost : UserControl
             BarSlot.Content = BuildBar(kind);
         }
 
-        HostGrid.RowDefinitions[0].Height = new GridLength((kind == ScopeBarKind.Eram) ? EramMasterLayout.BarHeight : ClassicBarHeight);
-        _builtFor = kind;
+        BarSlot.IsVisible = !hidden;
+        ShowSlot.Content = hidden ? BuildShowTile(kind) : null;
+        ShowSlot.IsVisible = hidden;
+        HostGrid.RowDefinitions[0].Height = new GridLength(hidden ? 0 : BarHeightOf(kind));
+        _builtFor = (kind, hidden);
     }
+
+    /// <summary>The height of the row the bar of <paramref name="kind"/> takes.</summary>
+    private static double BarHeightOf(ScopeBarKind kind) => (kind == ScopeBarKind.Eram) ? EramMasterLayout.BarHeight : ClassicBarHeight;
+
+    /// <summary>
+    /// The SHOW tile a hidden bar of <paramref name="kind"/> leaves, in the bar's own style: a DCB half tile SHOW DCB on
+    /// STARS, an ERAM command button SHOW TOOLBAR on ERAM and a navy half tile SHOW BAR on Mixed.
+    /// </summary>
+    private Control BuildShowTile(ScopeBarKind kind) =>
+        kind switch
+        {
+            ScopeBarKind.Classic => ClassicShowTile(),
+            ScopeBarKind.Stars => new DcbTile(DcbTileShape.Half, DcbTileKind.Normal, ShowDcbLabel) { OnClick = RunShow },
+            ScopeBarKind.Eram => EramShowTile(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope bar kind"),
+        };
+
+    /// <summary>The classic bar's SHOW BAR, a navy half tile drawn by the bar's styles.</summary>
+    private ScopeButtonControl ClassicShowTile()
+    {
+        var tile = new ScopeButtonControl(ScopeToolbarButtons.BarShow, isTearoff: false) { IsHalf = true };
+        tile.Button.Click += (_, _) => RunShow();
+        tile.Refresh();
+        return tile;
+    }
+
+    /// <summary>The ERAM bar's SHOW TOOLBAR, a command button as wide as the Master Toolbar's; its gold strip tears nothing off.</summary>
+    private EramToolbarButton EramShowTile()
+    {
+        var button = new EramToolbarButton(
+            EramButtonType.DeleteTearoff,
+            EramMasterToolbar.PickAreaWidth(ShowSlot.FontFamily, ShowSlot.FontSize),
+            ("SHOW", "TOOLBAR"),
+            null
+        );
+        button.Invoked += (_, _) => RunShow();
+        return button;
+    }
+
+    /// <summary>Shows the bar again through the typed command's path.</summary>
+    private void RunShow() => _viewModel?.RunCommand(ScopeToolbarButtons.BarShowCommand);
 
     /// <summary>The type of the bar a Scope of <paramref name="kind"/> shows.</summary>
     private static Type BarTypeFor(ScopeBarKind kind) =>

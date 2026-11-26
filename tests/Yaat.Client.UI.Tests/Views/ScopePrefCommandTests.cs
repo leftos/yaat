@@ -1,5 +1,7 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
@@ -8,6 +10,7 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Eram;
 using Yaat.Sim.Data;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
@@ -20,6 +23,8 @@ namespace Yaat.Client.UI.Tests.Views;
 public class ScopePrefCommandTests : IDisposable
 {
     private const string BadName = "Bad pref set name: x/y (1-16 of A-Z 0-9 - _)";
+
+    private const string BarUsage = "Usage: .scope bar <hide|show>";
 
     private const string SaveUsage = "No pref set is active: use .scope pref saveas <name>";
 
@@ -97,6 +102,88 @@ public class ScopePrefCommandTests : IDisposable
         finally
         {
             scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Bar_HideAndShow_SetTheFlagAndEcho_AnythingElseGivesTheUsage()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope bar hide");
+            Assert.True(scope.IsBarHidden);
+            Assert.Equal("Radar bar hidden", main.StatusText);
+
+            main.RunScopeCommand(".scope bar show");
+            Assert.False(scope.IsBarHidden);
+            Assert.Equal("Radar bar shown", main.StatusText);
+
+            main.RunScopeCommand(".scope bar");
+            Assert.Equal(BarUsage, main.StatusText);
+
+            main.RunScopeCommand(".scope bar up");
+            Assert.Equal(BarUsage, main.StatusText);
+            Assert.False(scope.IsBarHidden);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SaveHidden_ThenShow_ThenLoad_HidesTheBarAgain()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope bar hide");
+            main.RunScopeCommand(".scope pref saveas HIDDEN");
+            main.RunScopeCommand(".scope bar show");
+
+            main.RunScopeCommand(".scope pref load hidden");
+
+            Assert.True(scope.IsBarHidden);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ASetSavedHiddenUnderEram_LoadedUnderMixed_ShowsTheEramShowTile()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        var host = new ScopeHost { DataContext = scope };
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 800,
+            Content = host,
+        };
+        window.Show();
+        try
+        {
+            main.RunScopeCommand(".scope profile eram");
+            main.RunScopeCommand(".scope bar hide");
+            main.RunScopeCommand(".scope pref saveas ERAMHID");
+            main.RunScopeCommand(".scope profile mixed");
+
+            main.RunScopeCommand(".scope pref load eramhid");
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(ScopeBarKind.Eram, scope.BarKind);
+            Assert.True(scope.IsBarHidden);
+            Assert.IsType<EramToolbarButton>(host.FindControl<ContentControl>("ShowSlot")!.Content);
+            Assert.Equal(0, host.FindControl<Grid>("HostGrid")!.RowDefinitions[0].Height.Value);
+        }
+        finally
+        {
+            window.Close();
+            scope.Dispose();
+            Dispatcher.UIThread.RunJobs();
         }
     }
 

@@ -79,7 +79,7 @@ public class ScopeTearoffTests
     {
         ScopeButton[] buttons =
         [
-            .. Flatten(ScopeToolbarButtons.All).Where(b => b.Id != ScopeButtonId.DeleteTearoff),
+            .. Flatten(ScopeToolbarButtons.All).Where(b => b.Id is not (ScopeButtonId.DeleteTearoff or ScopeButtonId.BarHide)),
             ScopeToolbarButtons.MapClear,
             ScopeToolbarButtons.MapToggle(15, "SFO"),
         ];
@@ -142,9 +142,16 @@ public class ScopeTearoffTests
     [InlineData("maptoggle")]
     [InlineData("deletetearoff")]
     [InlineData("prefset")]
+    [InlineData("barhide")]
+    [InlineData("barshow")]
     [InlineData("map")]
     [InlineData("mapx")]
     [InlineData("nosuch")]
     [InlineData("5")]
     public void TryParseKey_RejectsNamesOfNoTearableButton(string name) => Assert.False(ScopeToolbarButtons.TryParseKey(name, out _));
+
+    [Theory]
+    [InlineData(ScopeButtonId.BarHide)]
+    [InlineData(ScopeButtonId.BarShow)]
+    public void HideAndShow_NeverTearOff(ScopeButtonId id) => Assert.False(ScopeToolbarButtons.CanTearOff(id));
 }

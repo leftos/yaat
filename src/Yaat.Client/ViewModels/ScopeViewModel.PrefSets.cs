@@ -73,8 +73,8 @@ public sealed partial class ScopeViewModel
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
     /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, the
-    /// profile's name, the pinned band values, the vector lines' OWN or ALL, top-down mode and the pilot lens's switches
-    /// (not its toggled tracks). Bands, and the values that follow them, live only in the profile's file.
+    /// profile's name, the pinned band values, the vector lines' OWN or ALL, top-down mode, whether the bar is hidden and the
+    /// pilot lens's switches (not its toggled tracks). Bands, and the values that follow them, live only in the profile's file.
     /// </summary>
     /// <param name="name">The set's uppercase name, or null for the scope's unnamed current state.</param>
     /// <remarks>
@@ -130,6 +130,7 @@ public sealed partial class ScopeViewModel
             PinRings = Pins.Rings,
             VectorOwnership = ScopeVectorOwnerships.NameOf(VectorOwnership),
             Tdm = IsTdm,
+            BarHidden = IsBarHidden,
             Lens = new ScopePrefLens(Lens.Enabled, Lens.Path, Lens.Queue, Lens.CheckIn),
             MapTools = CaptureMapTools(),
         };
@@ -155,6 +156,7 @@ public sealed partial class ScopeViewModel
         ApplyPins(set);
         ApplyVectorOwnership(set.VectorOwnership);
         IsTdm = set.Tdm;
+        SetBarHidden(set.BarHidden);
         Lens = new ScopeLensSettings(set.Lens.Enabled, set.Lens.Path, set.Lens.Queue, set.Lens.CheckIn);
         WarnUnknownOpenViews(set.OpenViews);
         ApplyOpenViews(set.OpenViews);

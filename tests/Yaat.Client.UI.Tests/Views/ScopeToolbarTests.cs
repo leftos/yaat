@@ -257,6 +257,7 @@ public class ScopeToolbarTests
                     ScopeButtonId.Brite,
                     ScopeButtonId.Pref,
                     ScopeButtonId.DeleteTearoff,
+                    ScopeButtonId.BarHide,
                 ],
                 bar
             );
@@ -875,6 +876,86 @@ public class ScopeToolbarTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Hiding_EndsDeleteTearoffMode_SoATearoffPressesAgain()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            main.RunScopeCommand(".scope tearoff tdm tl 30 40");
+            Settle(window);
+            Click(ButtonOf(window, ScopeButtonId.DeleteTearoff));
+            Assert.True(scope.IsDeletingTearoffs);
+
+            main.RunScopeCommand(".scope bar hide");
+            Settle(window);
+            Assert.False(scope.IsDeletingTearoffs);
+
+            ScopeButtonControl tdm = window
+                .GetVisualDescendants()
+                .OfType<ScopeButtonControl>()
+                .Single(c => c.IsTearoff && (c.Key.Id == ScopeButtonId.Tdm));
+            bool before = scope.IsTdm;
+            Point at = tdm.Button.TranslatePoint(new Point(tdm.Button.Bounds.Width / 2, tdm.Button.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(at);
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+            Settle(window);
+
+            Assert.NotEqual(before, scope.IsTdm);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheHideTile_AFullTileAtTheBarsEnd_HidesTheBar()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Button hide = ButtonOf(window, ScopeButtonId.BarHide);
+            Assert.Equal("HIDE", DrawnText(hide));
+            Assert.Equal(45d, hide.Bounds.Height);
+            Assert.Equal(ScopeButtonId.BarHide, BarTileIds(window)[^1]);
+
+            Click(hide);
+
+            Assert.True(scope.IsBarHidden);
+            Assert.Equal("Radar bar hidden", main.StatusText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Hiding_WithATrayOpen_ClosesTheTray()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Template));
+            Assert.Equal(ScopeButtonId.Template, scope.OpenMenu);
+
+            main.RunScopeCommand(".scope bar hide");
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Null(scope.OpenMenu);
+            Assert.False(window.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "Tray").IsVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static ScopeButtonId[] BarTileIds(Window window) =>
+        [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId).Select(b => (ScopeButtonId)b.Tag!)];
+
     /// <summary>The bar's row of tiles.</summary>
     private static StackPanel MainRowOf(Window window) => window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "MainRow");
 
@@ -901,7 +982,7 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
             Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
             Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
-            Assert.Equal(19, bar.Length);
+            Assert.Equal(20, bar.Length);
             Assert.All(
                 bar,
                 b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")
