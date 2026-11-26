@@ -5,11 +5,9 @@
 ## Radar bar per Scope profile (feat/scope-dcb-per-profile)
 
 - [ ] YAAT-2855 Radar view: a STARS-like DCB on the STARS template and an ERAM-like DCB on ERAM; Mixed keeps today's · release vNext
-  - [/] YAAT-2864 Radar bar: STARS DCB tiles, flow layout and the CRC spinner latch · release vNext
   - [ ] YAAT-2865 Radar bar: STARS DCB Main page over today's Scope features · release vNext
   - [ ] YAAT-2866 Radar bar: STARS DCB submenus MAPS, BRITE, CHAR SIZE and PREF · release vNext
   - [ ] YAAT-2867 Radar bar: STARS DCB Aux page (SHIFT) · release vNext
-  - [/] YAAT-2868 Radar bar: ERAM 2x9 Master Toolbar · release vNext
   - [ ] YAAT-2869 Radar bar: ERAM toolbar menus over today's Scope features · release vNext
   - [ ] YAAT-2870 Radar bar: YAAT menu tile on the STARS and ERAM bars · release vNext
   - [ ] YAAT-2878 Merge feat/scope-dcb-per-profile to main (#1412)
@@ -166,6 +164,7 @@
 - [ ] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation
 - [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS
 - [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked
+- [ ] YAAT-2881 Prefill the RUNDOWN entry menu's Modify… box with the entry's current message
 
 ## Context-menu quick commands (#471)
 
