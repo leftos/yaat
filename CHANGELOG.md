@@ -9,6 +9,8 @@
 - Radar: under the ERAM profile the Radar bar is CRC's ERAM Master Toolbar; its menus reach today's Scope features, the rest dimmed.
 - `.scope hist auto` and `.scope vector auto` unpin just the history count or the vector length, back to the zoom band's value.
 - Radar: the STARS profile's Radar bar is a STARS-style DCB in CRC's order: latching spinners, MAPS, BRITE, CHAR SIZE, PREF and the Aux page.
+- Radar: a YAAT tile on the STARS DCB and a YAAT menu on the ERAM toolbar hold the YAAT-only controls, PROFILE included.
+- Radar: HIDE on any Radar bar, or `.scope bar hide`, folds it to a small SHOW tile; pref sets remember it.
 - Radar: a pending point-out, whoever it is addressed to, shows its STARS block full and steady yellow with `PO` after the callsign.
 - `DVXM 250 SUNOL` (or `DVXM 250`, `DVXM M.78 SUNOL`) clears a descend via, except maintain a speed until a fix; published speeds resume past it.
 - RPO sessions warn the instructor, at the clearance or in flight, when an uncleared VFR pattern or approach path will enter a Class B; the pilot flies on.
