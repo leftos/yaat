@@ -41,6 +41,7 @@ public class StarsMainPageTests
             "SSA",
             "GI TEXT",
             "SHIFT",
+            "HIDE",
             "YAAT",
         ];
 
@@ -84,6 +85,7 @@ public class StarsMainPageTests
             H, // SSA FILTER
             H, // GI TEXT FILTER
             F, // SHIFT
+            F, // HIDE DCB
             F, // YAAT
         ];
 
@@ -98,6 +100,18 @@ public class StarsMainPageTests
         Assert.Equal(
             ("YAAT", DcbTileShape.Full, DcbTileKind.Normal, (ScopeButtonId?)null, (StarsDcbPage?)StarsDcbPage.Yaat),
             (last.Label, last.Shape, last.Kind, last.Button, last.Opens)
+        );
+    }
+
+    [Fact]
+    public void HideDcb_SitsAfterShift_AndBeforeTheYaatOpener()
+    {
+        StarsDcbEntry hide = StarsMainPage.Entries[^2];
+
+        Assert.Equal("SHIFT", StarsMainPage.Entries[^3].Label);
+        Assert.Equal(
+            ("HIDE\nDCB", DcbTileShape.Full, DcbTileKind.Normal, (ScopeButtonId?)ScopeButtonId.BarHide, (StarsDcbPage?)null),
+            (hide.Label, hide.Shape, hide.Kind, hide.Button, hide.Opens)
         );
     }
 

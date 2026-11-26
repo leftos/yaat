@@ -13,8 +13,8 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 /// The Scope's bar under the STARS profile: CRC's STARS DCB on a <see cref="DcbBar"/>, over the <see cref="ScopeViewModel"/>
 /// in its DataContext, showing its Main page (<see cref="StarsMainPage"/>), one of the submenus MAPS, BRITE, CHAR SIZE and
 /// PREF the Main page opens, the Aux page SHIFT shows, the TPA/ATPA submenu the Aux page opens, or the YAAT page the YAAT tile
-/// shows and the pages it opens (<see cref="StarsSubmenus"/>); the YAAT tile sits at the bar's right edge when the bar is
-/// wider than the Main page's tiles. While the YAAT TOOLS or PILOT LENS page shows, the Scope's open menu is that tray, as on
+/// shows and the pages it opens (<see cref="StarsSubmenus"/>); the HIDE DCB and YAAT tiles sit together at the bar's right
+/// edge when the bar is wider than the Main page's tiles. While the YAAT TOOLS or PILOT LENS page shows, the Scope's open menu is that tray, as on
 /// the classic bar, so TOOLS arms the Rings tool.
 /// Each live tile runs the classic bar's action for its Scope button (<see cref="ScopeViewModel.Press"/>), a map tile toggles
 /// the map in its slot, a pref-set tile loads the set in its slot, PTL OWN and PTL ALL set the vector ownership, and a
@@ -188,9 +188,32 @@ public sealed class StarsDcbBar : UserControl
         _mapsShown = MapsAvailable;
         _prefsShown = PrefsAvailable;
         DcbTile[] tiles = [.. _entries.Select(BuildTile)];
-        int yaat = (_page == StarsDcbPage.Main) ? _entries.ToList().FindIndex(e => e.Opens == StarsDcbPage.Yaat) : -1;
-        _bar.SetTiles(tiles, (yaat >= 0) ? tiles[yaat] : null);
+        _bar.SetTiles(tiles, RightGroupOf(tiles));
         Refresh();
+    }
+
+    /// <summary>The Main page's right-edge group of <paramref name="tiles"/>, HIDE DCB then YAAT; empty on any other page.</summary>
+    private IReadOnlyList<DcbTile> RightGroupOf(DcbTile[] tiles)
+    {
+        if (_page != StarsDcbPage.Main)
+        {
+            return [];
+        }
+
+        List<StarsDcbEntry> entries = [.. _entries];
+        int hide = entries.FindIndex(e => e.Button == ScopeButtonId.BarHide);
+        int yaat = entries.FindIndex(e => e.Opens == StarsDcbPage.Yaat);
+        if (hide < 0)
+        {
+            throw new InvalidOperationException("The STARS DCB Main page has no HIDE DCB entry.");
+        }
+
+        if (yaat < 0)
+        {
+            throw new InvalidOperationException("The STARS DCB Main page has no YAAT entry.");
+        }
+
+        return [tiles[hide], tiles[yaat]];
     }
 
     /// <summary>The tile for <paramref name="entry"/>, wired to its action; a map or pref-set slot with nothing in it is disabled.</summary>

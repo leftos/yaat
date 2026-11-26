@@ -598,4 +598,70 @@ public class StarsDcbBarTests
             window.Close();
         }
     }
+
+    [AvaloniaFact]
+    public async Task HideDcbTile_SitsLeftOfTheYaatTile_AtTheRightEdge_WhenWide_AndBothFollowTheFlow_WhenNarrow()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            int hide = IndexOf(e => e.Button == ScopeButtonId.BarHide);
+            int yaat = IndexOf(e => e.Opens == StarsDcbPage.Yaat);
+            IReadOnlyList<Rect> flow = DcbLayout.Flow([.. StarsMainPage.Entries.Select(e => e.Shape)]);
+            window.Width = 2400;
+            Settle(window);
+            StarsDcbBar bar = Bar(host);
+            DcbTile hideTile = bar.Tiles[hide];
+            DcbTile yaatTile = bar.Tiles[yaat];
+
+            Assert.Equal(2400, bar.Bounds.Width);
+            Assert.Equal(
+                yaatTile.TranslatePoint(new Point(0, 0), bar)!.Value.X,
+                hideTile.TranslatePoint(new Point(hideTile.Bounds.Width, 0), bar)!.Value.X
+            );
+            Assert.Equal(bar.Bounds.Width, yaatTile.TranslatePoint(new Point(yaatTile.Bounds.Width, 0), bar)!.Value.X);
+
+            window.Width = 400;
+            Settle(window);
+
+            Assert.Equal(flow[hide].X, hideTile.TranslatePoint(new Point(0, 0), bar)!.Value.X);
+            Assert.Equal(flow[yaat].X, yaatTile.TranslatePoint(new Point(0, 0), bar)!.Value.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void SetTiles_ThrowsWhenTheRightGroupIsNotTheTailOfTheTiles_InOrder()
+    {
+        var bar = new DcbBar();
+        DcbTile[] tiles = [.. Enumerable.Range(0, 3).Select(_ => new DcbTile(DcbTileShape.Full, DcbTileKind.Normal, ""))];
+
+        Assert.Throws<ArgumentException>(() => bar.SetTiles(tiles, [tiles[0]]));
+        Assert.Throws<ArgumentException>(() => bar.SetTiles(tiles, [tiles[2], tiles[1]]));
+        Assert.Throws<ArgumentException>(() => bar.SetTiles(tiles, [new DcbTile(DcbTileShape.Full, DcbTileKind.Normal, "")]));
+        bar.SetTiles(tiles, [tiles[1], tiles[2]]);
+        bar.SetTiles(tiles, []);
+    }
+
+    [AvaloniaFact]
+    public async Task PressingHideDcb_HidesTheBar_AndTheHostShowsTheShowDcbTile()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Press(window, TileOf(host, ScopeButtonId.BarHide));
+
+            Assert.True(scope.IsBarHidden);
+            DcbTile show = Assert.IsType<DcbTile>(host.FindControl<ContentControl>("ShowSlot")!.Content);
+            Assert.Equal("SHOW\nDCB", show.Label);
+            Assert.True(show.IsEffectivelyVisible);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
 }

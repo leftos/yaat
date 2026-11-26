@@ -27,9 +27,10 @@ public sealed record StarsDcbEntry(string Label, DcbTileShape Shape, DcbTileKind
 /// <summary>
 /// The STARS DCB Main page in CRC's order (DcbMenuExtensions' Main menu), with CRC's labels (DisplayElementDcb.CreateButtons):
 /// RANGE, PLACE CNTR, OFF CNTR, RR, PLACE RR, RR CNTR, MAPS, the six map slots, WX1 to WX6, BRITE, LDR DIR, LDR, CHAR SIZE,
-/// MODE, PREF, SITE, SSA FILTER, GI TEXT FILTER and SHIFT, then YAAT's own YAAT tile. A button with no YAAT feature yet is
-/// disabled in place; MAPS, BRITE, CHAR SIZE and PREF open their submenus, SHIFT shows the Aux page and YAAT the YAAT page
-/// (<see cref="StarsSubmenus"/>), the bar drawing the YAAT tile at its right edge when it is wide enough.
+/// MODE, PREF, SITE, SSA FILTER, GI TEXT FILTER and SHIFT, then YAAT's own HIDE DCB and YAAT tiles. A button with no YAAT
+/// feature yet is disabled in place; MAPS, BRITE, CHAR SIZE and PREF open their submenus, SHIFT shows the Aux page, HIDE DCB
+/// hides the bar and YAAT shows the YAAT page (<see cref="StarsSubmenus"/>), the bar drawing HIDE DCB and YAAT together at
+/// its right edge when it is wide enough.
 /// </summary>
 public static class StarsMainPage
 {
@@ -63,6 +64,7 @@ public static class StarsMainPage
         Disabled("SSA\nFILTER", DcbTileShape.Half),
         Disabled("GI TEXT\nFILTER", DcbTileShape.Half),
         Opener("SHIFT", StarsDcbPage.Aux),
+        new("HIDE\nDCB", DcbTileShape.Full, DcbTileKind.Normal, ScopeButtonId.BarHide, NoMap),
         Opener("YAAT", StarsDcbPage.Yaat),
     ];
 
