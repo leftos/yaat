@@ -307,7 +307,7 @@
             Margin="12,0,0,0"
           />
           <TextBlock
-            Text="• Releases: the hold-for-release rundown, on the Releases button beside the gear once hold for release is armed"
+            Text="• Releases: the hold-for-release rundown, in View › Bars › Rundowns… once hold for release is armed"
             TextWrapping="Wrap"
             Foreground="{DynamicResource SubtleTextBrush}"
             Margin="12,0,0,0"

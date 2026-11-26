@@ -54,6 +54,7 @@ public static class ViewSettingsCopyCatalog
     public const string LayoutFavoriteSetsKey = "layout.favoriteSets";
     public const string LayoutFavoritesBarKey = "layout.favoritesBar";
     public const string LayoutFavoritesPanelKey = "layout.favoritesPanel";
+    public const string LayoutRundownsWindowKey = "layout.rundownsWindow";
     public const string LayoutOpenTabsKey = "layout.openTabs";
     public const string LayoutColumnsKey = "layout.columns";
 
@@ -137,6 +138,15 @@ public static class ViewSettingsCopyCatalog
             Describe = l => l.IsFavoritesPanelOpen is { } open ? (open ? "open" : "closed") : NotSaved,
             AreEqual = (a, b) => a.IsFavoritesPanelOpen == b.IsFavoritesPanelOpen,
             IsSaved = l => l.IsFavoritesPanelOpen is not null,
+        },
+        new LayoutCopyGroup
+        {
+            Key = LayoutRundownsWindowKey,
+            Section = "Tool windows",
+            Label = "Rundowns window",
+            Describe = l => l.IsRundownsWindowOpen is { } open ? (open ? "open" : "closed") : NotSaved,
+            AreEqual = (a, b) => a.IsRundownsWindowOpen == b.IsRundownsWindowOpen,
+            IsSaved = l => l.IsRundownsWindowOpen is not null,
         },
         new LayoutCopyGroup
         {

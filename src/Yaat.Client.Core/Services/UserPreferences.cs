@@ -1086,6 +1086,9 @@ public sealed partial class UserPreferences
 
     /// <summary>When true, the pop-out Favorites Panel window was open at last shutdown and is reopened on the next launch.</summary>
     public bool IsFavoritesPanelOpen => _data.IsFavoritesPanelOpen;
+
+    /// <summary>When true, the Rundowns window was open at last shutdown and is reopened on the next launch.</summary>
+    public bool IsRundownsWindowOpen => _data.IsRundownsWindowOpen;
     public bool SpeechEnabled => _data.SpeechEnabled;
     public string WhisperModelSize => _data.WhisperModelSize;
     public string LlmModelPath => _data.LlmModelPath;
@@ -2000,6 +2003,18 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>Records whether the Rundowns window is open, so the next launch reopens it.</summary>
+    public void SetRundownsWindowOpen(bool isOpen)
+    {
+        if (_data.IsRundownsWindowOpen == isOpen)
+        {
+            return;
+        }
+
+        _data.IsRundownsWindowOpen = isOpen;
+        Save();
+    }
+
     public void SetWindowTopmost(string windowName, bool isTopmost)
     {
         SavedWindowGeometry geo = GetWindowGeometry(windowName) ?? new SavedWindowGeometry();
@@ -2857,6 +2872,7 @@ public sealed partial class UserPreferences
             ClearTerminalOnScenarioLoad = GetFieldOr(obj, "clearTerminalOnScenarioLoad", false),
             ShowFavoritesBar = GetFieldOr(obj, "showFavoritesBar", true),
             IsFavoritesPanelOpen = GetFieldOr(obj, "isFavoritesPanelOpen", false),
+            IsRundownsWindowOpen = GetFieldOr(obj, "isRundownsWindowOpen", false),
             HiddenTerminalKinds = GetFieldOr<List<string>>(obj, "hiddenTerminalKinds", []),
             GroundShowRunwayLabels = GetFieldOr(obj, "groundShowRunwayLabels", true),
             GroundShowTaxiwayLabels = GetFieldOr(obj, "groundShowTaxiwayLabels", true),
@@ -3337,6 +3353,7 @@ public sealed partial class UserPreferences
         public bool ClearTerminalOnScenarioLoad { get; set; }
         public bool ShowFavoritesBar { get; set; } = true;
         public bool IsFavoritesPanelOpen { get; set; }
+        public bool IsRundownsWindowOpen { get; set; }
         public List<string> HiddenTerminalKinds { get; set; } = [];
         public bool GroundShowRunwayLabels { get; set; } = true;
         public bool GroundShowTaxiwayLabels { get; set; } = true;
@@ -3632,6 +3649,12 @@ public sealed class SavedLayout
     /// panel as it is (same convention as <see cref="LoadedFavoriteSetIds"/>).
     /// </summary>
     public bool? IsFavoritesPanelOpen { get; set; }
+
+    /// <summary>
+    /// Whether the Rundowns window was open at capture time. Null on layouts captured before the window's open state was
+    /// captured; applying such a layout leaves the window as it is.
+    /// </summary>
+    public bool? IsRundownsWindowOpen { get; set; }
 
     /// <summary>
     /// The Strips and vTDLS tabs open at capture time beside the student's own. Null on layouts captured before

@@ -93,6 +93,7 @@
             />
             <MenuItem Header="_Favorites panel…" x:Name="FavoritesPanelMenuItem" />
             <MenuItem Header="_Notes…" x:Name="NotesMenuItem" />
+            <MenuItem Header="_Rundowns…" x:Name="RundownsMenuItem" />
             <MenuItem Header="_Timeline bar" ToggleType="CheckBox" IsChecked="{Binding ShowTimelineBar, Mode=TwoWay}" />
           </MenuItem>
           <!-- Layout submenu is populated from code-behind (PopulateLayoutMenu): the saved

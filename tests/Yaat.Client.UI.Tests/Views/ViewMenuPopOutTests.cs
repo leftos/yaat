@@ -76,7 +76,7 @@ public class ViewMenuPopOutTests
             ],
             Headers(ViewMenuItem(window, "_Windows"))
         );
-        Assert.Equal(["Fa_vorites bar", "_Favorites panel…", "_Notes…", "_Timeline bar"], Headers(ViewMenuItem(window, "_Bars")));
+        Assert.Equal(["Fa_vorites bar", "_Favorites panel…", "_Notes…", "_Rundowns…", "_Timeline bar"], Headers(ViewMenuItem(window, "_Bars")));
         // The "Pop out" caption labels the toggles below it and does nothing itself.
         Assert.False(ViewMenuItem(window, "Pop out").IsEnabled);
     }

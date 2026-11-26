@@ -415,6 +415,8 @@ It's called internally on any pop-out flip (`OnTabPoppedOutChanged`) **and** ext
 
 **The favorites bar is not a tab.** `ShowFavoritesBar` (pref-backed, default on) and the derived `IsFavoritesBarDocked => ShowFavoritesBar && !IsTerminalPoppedOut` drive the bar in `MainWindow.axaml`; the copy inside `TerminalWindow.axaml` binds `ShowFavoritesBar` alone, since the bar follows the Terminal when it pops out.
 
+The Rundowns window is the same shape (`RundownsWindow`, `UserPreferences.IsRundownsWindowOpen`, `SavedLayout.IsRundownsWindowOpen`); the preference reopens it at the next launch, and settings bundles leave it out (`UserPreferences.Bundle.cs`).
+
 The pop-out Favorites Panel is a `FavoritesPanelWindow` singleton per `MainViewModel` (`ShowOrActivate` / `IsOpen` / `Close`); its open state persists as `UserPreferences.IsFavoritesPanelOpen` (restored at startup beside the other pop-outs, not written during shutdown) and both flags ride layouts (`SavedLayout`) as nullable fields — null means "captured before the feature; leave as is", the same convention as `LoadedFavoriteSetIds`, `FavoriteSetOrder` and `OpenTabs`. `LoadedFavoriteSetIds` says which named sets are loaded; the bar order is `FavoriteSetOrder`.
 
 ### Extra view instances (`New Ground Window`)

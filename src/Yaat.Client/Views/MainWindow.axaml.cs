@@ -221,6 +221,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
 
         // Never disabled: the notes open, and keep their text, with no scenario loaded.
         this.FindControl<MenuItem>("NotesMenuItem")?.Click += OnNotesClick;
+        this.FindControl<MenuItem>("RundownsMenuItem")?.Click += OnRundownsClick;
 
         MenuItem? crcItem = this.FindControl<MenuItem>("ConfigureCrcMenuItem");
         crcItem?.Click += OnConfigureCrcClick;
@@ -296,6 +297,11 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (vm.Preferences.IsFavoritesPanelOpen)
         {
             FavoritesPanelWindow.ShowOrActivate(vm);
+        }
+
+        if (vm.Preferences.IsRundownsWindowOpen)
+        {
+            RundownsWindow.ShowOrActivate(vm);
         }
 
         WireStripsEntryWindows(vm);
@@ -405,6 +411,14 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         if (DataContext is MainViewModel vm)
         {
             FavoritesPanelWindow.ShowOrActivate(vm);
+        }
+    }
+
+    private void OnRundownsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            RundownsWindow.ShowOrActivate(vm);
         }
     }
 
@@ -2346,6 +2360,7 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
             ApplyPopoutFlags(vm, layout, selected);
             ApplyTerminalSplitRatio(vm, layout, selected);
             ApplyFavoritesLayoutState(vm, layout, selected);
+            ApplyRundownsLayoutState(vm, layout, selected);
             // Open/close the extra Scope/Ground windows the layout captured before the geometry push
             // below, so each new window's helper is already in the ActiveHelpers registry by then.
             ApplyExtraViews(vm, layout, selected);
@@ -2462,6 +2477,27 @@ public partial class MainWindow : Window, IAlwaysOnTopToggle
         else
         {
             FavoritesPanelWindow.Close(vm);
+        }
+    }
+
+    /// <summary>
+    /// Applies a layout's Rundowns window open state when selected. Null means the layout predates that state being
+    /// captured, so the current state is kept.
+    /// </summary>
+    private static void ApplyRundownsLayoutState(MainViewModel vm, SavedLayout layout, IReadOnlySet<string> selected)
+    {
+        if (!selected.Contains(ViewSettingsCopyCatalog.LayoutRundownsWindowKey) || (layout.IsRundownsWindowOpen is not { } open))
+        {
+            return;
+        }
+
+        if (open)
+        {
+            RundownsWindow.ShowOrActivate(vm);
+        }
+        else
+        {
+            RundownsWindow.Close(vm);
         }
     }
 

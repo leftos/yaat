@@ -5,6 +5,7 @@
 ### Added
 
 - Radar: the room's STARS rundown lists show as one RUNDOWN list in CRC's colours; drag it anywhere and right-click an entry to act on it.
+- View › Bars › Rundowns… opens a window of the room's rundown lists and hold-for-release, which replaces the command bar's Releases button.
 - Radar: a pending point-out, whoever it is addressed to, shows its STARS block full and steady yellow with `PO` after the callsign.
 - `DVXM 250 SUNOL` (or `DVXM 250`, `DVXM M.78 SUNOL`) clears a descend via, except maintain a speed until a fix; published speeds resume past it.
 - RPO sessions warn the instructor, at the clearance or in flight, when an uncleared VFR pattern or approach path will enter a Class B; the pilot flies on.

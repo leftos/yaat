@@ -116,7 +116,7 @@ A departure from a field without an operating tower must be issued a release or 
 
 This is `RunwaySpawnCall` ([solo-training-pilot-speech.md](solo-training-pilot-speech.md) "Runway spawns"). No `HFR` arming is involved:
 
-- 5–10 s after lining up it says "{approach}, runway 25 at {airport}, ready for departure, request release." and `RunwaySpawnCall.TryRequestRelease` sets `Ground.HeldForRelease` and records a `Release` pending request. The aircraft is now a held ground departure: it shows in the rundown with the status "Lined up (held)", and `REL <callsign>`, `REL <airport>` or the Releases flyout finds it.
+- 5–10 s after lining up it says "{approach}, runway 25 at {airport}, ready for departure, request release." and `RunwaySpawnCall.TryRequestRelease` sets `Ground.HeldForRelease` and records a `Release` pending request. The aircraft is now a held ground departure: it shows in the rundown with the status "Lined up (held)", and `REL <callsign>`, `REL <airport>` or the Rundowns window finds it.
 - `REL` releases it through the held-ground-departure path above, and `HFROFF` at an armed field does the same for every aircraft it releases; both answer the open `Release` request (`ReleaseHeldGroundDeparture` → `PilotRequestTracker.SatisfyOpenRequest`), so its 120 s follow-up stops. Lined up and released, it gets the solo-room auto-`CTO` after the 5–20 s jitter, and makes its airborne check-in after takeoff (the request is not its initial contact).
 - A runway spawn released through the **spawn gate** (`Ground.ReleasedAtSpawnGate`) never asks. In a solo room, at an untowered field an IFR one starts the released departure's clock as soon as it is lined up (`SimulationEngine.ProcessRunwaySpawnAutoTakeoffs` sets `ReleasedForDeparture` and `ReleasedAtSeconds`) and departs after the jitter; at a towered field the solo towered auto-takeoff applies.
 - In solo training with a student who does not work the tower at the field (`PilotContactRoster.StudentWorksTowerAt`), a VFR runway spawn at an untowered field asks for nothing and departs on its own (a release gates only the IFR clearance, as above), and a runway spawn at a towered field is cleared by the simulated tower. Under a student who works the tower there none of this applies: the spawn makes the usual lined-up call.
@@ -157,8 +157,8 @@ The armed-airports set + held departures are **dynamic per-room state**, broadca
 - `RoomStateDto.Rundown` seeds the rundown on join/reconnect (`MainViewModel.ApplyRoomState` → `ApplyRundown`).
 - Per-aircraft, `AircraftStateDto.HeldForRelease` rides the normal delta engine — mapped in `DtoConverter.ToTrainingDto` and **added to `AircraftChangeTracker`'s `TrainingDtoFingerprint` + `CaptureTrainingDto`** (or it would appear on join but never update live). It drives `AircraftModel.IsHeldForRelease` and the "Release (HFR)" icon (`coordination.release-held`, gated by `AircraftCommandApplicability.CanReleaseHeld`), the first in the icon strip of the aircraft context menu on every view (a delayed spawn held for release gets a strip of just the release icons).
 - Client: `MainViewModel` (the `HoldForRelease` partial) mirrors the rundown grouped by airport and
-  exposes `ReleaseDepartureCommand` / `ReleaseNextAtAirportCommand`; the **Releases** flyout in
-  `CommandInputView.axaml` renders it.
+  exposes `ReleaseDepartureCommand` / `ReleaseNextAtAirportCommand`; the **Hold for release** section of the Rundowns window
+  (`Views/RundownsWindow.axaml(.cs)`, opened from View › Bars › Rundowns…) renders it, shown while an airport is armed.
 
 ## Snapshot / replay
 

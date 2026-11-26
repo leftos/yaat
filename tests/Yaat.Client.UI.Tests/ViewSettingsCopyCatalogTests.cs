@@ -75,6 +75,7 @@ public class ViewSettingsCopyCatalogTests
                 ViewSettingsCopyCatalog.LayoutFavoriteSetsKey,
                 ViewSettingsCopyCatalog.LayoutFavoritesBarKey,
                 ViewSettingsCopyCatalog.LayoutFavoritesPanelKey,
+                ViewSettingsCopyCatalog.LayoutRundownsWindowKey,
                 ViewSettingsCopyCatalog.LayoutOpenTabsKey,
                 ViewSettingsCopyCatalog.LayoutColumnsKey,
             ],

@@ -1145,10 +1145,13 @@ A STARS coordination (rundown) list: the items a tower sends a departure on, to 
 The synthetic `room:<roomId>` session `GetSessions` offers a Tower Cab 3D connection whose CID has no CRC primary: joining it attaches the connection to the room its CID joined most recently (`TowerCabRooms`, docs/vatsim-auth.md).
 
 **Rundown (hold-for-release)**:
-The live list of departures held at each armed field (`HeldDeparturesChanged`, the Releases flyout), in docs/hold-for-release.md. Not an RD list.
+The live list of departures held at each armed field (`HeldDeparturesChanged`, the Rundowns window's Hold for release section), in docs/hold-for-release.md. Not an RD list.
 
 **RUNDOWN list**:
 The Radar view's overlay that merges the room's RD lists (every channel, unfiltered by position) into one screen-space list with a channel column, the user can drag (`ScopeRundownList`, docs/radar-rendering.md). Not the hold-for-release rundown.
+
+**Rundowns window**:
+The View › Bars › Rundowns… window: one section per STARS RD list that has items, each row a coordination line with a right-click menu like the RUNDOWN list's, then the hold-for-release rundown's Release next and Release buttons while a field is armed (`RundownsWindow`, docs/client-file-map.md). Not the Radar view's RUNDOWN list.
 
 **Tower Cab member**:
 A Tower Cab 3D connection listed in Room Members (`ClientKind.TowerCab`, keyed by its CRC client id): it never counts toward attendance or OpenPositions, is never persisted, and a kick of its CID removes it with the CID's other connections.
@@ -1184,8 +1187,8 @@ Report field in sight… in RPO and in solo training: the user types the clock a
 An incoming named entry (a macro, a favorite set, a layout) that matches an existing one under Merge, resolved per entry by Skip, Overwrite or Rename.
 
 **Room-only setting**:
-A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
-_Avoid_: flyout-only setting (releases have their own button, not the flyout)
+A session setting with no default in Settings › Scenario defaults: it belongs to the room, and any RPO in it changes it only in the session flyout or on its own button or window (live traffic; releases). Scenario defaults lists them in its "Room only" card (USER_GUIDE.md "Scenario defaults").
+_Avoid_: flyout-only setting (releases live in the Rundowns window, not the flyout)
 
 **Section link**:
 A button in a Settings section that opens the section where a shared setting lives (its one home), such as Radar's font-size link to Appearance; it carries that setting's search aliases, so a search finds the setting at its home and at each link (docs/client-settings-and-menus.md).

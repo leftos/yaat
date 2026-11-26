@@ -53,6 +53,7 @@ public sealed class LayoutService(UserPreferences preferences)
             ShowGlobalFavoriteSet = _preferences.ShowGlobalFavoriteSet,
             ShowFavoritesBar = vm.ShowFavoritesBar,
             IsFavoritesPanelOpen = FavoritesPanelWindow.IsOpen(vm),
+            IsRundownsWindowOpen = RundownsWindow.IsOpen(vm),
             // Which extra Scope and Ground windows are open (a Ground window on which airport, a Scope window on none);
             // their geometry rides the live-helper walk below under the ScopeView#n / GroundView#n keys.
             ExtraScopeViews = [.. vm.ExtraScopeViews.OrderBy(i => i.Ordinal).Select(i => new SavedExtraView(i.Ordinal, ""))],
