@@ -11,11 +11,13 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 
 /// <summary>
 /// The Scope's bar under the STARS profile: CRC's STARS DCB on a <see cref="DcbBar"/>, over the <see cref="ScopeViewModel"/>
-/// in its DataContext, showing its Main page (<see cref="StarsMainPage"/>) or one of the submenus MAPS, BRITE, CHAR SIZE and
-/// PREF (<see cref="StarsSubmenus"/>) the Main page opens. Each live tile runs the classic bar's action for its Scope button
-/// (<see cref="ScopeViewModel.Press"/>), a map tile toggles the map in its slot, a pref-set tile loads the set in its slot,
-/// and a spinner steps the view model's own value live while latched, Esc putting back the value it had when the latch
-/// began. DONE, or Esc with no spinner latched, returns from a submenu to the Main page.
+/// in its DataContext, showing its Main page (<see cref="StarsMainPage"/>), one of the submenus MAPS, BRITE, CHAR SIZE and
+/// PREF the Main page opens, the Aux page SHIFT shows or the TPA/ATPA submenu the Aux page opens (<see cref="StarsSubmenus"/>).
+/// Each live tile runs the classic bar's action for its Scope button (<see cref="ScopeViewModel.Press"/>), a map tile toggles
+/// the map in its slot, a pref-set tile loads the set in its slot, PTL OWN and PTL ALL set the vector ownership, and a
+/// spinner steps the view model's own value live while latched, Esc putting back the value it had when the latch began.
+/// DONE, or Esc with no spinner latched, returns from a submenu to the page it opens from; the Aux page leaves Esc to the
+/// Scope.
 /// </summary>
 public sealed class StarsDcbBar : UserControl
 {
@@ -26,7 +28,7 @@ public sealed class StarsDcbBar : UserControl
     private int _mapsShown;
     private int _prefsShown;
 
-    // The view model the open submenu's flag was set on and the top level whose Esc closes it; null on the Main page.
+    // The view model the open submenu's flag was set on and the top level whose Esc closes it; null on the Main and Aux pages.
     private ScopeViewModel? _submenuOn;
     private TopLevel? _escapeOn;
 
@@ -80,8 +82,12 @@ public sealed class StarsDcbBar : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        // A bar that leaves the tree, as on a profile change, closes its submenu on the view model it was opened on.
-        CloseSubmenu();
+        // A bar that leaves the tree, as on a profile change or a re-parent, closes its submenu on the view model it was opened
+        // on, showing the page the submenu opens from; the Main and Aux pages stay.
+        if (StarsSubmenus.IsSubmenu(_page))
+        {
+            ShowPage(StarsSubmenus.ParentOf(_page));
+        }
     }
 
     private int MapsAvailable => Math.Min(_viewModel?.MapToggles.Count ?? 0, StarsSubmenus.MapSlotsOf(_page));
@@ -98,7 +104,7 @@ public sealed class StarsDcbBar : UserControl
     {
         if (e.PropertyName == nameof(ScopeViewModel.ProfileKind))
         {
-            CloseSubmenu();
+            ShowMain();
         }
 
         RebuildOrRefresh();
@@ -157,6 +163,10 @@ public sealed class StarsDcbBar : UserControl
         {
             tile.OnClick = () => PressPrefSet(entry.PrefSlot);
         }
+        else if (entry.Ownership is { } ownership)
+        {
+            tile.OnToggle = _ => PressOwnership(ownership);
+        }
         else if (entry.Button is { } id)
         {
             Wire(tile, id);
@@ -184,8 +194,9 @@ public sealed class StarsDcbBar : UserControl
     }
 
     /// <summary>
-    /// Shows <paramref name="page"/>: a submenu sets the view model's submenu flag and takes Esc through the top level, after
-    /// the Scope view's own handler, which steps aside for it; the Main page closes the submenu.
+    /// Shows <paramref name="page"/>, closing any open submenu first: a submenu sets the view model's submenu flag and takes
+    /// Esc through the top level, after the Scope view's own handler, which steps aside for it; the Main and the Aux page
+    /// leave Esc to the Scope.
     /// </summary>
     private void ShowPage(StarsDcbPage page)
     {
@@ -195,9 +206,9 @@ public sealed class StarsDcbBar : UserControl
         }
 
         LeaveSubmenu();
-        if (page != StarsDcbPage.Main)
+        _page = page;
+        if (StarsSubmenus.IsSubmenu(page))
         {
-            _page = page;
             _submenuOn = _viewModel;
             _submenuOn?.IsBarSubmenuOpen = true;
             _escapeOn = TopLevel.GetTopLevel(this);
@@ -207,16 +218,13 @@ public sealed class StarsDcbBar : UserControl
         Rebuild();
     }
 
-    /// <summary>Returns to the Main page, if a submenu is open.</summary>
-    private void CloseSubmenu()
-    {
-        if (_page != StarsDcbPage.Main)
-        {
-            ShowPage(StarsDcbPage.Main);
-        }
-    }
+    /// <summary>Returns to the Main page from any other page.</summary>
+    private void ShowMain() => ShowPage(StarsDcbPage.Main);
 
-    /// <summary>Ends the open submenu's state without rebuilding: the flag cleared where it was set, the Esc handler removed.</summary>
+    /// <summary>
+    /// Ends the open submenu's state without rebuilding: the flag cleared where it was set, the Esc handler removed, and the
+    /// page back to Main.
+    /// </summary>
     private void LeaveSubmenu()
     {
         _page = StarsDcbPage.Main;
@@ -226,7 +234,7 @@ public sealed class StarsDcbBar : UserControl
         _escapeOn = null;
     }
 
-    // Esc while a submenu is open returns to the Main page, unless a spinner is latched (that Esc is the spinner's), another
+    // Esc while a submenu is open returns to the page it opens from, unless a spinner is latched (that Esc is the spinner's), another
     // handler took it, a Scope popup is open to take it, or the keyboard focus is outside the Scope (an Esc typed in the
     // command box or a grid stays theirs).
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
@@ -236,7 +244,7 @@ public sealed class StarsDcbBar : UserControl
             return;
         }
 
-        CloseSubmenu();
+        ShowPage(StarsSubmenus.ParentOf(_page));
         e.Handled = true;
     }
 
@@ -269,6 +277,8 @@ public sealed class StarsDcbBar : UserControl
             ScopeButtonId.Range => ScopeToolbarButtons.RangeCommand(vm.RangeNm),
             ScopeButtonId.RrSize => ScopeToolbarButtons.RrSizeCommand(vm.RangeRingSizeNm),
             ScopeButtonId.DbChar => ScopeToolbarButtons.DbCharCommand(vm.DbSettings.CharSize),
+            ScopeButtonId.Hist => ScopeToolbarButtons.HistCommand(vm.EffectiveBand.History),
+            ScopeButtonId.Vector => ScopeToolbarButtons.VectorCommand(vm.EffectiveBand.VectorMin),
             _ => (ScopeToolbarButtons.BriteGroupOf(id) is { } group) ? ScopeToolbarButtons.BriteCommand(group.Name, group.Get(vm.Brightness)) : null,
         };
 
@@ -315,6 +325,17 @@ public sealed class StarsDcbBar : UserControl
         Refresh();
     }
 
+    /// <summary>Sets the vector ownership to <paramref name="ownership"/> unless it already is: YAAT has no ownership of none.</summary>
+    private void PressOwnership(ScopeVectorOwnership ownership)
+    {
+        if ((_viewModel is { } vm) && (vm.VectorOwnership != ownership))
+        {
+            vm.RunCommand(ScopeToolbarButtons.VectorOwnershipCommand(ownership));
+        }
+
+        Refresh();
+    }
+
     private void PressPrefSet(int slot)
     {
         IReadOnlyList<ScopeButton> sets = PrefSets();
@@ -340,20 +361,39 @@ public sealed class StarsDcbBar : UserControl
     {
         if (entry.MapSlot >= 0)
         {
-            ScopeMapToggle? toggle = (entry.MapSlot < _mapsShown) ? _viewModel?.MapToggles[entry.MapSlot] : null;
-            tile.Label = (toggle is null) ? "" : $"{toggle.StarsId}\n{toggle.ShortName}";
-            tile.IsPushed = toggle?.IsOn ?? false;
-            return;
+            RefreshMapTile(tile, entry.MapSlot);
         }
-
-        if (entry.PrefSlot >= 0)
+        else if (entry.PrefSlot >= 0)
         {
-            ScopeButton? set = (entry.PrefSlot < Math.Min(prefSets.Count, _prefsShown)) ? prefSets[entry.PrefSlot] : null;
-            tile.Label = set?.Label ?? entry.Label;
-            tile.IsPushed = (set is not null) && (_viewModel?.IsActive(set) ?? false);
-            return;
+            RefreshPrefSetTile(tile, entry, prefSets);
         }
+        else if (entry.Ownership is { } ownership)
+        {
+            tile.Label = entry.Label;
+            tile.IsPushed = _viewModel?.VectorOwnership == ownership;
+        }
+        else
+        {
+            RefreshButtonTile(tile, entry);
+        }
+    }
 
+    private void RefreshMapTile(DcbTile tile, int slot)
+    {
+        ScopeMapToggle? toggle = (slot < _mapsShown) ? _viewModel?.MapToggles[slot] : null;
+        tile.Label = (toggle is null) ? "" : $"{toggle.StarsId}\n{toggle.ShortName}";
+        tile.IsPushed = toggle?.IsOn ?? false;
+    }
+
+    private void RefreshPrefSetTile(DcbTile tile, StarsDcbEntry entry, IReadOnlyList<ScopeButton> prefSets)
+    {
+        ScopeButton? set = (entry.PrefSlot < Math.Min(prefSets.Count, _prefsShown)) ? prefSets[entry.PrefSlot] : null;
+        tile.Label = set?.Label ?? entry.Label;
+        tile.IsPushed = (set is not null) && (_viewModel?.IsActive(set) ?? false);
+    }
+
+    private void RefreshButtonTile(DcbTile tile, StarsDcbEntry entry)
+    {
         ScopeButton? button = (entry.Button is { } id) ? ScopeToolbarButtons.Find(id) : null;
         tile.Label = LabelOf(entry, button);
         if ((tile.Kind == DcbTileKind.Toggle) && (button is not null) && (_viewModel is { } vm))

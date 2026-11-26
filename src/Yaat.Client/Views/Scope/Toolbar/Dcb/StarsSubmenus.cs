@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 
-/// <summary>The pages a STARS DCB shows: its Main page and the submenus the Main page opens.</summary>
+/// <summary>The pages a STARS DCB shows: its Main and Aux pages and the submenus they open.</summary>
 public enum StarsDcbPage
 {
     /// <summary>The Main page (<see cref="StarsMainPage"/>).</summary>
@@ -19,13 +19,20 @@ public enum StarsDcbPage
 
     /// <summary>The PREF submenu.</summary>
     Pref,
+
+    /// <summary>The Aux page, which SHIFT shows in place of the Main page; a page, not a submenu.</summary>
+    Aux,
+
+    /// <summary>The TPA/ATPA submenu, which the Aux page opens.</summary>
+    TpaAtpa,
 }
 
 /// <summary>
-/// The STARS DCB submenus MAPS, BRITE, CHAR SIZE and PREF in CRC's order (DcbMenuExtensions.Buttons), with CRC's labels
-/// (DisplayElementDcb.CreateButtons) and shapes (DcbButtonKeyExtensions.Shape). Each starts with the Main page buttons CRC
-/// dims while it is open (DcbMenuExtensions.DimmedButtons), drawn disabled with the Main page's labels; a button with no
-/// YAAT feature yet is disabled in place, and DONE returns to the Main page.
+/// The STARS DCB submenus MAPS, BRITE, CHAR SIZE and PREF, the Aux page and its TPA/ATPA submenu in CRC's order
+/// (DcbMenuExtensions.Buttons), with CRC's labels (DisplayElementDcb.CreateButtons) and shapes (DcbButtonKeyExtensions.Shape).
+/// Each submenu starts with the buttons of the page it opens from that CRC dims while it is open
+/// (DcbMenuExtensions.DimmedButtons), drawn disabled with that page's labels; a button with no YAAT feature yet is disabled in
+/// place, and DONE returns to the page the submenu opens from.
 /// </summary>
 public static class StarsSubmenus
 {
@@ -46,7 +53,7 @@ public static class StarsSubmenus
     public static IReadOnlyList<StarsDcbEntry> Maps { get; } =
     [
         .. Dimmed(StarsDcbPage.Maps),
-        DoneTile(DcbTileShape.Half),
+        DoneTile(DcbTileShape.Half, StarsDcbPage.Main),
         new("CLR ALL", DcbTileShape.Half, DcbTileKind.Normal, ScopeButtonId.MapClear, NoMap),
         .. Enumerable.Range(0, MapSlots).Select(slot => new StarsDcbEntry("", DcbTileShape.Half, DcbTileKind.Toggle, null, slot)),
         Disabled("GEO\nMAPS", DcbTileShape.Half),
@@ -77,7 +84,7 @@ public static class StarsSubmenus
         Lit("HST", ScopeButtonId.BriteHist),
         Unlit("WX"),
         Unlit("WXC"),
-        DoneTile(DcbTileShape.Full),
+        DoneTile(DcbTileShape.Full, StarsDcbPage.Main),
     ];
 
     /// <summary>
@@ -92,7 +99,7 @@ public static class StarsSubmenus
         Disabled("DCB\n%value%", DcbTileShape.Full),
         Disabled("TOOLS\n%value%", DcbTileShape.Full),
         Disabled("POS\n%value%", DcbTileShape.Full),
-        DoneTile(DcbTileShape.Full),
+        DoneTile(DcbTileShape.Full, StarsDcbPage.Main),
     ];
 
     /// <summary>
@@ -114,7 +121,52 @@ public static class StarsSubmenus
         Disabled("CHG PIN", DcbTileShape.Half),
         new("SAVE AS", DcbTileShape.Half, DcbTileKind.Normal, ScopeButtonId.PrefSaveAs, NoMap),
         new("DELETE", DcbTileShape.Half, DcbTileKind.Normal, ScopeButtonId.PrefDelete, NoMap),
-        DoneTile(DcbTileShape.Half),
+        DoneTile(DcbTileShape.Half, StarsDcbPage.Main),
+    ];
+
+    /// <summary>
+    /// The Aux page SHIFT shows: VOL to MCP disabled but HISTORY (the Scope's history spinner), DCB TOP, LEFT, RIGHT and
+    /// BOTTOM disabled, PTL LNTH (the Scope's vector spinner), PTL OWN and PTL ALL (the vector ownership), DWELL ON (the DB
+    /// tray's DWELL), TPA/ATPA (its submenu), TSAS and TIME LINE disabled, then SHIFT back to the Main page.
+    /// </summary>
+    public static IReadOnlyList<StarsDcbEntry> Aux { get; } =
+    [
+        Disabled("VOL\n%value%", DcbTileShape.Full),
+        new("HISTORY\n%value%", DcbTileShape.Half, DcbTileKind.Spinner, ScopeButtonId.Hist, NoMap),
+        Disabled("H_RATE\n%value%", DcbTileShape.Half),
+        Disabled("CURSOR\nHOME", DcbTileShape.Full),
+        Disabled("CSR SPD\n%value%", DcbTileShape.Full),
+        Disabled("MAP\nUNCOR", DcbTileShape.Full),
+        Disabled("UNCOR", DcbTileShape.Full),
+        Disabled("BEACON\nMODE-2", DcbTileShape.Full),
+        Disabled("RTQC", DcbTileShape.Full),
+        Disabled("MCP", DcbTileShape.Full),
+        Disabled("DCB\nTOP", DcbTileShape.Half),
+        Disabled("DCB\nLEFT", DcbTileShape.Half),
+        Disabled("DCB\nRIGHT", DcbTileShape.Half),
+        Disabled("DCB\nBOTTOM", DcbTileShape.Half),
+        new("PTL\nLNTH\n%value%", DcbTileShape.Full, DcbTileKind.Spinner, ScopeButtonId.Vector, NoMap),
+        Ptl("PTL OWN", ScopeVectorOwnership.Own),
+        Ptl("PTL ALL", ScopeVectorOwnership.All),
+        new("DWELL\nON", DcbTileShape.Full, DcbTileKind.Toggle, ScopeButtonId.DbDwell, NoMap),
+        new("TPA/\nATPA", DcbTileShape.Full, DcbTileKind.Normal, null, NoMap) { Opens = StarsDcbPage.TpaAtpa },
+        Disabled("TSAS", DcbTileShape.Half),
+        Disabled("TIME\nLINE", DcbTileShape.Half),
+        new("SHIFT", DcbTileShape.Full, DcbTileKind.Normal, null, NoMap) { Opens = StarsDcbPage.Main },
+    ];
+
+    /// <summary>
+    /// The TPA/ATPA submenu: VOL to TPA/ATPA of the Aux page dimmed, A/TPA MILEAGE disabled, INTRAIL DISTANCE, ALERT CONES and
+    /// MONITOR CONES over the DB tray's ATPA DIST, ALERT CONES and MONITOR CONES, then DONE back to the Aux page.
+    /// </summary>
+    public static IReadOnlyList<StarsDcbEntry> TpaAtpa { get; } =
+    [
+        .. Dimmed(StarsDcbPage.TpaAtpa),
+        Disabled("A/TPA\nMILEAGE\n%value%", DcbTileShape.Full),
+        new("INTRAIL\nDISTANCE\n%value%", DcbTileShape.Full, DcbTileKind.Toggle, ScopeButtonId.DbAtpa, NoMap),
+        new("ALERT\nCONES\n%value%", DcbTileShape.Full, DcbTileKind.Toggle, ScopeButtonId.DbAtpaAlertCones, NoMap),
+        new("MONITOR\nCONES\n%value%", DcbTileShape.Full, DcbTileKind.Toggle, ScopeButtonId.DbAtpaMonitorCones, NoMap),
+        DoneTile(DcbTileShape.Full, StarsDcbPage.Aux),
     ];
 
     /// <summary>The tiles of <paramref name="page"/>, left to right.</summary>
@@ -125,18 +177,33 @@ public static class StarsSubmenus
             StarsDcbPage.Brite => Brite,
             StarsDcbPage.CharSize => CharSize,
             StarsDcbPage.Pref => Pref,
+            StarsDcbPage.Aux => Aux,
+            StarsDcbPage.TpaAtpa => TpaAtpa,
             _ => StarsMainPage.Entries,
         };
 
-    /// <summary>How many of the Main page's buttons, from its first, <paramref name="page"/> shows dimmed at its start.</summary>
+    /// <summary>
+    /// How many of the buttons of the page <paramref name="page"/> opens from (<see cref="ParentOf"/>), from its first,
+    /// <paramref name="page"/> shows dimmed at its start.
+    /// </summary>
     public static int DimmedCountOf(StarsDcbPage page) =>
         page switch
         {
             StarsDcbPage.Maps => 7,
             StarsDcbPage.Brite => 20,
             StarsDcbPage.CharSize => 23,
+            StarsDcbPage.TpaAtpa => 19,
             _ => 0,
         };
+
+    /// <summary>
+    /// The page <paramref name="page"/> opens from, which its DONE and Esc return to: the Aux page for TPA/ATPA, else the Main
+    /// page.
+    /// </summary>
+    public static StarsDcbPage ParentOf(StarsDcbPage page) => (page == StarsDcbPage.TpaAtpa) ? StarsDcbPage.Aux : StarsDcbPage.Main;
+
+    /// <summary>Whether <paramref name="page"/> is a submenu, which takes Esc, rather than the Main or the Aux page.</summary>
+    public static bool IsSubmenu(StarsDcbPage page) => page is not (StarsDcbPage.Main or StarsDcbPage.Aux);
 
     /// <summary>How many map slots <paramref name="page"/> holds.</summary>
     public static int MapSlotsOf(StarsDcbPage page) =>
@@ -150,11 +217,20 @@ public static class StarsSubmenus
     /// <summary>How many pref-set slots <paramref name="page"/> holds.</summary>
     public static int PrefSlotsOf(StarsDcbPage page) => (page == StarsDcbPage.Pref) ? PrefSlots : 0;
 
-    /// <summary>The Main page buttons <paramref name="page"/> dims (<see cref="DimmedCountOf"/>), disabled in place with their labels.</summary>
+    /// <summary>
+    /// The buttons of the page <paramref name="page"/> opens from that it dims (<see cref="DimmedCountOf"/>), disabled in
+    /// place with their labels.
+    /// </summary>
     private static IEnumerable<StarsDcbEntry> Dimmed(StarsDcbPage page) =>
-        StarsMainPage.Entries.Take(DimmedCountOf(page)).Select(e => e with { Kind = DcbTileKind.Disabled, Opens = null });
+        EntriesOf(ParentOf(page)).Take(DimmedCountOf(page)).Select(e => e with { Kind = DcbTileKind.Disabled, Opens = null, Ownership = null });
 
-    private static StarsDcbEntry DoneTile(DcbTileShape shape) => new(Done, shape, DcbTileKind.Normal, null, NoMap) { Opens = StarsDcbPage.Main };
+    /// <summary>A DONE tile of <paramref name="shape"/> that returns to <paramref name="page"/>.</summary>
+    private static StarsDcbEntry DoneTile(DcbTileShape shape, StarsDcbPage page) =>
+        new(Done, shape, DcbTileKind.Normal, null, NoMap) { Opens = page };
+
+    /// <summary>A PTL OWN or PTL ALL toggle, lit while the Scope's vector ownership is <paramref name="ownership"/>.</summary>
+    private static StarsDcbEntry Ptl(string label, ScopeVectorOwnership ownership) =>
+        new(label, DcbTileShape.Half, DcbTileKind.Toggle, null, NoMap) { Ownership = ownership };
 
     /// <summary>A BRITE spinner over the YAAT BRITE group of <paramref name="id"/>, its value on its second line.</summary>
     private static StarsDcbEntry Lit(string label, ScopeButtonId id) => new($"{label}\n%value%", DcbTileShape.Half, DcbTileKind.Spinner, id, NoMap);

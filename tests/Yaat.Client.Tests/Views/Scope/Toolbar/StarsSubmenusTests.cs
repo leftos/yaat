@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Client.Views.Scope.Toolbar.Dcb;
 
@@ -127,6 +128,7 @@ public class StarsSubmenusTests
                 ["BRITE"] = StarsDcbPage.Brite,
                 ["CHAR"] = StarsDcbPage.CharSize,
                 ["PREF"] = StarsDcbPage.Pref,
+                ["SHIFT"] = StarsDcbPage.Aux,
             },
             openers
         );
@@ -135,10 +137,105 @@ public class StarsSubmenusTests
     [Fact]
     public void EverySubmenuEntryWithAButton_NamesAButtonTheToolbarResolves()
     {
-        StarsDcbPage[] pages = [StarsDcbPage.Maps, StarsDcbPage.Brite, StarsDcbPage.CharSize, StarsDcbPage.Pref];
+        StarsDcbPage[] pages =
+        [
+            StarsDcbPage.Maps,
+            StarsDcbPage.Brite,
+            StarsDcbPage.CharSize,
+            StarsDcbPage.Pref,
+            StarsDcbPage.Aux,
+            StarsDcbPage.TpaAtpa,
+        ];
         StarsDcbEntry[] withButton = [.. pages.SelectMany(StarsSubmenus.EntriesOf).Where(e => e.Button is not null)];
 
         Assert.NotEmpty(withButton);
         Assert.All(withButton, e => Assert.NotNull(ScopeToolbarButtons.Find(e.Button!.Value)));
+    }
+
+    [Fact]
+    public void Aux_IsCrcsAuxPage_WithYaatsLiveTiles()
+    {
+        StarsDcbEntry[] aux = [.. StarsSubmenus.EntriesOf(StarsDcbPage.Aux)];
+        string[] crc =
+        [
+            "VOL",
+            "HISTORY",
+            "H_RATE",
+            "CURSOR",
+            "CSR SPD",
+            "MAP",
+            "UNCOR",
+            "BEACON",
+            "RTQC",
+            "MCP",
+            "DCB",
+            "DCB",
+            "DCB",
+            "DCB",
+            "PTL",
+            "PTL OWN",
+            "PTL ALL",
+            "DWELL",
+            "TPA/",
+            "TSAS",
+            "TIME",
+            "SHIFT",
+        ];
+
+        Assert.Equal(0, StarsSubmenus.DimmedCountOf(StarsDcbPage.Aux));
+        Assert.Equal(crc, aux.Select(FirstLine));
+        Assert.Equal([F, H, H, F, F, F, F, F, F, F, H, H, H, H, F, H, H, F, F, H, H, F], aux.Select(e => e.Shape));
+        Assert.Equal(
+            ["VOL", "H_RATE", "CURSOR", "CSR SPD", "MAP", "UNCOR", "BEACON", "RTQC", "MCP", "DCB", "DCB", "DCB", "DCB", "TSAS", "TIME"],
+            aux.Where(e => e.Kind == DcbTileKind.Disabled).Select(FirstLine)
+        );
+        Assert.Equal(("HISTORY\n%value%", DcbTileKind.Spinner, (ScopeButtonId?)ScopeButtonId.Hist), (aux[1].Label, aux[1].Kind, aux[1].Button));
+        Assert.Equal(
+            ("PTL\nLNTH\n%value%", DcbTileKind.Spinner, (ScopeButtonId?)ScopeButtonId.Vector),
+            (aux[14].Label, aux[14].Kind, aux[14].Button)
+        );
+        Assert.Equal(
+            (DcbTileKind.Toggle, (ScopeButtonId?)null, (ScopeVectorOwnership?)ScopeVectorOwnership.Own),
+            (aux[15].Kind, aux[15].Button, aux[15].Ownership)
+        );
+        Assert.Equal(
+            (DcbTileKind.Toggle, (ScopeButtonId?)null, (ScopeVectorOwnership?)ScopeVectorOwnership.All),
+            (aux[16].Kind, aux[16].Button, aux[16].Ownership)
+        );
+        Assert.Equal(("DWELL\nON", DcbTileKind.Toggle, (ScopeButtonId?)ScopeButtonId.DbDwell), (aux[17].Label, aux[17].Kind, aux[17].Button));
+        Assert.Equal((DcbTileKind.Normal, (StarsDcbPage?)StarsDcbPage.TpaAtpa), (aux[18].Kind, aux[18].Opens));
+        Assert.Equal((DcbTileKind.Normal, (StarsDcbPage?)StarsDcbPage.Main), (aux[^1].Kind, aux[^1].Opens));
+        Assert.Equal([18, 21], aux.Select((e, i) => (e, i)).Where(p => p.e.Opens is not null).Select(p => p.i));
+    }
+
+    [Fact]
+    public void TpaAtpa_StartsWithCrcsDimmedAuxButtons_ThenItsItems()
+    {
+        StarsDcbEntry[] head = [.. StarsSubmenus.EntriesOf(StarsDcbPage.TpaAtpa).Take(19)];
+        StarsDcbEntry[] own = [.. Own(StarsDcbPage.TpaAtpa)];
+
+        Assert.Equal(19, StarsSubmenus.DimmedCountOf(StarsDcbPage.TpaAtpa));
+        Assert.Equal(StarsSubmenus.Aux.Take(19).Select(e => e.Label), head.Select(e => e.Label));
+        Assert.Equal(StarsSubmenus.Aux.Take(19).Select(e => e.Shape), head.Select(e => e.Shape));
+        Assert.All(head, e => Assert.Equal((DcbTileKind.Disabled, (StarsDcbPage?)null, (ScopeVectorOwnership?)null), (e.Kind, e.Opens, e.Ownership)));
+        Assert.Equal(["A/TPA", "INTRAIL", "ALERT", "MONITOR", "DONE"], own.Select(FirstLine));
+        Assert.All(own, e => Assert.Equal(F, e.Shape));
+        Assert.Equal(["A/TPA"], own.Where(e => e.Kind == DcbTileKind.Disabled).Select(FirstLine));
+        Assert.Equal(
+            [ScopeButtonId.DbAtpa, ScopeButtonId.DbAtpaAlertCones, ScopeButtonId.DbAtpaMonitorCones],
+            own.Where(e => e.Kind == DcbTileKind.Toggle).Select(e => e.Button!.Value)
+        );
+        Assert.Equal((DcbTileKind.Normal, (StarsDcbPage?)StarsDcbPage.Aux), (own[^1].Kind, own[^1].Opens));
+    }
+
+    [Fact]
+    public void OnlyTpaAtpa_OnTheAuxSide_IsASubmenu_AndItsParentIsAux()
+    {
+        Assert.False(StarsSubmenus.IsSubmenu(StarsDcbPage.Main));
+        Assert.False(StarsSubmenus.IsSubmenu(StarsDcbPage.Aux));
+        Assert.True(StarsSubmenus.IsSubmenu(StarsDcbPage.TpaAtpa));
+        Assert.True(StarsSubmenus.IsSubmenu(StarsDcbPage.Maps));
+        Assert.Equal(StarsDcbPage.Aux, StarsSubmenus.ParentOf(StarsDcbPage.TpaAtpa));
+        Assert.Equal(StarsDcbPage.Main, StarsSubmenus.ParentOf(StarsDcbPage.Maps));
     }
 }
