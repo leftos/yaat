@@ -7,9 +7,5 @@
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" }
   ],
   "template": "stars",
-  "toolbar": [
-    "profile", "template", "range", "others", "vector", "hist", "tools", "auto", "maps",
-    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref", "deletetearoff"
-  ],
   "views": ["ssa", "ca"]
 }

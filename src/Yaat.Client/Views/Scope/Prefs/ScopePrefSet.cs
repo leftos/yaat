@@ -6,9 +6,10 @@ namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
-/// settings, the maps that are on, the open views with their places, the tear-offs, the profile's toolbar and views
-/// arrays, the pinned band values, the vector lines' OWN or ALL, top-down mode and the pilot lens's switches. Every field
-/// holds text names rather than types from the app, so a rename in code leaves the file readable.
+/// settings, the maps that are on, the open views with their places, the tear-offs, the classic bar's button names
+/// (empty when the Scope showed the STARS or ERAM bar) and the views array, the pinned band values, the vector lines' OWN
+/// or ALL, top-down mode and the pilot lens's switches. Every field holds text names rather than types from the app, so a
+/// rename in code leaves the file readable.
 /// </summary>
 public sealed record ScopePrefSet
 {
@@ -62,7 +63,7 @@ public sealed record ScopePrefSet
     /// <summary>The tear-offs, in slot order.</summary>
     public IReadOnlyList<ScopePrefTearoff> Tearoffs { get; init; } = [];
 
-    /// <summary>The profile's toolbar array: the bar's button names.</summary>
+    /// <summary>The classic bar's button names; empty when the Scope showed the STARS or ERAM bar.</summary>
     public IReadOnlyList<string> Toolbar { get; init; } = [];
 
     /// <summary>The profile's views array: the view names.</summary>

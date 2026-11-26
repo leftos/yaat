@@ -94,7 +94,7 @@ public class ScopeProfileTests
             ],
             stars.Bands
         );
-        Assert.Equal(ShippedToolbar, stars.Toolbar);
+        Assert.Empty(stars.Toolbar);
         Assert.Equal(["ssa", "ca"], stars.Views);
     }
 
@@ -105,7 +105,7 @@ public class ScopeProfileTests
 
         Assert.Equal(("eram", "eram", "eram"), (eram.Name, eram.Kind, eram.Template));
         Assert.Equal([new ScopeZoomBand(null, "partial", 1, 5, "dri", ScopeTemplates.EramId)], eram.Bands);
-        Assert.Equal(ShippedToolbar, eram.Toolbar);
+        Assert.Empty(eram.Toolbar);
         Assert.Equal(["ssa", "ca"], eram.Views);
     }
 
@@ -120,6 +120,25 @@ public class ScopeProfileTests
     [InlineData(ScopeProfileKind.Eram, 121, ScopeTemplates.EramId)]
     public void ShippedBands_DrawUnownedTracks_StarsUpTo120Nm_OnMixed(ScopeProfileKind kind, double rangeNm, string expected) =>
         Assert.Equal(expected, ScopeZoomBands.Resolve(ScopeProfileStore.Shipped(kind).Bands, rangeNm).Unowned);
+
+    [Fact]
+    public void NoToolbarKey_ReadsAsAnEmptyList()
+    {
+        const string json = """
+            {
+              "name": "stars",
+              "kind": "stars",
+              "bands": [{ "maxNm": null, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring", "unowned": "stars" }],
+              "template": "stars",
+              "views": []
+            }
+            """;
+
+        ScopeProfile profile = JsonSerializer.Deserialize<ScopeProfile>(json, ScopeProfile.JsonOptions)!;
+
+        Assert.NotNull(profile.Toolbar);
+        Assert.Empty(profile.Toolbar);
+    }
 
     [Fact]
     public void UnknownField_RoundTripsThroughExtra()

@@ -118,7 +118,10 @@ public sealed partial class ScopeViewModel
             ViewPlaces = [.. _allViews.Select(CaptureViewPlace)],
             RundownOrigin = (RundownOrigin == DefaultRundownOrigin) ? null : new ScopePrefPoint(RundownOrigin.X, RundownOrigin.Y),
             Tearoffs = [.. Tearoffs.Select(CaptureTearoff)],
-            Toolbar = [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))],
+            Toolbar =
+                (BarKind == ScopeBarKind.Classic)
+                    ? [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))]
+                    : [],
             Views = [.. _allViews.Select(view => view.Name)],
             Kind = ScopeProfilePicker.NameOf(ProfileKind),
             PinOthersLevel = Pins.OthersLevel,

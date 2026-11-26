@@ -5,9 +5,5 @@
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "dri", "unowned": "eram" }
   ],
   "template": "eram",
-  "toolbar": [
-    "profile", "template", "range", "others", "vector", "hist", "tools", "auto", "maps",
-    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref", "deletetearoff"
-  ],
   "views": ["ssa", "ca"]
 }

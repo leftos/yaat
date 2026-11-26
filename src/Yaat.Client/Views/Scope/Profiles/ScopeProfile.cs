@@ -38,17 +38,22 @@ public sealed record ScopeZoomBand(double? MaxNm, string OthersLevel, double Vec
 /// <param name="Kind">The profile's kind: <c>stars</c>, <c>eram</c> or <c>mixed</c>.</param>
 /// <param name="Bands">The zoom bands, inner first.</param>
 /// <param name="Template">The template id the profile opens with (<see cref="ScopeTemplates.IsSelectable"/>).</param>
-/// <param name="Toolbar">The bar's button names, in the order they come first on the bar.</param>
 /// <param name="Views">The view names, in the order they come first in the dock.</param>
+/// <param name="Toolbar">
+/// The classic bar's button names, in the order they come first on the bar; an absent list reads as empty.
+/// </param>
 public sealed record ScopeProfile(
     string Name,
     string Kind,
     IReadOnlyList<ScopeZoomBand> Bands,
     string Template,
-    IReadOnlyList<string> Toolbar,
-    IReadOnlyList<string> Views
+    IReadOnlyList<string> Views,
+    IReadOnlyList<string>? Toolbar = null
 )
 {
+    /// <summary>The classic bar's button names, in the order they come first on the bar; never null.</summary>
+    public IReadOnlyList<string> Toolbar { get; init; } = Toolbar ?? [];
+
     /// <summary>The <c>othersLevel</c> word for the full block.</summary>
     public const string OthersFull = "full";
 

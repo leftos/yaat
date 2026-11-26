@@ -6,6 +6,7 @@ using Yaat.Client.Services;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim.Data;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -136,6 +137,29 @@ public class ScopePrefCommandTests : IDisposable
             Assert.True(scope.MapToggles.Single(t => t.StarsId == 2).IsOn);
             Assert.Equal(new ScopePlacement(ScopeCorner.BottomRight, 10, 20), scope.FloatingViews.Single(v => v.Name == "ca").Place);
             Assert.Equal(new ScopePlacement(ScopeCorner.TopLeft, 30, 40), scope.Tearoffs.Single(t => t.Key.Id == ScopeButtonId.Range).Place);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SaveAs_WritesTheToolbarOrder_OnlyUnderMixed()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            main.RunScopeCommand(".scope profile stars");
+            main.RunScopeCommand(".scope pref saveas STARS-SET");
+            main.RunScopeCommand(".scope profile mixed");
+            main.RunScopeCommand(".scope pref saveas MIXED-SET");
+
+            ScopePrefSetStore store = Store();
+            Assert.Empty(store.FindSet("ZOA", "STARS-SET")!.Toolbar);
+            IReadOnlyList<string> mixedOrder = ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Toolbar;
+            string[] everyName = [.. ScopeToolbarButtons.All.Select(b => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(b)))];
+            Assert.Equal([.. mixedOrder, .. everyName.Except(mixedOrder)], store.FindSet("ZOA", "MIXED-SET")!.Toolbar);
         }
         finally
         {
