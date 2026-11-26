@@ -1154,7 +1154,7 @@ RANGE (its wheel zooms), VECTOR (its wheel steps the vector minutes), BRIGHT, FO
 
 The **YAAT** button opens the YAAT menu: **PROFILE** (showing the profile), **TEMPLATE**, **OTHERS** (showing its level), **AUTO**, **TOOLS**, **TDM**, **MVA**, **DISPLAY**, **DB**, **VIEWS**, **PILOT LENS** and **BRITE**. Its menus open as submenus and act as the classic buttons described below; opening TOOLS arms the Rings tool and closing it disarms. DISPLAY also holds the classic RR tray (**RR SHOW**, **PLACE RR**, **RR SIZE**, **RR CNTR**) and BRITE holds **ALERTS**, **RINGS** and **LENS**, which ERAM's own BRIGHT menu has no group for.
 
-A menu or submenu that would run past the Radar's right edge opens to the left of its button instead, and shifts left, never past the left edge, when it fits on neither side. Docking or closing the pop-out Radar window, or swapping the bar, while YAAT > TOOLS or PILOT LENS is open closes that menu (TOOLS disarms the Rings tool). Switching to a profile with a different bar likewise closes an open tray.
+A menu or submenu that would run past the Radar's right edge opens to the left of its button instead, and shifts left, never past the left edge, when it fits on neither side. Docking or closing the pop-out Radar window, or swapping the bar, while YAAT > TOOLS or PILOT LENS is open closes that menu (TOOLS disarms the Rings tool). Switching to a profile with a different bar likewise closes an open tray. With the keyboard on the Radar, **Esc** closes the open submenu, then the open menu; it is the way to close a menu wider than the Radar, such as BRIGHT, which then covers its own button.
 
 ![The Radar under the ERAM profile with the Master Toolbar's YAAT menu open](docs/user-guide/img/radar-bar-eram.png)
 

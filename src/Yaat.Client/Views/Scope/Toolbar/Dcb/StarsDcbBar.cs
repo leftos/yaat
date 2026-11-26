@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
 using Yaat.Client.ViewModels;
 
 namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
@@ -358,11 +357,7 @@ public sealed class StarsDcbBar : UserControl
 
     // Whether an Esc is the bar's: the keyboard focus is on the Scope, by the Scope view's own test, and no field or entry
     // popup of the Scope's is open, whose Esc closes it first whichever top-level handler runs first.
-    private bool IsBarsEscape() =>
-        (this.FindAncestorOfType<ScopeHost>()?.ScopeView is { } view)
-        && view.IsKeyFocusInside()
-        && (view.ActiveFieldPopup is not { IsOpen: true })
-        && (view.ActiveEntryPopup is not { IsOpen: true });
+    private bool IsBarsEscape() => ScopeBarEscape.IsBarsEscape(this);
 
     /// <summary>
     /// A spinner latched: Esc now goes to it, and its value at this moment, and for HISTORY and PTL LNTH whether that value is

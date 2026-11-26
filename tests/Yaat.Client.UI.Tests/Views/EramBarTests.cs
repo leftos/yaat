@@ -10,6 +10,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -24,6 +25,9 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class EramBarTests : IDisposable
 {
+    /// <summary>A host wide enough for every menu to open right of its button.</summary>
+    private const double WideWidth = 2400;
+
     private static readonly ActivePositionDto Sector44 = new(
         Callsign: "OAK_44_CTR",
         Name: "Sector 44",
@@ -682,9 +686,139 @@ public class EramBarTests : IDisposable
         Assert.Equal(before, scope.Toolbar.Find(EramButtonType.YaatDisplayRrShow)!.IsOn);
     }
 
+    [AvaloniaTheory]
+    [InlineData(1460)]
+    [InlineData(1280)]
+    public async Task Bright_AtTheRadarsUsualWidths_EscClosesIt(double width)
+    {
+        await using Opened scope = await OpenAtAsync(width);
+        scope.FocusCanvas();
+        scope.Click(EramButtonType.BrightnessMenu);
+        Border expansion = scope.Toolbar.Expansion!;
+        EramToolbarButton bright = scope.Toolbar.Find(EramButtonType.BrightnessMenu)!;
+        Visual root = TopLevel.GetTopLevel(scope.Host)!;
+        double left = expansion.TranslatePoint(default, root)!.Value.X;
+        double brightLeft = bright.TranslatePoint(default, root)!.Value.X;
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"width {width}: BRIGHT expansion {left}..{left + expansion.Bounds.Width}, BRIGHT button {brightLeft}..{brightLeft + bright.Bounds.Width}"
+        );
+
+        scope.Press(Key.Escape);
+
+        AssertAllMenusClosed(scope.Toolbar);
+    }
+
+    [AvaloniaFact]
+    public async Task AMenuThatCoversItsOpener_EscClosesIt_AndShowsTheOtherButtonsAgain()
+    {
+        await using Opened scope = await OpenAtAsync(1280);
+        EramMenuButton[] wide = [.. Enumerable.Range(0, 20).Select(column => new EramMenuButton(0, column, EramButtonType.YaatOthers))];
+        scope.Toolbar.MenuSource = menu => (menu == EramButtonType.BrightnessMenu) ? wide : EramMenus.Fixed(menu);
+        scope.FocusCanvas();
+        scope.Click(EramButtonType.BrightnessMenu);
+        Border expansion = scope.Toolbar.Expansion!;
+        EramToolbarButton bright = scope.Toolbar.Find(EramButtonType.BrightnessMenu)!;
+        double left = expansion.TranslatePoint(default, bright)!.Value.X;
+        Assert.True((left < bright.Bounds.Width) && (left + expansion.Bounds.Width > 0));
+
+        scope.Press(Key.Escape);
+
+        AssertAllMenusClosed(scope.Toolbar);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatDbSubmenu_TheFirstEscClosesTheSubmenu_TheSecondTheMenu()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.FocusCanvas();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatDbMenu);
+
+        scope.Press(Key.Escape);
+
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Toolbar.SubmenuExpansion);
+        Assert.Equal(EramButtonType.YaatMenu, scope.Toolbar.OpenMenu);
+
+        scope.Press(Key.Escape);
+
+        AssertAllMenusClosed(scope.Toolbar);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_EscClosesIt_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.FocusCanvas();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.NotEqual(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+
+        scope.Press(Key.Escape);
+
+        Assert.Null(scope.Toolbar.OpenSubmenu);
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task Docked_EscInTheCommandBox_LeavesTheMenuOpen()
+    {
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
+        try
+        {
+            vm.RunScopeCommand(".scope profile eram");
+            MainWindowHost.Pump();
+            main.UpdateLayout();
+            MainWindowHost.Pump();
+            EramMasterToolbar toolbar = Assert.Single(main.GetVisualDescendants().OfType<EramBar>()).Toolbar;
+            EramToolbarButton yaat = toolbar.Find(EramButtonType.YaatMenu)!;
+            Point centre = yaat.TranslatePoint(new Point(yaat.Bounds.Width / 2, yaat.Bounds.Height / 2), main)!.Value;
+            main.MouseDown(centre, MouseButton.Left);
+            main.MouseUp(centre, MouseButton.Left);
+            MainWindowHost.Pump();
+            Assert.Equal(EramButtonType.YaatMenu, toolbar.OpenMenu);
+            TextBox box = main.GetVisualDescendants().OfType<TextBox>().First(b => b.Name == "CommandInput");
+            Assert.True(box.Focus());
+            Dispatcher.UIThread.RunJobs();
+
+            main.DispatchKey(Key.Escape);
+            MainWindowHost.Pump();
+
+            Assert.Equal(EramButtonType.YaatMenu, toolbar.OpenMenu);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NoMenuOpen_EscReachesTheScope()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.FocusCanvas();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Scope.ArmMeasure();
+        Assert.True(scope.Main.Measure.IsMeasuring);
+
+        scope.Press(Key.Escape);
+
+        Assert.False(scope.Main.Measure.IsMeasuring);
+    }
+
     [Fact]
     public void EveryButton_HasAnAction_ExactlyWhenItIsBuilt() =>
         Assert.All(Enum.GetValues<EramButtonType>(), type => Assert.Equal(type.IsBuilt(), EramBar.HasAction(type)));
+
+    /// <summary>Asserts that no menu or submenu is open and no Master Toolbar button is hidden in place.</summary>
+    private static void AssertAllMenusClosed(EramMasterToolbar toolbar)
+    {
+        Assert.Null(toolbar.OpenMenu);
+        Assert.Null(toolbar.Expansion);
+        Assert.All(toolbar.Buttons, button => Assert.False(button.IsSuppressed));
+    }
 
     private static RowDefinition BarRow(ScopeHost host) => host.FindControl<Grid>("HostGrid")!.RowDefinitions[0];
 
@@ -733,7 +867,16 @@ public class EramBarTests : IDisposable
             null
         );
 
-    private static Opened Show(MainViewModel main, ScopePrefSetStore? prefStore)
+    /// <summary>A Scope under the ERAM profile in a host <paramref name="width"/> wide.</summary>
+    private static async Task<Opened> OpenAtAsync(double width)
+    {
+        MainViewModel main = await ScopeTestFixture.MainAsync();
+        return Show(main, prefStore: null, width);
+    }
+
+    private static Opened Show(MainViewModel main, ScopePrefSetStore? prefStore) => Show(main, prefStore, WideWidth);
+
+    private static Opened Show(MainViewModel main, ScopePrefSetStore? prefStore, double width)
     {
         var scope = new ScopeViewModel(main, prefStore, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
@@ -741,7 +884,7 @@ public class EramBarTests : IDisposable
         var host = new ScopeHost { DataContext = scope };
         var window = new Window
         {
-            Width = 2400,
+            Width = width,
             Height = 800,
             Content = host,
         };
@@ -759,6 +902,25 @@ public class EramBarTests : IDisposable
         public ScopeHost Host { get; } = host;
 
         public EramMasterToolbar Toolbar => Assert.Single(Host.GetVisualDescendants().OfType<EramBar>()).Toolbar;
+
+        /// <summary>Presses an empty corner of the Scope's canvas, which takes the keyboard focus and hits no track.</summary>
+        public void FocusCanvas()
+        {
+            Point? corner = Host.ScopeView.Canvas.TranslatePoint(new Point(5, Host.ScopeView.Canvas.Bounds.Height - 5), window);
+            Assert.NotNull(corner);
+            window.MouseDown(corner.Value, MouseButton.Left);
+            window.MouseUp(corner.Value, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+
+        /// <summary>Presses and releases <paramref name="key"/> on the window, as the keyboard does.</summary>
+        public void Press(Key key)
+        {
+            window.DispatchKey(key);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
 
         /// <summary>Presses and releases the centre of the shown button of <paramref name="type"/> with <paramref name="button"/>.</summary>
         public void Click(EramButtonType type, MouseButton button = MouseButton.Left)

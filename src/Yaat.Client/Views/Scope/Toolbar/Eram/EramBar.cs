@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -24,6 +26,7 @@ public sealed class EramBar : UserControl
     private string _builtGeomap = "";
     private string _builtPrefsets = "";
     private bool _menuCheckPending;
+    private TopLevel? _escapeOn;
 
     /// <summary>The bar, with no Scope until its DataContext is one.</summary>
     public EramBar()
@@ -74,14 +77,17 @@ public sealed class EramBar : UserControl
         Refresh();
     }
 
-    /// <summary>A bar leaving the window, as on a dock or a bar swap, closes the trays it opened on its Scope.</summary>
+    /// <summary>A bar leaving the window, as on a dock or a bar swap, closes the trays it opened on its Scope and its menu.</summary>
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         if (_viewModel is { } viewModel)
         {
-            CloseTrays(viewModel);
+            CloseTray(viewModel);
         }
+
+        Toolbar.OpenMenu = null;
+        FollowEscape();
     }
 
     /// <summary>The spinner an inc/dec button steps, or null for any other button.</summary>
@@ -313,7 +319,58 @@ public sealed class EramBar : UserControl
         }
 
         MirrorTray();
+        FollowEscape();
         Refresh();
+    }
+
+    /// <summary>
+    /// Listens for Esc on the window while a menu is open and stops once none is, as the STARS bar does while a submenu is
+    /// open; a bar out of the window listens nowhere.
+    /// </summary>
+    private void FollowEscape()
+    {
+        TopLevel? on = (Toolbar.OpenMenu is not null) ? TopLevel.GetTopLevel(this) : null;
+        if (on == _escapeOn)
+        {
+            return;
+        }
+
+        _escapeOn?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
+        _escapeOn = on;
+        _escapeOn?.AddHandler(KeyDownEvent, OnTopLevelKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    // Esc while a menu is open closes its submenu, or the menu when none is, unless another handler took it, a Scope popup
+    // is open to take it, or the keyboard focus is outside the Scope (an Esc typed in the command box or a grid stays theirs).
+    private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
+    {
+        if ((e.Key != Key.Escape) || e.Handled || (Toolbar.OpenMenu is null) || !ScopeBarEscape.IsBarsEscape(this))
+        {
+            return;
+        }
+
+        CloseInnermostMenu();
+        Refresh();
+        e.Handled = true;
+    }
+
+    /// <summary>Closes the open submenu and the tray it stands for, or the open menu and its trays when no submenu is open.</summary>
+    private void CloseInnermostMenu()
+    {
+        if (Toolbar.OpenSubmenu is not null)
+        {
+            Toolbar.OpenSubmenu = null;
+            MirrorTray();
+        }
+        else if (_viewModel is { } viewModel)
+        {
+            CloseTrays(viewModel);
+        }
+        else
+        {
+            Toolbar.OpenMenu = null;
+            FollowEscape();
+        }
     }
 
     /// <summary>
@@ -356,6 +413,7 @@ public sealed class EramBar : UserControl
     {
         CloseTray(viewModel);
         Toolbar.OpenMenu = null;
+        FollowEscape();
     }
 
     /// <summary>Closes the YAAT TOOLS or PILOT LENS submenu when the Scope closes the tray it stands for (a command press does).</summary>
@@ -408,6 +466,7 @@ public sealed class EramBar : UserControl
         if ((e.PropertyName == nameof(ScopeViewModel.IsBarHidden)) && (_viewModel is { IsBarHidden: true }))
         {
             Toolbar.OpenMenu = null;
+            FollowEscape();
         }
 
         Refresh();
