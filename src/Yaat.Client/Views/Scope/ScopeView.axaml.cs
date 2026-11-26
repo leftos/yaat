@@ -227,8 +227,9 @@ public partial class ScopeView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    // Esc while a DCB spinner is latched is the spinner's, which cancels it. Any other Esc, unless a tear-off move is on (the
-    // tear-off layer cancels it), runs HandleEscape's chain.
+    // Esc while a DCB spinner is latched is the spinner's, which cancels it. An Esc that no popup takes while a DCB submenu is
+    // open is the bar's, which returns to its Main page. Any other Esc, unless a tear-off move is on (the tear-off layer
+    // cancels it), runs HandleEscape's chain.
     // Ctrl+M arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     // Only while the Scope has the keyboard focus (IsKeyFocusInside): docked in the main window, Esc, Ctrl+M and
     // Ctrl+Shift+T typed in the command box or a grid stay theirs.
@@ -257,7 +258,11 @@ public partial class ScopeView : UserControl
         }
         else if (e.Key == Key.Escape)
         {
-            e.Handled = (!TearoffLayer.IsMoving) && HandleEscape(vm);
+            // While a DCB submenu is open the Esc is left unhandled for the bar's own handler, which returns to the Main page.
+            if (!vm.IsBarSubmenuOpen)
+            {
+                e.Handled = (!TearoffLayer.IsMoving) && HandleEscape(vm);
+            }
         }
         else if ((e.Key == Key.M) && (e.KeyModifiers == ActionModifier))
         {

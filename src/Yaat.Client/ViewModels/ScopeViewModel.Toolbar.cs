@@ -26,6 +26,12 @@ public sealed partial class ScopeViewModel
     /// </summary>
     internal bool IsBarSpinnerLatched { get; set; }
 
+    /// <summary>
+    /// Whether the Scope's STARS DCB shows a submenu, so Esc goes to the bar, which returns to its Main page, before the Scope
+    /// view's own Esc chain runs. Set by the bar as a submenu opens and cleared as it closes.
+    /// </summary>
+    internal bool IsBarSubmenuOpen { get; set; }
+
     /// <summary>The menu whose tray shows under the bar, or null when no tray is open. One tray at a time.</summary>
     [ObservableProperty]
     private ScopeButtonId? _openMenu;

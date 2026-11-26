@@ -8,13 +8,21 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 /// <param name="Shape">The tile's shape, as CRC's DcbButtonKeyExtensions.Shape gives it.</param>
 /// <param name="Kind">The tile's interaction; <see cref="DcbTileKind.Disabled"/> where YAAT has no feature for it yet.</param>
 /// <param name="Button">The Scope toolbar button whose action the tile runs, or null.</param>
-/// <param name="MapSlot">The map slot, 0 to 5, of a map tile; -1 for any other tile.</param>
-public sealed record StarsDcbEntry(string Label, DcbTileShape Shape, DcbTileKind Kind, ScopeButtonId? Button, int MapSlot);
+/// <param name="MapSlot">The map slot of a map tile, from 0, the place in the Scope's map toggles it shows; -1 for any other tile.</param>
+public sealed record StarsDcbEntry(string Label, DcbTileShape Shape, DcbTileKind Kind, ScopeButtonId? Button, int MapSlot)
+{
+    /// <summary>The page a press on the tile shows: a submenu from its Main page button, the Main page from DONE; else null.</summary>
+    public StarsDcbPage? Opens { get; init; }
+
+    /// <summary>The pref-set slot of a PREF submenu set tile, from 0, the place in the Scope's pref sets it shows; -1 for any other tile.</summary>
+    public int PrefSlot { get; init; } = -1;
+}
 
 /// <summary>
 /// The STARS DCB Main page in CRC's order (DcbMenuExtensions' Main menu), with CRC's labels (DisplayElementDcb.CreateButtons):
 /// RANGE, PLACE CNTR, OFF CNTR, RR, PLACE RR, RR CNTR, MAPS, the six map slots, WX1 to WX6, BRITE, LDR DIR, LDR, CHAR SIZE,
-/// MODE, PREF, SITE, SSA FILTER, GI TEXT FILTER and SHIFT. A button with no YAAT feature yet is disabled in place.
+/// MODE, PREF, SITE, SSA FILTER, GI TEXT FILTER and SHIFT. A button with no YAAT feature yet is disabled in place; MAPS, BRITE,
+/// CHAR SIZE and PREF open their submenus (<see cref="StarsSubmenus"/>).
 /// </summary>
 public static class StarsMainPage
 {
@@ -35,15 +43,15 @@ public static class StarsMainPage
         new("RR\n%value%", DcbTileShape.Full, DcbTileKind.Spinner, ScopeButtonId.RrSize, NoMap),
         new("PLACE\nRR", DcbTileShape.Half, DcbTileKind.Toggle, ScopeButtonId.RrPlace, NoMap),
         new("RR\nCNTR", DcbTileShape.Half, DcbTileKind.Normal, ScopeButtonId.RrCenter, NoMap),
-        Inert("MAPS"),
+        Opener("MAPS", StarsDcbPage.Maps),
         .. Enumerable.Range(0, MapSlots).Select(slot => new StarsDcbEntry("", DcbTileShape.Half, DcbTileKind.Toggle, null, slot)),
         .. Enumerable.Range(1, WeatherLevels).Select(level => Disabled($"WX{level}\n", DcbTileShape.Weather)),
-        Inert("BRITE"),
+        Opener("BRITE", StarsDcbPage.Brite),
         Disabled("LDR DIR\n%value%", DcbTileShape.Half),
         Disabled("LDR\n%value%", DcbTileShape.Half),
-        Inert("CHAR\nSIZE"),
+        Opener("CHAR\nSIZE", StarsDcbPage.CharSize),
         Disabled("MODE\nFSL", DcbTileShape.Full),
-        Inert("PREF"),
+        Opener("PREF", StarsDcbPage.Pref),
         Disabled("SITE\nFUSED", DcbTileShape.Full),
         Disabled("SSA\nFILTER", DcbTileShape.Half),
         Disabled("GI TEXT\nFILTER", DcbTileShape.Half),
@@ -53,6 +61,10 @@ public static class StarsMainPage
     /// <summary>A tile with no YAAT feature yet, drawn dimmed in place.</summary>
     private static StarsDcbEntry Disabled(string label, DcbTileShape shape) => new(label, shape, DcbTileKind.Disabled, null, NoMap);
 
-    /// <summary>A live full-height normal tile that does nothing yet: its submenu or page is still to come.</summary>
+    /// <summary>A full-height normal tile that opens the submenu <paramref name="page"/>.</summary>
+    private static StarsDcbEntry Opener(string label, StarsDcbPage page) =>
+        new(label, DcbTileShape.Full, DcbTileKind.Normal, null, NoMap) { Opens = page };
+
+    /// <summary>A live full-height normal tile that does nothing yet: its page is still to come.</summary>
     private static StarsDcbEntry Inert(string label) => new(label, DcbTileShape.Full, DcbTileKind.Normal, null, NoMap);
 }
