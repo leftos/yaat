@@ -1791,14 +1791,15 @@ internal static class FlightCommandHandler
         double? previousAlt = revertsAltitude ? revertTarget : null;
         double? previousAssignedAlt = revertsAltitude ? aircraft.Targets.AssignedAltitude : null;
 
-        // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX, unless the
-        // cleared altitude already meets its bound (NavigationCommandHandler.CrossingBoundMetByClearance) or the crossing is
-        // restated with this transmission's via, which cleared the assigned altitude
+        // Without a revert the last crossing altitude stays assigned past its fix (AIM 4-4-10.g), as with CFIX, unless it
+        // assigns nothing new (NavigationCommandHandler.CrossingAssignsAltitude: a bound the cleared altitude already meets,
+        // or an at-or-above floor at or below the altitude cleared or held) or the crossing is restated with this
+        // transmission's via, which cleared the assigned altitude
         if (
             (lastConstrainedIdx >= 0)
             && !revertsAltitude
             && !restatedWithVia
-            && !NavigationCommandHandler.CrossingBoundMetByClearance(
+            && NavigationCommandHandler.CrossingAssignsAltitude(
                 aircraft,
                 ToAltitudeRestriction(cmd.AltitudeConstraints[lastConstrainedIdx].AltitudeFt, cmd.AltitudeConstraints[lastConstrainedIdx].AltType)
             )

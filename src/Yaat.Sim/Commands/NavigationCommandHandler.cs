@@ -503,10 +503,10 @@ internal static class NavigationCommandHandler
         // Let the planner handle altitude on the next tick — don't set TargetAltitude directly.
         // But do set AssignedAltitude for the datablock display, unless this transmission's DVIA or CVIA already applied
         // and cleared it: both orders of "CFIX, DVIA" and of "CFIX, CVIA" then end with no assigned altitude. A cleared
-        // altitude that already meets the crossing's bound stays the altitude flown (CrossingBoundMetByClearance). While a
-        // SID handover is pending only a floor above the cleared altitude is written (AssignsCrossingAltitude): any other crossing
-        // there gives no new altitude to maintain, and the handover reads the assigned altitude to choose the altitude it
-        // holds after the coded legs.
+        // altitude that already meets the crossing's bound stays the altitude flown, and an at-or-above floor at or below the
+        // altitude cleared or held assigns nothing (CrossingAssignsAltitude). While a SID handover is pending only a floor
+        // above the cleared altitude is written (AssignsCrossingAltitude): any other crossing there gives no new altitude to
+        // maintain, and the handover reads the assigned altitude to choose the altitude it holds after the coded legs.
         if ((!restatedWithVia) && AssignsCrossingAltitude(aircraft, altRestriction, handoverPending))
         {
             aircraft.Targets.AssignedAltitude = cmd.Altitude;
@@ -819,7 +819,7 @@ internal static class NavigationCommandHandler
     {
         if (!handoverPending)
         {
-            return !CrossingBoundMetByClearance(aircraft, restriction);
+            return CrossingAssignsAltitude(aircraft, restriction);
         }
 
         bool floor = restriction.Type is CifpAltitudeRestrictionType.At or CifpAltitudeRestrictionType.AtOrAbove;
@@ -829,6 +829,25 @@ internal static class NavigationCommandHandler
         }
 
         return restriction.Altitude1Ft > cleared;
+    }
+
+    /// <summary>
+    /// Whether a controller's crossing off a SID's climb window writes its altitude as the assigned altitude, the altitude to
+    /// maintain. An at-or-above does only when its floor lies above the altitude the aircraft is cleared to
+    /// (<see cref="ClearedAltitude"/>), else the one it holds: the climb to the floor is then the altitude to maintain,
+    /// while a floor at or below it is a bound the route restriction keeps, not a new altitude (7110.65 4-5-7.a, .c, .d;
+    /// AIM 4-4-10.a, .d, .e). Any other bound writes unless the cleared altitude already meets it
+    /// (<see cref="CrossingBoundMetByClearance"/>).
+    /// </summary>
+    internal static bool CrossingAssignsAltitude(AircraftState aircraft, CifpAltitudeRestriction restriction)
+    {
+        if (restriction.Type != CifpAltitudeRestrictionType.AtOrAbove)
+        {
+            return !CrossingBoundMetByClearance(aircraft, restriction);
+        }
+
+        double reference = ClearedAltitude(aircraft) ?? (aircraft.Altitude + FlightPhysics.AltitudeSnapFt);
+        return restriction.Altitude1Ft > reference;
     }
 
     /// <summary>

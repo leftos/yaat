@@ -68,8 +68,8 @@ public class ConstrainedDctfKeepsStarTests
     }
 
     /// <summary>
-    /// After a descend via, a constrained direct in its own transmission ends the via and keeps the STAR; past GRUDG the
-    /// aircraft keeps the crossing altitude assigned (AIM 4-4-10.e, 4-4-10.g), not the ended via's target.
+    /// After a descend via, a constrained direct in its own transmission ends the via and keeps the STAR. Its at-or-above
+    /// floor lies below the altitude the aircraft holds, so it is a bound only and assigns nothing, past GRUDG too.
     /// </summary>
     [Fact]
     public void ConstrainedDctfOnTheStar_OwnTransmission_EndsTheViaKeepsTheStar()
@@ -80,6 +80,7 @@ public class ConstrainedDctfKeepsStarTests
         SendOk(harness, "DVIA");
         Assert.True(aircraft.Procedure.StarViaMode);
 
+        double clearedAtFt = aircraft.Altitude;
         DispatchOk(aircraft, GrudgCrossing(aircraft, CrossingFloorFt, speedKts: null));
 
         AssertStarKeptWithTheCrossing(aircraft, before);
@@ -89,12 +90,20 @@ public class ConstrainedDctfKeepsStarTests
         TickUntilPassed(harness, Grudg);
         _output.WriteLine($"Past GRUDG: assigned {aircraft.Targets.AssignedAltitude}, target {aircraft.Targets.TargetAltitude}");
         Assert.False(aircraft.Procedure.StarViaMode);
-        Assert.Equal(CrossingFloorFt, aircraft.Targets.AssignedAltitude);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
+        for (int t = 1; t <= 120; t++)
+        {
+            harness.Engine.TickOneSecond();
+            Assert.True(
+                Math.Abs(aircraft.Altitude - clearedAtFt) <= 100,
+                $"+{t} s past GRUDG: {aircraft.Altitude:F0} ft, off the {clearedAtFt:F0} ft held when the direct was given"
+            );
+        }
     }
 
     /// <summary>
     /// A climb via of the same transmission is no descend via: the constrained direct onto the STAR ends it, and the
-    /// crossing takes its reverts and assigned altitude as any direct that ends a via does. An arrival has no SID to
+    /// crossing takes its reverts as any direct that ends a via does. An arrival has no SID to
     /// climb via, so the state a same-transmission CVIA leaves is set directly.
     /// </summary>
     [Fact]
@@ -116,10 +125,10 @@ public class ConstrainedDctfKeepsStarTests
         Assert.False(aircraft.Procedure.StarViaMode);
         Assert.False(aircraft.Procedure.SidViaMode);
         Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
-        // Ending a via with no assigned altitude, the crossing altitude stays assigned past the fix (AIM 4-4-10.e, 4-4-10.g).
+        // Ending a via with no assigned altitude, an at-or-above floor below the altitude held assigns nothing.
         NavigationTarget grudg = RouteFix(aircraft, Grudg);
         Assert.Null(grudg.RevertAltitude);
-        Assert.Equal(CrossingFloorFt, aircraft.Targets.AssignedAltitude);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
         Assert.Equal(280, grudg.RevertAssignedSpeed);
     }
 

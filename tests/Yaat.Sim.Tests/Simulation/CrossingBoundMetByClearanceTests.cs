@@ -343,12 +343,13 @@ public class CrossingBoundMetByClearanceTests
     }
 
     /// <summary>
-    /// Under a descend via from an earlier transmission, "CFIX X at or above 110" and then "CFIX Y at or above 100" each
-    /// assign their crossing altitude: a via clearance flies to the depicted altitudes, so the bound is never met by the
-    /// assigned altitude, and the handler agrees with the planner.
+    /// Under a descend via from an earlier transmission, "CFIX X at or above 110" and then "CFIX Y at or above 100" from
+    /// 16,000: each floor lies below the altitude held, so each is a bound on the route only and assigns no altitude; the
+    /// via keeps flying to the depicted altitudes, never below either floor before its fix, and holds the last one past
+    /// the end of the STAR.
     /// </summary>
     [Fact]
-    public void DescendVia_LaterCrossFixes_AssignTheLastCrossingAltitude()
+    public void DescendVia_LaterAtOrAboveCrossFixesBelowTheHeldAltitude_AssignNothing()
     {
         if (DescendViaSupersedesEarlierAltitudeTests.BuildOakesHarness(_output, 16000) is not { } harness)
         {
@@ -363,11 +364,27 @@ public class CrossingBoundMetByClearanceTests
 
         SendOk(harness, $"CFIX {first} A110");
         Assert.True(aircraft.Procedure.StarViaMode);
-        Assert.Equal(11000, aircraft.Targets.AssignedAltitude);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
 
         SendOk(harness, $"CFIX {second} A100");
         Assert.True(aircraft.Procedure.StarViaMode);
-        Assert.Equal(10000, aircraft.Targets.AssignedAltitude);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
+
+        TickUntilPassed(harness, first, t => AssertNotBelow(aircraft, 11000, t));
+        TickUntilPassed(harness, second, t => AssertNotBelow(aircraft, 10000, t));
+        // The second crossing's fix ends the STAR: no published altitude lies beyond it, so the via ends there and the
+        // aircraft holds the last altitude it flew to.
+        Assert.DoesNotContain(aircraft.Targets.NavigationRoute, f => f.AltitudeRestriction is not null);
+        Assert.False(aircraft.Procedure.StarViaMode);
+        double atSecondFt = aircraft.Altitude;
+        for (int t = 1; t <= 180; t++)
+        {
+            harness.Engine.TickOneSecond();
+            Assert.True(
+                Math.Abs(aircraft.Altitude - atSecondFt) <= FlightPhysics.AltitudeSnapFt,
+                $"+{t} s past {second}: {aircraft.Altitude:F0} ft, off the {atSecondFt:F0} ft it crossed at"
+            );
+        }
     }
 
     /// <summary>

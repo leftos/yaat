@@ -643,14 +643,15 @@ public static class FlightPhysics
 
     /// <summary>
     /// The top-of-descent rate (<see cref="TopOfDescentRate"/>) for a descent off a via toward a controller's crossing, or
-    /// null for a prompt descent (<see cref="CrossingClearedMarginFt"/>). Every in-force ceiling ahead plans the top of
-    /// descent (AIM 4-4-10.e: pilot's discretion until the fix); an "at or above" only bounds. With no ceiling below the
-    /// aircraft and a cleared altitude above every crossing, the descent to the cleared altitude is prompt; inside the top
-    /// of descent the steeper of the top-of-descent rate and <paramref name="scanRateFpm"/> (the scan's) is flown.
+    /// null for a prompt descent: no crossing ahead or a cleared altitude below every one
+    /// (<see cref="ClearedBelowEveryCrossing"/>), or a cleared altitude at or above every crossing (within
+    /// <see cref="AltitudeSnapFt"/>) with no ceiling below the aircraft. Otherwise every in-force ceiling ahead plans the top
+    /// of descent (AIM 4-4-10.e: pilot's discretion until the fix); an "at or above" only bounds. Inside the top of descent
+    /// the steeper of the top-of-descent rate and <paramref name="scanRateFpm"/> (the scan's) is flown.
     /// </summary>
     private static double? CrossingTopOfDescentRate(AircraftState aircraft, AircraftCategory cat, List<NavigationTarget> route, double? scanRateFpm)
     {
-        if (CrossingClearedMarginFt(aircraft, route) is not { } clearedAboveFt)
+        if (ClearedBelowEveryCrossing(aircraft, route))
         {
             return null;
         }
@@ -658,7 +659,11 @@ public static class FlightPhysics
         Span<TopOfDescentCeiling> buffer =
             (route.Count <= TopOfDescentStackCeilings) ? stackalloc TopOfDescentCeiling[route.Count] : new TopOfDescentCeiling[route.Count];
         ReadOnlySpan<TopOfDescentCeiling> ceilings = buffer[..CollectCeilings(aircraft, route, buffer)];
-        if ((clearedAboveFt > AltitudeSnapFt) && !HasCeilingBelow(aircraft, ceilings))
+        // A cleared altitude at or above every crossing (within the snap) with no ceiling below the aircraft is a descend and
+        // maintain the crossings only bound: the descent is prompt (AIM 4-4-10.d). Inside the pilot's-discretion window
+        // AIM 4-4-10.e allows (a binding at-or-above floor above the cleared altitude) the sim chooses the prompt descent too.
+        // With none cleared the crossings alone bound the target, and an at-or-above never triggers a descent.
+        if ((NavigationCommandHandler.ClearedAltitude(aircraft) is not null) && !HasCeilingBelow(aircraft, ceilings))
         {
             return null;
         }
@@ -669,19 +674,18 @@ public static class FlightPhysics
     }
 
     /// <summary>
-    /// How far the cleared altitude (<see cref="NavigationCommandHandler.ClearedAltitude"/>) is above the lowest crossing on
-    /// <paramref name="route"/> (<see cref="LowestCrossingFt"/>), 0 with no cleared altitude; null for a prompt descent: no
-    /// crossing ahead, or a cleared altitude below every crossing (a descend and maintain).
+    /// Whether no controller's crossing on <paramref name="route"/> bounds the descent: there is none, or the cleared altitude
+    /// (<see cref="NavigationCommandHandler.ClearedAltitude"/>) lies more than <see cref="AltitudeSnapFt"/> below the lowest
+    /// one (<see cref="LowestCrossingFt"/>), a descend and maintain through every crossing. False with no cleared altitude.
     /// </summary>
-    private static double? CrossingClearedMarginFt(AircraftState aircraft, List<NavigationTarget> route)
+    private static bool ClearedBelowEveryCrossing(AircraftState aircraft, List<NavigationTarget> route)
     {
         if (LowestCrossingFt(route) is not { } lowestFt)
         {
-            return null;
+            return true;
         }
 
-        double marginFt = (NavigationCommandHandler.ClearedAltitude(aircraft) is { } cleared) ? cleared - lowestFt : 0;
-        return (marginFt < -AltitudeSnapFt) ? null : marginFt;
+        return (NavigationCommandHandler.ClearedAltitude(aircraft) is { } cleared) && (cleared - lowestFt < -AltitudeSnapFt);
     }
 
     /// <summary>The lowest altitude a controller's crossing on <paramref name="route"/> allows (its floor, else its value); null for none.</summary>

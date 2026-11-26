@@ -193,18 +193,30 @@ public class DescendViaTopOfDescentTests
 
     /// <summary>
     /// "Cross OAKES at or above FL240" 150 NM out, off a via: an at-or-above bounds a descent but never triggers one, so the
-    /// aircraft is still at FL350 when OAKES sequences, and never below FL240 before it.
+    /// aircraft is still at FL350 when OAKES sequences, and never below FL240 before it. A floor below the altitude held is
+    /// not an altitude to maintain: no assigned altitude is written, and the aircraft keeps FL350 past OAKES.
     /// </summary>
     [Fact]
     public void CrossFixAtOrAbove_NeverTriggersADescentBeforeTheFix()
     {
         (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150);
+        Assert.Null(aircraft.Targets.AssignedAltitude);
         SendOk(engine, aircraft, "CFIX OAKES A240");
+        // The floor lies below FL350, so it is a bound only: the spawn's absent assigned altitude stays absent
+        Assert.Null(aircraft.Targets.AssignedAltitude);
         Flight flight = Fly(engine, aircraft, FirstFix);
         int oakes = flight.SequencedIndex(FirstFix);
         double lowest = flight.Samples.Take(oakes).Min(s => s.AltFt);
 
         Assert.True(lowest >= CruiseFt - FlightPhysics.AltitudeSnapFt, $"Descended to {lowest:F0} before {FirstFix} on an at-or-above");
+        for (int t = 1; t <= 120; t++)
+        {
+            engine.TickOneSecond();
+            Assert.True(
+                aircraft.Altitude >= CruiseFt - FlightPhysics.AltitudeSnapFt,
+                $"+{t} s past {FirstFix}: left FL350 for {aircraft.Altitude:F0}"
+            );
+        }
     }
 
     /// <summary>A plain descend and maintain 150 NM out still leaves FL350 at once at the type's profile rate.</summary>
@@ -290,6 +302,103 @@ public class DescendViaTopOfDescentTests
         SendOk(engine, aircraft, "CFIX OAKES A240");
         Assert.Equal(28000, aircraft.Targets.AssignedAltitude);
         AssertLeavesAtProfileRate(engine, aircraft, "DM 280, CFIX OAKES A240");
+    }
+
+    /// <summary>
+    /// "Descend and maintain FL240, cross OAKES at or above FL240" 150 NM out: the floor is the cleared altitude, so the
+    /// crossing assigns nothing new and the descent to FL240 is a plain prompt one at the profile rate.
+    /// </summary>
+    [Fact]
+    public void DescendAndMaintainAtAnAtOrAboveCrossing_LeavesAtOnceAtTheProfileRate()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150);
+        SendOk(engine, aircraft, "DM 240");
+        SendOk(engine, aircraft, "CFIX OAKES A240");
+        Assert.Equal(OakesTargetFt, aircraft.Targets.AssignedAltitude);
+        AssertLeavesAtProfileRate(engine, aircraft, "DM 240, CFIX OAKES A240");
+    }
+
+    /// <summary>
+    /// "Cross OAKES at or above FL240", then "descend and maintain FL240": the reverse order ends as the first does, with
+    /// FL240 assigned and a prompt descent at the profile rate.
+    /// </summary>
+    [Fact]
+    public void AtOrAboveCrossingThenDescendAndMaintainToItsFloor_LeavesAtOnceAtTheProfileRate()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150);
+        SendOk(engine, aircraft, "CFIX OAKES A240");
+        SendOk(engine, aircraft, "DM 240");
+        Assert.Equal(OakesTargetFt, aircraft.Targets.AssignedAltitude);
+        AssertLeavesAtProfileRate(engine, aircraft, "CFIX OAKES A240, DM 240");
+    }
+
+    /// <summary>
+    /// An aircraft level at its cleared 10,000 ft told "cross OAKES at or above 14,000": the floor lies above the cleared
+    /// altitude, so the crossing assigns 14,000 and the aircraft climbs to it.
+    /// </summary>
+    [Fact]
+    public void AtOrAboveCrossingAboveTheClearedAltitude_AssignsTheFloorAndClimbs() => AssertAtOrAboveAssignsTheFloorAndClimbs(clearedFt: 10000);
+
+    /// <summary>
+    /// An aircraft level at 10,000 ft with no altitude cleared told "cross OAKES at or above 14,000": the floor lies above
+    /// the altitude it holds, so the crossing assigns 14,000 and the aircraft climbs to it.
+    /// </summary>
+    [Fact]
+    public void AtOrAboveCrossingAboveTheHeldAltitude_NothingCleared_AssignsTheFloorAndClimbs() =>
+        AssertAtOrAboveAssignsTheFloorAndClimbs(clearedFt: null);
+
+    private void AssertAtOrAboveAssignsTheFloorAndClimbs(double? clearedFt)
+    {
+        (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150);
+        aircraft.Altitude = 10000;
+        aircraft.Targets.TargetAltitude = 10000;
+        aircraft.Targets.AssignedAltitude = clearedFt;
+        Assert.Equal(clearedFt, NavigationCommandHandler.ClearedAltitude(aircraft));
+        aircraft.IndicatedAirspeed = SpeedLimitBelow10kKts;
+        aircraft.Targets.TargetSpeed = null;
+        SendOk(engine, aircraft, "CFIX OAKES A140");
+        Assert.Equal(14000, aircraft.Targets.AssignedAltitude);
+        for (int t = 1; t <= 30; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(aircraft.VerticalSpeed > 0, $"VS {aircraft.VerticalSpeed:F0} fpm at {aircraft.Altitude:F0}: not climbing to 14,000");
+        Assert.True(aircraft.Altitude > 10000 + FlightPhysics.AltitudeSnapFt, $"Still at {aircraft.Altitude:F0}");
+    }
+
+    /// <summary>
+    /// "Descend and maintain FL240, cross OAKES at or above FL260": the floor lies above the cleared altitude and binds, so
+    /// it is assigned (FL260). A descend and maintain is a prompt clearance (AIM 4-4-10.d); inside the pilot's-discretion
+    /// window AIM 4-4-10.e allows for the binding floor the sim chooses the prompt descent, so the aircraft leaves FL350 at
+    /// once, holds no lower than FL260 until OAKES, and once OAKES sequences goes back to FL240 and descends to it.
+    /// </summary>
+    [Fact]
+    public void DescendAndMaintainBelowAnAtOrAboveCrossing_DescendsPromptlyToTheFloorThenToTheClearedAltitude()
+    {
+        (SimulationEngine engine, AircraftState aircraft) = SpawnOnOakes(150);
+        SendOk(engine, aircraft, "DM 240");
+        SendOk(engine, aircraft, "CFIX OAKES A260");
+        Assert.Equal(26000, aircraft.Targets.AssignedAltitude);
+        AssertLeavesAtProfileRate(engine, aircraft, "DM 240, CFIX OAKES A260");
+        Assert.True(aircraft.Altitude < CruiseFt - FlightPhysics.AltitudeSnapFt, $"Still at {aircraft.Altitude:F0} after the clearance");
+
+        Flight flight = Fly(engine, aircraft, FirstFix);
+        int oakes = flight.SequencedIndex(FirstFix);
+        double lowest = flight.Samples.Take(oakes).Min(s => s.AltFt);
+        _output.WriteLine($"OAKES at {oakes} s; lowest before it {lowest:F0}");
+        Assert.True(lowest >= 26000 - FlightPhysics.AltitudeSnapFt, $"Descended to {lowest:F0} before {FirstFix}, below its FL260 floor");
+
+        Assert.Equal(OakesTargetFt, aircraft.Targets.AssignedAltitude);
+        for (int t = 1; t <= 60; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(
+            aircraft.Altitude < 26000 - FlightPhysics.AltitudeSnapFt,
+            $"{aircraft.Altitude:F0} ft 60 s past {FirstFix}: not descending to FL240"
+        );
     }
 
     /// <summary>

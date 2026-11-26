@@ -97,11 +97,11 @@ public class TdlsMaintainCrossingBoundTests
 
     /// <summary>
     /// A climb via put in force after a bare CTO replaces the TDLS maintain as the altitude clearance (7110.65 4-5-7.h.11
-    /// NOTE 1), so it does not come back once a heading ends the via: the crossing at or above 4,000 is unmet and assigns
-    /// 4,000, and the planner descends to that crossing rather than to the maintain.
+    /// NOTE 1), so it does not come back once a heading ends the via. The crossing at or above 4,000 then lies below the
+    /// altitude the aircraft holds: it is a floor only, assigns nothing, and the aircraft does not descend toward it.
     /// </summary>
     [Fact]
-    public void Sjc3TdlsMaintain_ThenClimbVia_ThenHeading_CfixAtOrAboveBelowMaintain_AssignsItsAltitude()
+    public void Sjc3TdlsMaintain_ThenClimbVia_ThenHeading_CfixAtOrAboveBelowMaintain_AssignsNothing()
     {
         Departure d = Stage("SJC3-30L");
         Assert.True(ReachHandoverLevel(d));
@@ -124,16 +124,18 @@ public class TdlsMaintainCrossingBoundTests
         Assert.True(DispatchResult(ac, "FH 270").Success);
         Assert.Null(ac.Procedure.ClimbViaTargetFt);
 
+        double heldFt = ac.Altitude;
+        double? targetBefore = ac.Targets.TargetAltitude;
         Assert.True(DispatchResult(ac, $"CFIX {fix} A040").Success);
-        Assert.Equal(4000, ac.Targets.AssignedAltitude);
+        Assert.Null(ac.Targets.AssignedAltitude);
 
         for (int t = 0; t < 120; t++)
         {
             Tick(d);
         }
 
-        Assert.Equal(4000.0, ac.Targets.TargetAltitude);
-        Assert.True(ac.Altitude > 4000 - LevelToleranceFt, $"descended below its crossing: {ac.Altitude:F0}");
+        Assert.Equal(targetBefore, ac.Targets.TargetAltitude);
+        Assert.True(ac.Altitude > heldFt - LevelToleranceFt, $"descended toward the at-or-above floor: {ac.Altitude:F0} from {heldFt:F0}");
     }
 
     /// <summary>
