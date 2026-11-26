@@ -1,0 +1,7 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.Scope.Toolbar.Dcb.DcbBar"
+>
+  <Canvas x:Name="TilesHost" HorizontalAlignment="Left" />
+</UserControl>
