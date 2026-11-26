@@ -1134,15 +1134,41 @@ When weather is loaded, wind direction/speed and altimeter setting are displayed
 
 ### Radar
 
-![The Radar with the navy toolbar of tiles, video maps and range rings](docs/user-guide/img/radar-view.png)
+![The Radar under the Mixed profile with the classic navy bar of tiles, video maps and range rings](docs/user-guide/img/radar-view.png)
 
 The Radar shows video maps, target symbols, leader lines and STARS datablocks, or EuroScope tags when EuroScope mode is on.
 
-A navy toolbar of tiles runs across the top of the window, 45 px tall with thin dividers between the tiles. PROFILE, TEMPLATE, RANGE, OTHERS, VECTOR, HIST, PILOT LENS, BRITE and PREF are full-height tiles with the label over a bold value; TOOLS/AUTO, MAPS/TDM, MVA/DISPLAY and DB/VIEWS are pairs of half-height tiles stacked one above the other. PREF reads PREF over the active pref set's name, or over a dim — with none, and is wide enough for a 9-character name, so loading or clearing a set moves no tile. A small **▸** in a tile's top-right corner marks a button that opens a tray, and an active tile has a thin cyan ring. **PROFILE** is its first button and reads **PROFILE MIXED** (or STARS, ERAM). Its tray holds **STARS**, **ERAM** and **MIXED**; a pick switches the Radar's profile, which sets the datablock template and the order of the toolbar buttons and views.
+The bar across the top of the Radar follows the room's Radar profile: under STARS it is the STARS DCB, under ERAM the ERAM Master Toolbar, and under Mixed the classic navy bar of tiles described further down. Picking a profile (PROFILE on any of the three bars, or `.scope profile <stars|eram|mixed>`) swaps the bar at once, and every Radar window follows the room's profile.
 
-The default window is wide enough for the whole bar. When the toolbar is wider than the window, it scrolls sideways: a **‹** tile at its left end and a **›** at its right end appear, each greyed out at its end of the bar, and a press moves the bar three quarters of a window. The mouse wheel does not scroll the bar; over a spinner such as RANGE, VECTOR or HIST it still steps the value. Pressing a button that is partly out of view does not scroll the bar; Tab or an arrow key onto a hidden button does.
+**The STARS DCB** is CRC's black band of green bevelled tiles, on its Main page in CRC's order: RANGE, PLACE CNTR, OFF CNTR, RR, PLACE RR, RR CNTR, MAPS, six map tiles, WX1 to WX6, BRITE, LDR DIR, LDR, CHAR SIZE, MODE, PREF, SITE, SSA FILTER, GI TEXT FILTER and SHIFT, with **HIDE DCB** and **YAAT** together at the bar's right edge. A tile with no YAAT feature behind it is dimmed and does nothing.
 
-The open button's tray stays under the bar at the window's full width. Every tray is a grid of one-line half-height tiles (`LABEL value`, and `ID NAME` for a map) filled column by column in two rows; a tray wider than the window continues in another two-row block underneath. The MAPS tray starts with CLR ALL.
+RANGE and RR latch on a click: the wheel then steps the range or the ring spacing live, a second click accepts and Esc puts the value back. MAPS, BRITE, CHAR SIZE and PREF open their submenu in place of the Main page, and **DONE** or Esc returns to Main. **SHIFT** shows the Aux page (HISTORY, PTL LNTH, PTL OWN, PTL ALL, DWELL ON, TPA/ATPA and CRC's other Aux tiles), and SHIFT there returns to Main.
+
+**YAAT** opens the YAAT page: **PROFILE** (showing the profile), **TEMPLATE**, **OTHERS**, **AUTO**, **TOOLS**, **TDM** over **MVA**, **DISPLAY**, **DB**, **VIEWS**, **PILOT LENS** and **DONE**. Each menu tile opens a page holding the classic bar's tray of the same name, less what CRC's own tiles already cover, and DONE or Esc there returns to the YAAT page; Esc on the YAAT page returns to Main. Every YAAT tile acts exactly as the classic button of the same name described below.
+
+![The Radar under the STARS profile with the STARS DCB's YAAT page open](docs/user-guide/img/radar-bar-stars.png)
+
+**The ERAM Master Toolbar** is CRC's grey toolbar, each button with its gold strip: nine CRC buttons on its top row and seven on the second, then YAAT's **YAAT** button in the second row's ninth cell and **HIDE TOOLBAR** in a tenth column. A menu button opens its menu beside it, drawn in coral with the other toolbar buttons hidden in place, and a second press closes it.
+
+RANGE (its wheel zooms), VECTOR (its wheel steps the vector minutes), BRIGHT, FONT, DB FIELDS, RADAR FILTER, VIEWS, ATC TOOLS, GEOMAP and PREFSET act through the classic bar's own buttons; ALT LIM, CURSOR, CHECK LISTS, DRAW, AB SETTING, COMMAND MENUS and the other buttons with no YAAT feature behind them are dimmed.
+
+The **YAAT** button opens the YAAT menu: **PROFILE** (showing the profile), **TEMPLATE**, **OTHERS** (showing its level), **AUTO**, **TOOLS**, **TDM**, **MVA**, **DISPLAY**, **DB**, **VIEWS** and **PILOT LENS**. Its menus open as submenus and act as the classic buttons described below; opening TOOLS arms the Rings tool and closing it disarms.
+
+![The Radar under the ERAM profile with the Master Toolbar's YAAT menu open](docs/user-guide/img/radar-bar-eram.png)
+
+**Hiding the bar.** HIDE DCB, HIDE TOOLBAR, the classic bar's **HIDE** tile or `.scope bar hide` hides the bar, and the Radar grows up into its row. A SHOW tile in the bar's own style takes its place at the Radar's top-left: **SHOW DCB** under STARS, **SHOW TOOLBAR** under ERAM and **SHOW BAR** under Mixed. A press on it, or `.scope bar show`, brings the bar back. Pref sets keep whether the bar is hidden, so loading a set saved with the bar hidden hides it.
+
+Under Mixed, the classic navy bar of tiles runs across the top of the window, 45 px tall with thin dividers between the tiles. PROFILE, TEMPLATE, RANGE, OTHERS, VECTOR, HIST, PILOT LENS, BRITE and PREF are full-height tiles with the label over a bold value; TOOLS/AUTO, MAPS/TDM, MVA/DISPLAY and DB/VIEWS are pairs of half-height tiles stacked one above the other.
+
+PREF reads PREF over the active pref set's name, or over a dim — with none, and is wide enough for a 9-character name, so loading or clearing a set moves no tile.
+
+A small **▸** in a tile's top-right corner marks a button that opens a tray, and an active tile has a thin cyan ring. **PROFILE** is its first button and reads **PROFILE MIXED** (or STARS, ERAM). Its tray holds **STARS**, **ERAM** and **MIXED**; a pick switches the Radar's profile, which sets the bar, the datablock template and the order of the classic bar's buttons and views.
+
+The default window is wide enough for the whole bar. When the classic bar is wider than the window, it scrolls sideways: a **‹** tile at its left end and a **›** at its right end appear, each greyed out at its end of the bar, and a press moves the bar three quarters of a window.
+
+The mouse wheel does not scroll the bar; over a spinner such as RANGE, VECTOR or HIST it still steps the value. Pressing a button that is partly out of view does not scroll the bar; Tab or an arrow key onto a hidden button does.
+
+On the classic bar, the open button's tray stays under the bar at the window's full width. Every tray is a grid of one-line half-height tiles (`LABEL value`, and `ID NAME` for a map) filled column by column in two rows; a tray wider than the window continues in another two-row block underneath. The MAPS tray starts with CLR ALL.
 
 The profile is picked once per room, when your student position first arrives: ERAM for an ERAM sector, STARS for a TRACON or tower (ATCT) position, otherwise Mixed. Changing position later (`AS`) keeps it. A profile you pick by hand is remembered for that kind of student position (GND, TWR, APP, CTR) and wins in later rooms of that kind. A facility's saved Radar state keeps its own template.
 
@@ -1162,7 +1188,7 @@ The **RANGE** button shows the range in nautical miles (**RANGE 40**). Roll the 
 
 **TOOLS** sits after HIST. Opening its tray arms the Rings tool, with the kind the zoom band names (J-ring, or DRI 5 for a `dri` band); the tray holds **J-RING**, **CONE**, **DRI 5** and **DRI 3**, lit while armed, and a **SIZE** spinner (3.0 at first; roll the wheel to step it 1.0 to 9.9 in tenths, then 10 to 30 whole). Press a kind to arm it, or the lit one again to disarm. Esc, closing the tray and opening another tray also disarm. While armed, a left click on a track places that kind on it, resizes it when the track already has it at another size, or removes it when the size is the same, and does not select the aircraft. A J-ring is a circle of the SIZE radius in NM centred on the track, labelled opposite its leader. A cone runs SIZE NM along the track's ground track, 2 degrees either side, labelled on its middle. DRI 5 is a 5 NM circle; DRI 3 is a 3 NM circle drawn as four arcs with gaps at north, east, south and west, and a track above FL230 refuses it with "DRI 3 needs FL230 or below". A track carries one J-ring, one cone and one DRI. With **ATPA DIST** on, a track's ATPA cone draws in blue (monitor), yellow (warning) or orange (alert) and hides that track's cone from the tool; its J-ring still draws. Rings are this Radar's own: they are never saved or sent to the server, and they go when their aircraft is deleted and on a scenario unload, restart or rewind.
 
-By default the bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VECTOR**, **HIST**, **TOOLS**, **AUTO**, **MAPS**, **TDM**, **MVA**, **DISPLAY**, **RR**, **DB**, **VIEWS**, **PILOT LENS**, **BRITE** and **PREF**.
+By default the classic bar reads **PROFILE**, **TEMPLATE**, **RANGE**, **OTHERS**, **VECTOR**, **HIST**, **TOOLS**, **AUTO**, **MAPS**, **TDM**, **MVA**, **DISPLAY**, **RR**, **DB**, **VIEWS**, **PILOT LENS**, **BRITE**, **PREF** and **HIDE**.
 
 **TDM** is top-down mode, a toggle with no tray that is lit while it is on; a press closes any open tray and flips it. With TDM on the Radar draws aircraft on the ground and airborne ones below the display floor, with the vector, history and rings, and the video maps marked TDM-only (such as airport diagrams), even when their MAPS toggle is on. On the STARS and ERAM templates (and Mixed where it resolves to them) an aircraft on the ground gets a two-line ground-target block at every zoom level and on hover: line 1 the aircraft ID, line 2 the destination when it has a flight plan (`KATL A321`), else the beacon code (`4521 A321`), else just the type; the type is the one the pilot connected with, not the filed one. Airborne aircraft below the floor and every EuroScope tag keep the ordinary block. With TDM off the aircraft are gone from the drawing and cannot be clicked, and TDM-only maps are not drawn even with their toggle on. TDM is kept in the Radar's saved state and in pref sets; a state saved without it opens with TDM off. In the Radar (docked with focus in it, or popped out) **Ctrl+Shift+T** (**Cmd+Shift+T** on macOS) flips TDM the same way and echoes it; plain Ctrl+T does nothing there, so it never clashes with take control.
 

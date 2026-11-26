@@ -17,3 +17,13 @@ View › Bars › Rundowns… opens a Rundowns window with the same lists, one s
 ![The RUNDOWN list on the Radar with two RD entries on the POAK list and a third held with the text EXPECT 28R](img/whats-new-rundown-list.png)
 
 ![The Rundowns window with the OAK DEP section holding the same three entries and the Hold for release section with OAK armed](img/whats-new-rundowns-window.png)
+
+## The Radar bar follows the profile
+
+The bar across the top of the Radar now matches the room's Radar profile. Under STARS it is CRC's STARS DCB, a black band of green bevelled tiles with its Main page, submenus and Aux page (SHIFT); under ERAM it is CRC's ERAM Master Toolbar with its menus; under Mixed it is the classic navy bar.
+
+YAAT's own controls (profile, template, others, tools, TDM, MVA, display, DB, views and the pilot lens) are on the DCB's YAAT page and in the Master Toolbar's YAAT menu. Any bar hides to a small SHOW tile with its HIDE button or `.scope bar hide`, and `.scope bar show` brings it back.
+
+![The Radar under the STARS profile with the STARS DCB's YAAT page open](../user-guide/img/radar-bar-stars.png)
+
+![The Radar under the ERAM profile with the Master Toolbar's YAAT menu open](../user-guide/img/radar-bar-eram.png)

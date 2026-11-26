@@ -44,7 +44,9 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Layout cost.** Each block's layout is cached and re-laid out only when a field changes.
 - **Step 3 views.** The dock ships with the SSA and the Conflict alert list (LA/CA/MCI); the Tab list (CRC's FLIGHT PLAN list) and the other CRC lists are not part of step 3.
 - **Step 3 toolbar, dock and pref sets** (orchestrator decisions from the canvas's boards 01, 04 and 06 and from CRC, open to the owner):
-  - The toolbar is one full-width row of buttons in one dark navy theme with a cyan active state, for every template. An opened menu is a tray below the bar, and the main row stays visible. A button shows once its behaviour exists; later steps' buttons are absent, never disabled. There is no show/hide hotkey.
+  - The bar follows the room's profile, not the template: CRC's STARS DCB (a black band of green bevelled tiles) under STARS, CRC's ERAM Master Toolbar under ERAM, and under Mixed the classic bar, one full-width row of buttons in one dark navy theme with a cyan active state. YAAT's own controls sit on the DCB's YAAT page and in the Master Toolbar's YAAT menu, and a CRC tile or button with no YAAT feature is dimmed.
+
+    On the classic bar an opened menu is a tray below the bar, and the main row stays visible; a button shows once its behaviour exists, and later steps' buttons are absent, never disabled. There is no show/hide hotkey: each bar's HIDE button and `.scope bar hide|show` hide it to a SHOW tile and bring it back.
   - The dock is a fixed-width right-hand column that hides when no view is open in it. The SSA is a view, placed by default on the scope at its top-left (torn off), as the canvas draws it.
   - Views float as cards, anchored to the nearest corner as CRC's ERAM tear-offs are. A view moves by a left press on its card title, placed by a click and cancelled by Esc; `.view <ssa|ca|rpoq> tear|dock` are the verbs. Toolbar buttons do not tear off.
   - BRITE ships a group per layer the Scope draws (MAP A, MAP B, TARGETS, FDB, LINE 4, ALERTS, DWELL), scaling colour by value/100 as CRC does; defaults keep today's look (100, MAP B 60, LINE 4 0, DWELL 20), and DWELL lifts a dwelled track toward full brightness by CRC's rule. The SSA draws CRC's UTC time, the primary airport's altimeter, the tracking status and the range; fields whose data YAAT lacks are left out.
@@ -56,7 +58,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **`DatablockTemplate` engine** (new): lays the fields out into lines and returns one `FieldRect` list that both drawing and hit-testing use. It carries the STARS, ERAM, Mixed and EuroScope templates, which ends the draw-vs-hit-test duplication described in `docs/radar-rendering.md`.
 - **Render thread**: the render snapshot copies the rects; the render thread reads no StyledProperty. Layers draw back to front, each with its own brightness group: maps A/B, weather, rings, routes/tools, history, vectors, targets, blocks, alerts, pilot lens.
 - **Actions**: a field action produces command text sent through `SendCommandAsync`, so a menu can do nothing the command line can't. Toolbar and view actions are dot commands (`.scope …`, `.view …`) and echo in the feedback line.
-- **Profiles**: STARS, ERAM and Mixed ship as JSON files under `YaatPaths`; a pref set is the same shape holding one user's values. The shape carries the toolbar's button ids (`toolbar`) and the open views (`views`).
+- **Profiles**: STARS, ERAM and Mixed ship as JSON files under `YaatPaths`; a pref set is the same shape holding one user's values. The shape carries the classic bar's button ids (`toolbar`, in `mixed.json` only, since the STARS and ERAM bars are fixed) and the open views (`views`).
 
 ## Build order
 
