@@ -457,6 +457,7 @@ internal static class NavigationCommandHandler
         // The reverts already on the route are read before the stamp below, which clears them when this CFIX restates the
         // speed on the fix that holds them.
         var pending = PendingSpeedReverts.Read(route);
+        ExceptSpeedOfTransmission? keptEnd = (speedRestriction is not null) ? ExceptSpeedPlacedIn(aircraft, route, transmissionId) : null;
 
         // CFIX stamps a fix already on the route in place, keeping the other fixes and their restrictions, so CFIX commands
         // are additive. A fix not on the route is appended, so a chain of CFIX on a vectored aircraft builds a crossing
@@ -486,7 +487,8 @@ internal static class NavigationCommandHandler
         fix.CrossingTransmissionId = crossingTransmissionId;
         if (speedRestriction is not null)
         {
-            // A crossing speed ends a DVXM's exception: the crossing then governs as any CFIX does.
+            // A crossing speed ends an earlier transmission's DVXM exception: the crossing then governs as any CFIX does. One
+            // in the DVXM's own transmission keeps the end, put back below (KeepExceptSpeedEnd).
             DropExceptSpeedEnd(route);
             fix.SpeedRestriction = speedRestriction;
             fix.SpeedTransmissionId = crossingTransmissionId;
@@ -513,29 +515,146 @@ internal static class NavigationCommandHandler
 
         if (cmd.Speed is { } spdVal)
         {
-            aircraft.Targets.AssignedSpeed = spdVal;
-            aircraft.Targets.SpeedLimitsLifted = false;
-            // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
-            aircraft.Targets.SpeedOverridesFinalGate = false;
-            // A Mach hold stays live until the planner hands it over to the crossing speed (PlanCrossingUnderMach).
-            FlightCommandHandler.EndSpeedMaxHold(aircraft);
-
-            // An acceleration toward the CFIX speed starts at once; the look-ahead planner (UpdateSpeedPlanning) times a
-            // deceleration.
-            if (spdVal > aircraft.IndicatedAirspeed)
-            {
-                aircraft.Targets.TargetSpeed = spdVal;
-            }
-
-            // Restated with a via clearance that has already applied: apply the first constrained fix again, as that
-            // clearance does, so "DVIA, CFIX X 110 230" ends where "CFIX X 110 230, DVIA" does.
-            if (restatedWithVia)
-            {
-                ApplyFirstConstrainedFix(aircraft);
-            }
+            AssignCrossingSpeed(aircraft, spdVal, restatedWithVia);
         }
 
+        KeepExceptSpeedEnd(aircraft, route, keptEnd, transmissionId);
         return CommandDispatcher.Ok(CrossFixReadback(cmd));
+    }
+
+    /// <summary>
+    /// The speed state a CFIX carrying <paramref name="spdVal"/> sets on the aircraft: the crossing speed is the assigned
+    /// one, an acceleration toward it starts at once, and one restated with a via clearance that has already applied
+    /// (<paramref name="restatedWithVia"/>) applies the first constrained fix again, as that clearance does.
+    /// </summary>
+    private static void AssignCrossingSpeed(AircraftState aircraft, int spdVal, bool restatedWithVia)
+    {
+        aircraft.Targets.AssignedSpeed = spdVal;
+        aircraft.Targets.SpeedLimitsLifted = false;
+        // A crossing speed is an ATC speed act like SPD, so it ends a forced speed's override of the final gate.
+        aircraft.Targets.SpeedOverridesFinalGate = false;
+        // A Mach hold stays live until the planner hands it over to the crossing speed (PlanCrossingUnderMach).
+        FlightCommandHandler.EndSpeedMaxHold(aircraft);
+
+        // An acceleration toward the CFIX speed starts at once; the look-ahead planner (UpdateSpeedPlanning) times a
+        // deceleration.
+        if (spdVal > aircraft.IndicatedAirspeed)
+        {
+            aircraft.Targets.TargetSpeed = spdVal;
+        }
+
+        // Restated with a via clearance that has already applied: apply the first constrained fix again, as that
+        // clearance does, so "DVIA, CFIX X 110 230" ends where "CFIX X 110 230, DVIA" does.
+        if (restatedWithVia)
+        {
+            ApplyFirstConstrainedFix(aircraft);
+        }
+    }
+
+    /// <summary>A DVXM's pending end (<see cref="SpeedResumeKind.ExceptSpeed"/>) and the knots it holds until that end.</summary>
+    private readonly record struct ExceptSpeedOfTransmission(NavigationTarget End, double Speed);
+
+    /// <summary>
+    /// The DVXM end on <paramref name="route"/> that a DVXM in knots of transmission <paramref name="transmissionId"/>
+    /// placed, with its speed: its descend via applied in that transmission and the assigned speed was accepted in it. None
+    /// for an end from an earlier transmission or a Mach DVXM.
+    /// </summary>
+    private static ExceptSpeedOfTransmission? ExceptSpeedPlacedIn(AircraftState aircraft, List<NavigationTarget> route, int transmissionId)
+    {
+        ControlTargets targets = aircraft.Targets;
+        bool ofTransmission = ViaAppliedInTransmission(aircraft, transmissionId) && (targets.AssignedSpeedTransmissionId == transmissionId);
+        NavigationTarget? end = route.Find(f => f.RevertResume == SpeedResumeKind.ExceptSpeed);
+        return (ofTransmission && (end is not null) && (targets.TargetMach is null) && (HeldExceptSpeed(route, targets) is { } speed))
+            ? new ExceptSpeedOfTransmission(end, speed)
+            : null;
+    }
+
+    /// <summary>
+    /// The knots a DVXM holds until its end: the plain revert's assigned speed once a crossing before the end holds it,
+    /// else the assigned speed, which no crossing has replaced.
+    /// </summary>
+    private static double? HeldExceptSpeed(List<NavigationTarget> route, ControlTargets targets) =>
+        route.Find(HasPlainRevert)?.RevertAssignedSpeed ?? targets.AssignedSpeed;
+
+    /// <summary>
+    /// After a CFIX speed in a DVXM's own transmission (<paramref name="kept"/>), puts the DVXM's end back on its fix and
+    /// flies the two in route order (<see cref="OrderExceptSpeedWithCrossing"/>), as when the CFIX comes first.
+    /// </summary>
+    private static void KeepExceptSpeedEnd(AircraftState aircraft, List<NavigationTarget> route, ExceptSpeedOfTransmission? kept, int transmissionId)
+    {
+        if (kept is not { } except)
+        {
+            return;
+        }
+
+        except.End.RevertResume = SpeedResumeKind.ExceptSpeed;
+        OrderExceptSpeedWithCrossing(aircraft, route, transmissionId, except.Speed);
+    }
+
+    /// <summary>
+    /// A CFIX speed and a DVXM end (<paramref name="exceptSpeed"/> until its fix) of one transmission
+    /// (<paramref name="transmissionId"/>), flown in route order whichever comes first in it (7110.65 5-7-2.e; AIM
+    /// 4-4-12.f). A crossing before the end is flown at its speed, then the DVXM's speed comes back past it and holds to the
+    /// end, then the published speeds: the plain revert sits on the last controller-set crossing before the end. An end
+    /// before the crossing holds the DVXM's speed to the end; the crossing is then flown as its fix's own restriction. A
+    /// crossing at the end fix governs at it. Nothing changes with no crossing speed of the transmission or no end.
+    /// </summary>
+    private static void OrderExceptSpeedWithCrossing(AircraftState aircraft, List<NavigationTarget> route, int transmissionId, double exceptSpeed)
+    {
+        int end = route.FindIndex(f => f.RevertResume == SpeedResumeKind.ExceptSpeed);
+        int crossing = route.FindIndex(f => IsSpeedStampedBy(f, transmissionId) && (f.SpeedRestriction is not null));
+        if ((end < 0) || (crossing < 0))
+        {
+            return;
+        }
+
+        ControlTargets targets = aircraft.Targets;
+        if (end < crossing)
+        {
+            targets.AssignedSpeed = exceptSpeed;
+            return;
+        }
+
+        if (end > crossing)
+        {
+            // A crossing of this transmission at the end fix itself is flown at its own speed from the crossing before it.
+            double held = IsSpeedStampedBy(route[end], transmissionId) ? (route[end].SpeedRestriction?.SpeedKts ?? exceptSpeed) : exceptSpeed;
+            PlacePlainRevertBefore(route, end, held, targets);
+        }
+
+        targets.AssignedSpeed = route[crossing].SpeedRestriction?.SpeedKts;
+    }
+
+    /// <summary>
+    /// <see cref="PlacePlainRevert"/> for a DVXM's speed held to its end at <paramref name="end"/>: the revert to
+    /// <paramref name="speed"/>, with the bounds in force, sits on the last controller-set fix before the end and on no other.
+    /// Unlike <see cref="PlacePlainRevert"/> it clears no resume on the holder: the descend via and
+    /// <see cref="PlaceExceptSpeedEnd"/> have already cleared every resume but the end's.
+    /// </summary>
+    private static void PlacePlainRevertBefore(List<NavigationTarget> route, int end, double speed, ControlTargets targets)
+    {
+        int holder = route.FindLastIndex(end - 1, end, FlightPhysics.IsControllerSetSpeed);
+        WritePlainRevert(route, holder, (speed, speed, targets.SpeedFloor, targets.SpeedCeiling));
+    }
+
+    /// <summary>
+    /// Writes the plain revert (speed, assignment, bounds) on the fix at <paramref name="holder"/> and clears it on every
+    /// other fix of <paramref name="route"/>; a holder of -1 clears it everywhere.
+    /// </summary>
+    private static void WritePlainRevert(
+        List<NavigationTarget> route,
+        int holder,
+        (double? Speed, double? AssignedSpeed, double? Floor, double? Ceiling) revert
+    )
+    {
+        for (int i = 0; i < route.Count; i++)
+        {
+            bool holds = i == holder;
+            route[i].RevertSpeed = holds ? revert.Speed : null;
+            route[i].RevertAssignedSpeed = holds ? revert.AssignedSpeed : null;
+            route[i].RevertSpeedFloor = holds ? revert.Floor : null;
+            route[i].RevertSpeedCeiling = holds ? revert.Ceiling : null;
+        }
     }
 
     /// <summary>
@@ -2194,13 +2313,28 @@ internal static class NavigationCommandHandler
             return via;
         }
 
-        // With no fix there is no end: the speed stands past the STAR until ATC changes it (7110.65 5-7-2.e).
-        if (cmd.FixName is { } endFix)
+        PlaceDvxmEnd(cmd, aircraft, ctx.TransmissionId);
+        return CommandDispatcher.Ok(CommandDescriber.DescribeDvxmNatural(cmd, cmd.FixName is { } named ? FixDisplay(named) : null));
+    }
+
+    /// <summary>
+    /// Puts a DVXM's end on its named fix (<see cref="PlaceExceptSpeedEnd"/>), and for a DVXM in knots flies a CFIX speed
+    /// earlier in transmission <paramref name="transmissionId"/> with the end in route order
+    /// (<see cref="OrderExceptSpeedWithCrossing"/>). With no fix there is no end: the speed stands past the STAR until ATC
+    /// changes it (7110.65 5-7-2.e).
+    /// </summary>
+    private static void PlaceDvxmEnd(DescendViaExceptSpeedCommand cmd, AircraftState aircraft, int transmissionId)
+    {
+        if (cmd.FixName is not { } endFix)
         {
-            PlaceExceptSpeedEnd(aircraft.Targets.NavigationRoute, endFix);
+            return;
         }
 
-        return CommandDispatcher.Ok(CommandDescriber.DescribeDvxmNatural(cmd, cmd.FixName is { } named ? FixDisplay(named) : null));
+        PlaceExceptSpeedEnd(aircraft.Targets.NavigationRoute, endFix);
+        if (cmd.Speed is { } held)
+        {
+            OrderExceptSpeedWithCrossing(aircraft, aircraft.Targets.NavigationRoute, transmissionId, held);
+        }
     }
 
     /// <summary>The altitude at and above which a Mach number is assigned (7110.65 5-7-1.g).</summary>
@@ -2771,14 +2905,7 @@ internal static class NavigationCommandHandler
     internal static void PlacePlainRevert(List<NavigationTarget> route, double? speed, double? assignedSpeed, double? floor, double? ceiling)
     {
         int last = route.FindLastIndex(FlightPhysics.IsControllerSetSpeed);
-        for (int i = 0; i < route.Count; i++)
-        {
-            bool holds = i == last;
-            route[i].RevertSpeed = holds ? speed : null;
-            route[i].RevertAssignedSpeed = holds ? assignedSpeed : null;
-            route[i].RevertSpeedFloor = holds ? floor : null;
-            route[i].RevertSpeedCeiling = holds ? ceiling : null;
-        }
+        WritePlainRevert(route, last, (speed, assignedSpeed, floor, ceiling));
 
         if (last >= 0)
         {

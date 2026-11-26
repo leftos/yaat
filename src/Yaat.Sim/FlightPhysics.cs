@@ -2891,10 +2891,24 @@ public static class FlightPhysics
     /// </summary>
     private static void MoveAssignedSpeedPastControllerCrossing(AircraftState aircraft, NavigationTarget crossed, List<NavigationTarget> route)
     {
-        if (!aircraft.Targets.HasExplicitSpeedCommand && !crossed.RevertSpeedMax)
+        NavigationTarget? next = route.Find(IsControllerSetSpeed);
+        bool moves = !aircraft.Targets.HasExplicitSpeedCommand || CrossingBeforeExceptSpeedEnd(aircraft, route, next);
+        if (moves && !crossed.RevertSpeedMax)
         {
-            aircraft.Targets.AssignedSpeed = route.Find(IsControllerSetSpeed)?.SpeedRestriction?.SpeedKts;
+            aircraft.Targets.AssignedSpeed = next?.SpeedRestriction?.SpeedKts;
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="next"/> is a crossing of the transmission that assigned the explicit speed in force, lying
+    /// before that transmission's DVXM end (<see cref="SpeedResumeKind.ExceptSpeed"/>): the DVXM's speed comes back only past
+    /// the last such crossing, so each crossing before it is flown at its own speed, as without the DVXM.
+    /// </summary>
+    private static bool CrossingBeforeExceptSpeedEnd(AircraftState aircraft, List<NavigationTarget> route, NavigationTarget? next)
+    {
+        int index = (next is null) ? -1 : route.IndexOf(next);
+        int end = route.FindIndex(f => f.RevertResume == SpeedResumeKind.ExceptSpeed);
+        return (index >= 0) && (end > index) && (next?.SpeedTransmissionId is { } id) && (aircraft.Targets.AssignedSpeedTransmissionId == id);
     }
 
     /// <summary>

@@ -564,6 +564,260 @@ public class DescendViaExceptSpeedTests
     }
 
     [Fact]
+    public void CfixThenDvxm_OneTransmission_250FromTheCrossingToTheEnd()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "CFIX SULRR A110 220, DVXM 250 LOHGN");
+
+        AssertCrossingAt220Then250UntilLohgn(harness);
+    }
+
+    [Fact]
+    public void DvxmThenCfix_OneTransmission_FliesLikeTheCfixFirstForm()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "DVXM 250 LOHGN, CFIX SULRR A110 220");
+
+        AssertCrossingAt220Then250UntilLohgn(harness);
+    }
+
+    [Fact]
+    public void EndBeforeTheCrossing_250UntilTheEnd_ThenTheCrossing()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "CFIX SULRR A110 220, DVXM 250 BANND");
+
+        Assert250UntilBanndThenCrossingAt220(harness);
+    }
+
+    [Fact]
+    public void EndBeforeTheCrossing_DvxmFirst_250UntilTheEnd_ThenTheCrossing()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "DVXM 250 BANND, CFIX SULRR A110 220");
+
+        Assert250UntilBanndThenCrossingAt220(harness);
+    }
+
+    [Fact]
+    public void EndAtTheCrossingFix_CrossesAtTheCrossingSpeed()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "CFIX SULRR A110 220, DVXM 250 SULRR");
+
+        AssertCrossesTheEndFixAt220ThenPublished(harness);
+    }
+
+    [Fact]
+    public void EndAtTheCrossingFix_DvxmFirst_FliesLikeTheCfixFirstForm()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "DVXM 250 SULRR, CFIX SULRR A110 220");
+
+        AssertCrossesTheEndFixAt220ThenPublished(harness);
+    }
+
+    [Fact]
+    public void TwoCrossingsBeforeTheEnd_DvxmFirst_250PastTheLastCrossing()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "DVXM 250 LOHGN, CFIX SULRR A110 220, CFIX KEENR A070 230");
+
+        AssertTwoCrossingsThen250UntilLohgn(harness);
+    }
+
+    [Fact]
+    public void TwoCrossingsBeforeTheEnd_DvxmLast_250PastTheLastCrossing()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "CFIX SULRR A110 220, CFIX KEENR A070 230, DVXM 250 LOHGN");
+
+        AssertTwoCrossingsThen250UntilLohgn(harness);
+    }
+
+    [Fact]
+    public void CrossingBeforeAnEndThatIsACrossing_FliesEachCrossingAtItsSpeed()
+    {
+        OakesHarness harness = PastOakes("12");
+        AircraftState aircraft = harness.Aircraft;
+        SendOk(harness, "DVXM 250 SULRR, CFIX SULRR A110 220, CFIX GRUDG A120 240");
+        Assert.Equal(240, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(aircraft, "SULRR").RevertResume);
+
+        (double grudgIas, _) = TickUntilPassed(harness, "GRUDG");
+        Assert.InRange(grudgIas, 240 - CrossingToleranceKts, 240 + SnapKts);
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+
+        (double sulrrIas, _) = TickUntilPassed(harness, "SULRR");
+        Assert.InRange(sulrrIas, 220 - CrossingToleranceKts, 220 + SnapKts);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+    }
+
+    [Fact]
+    public void Dvxm_SnapshotRoundTrip_KeepsThePlainRevertBeforeTheEnd()
+    {
+        OakesHarness harness = PastOakes("12");
+        SendOk(harness, "CFIX SULRR A110 220, DVXM 250 LOHGN");
+        Assert.Equal(250, RouteFix(harness.Aircraft, "SULRR").RevertAssignedSpeed);
+
+        StateSnapshotDto snapshot = harness.Engine.CaptureSnapshot();
+        SimulationEngine engine = NewEngine();
+        engine.RestoreFromSnapshot(snapshot);
+        AircraftState restored = Assert.IsType<AircraftState>(engine.FindAircraft(harness.Aircraft.Callsign));
+
+        Assert.Equal(250, RouteFix(restored, "SULRR").RevertSpeed);
+        Assert.Equal(250, RouteFix(restored, "SULRR").RevertAssignedSpeed);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(restored, "LOHGN").RevertResume);
+        Assert.Equal(220, restored.Targets.AssignedSpeed);
+    }
+
+    [Fact]
+    public void SeparateTransmissions_KeepTodaysBehaviour()
+    {
+        // CFIX, then DVXM in a later transmission: the DVXM's speed cancels the crossing speed (SULRR back to its published
+        // 250, no revert), and its end stays on LOHGN.
+        OakesHarness cfixFirst = PastOakes("12");
+        AircraftState first = cfixFirst.Aircraft;
+        SendOk(cfixFirst, "CFIX SULRR A110 220");
+        SendOk(cfixFirst, "DVXM 250 LOHGN");
+        Assert.Equal(250, first.Targets.AssignedSpeed);
+        Assert.Equal(250, first.Targets.TargetSpeed);
+        Assert.Equal(250, RouteFix(first, "SULRR").SpeedRestriction?.SpeedKts);
+        Assert.Null(RouteFix(first, "SULRR").RevertSpeed);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(first, "LOHGN").RevertResume);
+        TickUntilPassed(cfixFirst, "SULRR");
+        Assert.Equal(250, first.Targets.AssignedSpeed);
+        Assert.True(first.Targets.HasExplicitSpeedCommand);
+        TickUntilPassed(cfixFirst, "LOHGN");
+        Assert.Null(first.Targets.AssignedSpeed);
+        Assert.False(first.Targets.HasExplicitSpeedCommand);
+        Assert.Null(first.Procedure.LastCrossedPublishedSpeedKts);
+
+        // DVXM, then CFIX in a later transmission: the crossing drops the end, 220 is flown to SULRR, the DVXM's 250 comes
+        // back past it and holds past LOHGN, whose published 200 is the last crossed.
+        OakesHarness dvxmFirst = PastOakes("12");
+        AircraftState second = dvxmFirst.Aircraft;
+        SendOk(dvxmFirst, "DVXM 250 LOHGN");
+        SendOk(dvxmFirst, "CFIX SULRR A110 220");
+        Assert.Equal(220, second.Targets.AssignedSpeed);
+        Assert.Equal(250, second.Targets.TargetSpeed);
+        Assert.Equal(220, RouteFix(second, "SULRR").SpeedRestriction?.SpeedKts);
+        Assert.Equal(250, RouteFix(second, "SULRR").RevertSpeed);
+        Assert.Equal(250, RouteFix(second, "SULRR").RevertAssignedSpeed);
+        AssertNoExceptSpeedEnd(second);
+        TickUntilPassed(dvxmFirst, "SULRR");
+        Assert.Equal(250, second.Targets.AssignedSpeed);
+        Assert.Equal(250, second.Targets.TargetSpeed);
+        Assert.True(second.Targets.HasExplicitSpeedCommand);
+        TickUntilPassed(dvxmFirst, "LOHGN");
+        Assert.Equal(250, second.Targets.AssignedSpeed);
+        Assert.True(second.Targets.HasExplicitSpeedCommand);
+        Assert.Equal(200, second.Procedure.LastCrossedPublishedSpeedKts);
+    }
+
+    /// <summary>The end fix is the crossing fix: 220 to SULRR, then the published speeds.</summary>
+    private void AssertCrossesTheEndFixAt220ThenPublished(OakesHarness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(aircraft, "SULRR").RevertResume);
+        Assert.Equal(220, RouteFix(aircraft, "SULRR").SpeedRestriction?.SpeedKts);
+
+        TickUntilPassed(harness, "BANND");
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+
+        (double sulrrIas, _) = TickUntilPassed(harness, "SULRR");
+        Assert.InRange(sulrrIas, 220 - CrossingToleranceKts, 220 + SnapKts);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+
+        (double lohgnIas, _) = TickUntilPassed(harness, "LOHGN");
+        Assert.InRange(lohgnIas, 200 - CrossingToleranceKts, 200 + SnapKts);
+    }
+
+    /// <summary>Two crossings before the DVXM's end: 220 to SULRR, 230 to KEENR, 250 from KEENR to LOHGN, then published.</summary>
+    private void AssertTwoCrossingsThen250UntilLohgn(OakesHarness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(aircraft, "LOHGN").RevertResume);
+        Assert.Equal(250, RouteFix(aircraft, "KEENR").RevertSpeed);
+        Assert.Equal(250, RouteFix(aircraft, "KEENR").RevertAssignedSpeed);
+        Assert.Null(RouteFix(aircraft, "SULRR").RevertSpeed);
+        Assert.Null(RouteFix(aircraft, "SULRR").RevertAssignedSpeed);
+
+        (double sulrrIas, _) = TickUntilPassed(harness, "SULRR");
+        Assert.InRange(sulrrIas, 220 - CrossingToleranceKts, 220 + SnapKts);
+        Assert.Equal(230, aircraft.Targets.AssignedSpeed);
+
+        (double keenrIas, _) = TickUntilPassed(harness, "KEENR");
+        Assert.InRange(keenrIas, 230 - CrossingToleranceKts, 230 + SnapKts);
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+
+        TickUntilPassed(harness, "LOHGN");
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.Null(aircraft.Procedure.LastCrossedPublishedSpeedKts);
+    }
+
+    /// <summary>
+    /// Both orders of a crossing before the DVXM's end: 220 to SULRR, 250 from SULRR to LOHGN, then the published speeds, LOHGN's own
+    /// not held.
+    /// </summary>
+    private void AssertCrossingAt220Then250UntilLohgn(OakesHarness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(220, RouteFix(aircraft, "SULRR").SpeedRestriction?.SpeedKts);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(aircraft, "LOHGN").RevertResume);
+
+        TickUntilPassed(harness, "BANND");
+        Assert.Equal(220, aircraft.Targets.AssignedSpeed);
+
+        (double sulrrIas, _) = TickUntilPassed(harness, "SULRR");
+        Assert.InRange(sulrrIas, 220 - CrossingToleranceKts, 220 + SnapKts);
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(250, aircraft.Targets.TargetSpeed);
+        Assert.True(aircraft.Targets.HasExplicitSpeedCommand);
+
+        TickUntilPassed(harness, "KEENR");
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+
+        TickUntilPassed(harness, "LOHGN");
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+        Assert.Null(aircraft.Procedure.LastCrossedPublishedSpeedKts);
+    }
+
+    /// <summary>
+    /// Both orders of a DVXM end before the crossing: 250 until BANND, then slow to cross SULRR at or below 220, then the published
+    /// speeds.
+    /// </summary>
+    private void Assert250UntilBanndThenCrossingAt220(OakesHarness harness)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+        Assert.Equal(220, RouteFix(aircraft, "SULRR").SpeedRestriction?.SpeedKts);
+        Assert.Equal(SpeedResumeKind.ExceptSpeed, RouteFix(aircraft, "BANND").RevertResume);
+
+        TickUntilPassed(harness, "GRUDG");
+        Assert.Equal(250, aircraft.Targets.AssignedSpeed);
+
+        Assert.Equal(16.51, Math.Round(GeoMath.DistanceNm(RouteFix(aircraft, "BANND").Position, RouteFix(aircraft, "SULRR").Position), 2));
+        Assert.InRange(IasOnReaching(harness, "BANND"), 250 - 1, 250 + 1);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand);
+
+        (double sulrrIas, _) = TickUntilPassed(harness, "SULRR");
+        Assert.InRange(sulrrIas, 220 - CrossingToleranceKts, 220 + SnapKts);
+        Assert.Null(aircraft.Targets.AssignedSpeed);
+
+        (double lohgnIas, _) = TickUntilPassed(harness, "LOHGN");
+        Assert.InRange(lohgnIas, 200 - CrossingToleranceKts, 200 + SnapKts);
+    }
+
+    [Fact]
     public void Dvxm_DirectToAFixShortOfTheNamedFix_KeepsTheSpeed_DropsTheEnd()
     {
         OakesHarness harness = PastOakes("12");
@@ -758,6 +1012,25 @@ public class DescendViaExceptSpeedTests
         {
             harness.Engine.TickOneSecond();
         }
+    }
+
+    /// <summary>Ticks until <paramref name="fixName"/> is next to leave the route; returns the speed on the last tick it is still on it.</summary>
+    private static double IasOnReaching(OakesHarness harness, string fixName)
+    {
+        AircraftState aircraft = harness.Aircraft;
+        double ias = aircraft.IndicatedAirspeed;
+        for (int t = 1; t <= 1800; t++)
+        {
+            ias = aircraft.IndicatedAirspeed;
+            harness.Engine.TickOneSecond();
+            if (!aircraft.Targets.NavigationRoute.Exists(f => f.Name.Equals(fixName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return ias;
+            }
+        }
+
+        Assert.Fail($"The aircraft did not pass {fixName} within 1800 s");
+        return 0;
     }
 
     /// <summary>Ticks until <paramref name="fixName"/> leaves the route; returns the speed on that tick and the highest on the way.</summary>

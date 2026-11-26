@@ -26,6 +26,7 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
+- A `CFIX` with a speed and a `DVXM` in one transmission are flown in route order: each crossing at its speed, the DVXM speed to its fix, then published speeds.
 - Presets and chained commands no longer stall behind an unrelated earlier instruction: each transmission's commands now advance on their own.
 - A `;` after `JRADO`, `JRADI`, `JAWY` or `DEPART` now waits until the aircraft joins the radial, is established on it, or reaches the fix.
 - A heading given before a `JRADO`, `JRADI`, `JAWY` or `DEPART` takes effect cancels the pending join and the rest of that transmission.
