@@ -3,5 +3,14 @@
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   x:Class="Yaat.Client.Views.Scope.Toolbar.Dcb.DcbBar"
 >
-  <Canvas x:Name="TilesHost" HorizontalAlignment="Left" />
+  <ScrollViewer
+    x:Name="Scroller"
+    HorizontalScrollBarVisibility="Hidden"
+    VerticalScrollBarVisibility="Disabled"
+    Focusable="False"
+    IsTabStop="False"
+    BringIntoViewOnFocusChange="False"
+  >
+    <Canvas x:Name="TilesHost" HorizontalAlignment="Left" />
+  </ScrollViewer>
 </UserControl>

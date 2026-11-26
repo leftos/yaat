@@ -310,6 +310,37 @@ public class StarsDcbSubmenuTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Brite_RrWheelWhileLatched_StepsTheRingsBrightness_TheClassicRingsSpinnerSteps()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync(2);
+        try
+        {
+            Open(window, host, StarsDcbPage.Brite);
+            ScopeBrightnessGroup rings = ScopeToolbarButtons.BriteGroupOf(ScopeButtonId.BriteRings)!;
+            int before = rings.Get(scope.Brightness);
+            int expected = Math.Clamp(before - rings.Step, rings.Min, rings.Max);
+            Assert.NotEqual(before, expected);
+            // The BRITE submenu's own RR, not the Main page's ring-size RR dimmed at its start.
+            DcbTile rr = Tile(host, e => e.Button == ScopeButtonId.BriteRings);
+            Assert.Equal($"RR\n{before}", rr.Label);
+
+            Press(window, rr);
+            Assert.True(rr.IsLatched);
+            Wheel(window, rr, -1);
+
+            Assert.Equal(expected, rings.Get(scope.Brightness));
+            Assert.Equal($"RR\n{expected}", rr.Label);
+            Press(window, rr);
+            Assert.False(rr.IsLatched);
+            Assert.Equal(expected, rings.Get(scope.Brightness));
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Brite_PosAndOth_BothShowTheTargetsValue()
     {
         (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync(2);
@@ -687,6 +718,35 @@ public class StarsDcbSubmenuTests : IDisposable
 
             Assert.Equal(StarsDcbPage.Yaat, Bar(host).Page);
             Assert.Null(scope.OpenMenu);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatDisplay_RrShow_TogglesTheRangeRings_TheClassicRrShowToggles()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatDisplay);
+            ScopeButton show = ScopeToolbarButtons.Find(ScopeButtonId.RrShow)!;
+            bool before = scope.IsActive(show);
+            DcbTile tile = Tile(host, e => e.Button == ScopeButtonId.RrShow);
+            Assert.Equal("RR\nSHOW", tile.Label);
+            Assert.Equal(before, tile.IsPushed);
+
+            Press(window, tile);
+
+            Assert.Equal(!before, scope.IsActive(show));
+            Assert.Equal(!before, tile.IsPushed);
+
+            Press(window, tile);
+
+            Assert.Equal(before, scope.IsActive(show));
         }
         finally
         {

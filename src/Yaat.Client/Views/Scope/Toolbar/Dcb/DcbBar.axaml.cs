@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media.Immutable;
 
 namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
@@ -7,7 +9,8 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 /// <summary>
 /// A STARS DCB bar: a black band of <see cref="DcbTile"/>s laid out left to right by <see cref="DcbLayout"/>, in the order
 /// they were set, the band as wide as its widest column ends; a group of them may sit together at the bar's right edge instead
-/// when the bar is wider than that.
+/// when the bar is wider than that. A bar narrower than its tiles scrolls them sideways, with no scrollbar: the wheel over it
+/// moves them by <see cref="WheelStep"/> a notch, as CRC's DCB does, and never reaches the Scope behind it.
 /// </summary>
 public partial class DcbBar : UserControl
 {
@@ -16,12 +19,17 @@ public partial class DcbBar : UserControl
     private double _flowWidth;
     private IReadOnlyList<DcbTile> _rightGroup = [];
 
+    /// <summary>How far one wheel notch scrolls the tiles of a bar narrower than them, in DIP (CRC's DCB step).</summary>
+    public const double WheelStep = 25;
+
     /// <summary>A bar holding no tiles.</summary>
     public DcbBar()
     {
         InitializeComponent();
         TilesHost.Height = DcbTileSizes.BarHeight;
         TilesHost.Background = new ImmutableSolidColorBrush(DcbColors.BarBackground);
+        // Tunnelling, so the scroller's own wheel handling never runs; a latched spinner's top-level handler takes the wheel first.
+        AddHandler(PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
     }
 
     /// <summary>The tiles on the bar, left to right.</summary>
@@ -58,6 +66,44 @@ public partial class DcbBar : UserControl
         TilesHost.Width = _flowWidth;
         TilesHost.Height = DcbTileSizes.BarHeight;
         InvalidateArrange();
+    }
+
+    /// <summary>
+    /// Scrolls the tiles the least that shows all of <paramref name="tile"/> in the bar, the left edge first when it is
+    /// wider than the bar; nothing when it is already in view or is not on the bar.
+    /// </summary>
+    public void ScrollIntoView(DcbTile tile)
+    {
+        int index = _tiles.IndexOf(tile);
+        if (index < 0)
+        {
+            return;
+        }
+
+        double left = Canvas.GetLeft(tile);
+        double right = left + _flow[index].Width;
+        double offset = Scroller.Offset.X;
+        double viewport = Scroller.Viewport.Width;
+        if (right > offset + viewport)
+        {
+            offset = right - viewport;
+        }
+
+        ScrollTo(Math.Min(offset, left));
+    }
+
+    /// <summary>The wheel over the bar scrolls its tiles a step a notch, the wheel down moving them left; the Scope never sees it.</summary>
+    private void OnWheel(object? sender, PointerWheelEventArgs e)
+    {
+        e.Handled = true;
+        ScrollTo(Scroller.Offset.X - (e.Delta.Y * WheelStep));
+    }
+
+    /// <summary>Scrolls the tiles to <paramref name="offset"/>, kept between the first tile and the last one at the bar's right edge.</summary>
+    private void ScrollTo(double offset)
+    {
+        double max = Math.Max(0, Scroller.Extent.Width - Scroller.Viewport.Width);
+        Scroller.Offset = new Vector(Math.Clamp(offset, 0, max), 0);
     }
 
     /// <inheritdoc/>

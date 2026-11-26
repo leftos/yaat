@@ -87,7 +87,8 @@ public static class StarsSubmenus
 
     /// <summary>
     /// The BRITE submenu: RANGE to BRITE dimmed, CRC's 17 brightness groups, each over the YAAT BRITE group it maps to (POS
-    /// and OTH share YAAT's one targets group) or disabled where YAAT has none, then DONE.
+    /// and OTH share YAAT's one targets group; RR steps YAAT's RINGS group: the range ring, the Rings tool's rings and the ATPA
+    /// cones) or disabled where YAAT has none, then DONE.
     /// </summary>
     public static IReadOnlyList<StarsDcbEntry> Brite { get; } =
     [
@@ -102,7 +103,7 @@ public static class StarsSubmenus
         Unlit("LDB"),
         Lit("OTH", ScopeButtonId.BriteTargets),
         Lit("TLS", ScopeButtonId.BriteVector),
-        Unlit("RR"),
+        Lit("RR", ScopeButtonId.BriteRings),
         Unlit("CMP"),
         Unlit("BCN"),
         Unlit("PRI"),
@@ -218,26 +219,40 @@ public static class StarsSubmenus
     ];
 
     /// <summary>The PROFILE page: STARS, ERAM and MIXED, each switching the Scope's profile.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatProfile { get; } = YaatMenu(StarsDcbPage.YaatProfile, ScopeButtonId.Profile);
+    public static IReadOnlyList<StarsDcbEntry> YaatProfile { get; } = YaatMenu(StarsDcbPage.YaatProfile, ScopeButtonId.Profile, []);
 
     /// <summary>The TEMPLATE page: the template choices.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatTemplate { get; } = YaatMenu(StarsDcbPage.YaatTemplate, ScopeButtonId.Template);
+    public static IReadOnlyList<StarsDcbEntry> YaatTemplate { get; } = YaatMenu(StarsDcbPage.YaatTemplate, ScopeButtonId.Template, []);
 
     /// <summary>The TOOLS page: J-RING, CONE, DRI 5, DRI 3 and the SIZE spinner.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatTools { get; } = YaatMenu(StarsDcbPage.YaatTools, ScopeButtonId.Tools);
-
-    /// <summary>The DISPLAY page: FIX, WX, LOCK and DCNF; OFF CNTR is on the Main page.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatDisplay { get; } =
-        YaatMenu(StarsDcbPage.YaatDisplay, ScopeButtonId.Display, ScopeButtonId.DisplayOffCntr);
+    public static IReadOnlyList<StarsDcbEntry> YaatTools { get; } = YaatMenu(StarsDcbPage.YaatTools, ScopeButtonId.Tools, []);
 
     /// <summary>
-    /// The DB page: 4TH LINE and CA RING; DWELL is the Aux page's DWELL ON, ATPA DIST and the cones are on the TPA/ATPA
-    /// submenu and CHAR is CHAR SIZE's DATA BLOCKS.
+    /// The DISPLAY page: FIX, WX, LOCK and DCNF, then the RR tray's SHOW as RR SHOW; OFF CNTR is on the Main page, as are the
+    /// RR tray's PLACE RR, ring size and RR CNTR.
+    /// </summary>
+    public static IReadOnlyList<StarsDcbEntry> YaatDisplay { get; } =
+        YaatMenu(
+            StarsDcbPage.YaatDisplay,
+            ScopeButtonId.Display,
+            [new("RR\nSHOW", DcbTileShape.Half, DcbTileKind.Toggle, ScopeButtonId.RrShow, NoMap)],
+            ScopeButtonId.DisplayOffCntr
+        );
+
+    /// <summary>
+    /// The DB page: 4TH LINE and CA RING, then the ALERTS, LINE 4 and DWELL brightness spinners, which CRC's BRITE submenu has
+    /// no group for; the DB tray's DWELL toggle is the Aux page's DWELL ON, ATPA DIST and the cones are on the TPA/ATPA submenu
+    /// and CHAR is CHAR SIZE's DATA BLOCKS.
     /// </summary>
     public static IReadOnlyList<StarsDcbEntry> YaatDb { get; } =
         YaatMenu(
             StarsDcbPage.YaatDb,
             ScopeButtonId.Db,
+            [
+                BriteTile("ALERTS", ScopeButtonId.BriteAlerts),
+                BriteTile("LINE 4", ScopeButtonId.BriteLine4),
+                BriteTile("DWELL", ScopeButtonId.BriteDwell),
+            ],
             ScopeButtonId.DbDwell,
             ScopeButtonId.DbAtpa,
             ScopeButtonId.DbAtpaAlertCones,
@@ -246,10 +261,11 @@ public static class StarsSubmenus
         );
 
     /// <summary>The VIEWS page: SSA, LA/CA/MCI, RPO QUEUE and CRR.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatViews { get; } = YaatMenu(StarsDcbPage.YaatViews, ScopeButtonId.Views);
+    public static IReadOnlyList<StarsDcbEntry> YaatViews { get; } = YaatMenu(StarsDcbPage.YaatViews, ScopeButtonId.Views, []);
 
-    /// <summary>The PILOT LENS page: ON, PATH, QUEUE and CHECKIN.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatLens { get; } = YaatMenu(StarsDcbPage.YaatLens, ScopeButtonId.Lens);
+    /// <summary>The PILOT LENS page: ON, PATH, QUEUE and CHECKIN, then the lens brightness spinner LENS BRITE.</summary>
+    public static IReadOnlyList<StarsDcbEntry> YaatLens { get; } =
+        YaatMenu(StarsDcbPage.YaatLens, ScopeButtonId.Lens, [BriteTile("LENS\nBRITE", ScopeButtonId.BriteLens)]);
 
     /// <summary>The tiles of <paramref name="page"/>, left to right.</summary>
     public static IReadOnlyList<StarsDcbEntry> EntriesOf(StarsDcbPage page) =>
@@ -357,16 +373,30 @@ public static class StarsSubmenus
 
     /// <summary>
     /// A page the YAAT page opens: the YAAT page's tiles up to its opener dimmed, the classic tray's buttons of
-    /// <paramref name="menu"/> in tray order but <paramref name="dropped"/>, then DONE back to the YAAT page.
+    /// <paramref name="menu"/> in tray order but <paramref name="dropped"/>, the tiles <paramref name="extras"/> the tray does not
+    /// hold, then DONE back to the YAAT page.
     /// </summary>
-    private static IReadOnlyList<StarsDcbEntry> YaatMenu(StarsDcbPage page, ScopeButtonId menu, params ScopeButtonId[] dropped) =>
+    private static IReadOnlyList<StarsDcbEntry> YaatMenu(
+        StarsDcbPage page,
+        ScopeButtonId menu,
+        StarsDcbEntry[] extras,
+        params ScopeButtonId[] dropped
+    ) =>
         [
             .. Dimmed(page),
             .. (ScopeToolbarButtons.Find(menu) ?? throw new InvalidOperationException($"The YAAT page's {menu} menu has no classic toolbar button."))
                 .Children.Where(c => !dropped.Contains(c.Id))
                 .Select(TrayTile),
+            .. extras,
             DoneTile(DcbTileShape.Full, StarsDcbPage.Yaat),
         ];
+
+    /// <summary>
+    /// A full-height spinner over the YAAT BRITE group of <paramref name="id"/>, its value on the line after
+    /// <paramref name="label"/>.
+    /// </summary>
+    private static StarsDcbEntry BriteTile(string label, ScopeButtonId id) =>
+        new($"{label}\n%value%", DcbTileShape.Full, DcbTileKind.Spinner, id, NoMap);
 
     /// <summary>
     /// The tile of a classic tray button: a spinner a full-height spinner with its value on its second line, a toggle a half

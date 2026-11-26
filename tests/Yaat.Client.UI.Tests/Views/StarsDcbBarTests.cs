@@ -633,6 +633,196 @@ public class StarsDcbBarTests
         }
     }
 
+    /// <summary>A STARS host 400 px wide, its bar narrower than the Main page's tiles; returns the bar.</summary>
+    private static StarsDcbBar Narrow(ScopeHost host, Window window)
+    {
+        window.Width = 400;
+        Settle(window);
+        StarsDcbBar bar = Bar(host);
+        Assert.True(DcbLayout.Flow([.. StarsMainPage.Entries.Select(e => e.Shape)]).Max(r => r.Right) > bar.Bounds.Width);
+        return bar;
+    }
+
+    private static double LeftIn(StarsDcbBar bar, DcbTile tile) => tile.TranslatePoint(new Point(0, 0), bar)!.Value.X;
+
+    private static void WheelOverBar(Window window, StarsDcbBar bar, int notches)
+    {
+        window.MouseWheel(bar.TranslatePoint(new Point(bar.Bounds.Width / 2, bar.Bounds.Height / 2), window)!.Value, new Vector(0, notches));
+        Settle(window);
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_WheelDownMovesTheTilesLeft25PerNotch_ClampsAtBothEnds_AndNeverZoomsTheScope()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile first = bar.Tiles[0];
+            DcbTile last = bar.Tiles[^1];
+            double range = scope.RangeNm;
+            Assert.Equal(0, LeftIn(bar, first));
+
+            WheelOverBar(window, bar, -1);
+            Assert.Equal(-25, LeftIn(bar, first));
+            WheelOverBar(window, bar, -2);
+            Assert.Equal(-75, LeftIn(bar, first));
+            WheelOverBar(window, bar, 10);
+            Assert.Equal(0, LeftIn(bar, first));
+            WheelOverBar(window, bar, -1000);
+            Assert.Equal(bar.Bounds.Width, LeftIn(bar, last) + last.Bounds.Width);
+
+            Assert.Equal(range, scope.RangeNm);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_TheYaatTile_IsReachable_AfterScrollingToTheEnd()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile yaat = bar.Tiles[IndexOf(e => e.Opens == StarsDcbPage.Yaat)];
+            Assert.True(LeftIn(bar, yaat) + yaat.Bounds.Width > bar.Bounds.Width);
+
+            WheelOverBar(window, bar, -1000);
+
+            Assert.True(LeftIn(bar, yaat) >= 0);
+            Assert.True(LeftIn(bar, yaat) + yaat.Bounds.Width <= bar.Bounds.Width);
+            Press(window, yaat);
+            Assert.Equal(StarsDcbPage.Yaat, bar.Page);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_WheelWhileASpinnerIsLatched_StepsTheSpinner_AndDoesNotScroll()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile range = TileOf(host, ScopeButtonId.Range);
+            double before = scope.RangeNm;
+            double left = LeftIn(bar, range);
+            Press(window, range);
+            Assert.True(range.IsLatched);
+
+            // Unlatched, a wheel down would scroll the tiles left (the bar is at its start, so a wheel up would scroll nothing).
+            WheelOverBar(window, bar, -1);
+
+            Assert.Equal(before + 1, scope.RangeNm);
+            Assert.Equal(left, LeftIn(bar, range));
+            window.DispatchKey(Key.Escape);
+            Settle(window);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_WheelOverAnUnlatchedSpinner_ScrollsTheTiles_AndLeavesItsValue()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile range = TileOf(host, ScopeButtonId.Range);
+            double before = scope.RangeNm;
+            Assert.Equal(0, LeftIn(bar, range));
+
+            Wheel(window, range, -1);
+
+            Assert.False(range.IsLatched);
+            Assert.Equal(-25, LeftIn(bar, range));
+            Assert.Equal(before, scope.RangeNm);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_PressingAHalfClippedTileThatIsNoSpinner_LeavesTheTilesWhereTheyAre()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile? clipped = null;
+            for (int notch = 0; (notch < 60) && (clipped is null); notch++)
+            {
+                WheelOverBar(window, bar, -1);
+                clipped = bar
+                    .Tiles.Where((t, i) => (t.Kind is DcbTileKind.Normal or DcbTileKind.Toggle) && (bar.Entries[i].Opens is null))
+                    .FirstOrDefault(t => (LeftIn(bar, t) < 0) && (LeftIn(bar, t) + t.Bounds.Width > 4));
+            }
+
+            Assert.NotNull(clipped);
+            double left = LeftIn(bar, clipped);
+
+            // A left click on the part of the tile still in view, halfway between the bar's left edge and the tile's right edge.
+            Point inView = clipped.TranslatePoint(new Point((clipped.Bounds.Width - left) / 2, clipped.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(inView);
+            window.MouseDown(inView, MouseButton.Left);
+            window.MouseUp(inView, MouseButton.Left);
+            Settle(window);
+
+            Assert.Equal(left, LeftIn(bar, clipped));
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_LatchingAHalfClippedSpinner_ScrollsItFullyIntoView()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile range = TileOf(host, ScopeButtonId.Range);
+            Assert.True(range.Bounds.Width > 25);
+            WheelOverBar(window, bar, -1);
+            Assert.Equal(-25, LeftIn(bar, range));
+
+            // A press on the part of the tile still in view, halfway between the bar's left edge and the tile's right edge.
+            Point inView = range.TranslatePoint(new Point((range.Bounds.Width + 25) / 2, range.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(inView);
+            window.MouseDown(inView, MouseButton.Left);
+            window.MouseUp(inView, MouseButton.Left);
+            Settle(window);
+
+            Assert.True(range.IsLatched);
+            Assert.Equal(0, LeftIn(bar, range));
+            window.DispatchKey(Key.Escape);
+            Settle(window);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
     [AvaloniaFact]
     public void SetTiles_ThrowsWhenTheRightGroupIsNotTheTailOfTheTiles_InOrder()
     {

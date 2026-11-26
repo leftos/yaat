@@ -259,7 +259,12 @@ public sealed class StarsDcbBar : UserControl
         switch (tile.Kind)
         {
             case DcbTileKind.Spinner:
-                tile.OnLatch = () => Latch(id);
+                tile.OnLatch = () =>
+                {
+                    // A spinner that latches comes fully into view first, as on CRC's DCB, so its value is never clipped.
+                    _bar.ScrollIntoView(tile);
+                    Latch(id);
+                };
                 tile.OnSpin = sign => _viewModel?.StepSpinner(id, sign);
                 tile.OnAccept = _ => EndLatch();
                 tile.OnCancel = CancelLatch;

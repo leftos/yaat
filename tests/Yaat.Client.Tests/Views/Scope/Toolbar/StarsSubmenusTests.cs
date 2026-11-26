@@ -63,7 +63,7 @@ public class StarsSubmenusTests
         Assert.Equal([.. Enumerable.Repeat(H, 17), F], own.Select(e => e.Shape));
         Assert.Equal(StarsDcbPage.Main, own[^1].Opens);
         Assert.Equal(
-            ["DCB", "BKC", "LST", "LDB", "RR", "CMP", "BCN", "PRI", "WX", "WXC"],
+            ["DCB", "BKC", "LST", "LDB", "CMP", "BCN", "PRI", "WX", "WXC"],
             own.Where(e => e.Kind == DcbTileKind.Disabled).Select(FirstLine)
         );
         var live = own.Where(e => e.Kind == DcbTileKind.Spinner).ToDictionary(FirstLine, e => e.Button);
@@ -76,6 +76,7 @@ public class StarsSubmenusTests
                 ["POS"] = ScopeButtonId.BriteTargets,
                 ["OTH"] = ScopeButtonId.BriteTargets,
                 ["TLS"] = ScopeButtonId.BriteVector,
+                ["RR"] = ScopeButtonId.BriteRings,
                 ["HST"] = ScopeButtonId.BriteHist,
             },
             live
@@ -146,6 +147,8 @@ public class StarsSubmenusTests
             StarsDcbPage.Pref,
             StarsDcbPage.Aux,
             StarsDcbPage.TpaAtpa,
+            StarsDcbPage.Yaat,
+            .. YaatMenus,
         ];
         StarsDcbEntry[] withButton = [.. pages.SelectMany(StarsSubmenus.EntriesOf).Where(e => e.Button is not null)];
 
@@ -345,33 +348,58 @@ public class StarsSubmenusTests
     }
 
     [Fact]
-    public void YaatDb_KeepsOnly4thLineAndCaRing()
+    public void YaatDb_Keeps4thLineAndCaRing_ThenTheAlertsLine4AndDwellBrightness()
     {
         StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatDb).SkipLast(1)];
+        const DcbTileKind T = DcbTileKind.Toggle;
+        const DcbTileKind S = DcbTileKind.Spinner;
 
         AssertYaatMenuFrame(StarsDcbPage.YaatDb, 9);
-        Assert.Equal(["4TH LINE", "CA RING"], own.Select(e => e.Label));
-        Assert.Equal([H, H], own.Select(e => e.Shape));
-        Assert.All(own, e => Assert.Equal(DcbTileKind.Toggle, e.Kind));
-        Assert.Equal([ScopeButtonId.Db4thLine, ScopeButtonId.DbCaRing], own.Select(e => e.Button!.Value));
-        string[] dropped = ["CHAR", "DWELL", "ATPA DIST", "ALERT CONES", "MONITOR CONES"];
-        Assert.DoesNotContain(StarsSubmenus.EntriesOf(StarsDcbPage.YaatDb), e => dropped.Contains(FirstLine(e)));
+        Assert.Equal(["4TH LINE", "CA RING", "ALERTS\n%value%", "LINE 4\n%value%", "DWELL\n%value%"], own.Select(e => e.Label));
+        Assert.Equal([H, H, F, F, F], own.Select(e => e.Shape));
+        Assert.Equal([T, T, S, S, S], own.Select(e => e.Kind));
+        Assert.Equal(
+            [ScopeButtonId.Db4thLine, ScopeButtonId.DbCaRing, ScopeButtonId.BriteAlerts, ScopeButtonId.BriteLine4, ScopeButtonId.BriteDwell],
+            own.Select(e => e.Button!.Value)
+        );
+        ScopeButtonId[] dropped =
+        [
+            ScopeButtonId.DbChar,
+            ScopeButtonId.DbDwell,
+            ScopeButtonId.DbAtpa,
+            ScopeButtonId.DbAtpaAlertCones,
+            ScopeButtonId.DbAtpaMonitorCones,
+        ];
+        Assert.DoesNotContain(StarsSubmenus.EntriesOf(StarsDcbPage.YaatDb), e => (e.Button is { } id) && dropped.Contains(id));
     }
 
     [Fact]
-    public void YaatDisplay_KeepsFixWxLockAndDcnf_WithoutOffCntr()
+    public void YaatDisplay_KeepsFixWxLockAndDcnf_WithoutOffCntr_ThenRrShow()
     {
         StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatDisplay).SkipLast(1)];
 
         AssertYaatMenuFrame(StarsDcbPage.YaatDisplay, 8);
-        Assert.Equal(["FIX", "WX", "LOCK", "DCNF\n%value%"], own.Select(e => e.Label));
-        Assert.Equal([H, H, H, H], own.Select(e => e.Shape));
-        Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Normal], own.Select(e => e.Kind));
+        Assert.Equal(["FIX", "WX", "LOCK", "DCNF\n%value%", "RR\nSHOW"], own.Select(e => e.Label));
+        Assert.Equal([H, H, H, H, H], own.Select(e => e.Shape));
+        Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Normal, DcbTileKind.Toggle], own.Select(e => e.Kind));
         Assert.Equal(
-            [ScopeButtonId.DisplayFix, ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayDcnf],
+            [ScopeButtonId.DisplayFix, ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayDcnf, ScopeButtonId.RrShow],
             own.Select(e => e.Button!.Value)
         );
         Assert.DoesNotContain(StarsSubmenus.EntriesOf(StarsDcbPage.YaatDisplay), e => e.Label.Replace('\n', ' ') == "OFF CNTR");
+    }
+
+    [Fact]
+    public void YaatLens_IsTheLensTray_ThenTheLensBrightness()
+    {
+        StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatLens).SkipLast(1)];
+
+        AssertYaatMenuFrame(StarsDcbPage.YaatLens, 11);
+        Assert.Equal(ScopeToolbarButtons.Find(ScopeButtonId.Lens)!.Children.Select(c => (ScopeButtonId?)c.Id), own.SkipLast(1).Select(e => e.Button));
+        Assert.Equal(
+            ("LENS\nBRITE\n%value%", F, DcbTileKind.Spinner, (ScopeButtonId?)ScopeButtonId.BriteLens),
+            (own[^1].Label, own[^1].Shape, own[^1].Kind, own[^1].Button)
+        );
     }
 
     [Fact]
