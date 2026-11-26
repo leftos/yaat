@@ -161,6 +161,7 @@ public static class EramMenus
         new(0, 4, EramButtonType.YaatDbMenu),
         new(1, 4, EramButtonType.YaatViewsMenu),
         new(0, 5, EramButtonType.YaatLensMenu),
+        new(1, 5, EramButtonType.YaatBriteMenu),
     ];
 
     /// <summary>The YAAT menu's PROFILE: the classic PROFILE tray's picks, two rows column by column.</summary>
@@ -186,9 +187,21 @@ public static class EramMenus
             EramButtonType.YaatToolSize
         );
 
-    /// <summary>The YAAT menu's DISPLAY: the classic DISPLAY tray but WX, which ATC TOOLS holds, two rows column by column.</summary>
+    /// <summary>
+    /// The YAAT menu's DISPLAY: the classic DISPLAY tray but WX, which ATC TOOLS holds, then the classic RR tray, as ERAM has
+    /// no range-ring control of its own; two rows column by column.
+    /// </summary>
     public static IReadOnlyList<EramMenuButton> YaatDisplay { get; } =
-        TwoRows(EramButtonType.YaatDisplayFix, EramButtonType.YaatDisplayLock, EramButtonType.YaatDisplayDcnf, EramButtonType.YaatDisplayOffCntr);
+        TwoRows(
+            EramButtonType.YaatDisplayFix,
+            EramButtonType.YaatDisplayLock,
+            EramButtonType.YaatDisplayDcnf,
+            EramButtonType.YaatDisplayOffCntr,
+            EramButtonType.YaatDisplayRrShow,
+            EramButtonType.YaatDisplayRrPlace,
+            EramButtonType.YaatDisplayRrSize,
+            EramButtonType.YaatDisplayRrCenter
+        );
 
     /// <summary>
     /// The YAAT menu's DB: the classic DB tray but 4TH LINE, which DB FIELDS' DEST and TYPE press, and CHAR, which FONT's FDB
@@ -209,6 +222,13 @@ public static class EramMenus
     /// <summary>The YAAT menu's PILOT LENS: the classic PILOT LENS tray, two rows column by column.</summary>
     public static IReadOnlyList<EramMenuButton> YaatLens { get; } =
         TwoRows(EramButtonType.YaatLensOn, EramButtonType.YaatLensPath, EramButtonType.YaatLensQueue, EramButtonType.YaatLensCheckIn);
+
+    /// <summary>
+    /// The YAAT menu's BRITE: the classic BRITE tray's ALERTS, RINGS and LENS, which ERAM's BRIGHT has no group for, two rows
+    /// column by column.
+    /// </summary>
+    public static IReadOnlyList<EramMenuButton> YaatBrite { get; } =
+        TwoRows(EramButtonType.YaatBriteAlerts, EramButtonType.YaatBriteRings, EramButtonType.YaatBriteLens);
 
     /// <summary>
     /// The fixed buttons of the menu <paramref name="menu"/> opens, or null for a menu whose buttons follow the Scope
@@ -233,6 +253,7 @@ public static class EramMenus
             EramButtonType.YaatDbMenu => YaatDb,
             EramButtonType.YaatViewsMenu => YaatViews,
             EramButtonType.YaatLensMenu => YaatLens,
+            EramButtonType.YaatBriteMenu => YaatBrite,
             _ => null,
         };
 

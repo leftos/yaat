@@ -577,6 +577,54 @@ public class EramBarTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task YaatTools_ThenTheBarsDataContextCleared_ClosesTools_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+        EramBar bar = Assert.Single(scope.Host.GetVisualDescendants().OfType<EramBar>());
+
+        bar.DataContext = null;
+
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_ThenTheBarLeavesTheWindow_ClosesTools_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+        EramBar bar = Assert.Single(scope.Host.GetVisualDescendants().OfType<EramBar>());
+        Window window = Assert.IsType<Window>(TopLevel.GetTopLevel(scope.Host));
+
+        window.Content = null;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(scope.Scope, bar.DataContext);
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_ThenProfileStars_ClosesTools_AndDisarmsTheRingTool()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatToolsMenu);
+        Assert.Equal(ScopeButtonId.Tools, scope.Scope.OpenMenu);
+
+        scope.Main.RunScopeCommand(".scope profile stars");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(scope.Scope.OpenMenu);
+        Assert.Equal(ScopeRingTool.None, scope.Scope.ArmedRingTool);
+    }
+
+    [AvaloniaFact]
     public async Task YaatProfileMixed_SwapsTheBarToTheClassicToolbar()
     {
         await using Opened scope = await OpenAsync();
@@ -589,6 +637,49 @@ public class EramBarTests : IDisposable
         Assert.Equal(ScopeProfileKind.Mixed, scope.Scope.ProfileKind);
         Assert.Single(scope.Host.GetVisualDescendants().OfType<ScopeToolbar>());
         Assert.Empty(scope.Host.GetVisualDescendants().OfType<EramBar>());
+    }
+
+    [AvaloniaFact]
+    public async Task YaatBriteRings_StepsTheValueTheClassicRingsSpinnerSteps()
+    {
+        await using Opened scope = await OpenAsync();
+        ScopeBrightnessGroup rings = ScopeBrightness.FindGroup("rings")!;
+        int start = rings.Min + rings.Step;
+        scope.Scope.RunCommand(ScopeToolbarButtons.BriteCommand("rings", start));
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatBriteMenu);
+
+        scope.Click(EramButtonType.YaatBriteRings, MouseButton.Middle);
+
+        Assert.Equal(start + rings.Step, rings.Get(scope.Scope.Brightness));
+        ScopeButton classic = ScopeToolbarButtons.Find(ScopeButtonId.BriteRings)!;
+        Assert.Equal(scope.Scope.SpinnerValue(classic), scope.Toolbar.Find(EramButtonType.YaatBriteRings)!.Line2);
+
+        scope.Scope.StepSpinner(ScopeButtonId.BriteRings, -1);
+
+        Assert.Equal(start, rings.Get(scope.Scope.Brightness));
+        Assert.Equal(scope.Scope.SpinnerValue(classic), scope.Toolbar.Find(EramButtonType.YaatBriteRings)!.Line2);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatDisplayRrShow_TogglesTheRangeRings_AsTheClassicRrShowDoes()
+    {
+        await using Opened scope = await OpenAsync();
+        ScopeButton classic = ScopeToolbarButtons.Find(ScopeButtonId.RrShow)!;
+        bool before = scope.Scope.ShowRangeRing;
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatDisplayMenu);
+
+        scope.Click(EramButtonType.YaatDisplayRrShow);
+
+        Assert.Equal(!before, scope.Scope.ShowRangeRing);
+        Assert.Equal(!before, scope.Scope.IsActive(classic));
+        Assert.Equal(!before, scope.Toolbar.Find(EramButtonType.YaatDisplayRrShow)!.IsOn);
+
+        scope.Scope.Press(classic);
+
+        Assert.Equal(before, scope.Scope.ShowRangeRing);
+        Assert.Equal(before, scope.Toolbar.Find(EramButtonType.YaatDisplayRrShow)!.IsOn);
     }
 
     [Fact]

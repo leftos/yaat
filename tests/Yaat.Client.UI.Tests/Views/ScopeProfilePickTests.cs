@@ -467,6 +467,29 @@ public class ScopeProfilePickTests : IDisposable
         Assert.Equal("euroscope", scope.TemplateId);
     }
 
+    [AvaloniaFact]
+    public async Task ClassicToolsOpen_ThenProfileStars_ClosesTools_AndDisarmsTheRingTool()
+    {
+        MainViewModel main = await NewMain();
+        ScopeViewModel scope = OpenScope(main, store: null);
+        try
+        {
+            main.RunScopeCommand(".scope profile mixed");
+            scope.Press(ScopeToolbarButtons.Find(ScopeButtonId.Tools)!);
+            Assert.Equal(ScopeButtonId.Tools, scope.OpenMenu);
+            Assert.NotEqual(ScopeRingTool.None, scope.ArmedRingTool);
+
+            main.RunScopeCommand(".scope profile stars");
+
+            Assert.Null(scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
     private static void Settle(Window window)
     {
         for (int i = 0; i < 3; i++)

@@ -21,6 +21,9 @@ public partial class EramMasterToolbar : UserControl
     private const double ExpansionGap = 2;
     private const double ExpansionOutline = 2;
 
+    /// <summary>A sideways move smaller than this, in DIP, leaves a fitted expansion where it is.</summary>
+    private const double FitTolerance = 0.01;
+
     /// <summary>The 2 in CRC's <c>2 - ToolbarHeight / 2</c>, how far a second-row button's two-row menu rises.</summary>
     private const double SecondRowRiseGap = 2;
 
@@ -30,6 +33,8 @@ public partial class EramMasterToolbar : UserControl
     private readonly double _pickAreaWidth;
     private EramButtonType? _openMenu;
     private EramButtonType? _openSubmenu;
+    private EramToolbarButton? _menuOwner;
+    private EramToolbarButton? _submenuOwner;
     private Func<EramButtonType, IReadOnlyList<EramMenuButton>?> _menuSource = EramMenus.Fixed;
 
     /// <summary>The bar with its buttons in CRC's order.</summary>
@@ -134,6 +139,21 @@ public partial class EramMasterToolbar : UserControl
         ApplyMenuStates(ExpandOpenMenus());
     }
 
+    /// <summary>Arranges the bar, then fits the open menus to its new width, as a resize leaves their anchors in place.</summary>
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        Size arranged = base.ArrangeOverride(finalSize);
+        FitExpansions(finalSize.Width);
+        return arranged;
+    }
+
+    /// <summary>Fits the open menu and then, inside it, the open submenu to a bar <paramref name="width"/> wide.</summary>
+    private void FitExpansions(double width)
+    {
+        double menuShift = Fit(Expansion, _menuOwner, width, parentShift: 0);
+        Fit(SubmenuExpansion, _submenuOwner, width, menuShift);
+    }
+
     /// <summary>Expands the open menu beside its button and the open submenu beside its own; the open menu's button, or null.</summary>
     private EramToolbarButton? ExpandOpenMenus()
     {
@@ -141,6 +161,8 @@ public partial class EramMasterToolbar : UserControl
         Expansion = (owner is not null) ? Expand(owner, Cells, isSecondRow: (Grid.GetRow(owner) > 0)) : null;
         EramToolbarButton? subOwner = (_openSubmenu is { } sub) ? _menuButtons.Find(button => button.Type == sub) : null;
         SubmenuExpansion = (subOwner?.Parent is Panel parent) ? Expand(subOwner, parent, isSecondRow: (subOwner.CellRow > 0)) : null;
+        _menuOwner = owner;
+        _submenuOwner = subOwner;
         return owner;
     }
 
@@ -278,7 +300,7 @@ public partial class EramMasterToolbar : UserControl
         };
         bool rises = isSecondRow && items.Any(item => item.Row > 0);
         Canvas.SetTop(expansion, -ExpansionOutline + (rises ? SecondRowRiseGap - (EramMasterLayout.BarHeight / 2) : 0));
-        var anchor = new Canvas
+        var anchor = new ExpansionAnchor(() => FitExpansions(Bounds.Width))
         {
             Width = 0,
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -299,6 +321,55 @@ public partial class EramMasterToolbar : UserControl
         }
 
         return expansion;
+    }
+
+    /// <summary>
+    /// Moves <paramref name="expansion"/> sideways so it lies inside the bar's <paramref name="width"/>: right of its
+    /// <paramref name="owner"/> where it fits there, else flipped to the owner's left where it fits there, else as far
+    /// right as it fits with its left edge at least 0. <paramref name="parentShift"/> is how far this arrange moved the
+    /// menu holding it, which the positions read here do not show yet. An expansion whose anchor or owner the bar cannot
+    /// place stays where it is.
+    /// </summary>
+    /// <returns>How far the expansion moves from where it was last arranged, which moves a submenu inside it as far.</returns>
+    private double Fit(Border? expansion, EramToolbarButton? owner, double width, double parentShift)
+    {
+        if (
+            (expansion?.Parent is not Canvas anchor)
+            || (owner?.TranslatePoint(default, this) is not { } ownerAt)
+            || (anchor.TranslatePoint(default, this) is not { } anchorAt)
+        )
+        {
+            return 0;
+        }
+
+        double anchorX = anchorAt.X + parentShift;
+        double left = FittedLeft(anchorX, ownerAt.X + parentShift, expansion.Bounds.Width, width) - anchorX;
+        double set = Canvas.GetLeft(expansion);
+        if (Math.Abs(left - (double.IsNaN(set) ? 0 : set)) >= FitTolerance)
+        {
+            Canvas.SetLeft(expansion, left);
+        }
+
+        return left - expansion.Bounds.X;
+    }
+
+    /// <summary>
+    /// The left edge, in the bar, of an expansion <paramref name="expansionWidth"/> wide whose natural left edge is
+    /// <paramref name="natural"/> and whose owner starts at <paramref name="ownerLeft"/>, in a bar <paramref name="width"/> wide.
+    /// </summary>
+    private static double FittedLeft(double natural, double ownerLeft, double expansionWidth, double width)
+    {
+        if (natural + expansionWidth <= width)
+        {
+            return natural;
+        }
+
+        if ((ownerLeft - expansionWidth >= 0) && (ownerLeft <= width))
+        {
+            return ownerLeft - expansionWidth;
+        }
+
+        return Math.Max(0, width - expansionWidth);
     }
 
     /// <summary>One expansion column: its buttons by row, each a menu button in a panel its own menu can anchor beside.</summary>
@@ -334,4 +405,38 @@ public partial class EramMasterToolbar : UserControl
             EramButtonKind.Command => Command,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown ERAM Master Toolbar button kind"),
         };
+
+    /// <summary>
+    /// The zero-width canvas an expansion hangs from, which has the toolbar fit the open menus once the layout has placed
+    /// it, and again whenever it arranges its expansion after that: a menu that opens arranges only its anchor, never the
+    /// toolbar, and an anchor's own position is known only once its arrange is over.
+    /// </summary>
+    private sealed class ExpansionAnchor : Canvas
+    {
+        private readonly Action _fit;
+        private bool _isPlaced;
+
+        public ExpansionAnchor(Action fit)
+        {
+            _fit = fit;
+            EffectiveViewportChanged += OnEffectiveViewportChanged;
+        }
+
+        protected override Size ArrangeOverride(Size finalSize)
+        {
+            Size size = base.ArrangeOverride(finalSize);
+            if (_isPlaced)
+            {
+                _fit();
+            }
+
+            return size;
+        }
+
+        private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
+        {
+            _isPlaced = true;
+            _fit();
+        }
+    }
 }

@@ -106,7 +106,15 @@ public sealed partial class ScopeViewModel
     {
         Profile = profile;
         ProfileKind = kind;
-        BarKind = ScopeBarPicker.KindFor(kind);
+        ScopeBarKind barKind = ScopeBarPicker.KindFor(kind);
+
+        // A tray left open on the bar being replaced (TOOLS arms the ring tool) closes with it.
+        if (barKind != BarKind)
+        {
+            OpenMenu = null;
+        }
+
+        BarKind = barKind;
         RecomputeBand();
         List<string> unknown = [];
         IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(ScopeToolbarButtons.All, profile.Toolbar, ScopeToolbarButtons.NameOf, unknown);

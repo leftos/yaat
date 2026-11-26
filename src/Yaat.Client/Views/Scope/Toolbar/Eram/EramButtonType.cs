@@ -470,7 +470,7 @@ public enum EramButtonType
     /// <summary>The YAAT menu's TOOLS, which opens the ring tools and arms the band's kind as the classic TOOLS tray does; YAAT's own.</summary>
     YaatToolsMenu,
 
-    /// <summary>The YAAT menu's DISPLAY, which opens FIX, LOCK, DCNF and OFF CNTR; YAAT's own.</summary>
+    /// <summary>The YAAT menu's DISPLAY, which opens FIX, LOCK, DCNF, OFF CNTR and the classic RR tray; YAAT's own.</summary>
     YaatDisplayMenu,
 
     /// <summary>The YAAT menu's DB, which opens the data-block items ERAM's DB FIELDS lacks; YAAT's own.</summary>
@@ -481,6 +481,9 @@ public enum EramButtonType
 
     /// <summary>The YAAT menu's PILOT LENS, which opens the lens toggles as the classic PILOT LENS tray does; YAAT's own.</summary>
     YaatLensMenu,
+
+    /// <summary>The YAAT menu's BRITE, which opens the brightness groups ERAM's BRIGHT lacks; YAAT's own.</summary>
+    YaatBriteMenu,
 
     /// <summary>The YAAT menu's OTHERS, which flips others' level as the classic OTHERS does; YAAT's own.</summary>
     YaatOthers,
@@ -574,6 +577,27 @@ public enum EramButtonType
 
     /// <summary>The PILOT LENS item CHECKIN, which toggles the lens check-ins; YAAT's own.</summary>
     YaatLensCheckIn,
+
+    /// <summary>The BRITE item ALERTS, which steps the alerts' brightness as the classic ALERTS spinner does; YAAT's own.</summary>
+    YaatBriteAlerts,
+
+    /// <summary>The BRITE item RINGS, which steps the range rings' brightness as the classic RINGS spinner does; YAAT's own.</summary>
+    YaatBriteRings,
+
+    /// <summary>The BRITE item LENS, which steps the pilot lens' brightness as the classic LENS spinner does; YAAT's own.</summary>
+    YaatBriteLens,
+
+    /// <summary>The DISPLAY item RR SHOW, which toggles the range rings as the classic RR tray's SHOW does; YAAT's own.</summary>
+    YaatDisplayRrShow,
+
+    /// <summary>The DISPLAY item PLACE RR, which places the range rings' centre as the classic PLACE RR does; YAAT's own.</summary>
+    YaatDisplayRrPlace,
+
+    /// <summary>The DISPLAY item RR SIZE, which steps the range rings' spacing as the classic RR tray's SIZE does; YAAT's own.</summary>
+    YaatDisplayRrSize,
+
+    /// <summary>The DISPLAY item RR CNTR, which centres the range rings as the classic RR CNTR does; YAAT's own.</summary>
+    YaatDisplayRrCenter,
 }
 
 /// <summary>The two text lines CRC draws on an ERAM toolbar button, and the buttons YAAT has a feature for.</summary>
@@ -704,6 +728,7 @@ public static class EramButtonTypeExtensions
             EramButtonType.YaatDbMenu => ("DB", ""),
             EramButtonType.YaatViewsMenu => ("VIEWS", ""),
             EramButtonType.YaatLensMenu => ("PILOT", "LENS"),
+            EramButtonType.YaatBriteMenu => ("BRITE", ""),
             EramButtonType.YaatOthers => ("OTHERS", ""),
             EramButtonType.YaatAuto => ("AUTO", ""),
             EramButtonType.YaatProfileStars => ("STARS", ""),
@@ -735,6 +760,13 @@ public static class EramButtonTypeExtensions
             EramButtonType.YaatLensPath => ("PATH", ""),
             EramButtonType.YaatLensQueue => ("QUEUE", ""),
             EramButtonType.YaatLensCheckIn => ("CHECKIN", ""),
+            EramButtonType.YaatBriteAlerts => ("ALERTS", ""),
+            EramButtonType.YaatBriteRings => ("RINGS", ""),
+            EramButtonType.YaatBriteLens => ("LENS", ""),
+            EramButtonType.YaatDisplayRrShow => ("RR", "SHOW"),
+            EramButtonType.YaatDisplayRrPlace => ("PLACE", "RR"),
+            EramButtonType.YaatDisplayRrSize => ("RR", "SIZE"),
+            EramButtonType.YaatDisplayRrCenter => ("RR", "CNTR"),
             >= EramButtonType.Filter1 and <= EramButtonType.Filter40 => ("", ""),
             EramButtonType.MapBcg1 or EramButtonType.MapBcg2 => ("", ""),
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not an ERAM toolbar button"),
@@ -773,7 +805,7 @@ public static class EramButtonTypeExtensions
             EramButtonType.HistoryFilter => true,
             >= EramButtonType.Filter1 and <= EramButtonType.Filter40 => true,
             >= EramButtonType.PrefsetSet and <= EramButtonType.PrefsetDelete => true,
-            >= EramButtonType.YaatMenu and <= EramButtonType.YaatLensCheckIn => true,
+            >= EramButtonType.YaatMenu and <= EramButtonType.YaatDisplayRrCenter => true,
             _ => false,
         };
 }

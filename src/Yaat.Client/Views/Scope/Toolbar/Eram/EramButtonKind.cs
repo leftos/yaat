@@ -26,7 +26,8 @@ public static class EramButtonKindExtensions
     /// departures: ATC TOOLS' WX toggles, as YAAT has one weather display and no Weather menu, and CRC's press-and-hold
     /// overrides (VRI, CODE, SPEED, DELAY FORMAT) command, as YAAT has no press-and-hold kind; the PREFSET items command. The
     /// YAAT menu's own buttons take their classic counterpart's kind: its menus open a menu, OTHERS, AUTO, the profile and
-    /// template picks, DCNF and OFF CNTR command, SIZE goes up and down, and the rest toggle.
+    /// template picks, DCNF, OFF CNTR, PLACE RR and RR CNTR command, SIZE, RR SIZE and the BRITE items go up and down, and
+    /// the rest toggle.
     /// </summary>
     /// <param name="type">The button whose kind is asked for.</param>
     public static EramButtonKind Kind(this EramButtonType type) =>
@@ -54,9 +55,11 @@ public static class EramButtonKindExtensions
             or EramButtonType.SpeedDisplayOverride
             or EramButtonType.DelayFormatOverride => EramButtonKind.Command,
             >= EramButtonType.PrefsetSet and <= EramButtonType.PrefsetDelete => EramButtonKind.Command,
-            >= EramButtonType.YaatMenu and <= EramButtonType.YaatLensMenu => EramButtonKind.Menu,
+            >= EramButtonType.YaatMenu and <= EramButtonType.YaatBriteMenu => EramButtonKind.Menu,
             >= EramButtonType.YaatOthers and <= EramButtonType.YaatDisplayOffCntr => EramButtonKind.Command,
-            EramButtonType.YaatToolSize => EramButtonKind.IncDec,
+            EramButtonType.YaatDisplayRrPlace or EramButtonType.YaatDisplayRrCenter => EramButtonKind.Command,
+            EramButtonType.YaatToolSize or EramButtonType.YaatDisplayRrSize => EramButtonKind.IncDec,
+            >= EramButtonType.YaatBriteAlerts and <= EramButtonType.YaatBriteLens => EramButtonKind.IncDec,
             >= EramButtonType.BackgroundBrightness and <= EramButtonType.DwellBrightness => EramButtonKind.IncDec,
             EramButtonType.MapBcg1 or EramButtonType.MapBcg2 or EramButtonType.NonAdsbBrightness => EramButtonKind.IncDec,
             >= EramButtonType.FdbFontSize and <= EramButtonType.FdbPortalFontSize => EramButtonKind.IncDec,

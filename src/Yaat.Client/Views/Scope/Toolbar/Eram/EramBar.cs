@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
@@ -59,6 +60,7 @@ public sealed class EramBar : UserControl
         {
             old.PropertyChanged -= OnViewModelPropertyChanged;
             old.MapToggles.CollectionChanged -= OnMapTogglesChanged;
+            CloseTrays(old);
         }
 
         _viewModel = DataContext as ScopeViewModel;
@@ -70,6 +72,16 @@ public sealed class EramBar : UserControl
 
         Toolbar.RefreshMenu();
         Refresh();
+    }
+
+    /// <summary>A bar leaving the window, as on a dock or a bar swap, closes the trays it opened on its Scope.</summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (_viewModel is { } viewModel)
+        {
+            CloseTrays(viewModel);
+        }
     }
 
     /// <summary>The spinner an inc/dec button steps, or null for any other button.</summary>
@@ -87,6 +99,10 @@ public sealed class EramBar : UserControl
             EramButtonType.FdbFontSize => ScopeButtonId.DbChar,
             EramButtonType.HistoryFilter => ScopeButtonId.Hist,
             EramButtonType.YaatToolSize => ScopeButtonId.ToolSize,
+            EramButtonType.YaatBriteAlerts => ScopeButtonId.BriteAlerts,
+            EramButtonType.YaatBriteRings => ScopeButtonId.BriteRings,
+            EramButtonType.YaatBriteLens => ScopeButtonId.BriteLens,
+            EramButtonType.YaatDisplayRrSize => ScopeButtonId.RrSize,
             _ => null,
         };
 
@@ -143,6 +159,9 @@ public sealed class EramBar : UserControl
             EramButtonType.YaatLensPath => ScopeButtonId.LensPath,
             EramButtonType.YaatLensQueue => ScopeButtonId.LensQueue,
             EramButtonType.YaatLensCheckIn => ScopeButtonId.LensCheckIn,
+            EramButtonType.YaatDisplayRrShow => ScopeButtonId.RrShow,
+            EramButtonType.YaatDisplayRrPlace => ScopeButtonId.RrPlace,
+            EramButtonType.YaatDisplayRrCenter => ScopeButtonId.RrCenter,
             _ => null,
         };
 
@@ -314,10 +333,29 @@ public sealed class EramBar : UserControl
         {
             viewModel.OpenMenu = tray;
         }
-        else if (viewModel.OpenMenu is ScopeButtonId.Tools or ScopeButtonId.Lens)
+        else
+        {
+            CloseTray(viewModel);
+        }
+    }
+
+    /// <summary>Closes the classic tray a YAAT submenu stands for, TOOLS or PILOT LENS, when it is the Scope's open menu.</summary>
+    private static void CloseTray(ScopeViewModel viewModel)
+    {
+        if (viewModel.OpenMenu is ScopeButtonId.Tools or ScopeButtonId.Lens)
         {
             viewModel.OpenMenu = null;
         }
+    }
+
+    /// <summary>
+    /// Closes what this bar opened on <paramref name="viewModel"/> before the bar stops following it: the tray a YAAT
+    /// submenu stands for, which disarms the ring tool TOOLS armed, and the bar's open menu with any submenu.
+    /// </summary>
+    private void CloseTrays(ScopeViewModel viewModel)
+    {
+        CloseTray(viewModel);
+        Toolbar.OpenMenu = null;
     }
 
     /// <summary>Closes the YAAT TOOLS or PILOT LENS submenu when the Scope closes the tray it stands for (a command press does).</summary>
