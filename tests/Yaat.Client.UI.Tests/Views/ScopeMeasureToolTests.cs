@@ -12,6 +12,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Map;
 using Yaat.Client.Views.Scope;
+using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
@@ -23,7 +24,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// <summary>
 /// The measuring tool on the Scope window: Ctrl+M (Cmd+M on macOS) arms it and says so in the Scope's response, a full store
 /// is an error response; Esc clears the entry, then cancels the measurement, then disarms the Rings tool, and gives way to a
-/// tear-off move; a typed <c>.rbl A B</c> places on the surface that last took the focus; a Scope line follows its aircraft,
+/// view-card move; a typed <c>.rbl A B</c> places on the surface that last took the focus; a Scope line follows its aircraft,
 /// goes with it, and outlives the Scope's track-state clear.
 /// </summary>
 public class ScopeMeasureToolTests
@@ -1002,20 +1003,15 @@ public class ScopeMeasureToolTests
     }
 
     [AvaloniaFact]
-    public async Task Esc_GivesWayToATearoffMove_BeforeTheMeasurement()
+    public async Task Esc_GivesWayToAViewMove_BeforeTheMeasurement()
     {
         (MainViewModel main, _, ScopeView view, Window window) = await ShowScopeAsync();
         try
         {
-            main.RunScopeCommand(".scope tearoff range tl 10 10");
-            Settle(window);
             window.DispatchKey(Key.M, ActionModifier);
-            ScopeButtonControl copy = view
-                .TearoffLayer.GetVisualDescendants()
-                .OfType<ScopeButtonControl>()
-                .Single(c => c.IsTearoff && c.IsEffectivelyVisible && (c.Key == new ScopeButtonKey(ScopeButtonId.Range, null)));
-            Border strip = Assert.IsType<Border>(copy.Strip);
-            Point grab = strip.TranslatePoint(new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2), window)!.Value;
+            ScopeViewCard ssa = Assert.Single(view.TearoffLayer.GetVisualDescendants().OfType<ScopeViewCard>());
+            Border title = ssa.FindControl<Border>("PickArea")!;
+            Point grab = title.TranslatePoint(new Point(title.Bounds.Width / 2, title.Bounds.Height / 2), window)!.Value;
             window.MouseMove(grab);
             window.MouseDown(grab, MouseButton.Left);
             window.MouseUp(grab, MouseButton.Left);

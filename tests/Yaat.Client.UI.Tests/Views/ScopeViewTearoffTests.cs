@@ -11,6 +11,7 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
 using Yaat.Client.Views.Scope.Toolbar;
@@ -249,7 +250,7 @@ public class ScopeViewTearoffTests
 
     /// <summary>The bar's shown control for the button with <paramref name="id"/>.</summary>
     private static ScopeButtonControl BarControl(Window window, ScopeButtonId id) =>
-        window.GetVisualDescendants().OfType<ScopeButtonControl>().Single(c => !c.IsTearoff && (c.Model.Id == id) && c.IsEffectivelyVisible);
+        window.GetVisualDescendants().OfType<ScopeButtonControl>().Single(c => (c.Model.Id == id) && c.IsEffectivelyVisible);
 
     /// <summary>The shown button named <paramref name="name"/> on <paramref name="card"/>.</summary>
     private static Button CardButton(ScopeViewCard card, string name) =>
@@ -343,19 +344,18 @@ public class ScopeViewTearoffTests
     }
 
     [AvaloniaFact]
-    public async Task APressOnTheBarsBrite_MidTearoff_EndsTheMove_AndOpensItsTray()
+    public async Task APressOnTheBarsBrite_MidViewMove_EndsTheMove_AndOpensItsTray()
     {
         (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
-            ScopeButtonControl range = BarControl(window, ScopeButtonId.Range);
-            ClickAt(window, CentreOf(range.Strip!, window));
-            Assert.Contains(LayerOf(window).Children.OfType<ScopeButtonControl>(), c => !c.IsHitTestVisible);
+            PressTitle(window, FloatingCard(window, ScopeToolbarButtons.ViewSsaName));
+            Assert.NotNull(OutlineOf(window));
 
             ClickAt(window, CentreOf(BarControl(window, ScopeButtonId.Brite).Button, window));
 
-            Assert.DoesNotContain(LayerOf(window).Children.OfType<ScopeButtonControl>(), c => !c.IsHitTestVisible);
-            Assert.Empty(scope.Tearoffs);
+            Assert.Null(OutlineOf(window));
+            Assert.Equal(SsaDefault, ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
             Assert.Equal(ScopeButtonId.Brite, scope.OpenMenu);
         }
         finally
@@ -414,28 +414,6 @@ public class ScopeViewTearoffTests
 
             Assert.Null(ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
             Assert.Equal(".view ssa dock", main.StatusText);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task DelTearoff_MidViewMove_EndsTheMove()
-    {
-        (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
-        try
-        {
-            PressTitle(window, FloatingCard(window, ScopeToolbarButtons.ViewSsaName));
-            Assert.NotNull(OutlineOf(window));
-
-            ClickAt(window, CentreOf(BarControl(window, ScopeButtonId.DeleteTearoff).Button, window));
-
-            Assert.True(scope.IsDeletingTearoffs);
-            Assert.Null(OutlineOf(window));
-            Assert.Equal(SsaDefault, ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
-            Assert.True(FloatingCard(window, ScopeToolbarButtons.ViewSsaName).IsEffectivelyVisible);
         }
         finally
         {
@@ -651,28 +629,115 @@ public class ScopeViewTearoffTests
     }
 
     [AvaloniaFact]
-    public async Task ATitlePress_InDelTearoffsMode_StartsNoMove()
+    public async Task WhileAViewMoveRuns_AClickSelectsNoAircraft()
     {
-        (_, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenWindowAsync();
         try
         {
-            ScopeButtonControl delete = window
-                .GetVisualDescendants()
-                .OfType<ScopeButtonControl>()
-                .Single(c => !c.IsTearoff && (c.Model.Id == ScopeButtonId.DeleteTearoff) && c.IsEffectivelyVisible);
-            ClickAt(window, CentreOf(delete.Button, window));
-            Assert.True(scope.IsDeletingTearoffs);
+            ScopeCanvas canvas = CanvasOf(window);
+            (double lat, double lon) = canvas.Viewport.ScreenToLatLon(400f, 400f);
+            main.Aircraft.Add(
+                new AircraftModel
+                {
+                    Callsign = "UAL238",
+                    AircraftType = "B738",
+                    FiledAircraftType = "B738",
+                    FlightRules = "IFR",
+                    TransponderMode = "C",
+                    Altitude = 5000,
+                    GroundSpeed = 250,
+                    Position = new LatLon(lat, lon),
+                }
+            );
+            Dispatcher.UIThread.RunJobs();
+            FieldRect callsign = Assert.Single(canvas.CurrentFrame.Tracks).Block.Fields.First(f => f.Slot == ScopeFieldSlot.Callsign);
+            Point point = canvas.TranslatePoint(new Point(callsign.Rect.MidX, callsign.Rect.MidY), window)!.Value;
 
             PressTitle(window, FloatingCard(window, ScopeToolbarButtons.ViewSsaName));
-            Assert.True(FloatingCard(window, ScopeToolbarButtons.ViewSsaName).IsEffectivelyVisible, "no move hides the card");
-            ClickAt(window, InLayer(window, 600, 400));
+            ClickAt(window, point);
 
-            Assert.Equal(SsaDefault, ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
-            Assert.True(scope.IsDeletingTearoffs);
+            Assert.Null(main.SelectedAircraft);
+            Assert.Null(scope.SelectedAircraft);
+            Assert.NotEqual(SsaDefault, ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
         }
         finally
         {
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AResize_KeepsATopRightCardsCornerDistance()
+    {
+        (MainViewModel main, _, ScopeWindow window) = await OpenWindowAsync();
+        try
+        {
+            main.RunViewCommand(".view ssa tear tr 30 40");
+            Settle(window);
+            ScopeTearoffLayer layer = LayerOf(window);
+
+            (double Right, double Top) Gaps()
+            {
+                ScopeViewCard card = FloatingCard(window, ScopeToolbarButtons.ViewSsaName);
+                Point topLeft = card.TranslatePoint(default, layer)!.Value;
+                return (layer.Bounds.Width - (topLeft.X + card.Bounds.Width), topLeft.Y);
+            }
+
+            Assert.Equal((30d, 40d), Gaps());
+            double width = layer.Bounds.Width;
+
+            window.Width -= 200;
+            window.Height -= 100;
+            Settle(window);
+
+            Assert.Equal(width - 200, layer.Bounds.Width, 0);
+            Assert.Equal((30d, 40d), Gaps());
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // The main window with the terminal docked and the Scope tab selected.
+    private static async Task<(MainWindow Main, MainViewModel Vm, ScopeViewModel Scope)> BootDockedAsync()
+    {
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
+        return (main, vm, vm.PrimaryScope);
+    }
+
+    private static TextBox CommandBox(MainWindow main) => main.GetVisualDescendants().OfType<TextBox>().First(t => t.Name == "CommandInput");
+
+    private static void FocusCommandBox(MainWindow main)
+    {
+        Assert.True(CommandBox(main).Focus());
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Docked_DuringAViewMove_WithTheCommandBoxFocused_EscEndsTheMove()
+    {
+        (MainWindow main, MainViewModel vm, ScopeViewModel scope) = await BootDockedAsync();
+        try
+        {
+            ScopePlacement? before = ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place;
+            PressTitle(main, FloatingCard(main, ScopeToolbarButtons.ViewSsaName));
+            main.MouseMove(InLayer(main, 500, 300));
+            Settle(main);
+            Assert.NotNull(OutlineOf(main));
+
+            FocusCommandBox(main);
+            vm.CommandText = "abc";
+
+            main.DispatchKey(Key.Escape);
+
+            Assert.Null(OutlineOf(main));
+            Assert.Equal(before, ViewOf(scope, ScopeToolbarButtons.ViewSsaName).Place);
+            Assert.Equal("abc", vm.CommandText);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
         }
     }
 

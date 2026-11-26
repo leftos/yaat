@@ -29,7 +29,6 @@ public class ScopePrefSetTests
         Assert.Equal(set.Maps, loaded.Maps);
         Assert.Equal(set.OpenViews, loaded.OpenViews);
         Assert.Equal(set.ViewPlaces, loaded.ViewPlaces);
-        Assert.Equal(set.Tearoffs, loaded.Tearoffs);
         Assert.Equal(set.Toolbar, loaded.Toolbar);
         Assert.Equal(set.Views, loaded.Views);
         Assert.Equal("eram", loaded.Kind);
@@ -97,7 +96,6 @@ public class ScopePrefSetTests
                 "maps",
                 "openViews",
                 "viewPlaces",
-                "tearoffs",
                 "toolbar",
                 "views",
                 "kind",
@@ -143,6 +141,43 @@ public class ScopePrefSetTests
     }
 
     [Fact]
+    public void AnOldFilesTearoffs_LoadWithTheRestIntact_AndAResaveDropsThem()
+    {
+        const string json = """
+            {
+              "name": "SR-DAY",
+              "rangeNm": 37.5,
+              "centerLat": 37.5,
+              "centerLon": -122.5,
+              "templateId": "eram",
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
+              "maps": [3, 15],
+              "openViews": ["ssa"],
+              "tearoffs": [ { "button": "range", "corner": "tl", "dx": 10, "dy": 20 } ],
+              "toolbar": ["range", "pref"],
+              "kind": "stars",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null },
+              "futureThing": 3
+            }
+            """;
+
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(loaded, ScopePrefSet.JsonOptions));
+
+        Assert.Equal("SR-DAY", loaded.Name);
+        Assert.Equal(37.5, loaded.RangeNm);
+        Assert.Equal("eram", loaded.TemplateId);
+        Assert.Equal([3, 15], loaded.Maps);
+        Assert.Equal(["ssa"], loaded.OpenViews);
+        Assert.Equal(["range", "pref"], loaded.Toolbar);
+        Assert.Equal("stars", loaded.Kind);
+        Assert.False(document.RootElement.TryGetProperty("tearoffs", out _));
+        Assert.Equal(3, document.RootElement.GetProperty("futureThing").GetInt32());
+    }
+
+    [Fact]
     public void MissingCollections_LoadEmpty()
     {
         const string json = """
@@ -163,7 +198,6 @@ public class ScopePrefSetTests
         ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(json, ScopePrefSet.JsonOptions)!;
 
         Assert.Empty(loaded.Maps);
-        Assert.Empty(loaded.Tearoffs);
         Assert.Empty(loaded.Brightness);
         Assert.Empty(loaded.OpenViews);
         Assert.Empty(loaded.ViewPlaces);
@@ -359,7 +393,6 @@ public class ScopePrefSetTests
             Maps = [3, 15, 40],
             OpenViews = ["ssa", "ca"],
             ViewPlaces = [new ScopePrefView("ssa", null, 8, 8), new ScopePrefView("ca", "br", 410, 260)],
-            Tearoffs = [new ScopePrefTearoff("range", "tl", 10, 20), new ScopePrefTearoff("map15", "tr", -30, 40)],
             Toolbar = ["range", "map15", "pref"],
             Views = ["ssa", "ca"],
             Kind = "eram",

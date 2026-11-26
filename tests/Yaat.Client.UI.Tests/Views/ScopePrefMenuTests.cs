@@ -240,31 +240,6 @@ public class ScopePrefMenuTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task APrefSetButton_HasNoStrip_WhilePrefTearsOff()
-    {
-        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
-        try
-        {
-            main.RunScopeCommand(".scope pref saveas A");
-            Click(ButtonOf(window, ScopeButtonId.Pref));
-
-            Assert.Null(BarControl(window, ScopeButtonId.PrefSet).Strip);
-            Assert.NotNull(BarControl(window, ScopeButtonId.Pref).Strip);
-
-            var key = new ScopeButtonKey(ScopeButtonId.Pref, null);
-            scope.PlaceTearoff(key, new ScopePlacement(ScopeCorner.TopLeft, 10, 10));
-            Dispatcher.UIThread.RunJobs();
-            window.UpdateLayout();
-
-            Assert.Contains(window.GetVisualDescendants().OfType<ScopeButtonControl>(), c => c.IsTearoff && (c.Key == key));
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    [AvaloniaFact]
     public async Task ASetNamedLikeATemplate_LightsOnlyWhenItIsTheActiveSet()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
@@ -371,7 +346,7 @@ public class ScopePrefMenuTests : IDisposable
 
     /// <summary>The shown control of the button with <paramref name="id"/>, bar or tray.</summary>
     private static ScopeButtonControl BarControl(Window window, ScopeButtonId id) =>
-        window.GetVisualDescendants().OfType<ScopeButtonControl>().Single(c => !c.IsTearoff && (c.Model.Id == id) && c.IsEffectivelyVisible);
+        window.GetVisualDescendants().OfType<ScopeButtonControl>().Single(c => (c.Model.Id == id) && c.IsEffectivelyVisible);
 
     private static void Click(Button button)
     {

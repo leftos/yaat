@@ -190,6 +190,7 @@ public class ScopeHostTests
         try
         {
             EramToolbarButton tile = HideToTheShowTile<EramToolbarButton>(main, host, window);
+            Assert.Equal(EramButtonType.ShowToolbar, tile.Type);
             Assert.Equal(("SHOW", "TOOLBAR"), (tile.Line1, tile.Line2));
             Assert.Equal(EramButtonKind.Command, tile.Kind);
 

@@ -72,7 +72,7 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The scope's display state as a pref set named <paramref name="name"/>: range and centre, template, BRITE, DB, the
-    /// maps that are on, the open views and every view's place, the tear-offs, the bar's and the views' order, the
+    /// maps that are on, the open views and every view's place, the bar's and the views' order, the
     /// profile's name, the pinned band values, the vector lines' OWN or ALL, top-down mode, whether the bar is hidden and the
     /// pilot lens's switches (not its toggled tracks). Bands, and the values that follow them, live only in the profile's file.
     /// </summary>
@@ -117,11 +117,7 @@ public sealed partial class ScopeViewModel
             OpenViews = [.. OpenViews],
             ViewPlaces = [.. _allViews.Select(CaptureViewPlace)],
             RundownOrigin = (RundownOrigin == DefaultRundownOrigin) ? null : new ScopePrefPoint(RundownOrigin.X, RundownOrigin.Y),
-            Tearoffs = [.. Tearoffs.Select(CaptureTearoff)],
-            Toolbar =
-                (BarKind == ScopeBarKind.Classic)
-                    ? [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))]
-                    : [],
+            Toolbar = (BarKind == ScopeBarKind.Classic) ? [.. ToolbarButtons.Select(ScopeToolbarButtons.NameOf)] : [],
             Views = [.. _allViews.Select(view => view.Name)],
             Kind = ScopeProfilePicker.NameOf(ProfileKind),
             PinOthersLevel = Pins.OthersLevel,
@@ -162,7 +158,6 @@ public sealed partial class ScopeViewModel
         ApplyOpenViews(set.OpenViews);
         ApplyViewPlaces(set.ViewPlaces);
         ApplyRundownOrigin(set.RundownOrigin);
-        ApplyTearoffs(set.Tearoffs);
         ApplyMapTools(set.MapTools);
         return hold ? 0 : ApplySeededParts(set);
     }
@@ -326,9 +321,6 @@ public sealed partial class ScopeViewModel
     private static ScopePrefView CaptureViewPlace(ScopeDockViewModel view) =>
         new(view.Name, view.Place is { } place ? ScopePlacement.NameOf(place.Corner) : null, view.Place?.Dx ?? 0, view.Place?.Dy ?? 0);
 
-    private static ScopePrefTearoff CaptureTearoff(ScopeTearoff tearoff) =>
-        new(ScopeToolbarButtons.NameOf(tearoff.Key), ScopePlacement.NameOf(tearoff.Place.Corner), tearoff.Place.Dx, tearoff.Place.Dy);
-
     private void ApplyTemplate(string templateId)
     {
         if (!ScopeTemplates.IsSelectable(templateId))
@@ -469,38 +461,6 @@ public sealed partial class ScopeViewModel
         }
 
         RestoreViewPlace(entry.Name, new ScopePlacement(corner, Math.Max(0, entry.Dx), Math.Max(0, entry.Dy)));
-    }
-
-    private void ApplyTearoffs(IReadOnlyList<ScopePrefTearoff> tearoffs)
-    {
-        DeleteTearoffs([.. Tearoffs.Select(tearoff => tearoff.Key)]);
-        foreach (ScopePrefTearoff entry in tearoffs)
-        {
-            PlaceSavedTearoff(entry);
-        }
-    }
-
-    private void PlaceSavedTearoff(ScopePrefTearoff? entry)
-    {
-        if ((entry?.Button is null) || (entry.Corner is null))
-        {
-            Log.LogWarning("A pref set holds an incomplete tear-off; skipping it");
-            return;
-        }
-
-        if (!ScopeToolbarButtons.TryParseKey(entry.Button, out ScopeButtonKey? key))
-        {
-            Log.LogWarning("A pref set names unknown button '{Button}'; skipping its tear-off", entry.Button);
-            return;
-        }
-
-        if (!ScopePlacement.TryParseCorner(entry.Corner, out ScopeCorner corner))
-        {
-            Log.LogWarning("A pref set gives tear-off '{Button}' unknown corner '{Corner}'; skipping it", entry.Button, entry.Corner);
-            return;
-        }
-
-        PlaceTearoff(key, new ScopePlacement(corner, Math.Max(0, entry.Dx), Math.Max(0, entry.Dy)));
     }
 
     /// <summary>

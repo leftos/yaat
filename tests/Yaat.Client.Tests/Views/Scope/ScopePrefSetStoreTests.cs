@@ -650,7 +650,7 @@ public class ScopePrefSetStoreTests : IDisposable
     }
 
     [Fact]
-    public void SetWithATearoffMissingItsButton_IsDropped_AndTheRestLoad()
+    public void SetWithAnOldTearoffMissingItsButton_Loads_WithNoWarning()
     {
         string path = SetsPath("ZOA");
         WriteFile(
@@ -683,8 +683,8 @@ public class ScopePrefSetStoreTests : IDisposable
             """
         );
 
-        Assert.Equal(["SR-NIGHT"], NewStore().LoadSets("ZOA").Select(set => set.Name));
-        Assert.Single(_log.Warnings);
+        Assert.Equal(["SR-BAD", "SR-NIGHT"], NewStore().LoadSets("ZOA").Select(set => set.Name));
+        Assert.Empty(_log.Warnings);
     }
 
     [Fact]

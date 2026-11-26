@@ -6,13 +6,16 @@ namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
 /// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
-/// settings, the maps that are on, the open views with their places, the tear-offs, the classic bar's button names
+/// settings, the maps that are on, the open views with their places, the classic bar's button names
 /// (empty when the Scope showed the STARS or ERAM bar) and the views array, the pinned band values, the vector lines' OWN
 /// or ALL, top-down mode, whether the bar is hidden and the pilot lens's switches. Every field holds text names rather
 /// than types from the app, so a rename in code leaves the file readable.
 /// </summary>
-public sealed record ScopePrefSet
+public sealed record ScopePrefSet : IJsonOnDeserialized
 {
+    /// <summary>The key of the button tear-offs older files hold; dropped on load, so a resave does not write it.</summary>
+    private const string RetiredTearoffsKey = "tearoffs";
+
     /// <summary>
     /// The serializer options every pref-set file is written and read with: camelCase names, indented, enums as text, an
     /// explicit null in a non-nullable field rejected so that entry is a bad entry, and a positional record entry missing
@@ -50,7 +53,7 @@ public sealed record ScopePrefSet
     /// <summary>The open view names, in dock order.</summary>
     public IReadOnlyList<string> OpenViews { get; init; } = [];
 
-    /// <summary>Every view's place, docked or torn off.</summary>
+    /// <summary>Every view's place, docked or floating.</summary>
     public IReadOnlyList<ScopePrefView> ViewPlaces { get; init; } = [];
 
     /// <summary>
@@ -59,9 +62,6 @@ public sealed record ScopePrefSet
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ScopePrefPoint? RundownOrigin { get; init; }
-
-    /// <summary>The tear-offs, in slot order.</summary>
-    public IReadOnlyList<ScopePrefTearoff> Tearoffs { get; init; } = [];
 
     /// <summary>The classic bar's button names; empty when the Scope showed the STARS or ERAM bar.</summary>
     public IReadOnlyList<string> Toolbar { get; init; } = [];
@@ -109,6 +109,9 @@ public sealed record ScopePrefSet
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
 
+    /// <inheritdoc/>
+    void IJsonOnDeserialized.OnDeserialized() => Extra?.Remove(RetiredTearoffsKey);
+
     private static JsonSerializerOptions CreateJsonOptions()
     {
         var options = new JsonSerializerOptions
@@ -142,7 +145,7 @@ public sealed record ScopePrefDb(bool Line4, bool HoverDwell, bool Atpa, bool At
 /// <param name="CheckIn">Whether its check-in tag overlay is on.</param>
 public sealed record ScopePrefLens(bool Enabled, bool Path, bool Queue, bool CheckIn);
 
-/// <summary>One view's place: docked, or torn off to a corner with a pixel offset.</summary>
+/// <summary>One view's place: docked, or floating at a corner with a pixel offset.</summary>
 /// <param name="Name">The view name, such as <c>ssa</c> or <c>ca</c>.</param>
 /// <param name="Corner">Null when the view is docked, else <c>tl</c>, <c>tr</c>, <c>bl</c> or <c>br</c>.</param>
 /// <param name="Dx">The horizontal offset in pixels.</param>
@@ -153,10 +156,3 @@ public sealed record ScopePrefView(string Name, string? Corner, int Dx, int Dy);
 /// <param name="X">The distance from the canvas's left edge.</param>
 /// <param name="Y">The distance from the canvas's top edge.</param>
 public sealed record ScopePrefPoint(double X, double Y);
-
-/// <summary>One tear-off: the button it shows and where it sits.</summary>
-/// <param name="Button">The tear-off button's name, such as <c>range</c> or <c>map15</c>.</param>
-/// <param name="Corner">The corner the tear-off is pinned to: <c>tl</c>, <c>tr</c>, <c>bl</c> or <c>br</c>.</param>
-/// <param name="Dx">The horizontal offset in pixels.</param>
-/// <param name="Dy">The vertical offset in pixels.</param>
-public sealed record ScopePrefTearoff(string Button, string Corner, int Dx, int Dy);

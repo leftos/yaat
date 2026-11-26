@@ -249,17 +249,6 @@ public class EramBarTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task DeleteTearoff_ArmsDeleteMode()
-    {
-        await using Opened scope = await OpenAsync();
-
-        scope.Click(EramButtonType.DeleteTearoff);
-
-        Assert.True(scope.Scope.IsDeletingTearoffs);
-        Assert.True(scope.Toolbar.Find(EramButtonType.DeleteTearoff)!.IsOn);
-    }
-
-    [AvaloniaFact]
     public async Task DisabledButton_PressChangesNothing()
     {
         await using Opened scope = await OpenAsync();
@@ -410,17 +399,19 @@ public class EramBarTests : IDisposable
     public async Task AfterASwitchToMixed_TheOldEramBarNoLongerFollowsTheScope()
     {
         await using Opened scope = await OpenAsync();
+        scope.Scope.RunCommand(".scope db 4thline off");
+        scope.Click(EramButtonType.DbFieldsMenu);
         EramBar old = Assert.Single(scope.Host.GetVisualDescendants().OfType<EramBar>());
-        EramToolbarButton delete = old.Toolbar.Find(EramButtonType.DeleteTearoff)!;
-        Assert.False(delete.IsOn);
+        EramToolbarButton destination = old.Toolbar.Find(EramButtonType.DestinationDisplay)!;
+        Assert.False(destination.IsOn);
 
         scope.Main.RunScopeCommand(".scope profile mixed");
         Dispatcher.UIThread.RunJobs();
-        scope.Scope.Press(ScopeToolbarButtons.Find(ScopeButtonId.DeleteTearoff)!);
+        scope.Scope.RunCommand(".scope db 4thline on");
 
-        Assert.True(scope.Scope.IsDeletingTearoffs);
+        Assert.True(scope.Scope.DbSettings.Line4);
         Assert.Null(old.DataContext);
-        Assert.False(delete.IsOn);
+        Assert.False(destination.IsOn);
     }
 
     [AvaloniaFact]

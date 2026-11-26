@@ -11,8 +11,7 @@ namespace Yaat.Client.Views.Scope.Dock;
 /// One view's card, in the dock or floating on the scope: a header with the view's title, a dock button (shown while the
 /// view floats) that runs <c>.view {name} dock</c> and a close button that runs <c>.view {name} off</c>, over the view's
 /// body, a data template the card carries. The card is bound only to its <see cref="ScopeDockViewModel"/> (its data
-/// context), so any host can show it. A left press on the title area asks to move the card (<see cref="MoveRequestedEvent"/>),
-/// except while DEL TEAROFF's mode is on.
+/// context), so any host can show it. A left press on the title area asks to move the card (<see cref="MoveRequestedEvent"/>).
 /// </summary>
 public sealed partial class ScopeViewCard : UserControl
 {
@@ -74,7 +73,7 @@ public sealed partial class ScopeViewCard : UserControl
 
     private void OnPickAreaPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || (DataContext is not ScopeDockViewModel view) || view.Scope.IsDeletingTearoffs)
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || (DataContext is not ScopeDockViewModel))
         {
             return;
         }

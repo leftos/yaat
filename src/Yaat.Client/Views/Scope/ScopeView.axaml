@@ -47,7 +47,7 @@
     />
     <!-- The entry areas: drawn over the canvas, never hit. -->
     <scope:ScopeEntryLayer x:Name="EntryLayer" />
-    <!-- No background: its empty area passes clicks to the canvas; only its tear-offs are hit. -->
+    <!-- No background: its empty area passes clicks to the canvas; only its floating view cards are hit. -->
     <scope:ScopeTearoffLayer x:Name="TearoffLayer" TextElement.FontFamily="{StaticResource MonoFont}" TextElement.FontSize="12" />
   </Grid>
 </UserControl>

@@ -30,6 +30,10 @@
 - Radar: on the Mixed template, tracks nobody owns draw as STARS tracks up to 120 NM range and as ERAM tracks beyond.
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
+### Removed
+
+- Radar: toolbar buttons no longer tear off onto the scope; `.scope tearoff` and the DEL TEAROFF tiles are gone. View cards still float.
+
 ### Fixed
 - Hold for release lists the departures held at an airport armed by its FAA id (`HFR OAK`), not only by its ICAO id.
 - Scenario presets may lead with `AS {tcp}`, also after `WAIT` or `WAITD`: `AS 1Z RD PMRY` now releases acting as 1Z instead of failing.

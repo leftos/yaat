@@ -9,7 +9,7 @@
   "template": "mixed",
   "toolbar": [
     "profile", "template", "range", "others", "vector", "hist", "tools", "auto", "maps",
-    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref", "deletetearoff"
+    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref"
   ],
   "views": ["ssa", "ca"]
 }

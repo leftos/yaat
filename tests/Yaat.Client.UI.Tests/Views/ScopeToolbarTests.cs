@@ -16,6 +16,7 @@ using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -256,7 +257,6 @@ public class ScopeToolbarTests
                     ScopeButtonId.Lens,
                     ScopeButtonId.Brite,
                     ScopeButtonId.Pref,
-                    ScopeButtonId.DeleteTearoff,
                     ScopeButtonId.BarHide,
                 ],
                 bar
@@ -830,7 +830,7 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task ANarrowWindow_ShowsBothChevrons_AndScrollsDelTearoffIntoView()
+    public async Task ANarrowWindow_ShowsBothChevrons_AndScrollsHideIntoView()
     {
         (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
         try
@@ -843,15 +843,15 @@ public class ScopeToolbarTests
             Assert.False(left.IsEnabled, "the left chevron is disabled at the bar's left end");
             Assert.True(right.IsEnabled, "the right chevron is enabled at the bar's left end");
 
-            Button del = ButtonOf(window, ScopeButtonId.DeleteTearoff);
-            Point delEnd = del.TranslatePoint(new Point(del.Bounds.Width, 0), scroller)!.Value;
-            Assert.True(delEnd.X > scroller.Viewport.Width, "DEL TEAROFF starts past the bar's right edge");
+            Button hide = ButtonOf(window, ScopeButtonId.BarHide);
+            Point hideEnd = hide.TranslatePoint(new Point(hide.Bounds.Width, 0), scroller)!.Value;
+            Assert.True(hideEnd.X > scroller.Viewport.Width, "HIDE starts past the bar's right edge");
 
             PressUntilDisabled(right, 5);
 
             Assert.False(right.IsEnabled, "the right chevron disables at the bar's right end");
-            Point delLeft = del.TranslatePoint(default, scroller)!.Value;
-            Assert.InRange(delLeft.X, 0, scroller.Viewport.Width - del.Bounds.Width);
+            Point hideLeft = hide.TranslatePoint(default, scroller)!.Value;
+            Assert.InRange(hideLeft.X, 0, scroller.Viewport.Width - hide.Bounds.Width);
             Assert.True(left.IsEnabled, "the left chevron enables once the bar is scrolled");
         }
         finally
@@ -869,40 +869,6 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollLeft").IsEffectivelyVisible, "the bar fits, so there is no left chevron");
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits, so there is no right chevron");
             Assert.Equal(0d, Scroller(window).Offset.X);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task Hiding_EndsDeleteTearoffMode_SoATearoffPressesAgain()
-    {
-        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
-        try
-        {
-            main.RunScopeCommand(".scope tearoff tdm tl 30 40");
-            Settle(window);
-            Click(ButtonOf(window, ScopeButtonId.DeleteTearoff));
-            Assert.True(scope.IsDeletingTearoffs);
-
-            main.RunScopeCommand(".scope bar hide");
-            Settle(window);
-            Assert.False(scope.IsDeletingTearoffs);
-
-            ScopeButtonControl tdm = window
-                .GetVisualDescendants()
-                .OfType<ScopeButtonControl>()
-                .Single(c => c.IsTearoff && (c.Key.Id == ScopeButtonId.Tdm));
-            bool before = scope.IsTdm;
-            Point at = tdm.Button.TranslatePoint(new Point(tdm.Button.Bounds.Width / 2, tdm.Button.Bounds.Height / 2), window)!.Value;
-            window.MouseMove(at);
-            window.MouseDown(at, MouseButton.Left);
-            window.MouseUp(at, MouseButton.Left);
-            Settle(window);
-
-            Assert.NotEqual(before, scope.IsTdm);
         }
         finally
         {
@@ -982,7 +948,7 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
             Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
             Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
-            Assert.Equal(20, bar.Length);
+            Assert.Equal(19, bar.Length);
             Assert.All(
                 bar,
                 b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")
@@ -1011,7 +977,6 @@ public class ScopeToolbarTests
                 ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
-                ScopeButtonId.DeleteTearoff,
             ];
             Assert.All(full, id => Assert.Equal(45d, ButtonOf(window, id).Bounds.Height));
 
@@ -1161,15 +1126,15 @@ public class ScopeToolbarTests
         try
         {
             ScrollViewer scroller = Scroller(window);
-            Button del = ButtonOf(window, ScopeButtonId.DeleteTearoff);
-            Point delEnd = del.TranslatePoint(new Point(del.Bounds.Width, 0), scroller)!.Value;
-            Assert.True(delEnd.X > scroller.Viewport.Width, "DEL TEAROFF starts past the bar's right edge");
+            Button hide = ButtonOf(window, ScopeButtonId.BarHide);
+            Point hideEnd = hide.TranslatePoint(new Point(hide.Bounds.Width, 0), scroller)!.Value;
+            Assert.True(hideEnd.X > scroller.Viewport.Width, "HIDE starts past the bar's right edge");
 
-            del.Focus(NavigationMethod.Tab);
+            hide.Focus(NavigationMethod.Tab);
             Settle(window);
 
-            Point delLeft = del.TranslatePoint(default, scroller)!.Value;
-            Assert.InRange(delLeft.X, 0, scroller.Viewport.Width - del.Bounds.Width);
+            Point hideLeft = hide.TranslatePoint(default, scroller)!.Value;
+            Assert.InRange(hideLeft.X, 0, scroller.Viewport.Width - hide.Bounds.Width);
         }
         finally
         {
@@ -1283,50 +1248,33 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task ATearoff_FromAScrolledBar_GrabsTheButtonUnderThePointer()
+    public async Task Docked_AtTheDefaultWidth_TheRightChevronScrollsHideIntoView()
     {
-        (_, ScopeViewModel scope, ScopeWindow window) = await OpenAsync(new Size(500, 800));
+        (MainWindow main, _) = await MainWindowHost.BootDockedScopeAsync();
         try
         {
-            ScrollViewer scroller = Scroller(window);
-            PressUntilDisabled(Chevron(window, "ScrollRight"), 5);
-            double offset = scroller.Offset.X;
-            Assert.True(offset > 0, "the bar scrolled to its right end");
-            Settle(window);
+            Settle(main);
+            Button right = Chevron(main, "ScrollRight");
+            Assert.True(right.IsEffectivelyVisible, "the bar is wider than the docked tab, so the right chevron shows");
+            Assert.True(right.IsEnabled, "the bar starts at its left end, so the right chevron can scroll it");
 
-            ScopeButtonControl brite = window
-                .GetVisualDescendants()
+            PressUntilDisabled(right, 5);
+            Settle(main);
+
+            Assert.False(right.IsEnabled, "the right chevron disables at the bar's right end");
+            Button hide = main.GetVisualDescendants()
                 .OfType<ScopeButtonControl>()
-                .Single(c => !c.IsTearoff && (c.Model.Id == ScopeButtonId.Brite) && c.IsEffectivelyVisible);
-            Border strip = brite.Strip!;
-            var stripCentre = new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2);
-            Point grab = strip.TranslatePoint(stripCentre, brite)!.Value;
-            Point press = strip.TranslatePoint(stripCentre, window)!.Value;
-
-            window.MouseMove(press);
-            window.MouseDown(press, MouseButton.Left);
-            window.MouseUp(press, MouseButton.Left);
-            Settle(window);
-
-            ScopeTearoffLayer layer = window.GetVisualDescendants().OfType<ScopeTearoffLayer>().Single();
-            ScopeButtonControl follower = layer.Children.OfType<ScopeButtonControl>().Single(c => !c.IsHitTestVisible && c.IsTearoff);
-            Point at = follower.TranslatePoint(default, window)!.Value;
-            Assert.Equal(press.X - grab.X, at.X, 1);
-            Assert.Equal(press.Y - grab.Y, at.Y, 1);
-            Assert.Equal(offset, scroller.Offset.X);
-
-            Point drop = layer.TranslatePoint(new Point(250, 400), window)!.Value;
-            window.MouseMove(drop);
-            window.MouseDown(drop, MouseButton.Left);
-            window.MouseUp(drop, MouseButton.Left);
-            Settle(window);
-
-            ScopeTearoff tearoff = Assert.Single(scope.Tearoffs);
-            Assert.Equal(new ScopeButtonKey(ScopeButtonId.Brite, null), tearoff.Key);
+                .Single(c => (c.Model.Id == ScopeButtonId.BarHide) && c.IsEffectivelyVisible)
+                .Button;
+            Point centre = hide.TranslatePoint(new Point(hide.Bounds.Width / 2, hide.Bounds.Height / 2), main)!.Value;
+            Assert.True(
+                (main.InputHitTest(centre) is Visual hit) && ((hit == hide) || hit.GetVisualAncestors().Contains(hide)),
+                "a click at HIDE's centre lands on the button once the bar is scrolled to its right end"
+            );
         }
         finally
         {
-            window.Close();
+            MainWindowHost.CloseAll(main);
         }
     }
 }

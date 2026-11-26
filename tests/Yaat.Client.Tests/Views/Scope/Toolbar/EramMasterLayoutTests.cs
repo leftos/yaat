@@ -41,13 +41,15 @@ public class EramMasterLayoutTests
             EramButtonType.AltitudeLimitsMenu,
             EramButtonType.RadarFilterMenu,
             EramButtonType.PrefsetMenu,
-            EramButtonType.DeleteTearoff,
             EramButtonType.YaatMenu,
         ];
 
         Assert.Equal(expected, Row(1));
         Assert.Equal(EramButtonType.YaatMenu, EramMasterLayout.At(1, 8));
     }
+
+    [Fact]
+    public void Cell1_7_IsEmpty() => Assert.Null(EramMasterLayout.At(1, 7));
 
     [Fact]
     public void TenthColumn_HoldsHideToolbarOverAnEmptyCell()
@@ -74,9 +76,9 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.AltitudeLimitsMenu, "ALT LIM", "")]
     [InlineData(EramButtonType.RadarFilterMenu, "RADAR", "FILTER")]
     [InlineData(EramButtonType.PrefsetMenu, "PREFSET", "")]
-    [InlineData(EramButtonType.DeleteTearoff, "DELETE", "TEAROFF")]
     [InlineData(EramButtonType.YaatMenu, "YAAT", "")]
     [InlineData(EramButtonType.HideToolbar, "HIDE", "TOOLBAR")]
+    [InlineData(EramButtonType.ShowToolbar, "SHOW", "TOOLBAR")]
     public void EachButton_HasCrcsTwoLines(EramButtonType type, string line1, string line2) => Assert.Equal((line1, line2), type.Lines());
 
     [Theory]
@@ -96,9 +98,9 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.AltitudeLimitsMenu, EramButtonKind.Toggle)]
     [InlineData(EramButtonType.RadarFilterMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.PrefsetMenu, EramButtonKind.Menu)]
-    [InlineData(EramButtonType.DeleteTearoff, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.HideToolbar, EramButtonKind.Command)]
+    [InlineData(EramButtonType.ShowToolbar, EramButtonKind.Command)]
     public void EachButton_HasCrcsKind(EramButtonType type, EramButtonKind kind) => Assert.Equal(kind, type.Kind());
 
     [Fact]

@@ -31,7 +31,6 @@ public class ScopeProfileTests
         "views",
         "brite",
         "pref",
-        "deletetearoff",
     ];
 
     private static ActivePositionDto Position(string positionType, string? eramSectorId) =>

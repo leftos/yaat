@@ -26,7 +26,7 @@ public sealed partial class ScopeViewModel
     /// <summary>The open views that sit in the dock, in dock order; the dock shows one card per item.</summary>
     public ObservableCollection<ScopeDockViewModel> DockViews { get; } = [];
 
-    /// <summary>The open views that float on the scope, in dock order; the tear-off layer shows one card per item.</summary>
+    /// <summary>The open views that float on the scope, in dock order; the scope shows one floating view card per item.</summary>
     public ObservableCollection<ScopeDockViewModel> FloatingViews { get; } = [];
 
     /// <summary>Whether any open view sits in the dock; the dock is hidden otherwise.</summary>

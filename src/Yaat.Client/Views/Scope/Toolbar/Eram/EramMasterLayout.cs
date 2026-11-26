@@ -81,7 +81,6 @@ public static class EramMasterLayout
         new(1, 4, EramButtonType.AltitudeLimitsMenu),
         new(1, 5, EramButtonType.RadarFilterMenu),
         new(1, 6, EramButtonType.PrefsetMenu),
-        new(1, 7, EramButtonType.DeleteTearoff),
         new(1, 8, EramButtonType.YaatMenu),
     ];
 

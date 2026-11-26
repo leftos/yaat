@@ -910,7 +910,7 @@ The right column of an ERAM popup (gold, "sends a pilot command"): the Maintain 
 A value set by hand over the zoom band's default (others' level, vector minutes, history, rings) that stands until AUTO or `.scope auto` clears every pin; kept in pref sets and the saved state (`pinOthersLevel`, `pinVectorMin`, `pinHistory`, `pinRings`) and across a profile change.
 
 **Pref set (Radar)**:
-A named snapshot of a Radar's range, centre, template, profile, maps, brightness, display settings, open views and tear-offs, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility, and per scenario, as the same record and comes back when the Scope opens for that facility or the scenario loads, and a pref set is a named copy on top.
+A named snapshot of a Radar's range, centre, template, profile, maps, brightness, display settings and open views, kept per facility (the viewer's facility) and managed by `.scope pref` and the PREF button. The Scope's own state saves itself per facility, and per scenario, as the same record and comes back when the Scope opens for that facility or the scenario loads, and a pref set is a named copy on top.
 
 **Press ladder (Radar)**:
 The ordered list of rungs a pointer press on the Scope runs through (`ScopeCanvas.RunPressLadder`); the first rung that handles the press ends it, so an interactive mode inserted at the wrong place steals clicks from a lower rung. The release ladder and the move hooks are the same shape.
@@ -951,10 +951,7 @@ Top-down mode: the Scope's TDM toggle (button, `.scope tdm on|off`, Ctrl+Shift+T
 A video map vNAS flags `TdmOnly` (an airport diagram): the Radar draws it only while TDM is on, even with its toggle on.
 
 **Tear-off (Radar)**:
-A toolbar button or view pulled out of its place onto the scope, as in CRC's ERAM tear-offs. A button copy (left press on the button's *Tear-off strip*) behaves like its bar button, is one per button and removed with the DEL TEAROFF mode; a view floats as its card (left press on its title to move it, `▸` to dock it again). Either is anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.scope tearoff` or `.view … tear` (`ScopeTearoffLayer`).
-
-**Tear-off strip (Radar)**:
-The narrow band over a tile's left edge, the tile's full height, that shows gold under the pointer; a left press on it copies the button onto the scope as a *Tear-off*.
+A view pulled out of the dock onto the scope as its floating card (left press on its title to move it, `▸` to dock it again), anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.view … tear` (`ScopeTearoffLayer`).
 
 **Template (Radar)**:
 A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.

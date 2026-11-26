@@ -199,7 +199,6 @@ public class ScopePrefCommandTests : IDisposable
             main.RunScopeCommand(".scope template eram");
             main.RunScopeCommand(".scope map 2 on");
             main.RunViewCommand(".view ca tear br 10 20");
-            main.RunScopeCommand(".scope tearoff range tl 30 40");
 
             main.RunScopeCommand(".scope pref saveas SR-DAY");
             Assert.Equal(".scope pref saveas SR-DAY", main.StatusText);
@@ -211,7 +210,6 @@ public class ScopePrefCommandTests : IDisposable
             main.RunScopeCommand(".scope template stars");
             main.RunScopeCommand(".scope map 2 off");
             main.RunViewCommand(".view ca dock");
-            main.RunScopeCommand(".scope tearoff range br 1 1");
 
             main.RunScopeCommand(".scope pref load sr-day");
 
@@ -223,7 +221,6 @@ public class ScopePrefCommandTests : IDisposable
             Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
             Assert.True(scope.MapToggles.Single(t => t.StarsId == 2).IsOn);
             Assert.Equal(new ScopePlacement(ScopeCorner.BottomRight, 10, 20), scope.FloatingViews.Single(v => v.Name == "ca").Place);
-            Assert.Equal(new ScopePlacement(ScopeCorner.TopLeft, 30, 40), scope.Tearoffs.Single(t => t.Key.Id == ScopeButtonId.Range).Place);
         }
         finally
         {
@@ -245,7 +242,7 @@ public class ScopePrefCommandTests : IDisposable
             ScopePrefSetStore store = Store();
             Assert.Empty(store.FindSet("ZOA", "STARS-SET")!.Toolbar);
             IReadOnlyList<string> mixedOrder = ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Toolbar;
-            string[] everyName = [.. ScopeToolbarButtons.All.Select(b => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(b)))];
+            string[] everyName = [.. ScopeToolbarButtons.All.Select(ScopeToolbarButtons.NameOf)];
             Assert.Equal([.. mixedOrder, .. everyName.Except(mixedOrder)], store.FindSet("ZOA", "MIXED-SET")!.Toolbar);
         }
         finally
@@ -255,23 +252,19 @@ public class ScopePrefCommandTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Load_ClosesUnnamedViews_AndReplacesTearoffs()
+    public async Task Load_ClosesUnnamedViews()
     {
         (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
         try
         {
-            main.RunScopeCommand(".scope tearoff range tl 10 10");
             main.RunScopeCommand(".scope pref saveas BASE");
 
             main.RunViewCommand(".view ca on");
-            main.RunScopeCommand(".scope tearoff brite br 5 5");
             Assert.True(scope.IsViewOpen("ca"));
-            Assert.Equal([ScopeButtonId.Range, ScopeButtonId.Brite], scope.Tearoffs.Select(t => t.Key.Id));
 
             main.RunScopeCommand(".scope pref load BASE");
 
             Assert.False(scope.IsViewOpen("ca"));
-            Assert.Equal([ScopeButtonId.Range], scope.Tearoffs.Select(t => t.Key.Id));
         }
         finally
         {
@@ -725,14 +718,14 @@ public class ScopePrefCommandTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Load_ASetHoldingANullTearoffAndViewPlace_AppliesTheRest()
+    public async Task Load_ASetHoldingANullViewPlace_AppliesTheRest()
     {
         (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
         try
         {
             main.RunScopeCommand(".scope pref saveas NULLS");
             ScopePrefSetStore store = Store();
-            store.SaveSet("ZOA", store.FindSet("ZOA", "NULLS")! with { RangeNm = 25, Tearoffs = [null!], ViewPlaces = [null!] });
+            store.SaveSet("ZOA", store.FindSet("ZOA", "NULLS")! with { RangeNm = 25, ViewPlaces = [null!] });
             main.RunScopeCommand(".scope range 100");
 
             main.RunScopeCommand(".scope pref load NULLS");

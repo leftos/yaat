@@ -109,12 +109,7 @@ public sealed partial class ScopeViewModel
         BarKind = ScopeBarPicker.KindFor(kind);
         RecomputeBand();
         List<string> unknown = [];
-        IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(
-            ScopeToolbarButtons.All,
-            profile.Toolbar,
-            button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)),
-            unknown
-        );
+        IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(ScopeToolbarButtons.All, profile.Toolbar, ScopeToolbarButtons.NameOf, unknown);
         if (!buttons.SequenceEqual(ToolbarButtons))
         {
             ToolbarButtons = buttons;

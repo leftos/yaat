@@ -11,7 +11,7 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefDelTearoffThenHide()
+    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefThenHide()
     {
         Assert.Equal(
             [
@@ -33,7 +33,6 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
-                ScopeButtonId.DeleteTearoff,
                 ScopeButtonId.BarHide,
             ],
             ScopeToolbarButtons.All.Select(b => b.Id)
@@ -58,7 +57,6 @@ public class ScopeToolbarButtonsTests
                 "PILOT LENS",
                 "BRITE",
                 "PREF",
-                "DEL TEAROFF",
                 "HIDE",
             ],
             ScopeToolbarButtons.All.Select(b => b.Label)
@@ -114,7 +112,7 @@ public class ScopeToolbarButtonsTests
         IReadOnlyList<ScopeButton> ordered = ScopeProfilePicker.Order(
             ScopeToolbarButtons.All,
             ["MAPS", "range", "wx"],
-            b => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(b)),
+            ScopeToolbarButtons.NameOf,
             unknown
         );
 
@@ -138,7 +136,6 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
-                ScopeButtonId.DeleteTearoff,
                 ScopeButtonId.BarHide,
             ],
             ordered.Select(b => b.Id)
@@ -321,33 +318,6 @@ public class ScopeToolbarButtonsTests
         Assert.Equal(["ssa", "ca", "rpoq", "crr"], views.Children.Select(c => c.Value));
         Assert.Equal([".view ssa", ".view ca", ".view rpoq", ".view crr"], views.Children.Select(c => c.Command));
         Assert.All(views.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
-    }
-
-    /// <summary>
-    /// The three judges agree: every id <see cref="ScopeToolbarButtons.CanTearOff"/> allows, named as
-    /// <see cref="ScopeToolbarButtons.TryParseKey"/> parses it, resolves through <see cref="ScopeToolbarButtons.Find"/>;
-    /// the map toggles, which carry a value, are reached by <c>ButtonFor</c> rather than <c>Find</c>.
-    /// </summary>
-    [Fact]
-    public void EveryTearableId_ResolvesThroughFind()
-    {
-        ScopeButtonId[] tearable =
-        [
-            .. Enum.GetValues<ScopeButtonId>().Where(id => (id != ScopeButtonId.MapToggle) && ScopeToolbarButtons.CanTearOff(id)),
-        ];
-
-        Assert.NotEmpty(tearable);
-        foreach (ScopeButtonId id in tearable)
-        {
-            string name = ScopeToolbarButtons.NameOf(new ScopeButtonKey(id, null));
-            Assert.True(ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? key), name);
-            Assert.Equal(id, key.Id);
-
-            ScopeButton? found = ScopeToolbarButtons.Find(key.Id);
-            Assert.NotNull(found);
-            Assert.Equal(id, found.Id);
-            Assert.True(ScopeToolbarButtons.CanTearOff(found.Id), name);
-        }
     }
 
     [Fact]

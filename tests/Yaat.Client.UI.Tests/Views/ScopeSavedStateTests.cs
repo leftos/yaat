@@ -59,7 +59,6 @@ public class ScopeSavedStateTests : IDisposable
         main.RunScopeCommand(".scope map 31 on");
         main.RunViewCommand(".view ca tear br 10 20");
         main.RunViewCommand(".view ssa tear br 5 6");
-        main.RunScopeCommand(".scope tearoff range tl 30 40");
         first.Dispose();
 
         ScopeViewModel reopened = Reopen(main);
@@ -68,7 +67,6 @@ public class ScopeSavedStateTests : IDisposable
             Assert.Equal(25, reopened.RangeNm);
             Assert.Equal(new ScopePlacement(ScopeCorner.BottomRight, 10, 20), reopened.FloatingViews.Single(v => v.Name == "ca").Place);
             Assert.Equal(new ScopePlacement(ScopeCorner.BottomRight, 5, 6), reopened.FloatingViews.Single(v => v.Name == "ssa").Place);
-            Assert.Equal(new ScopePlacement(ScopeCorner.TopLeft, 30, 40), reopened.Tearoffs.Single(t => t.Key.Id == ScopeButtonId.Range).Place);
             Assert.True(reopened.MapToggles.Single(t => t.StarsId == 31).IsOn);
             Assert.False(reopened.MapToggles.Single(t => t.StarsId == 2).IsOn);
         }

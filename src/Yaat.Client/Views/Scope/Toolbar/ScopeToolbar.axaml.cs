@@ -119,20 +119,9 @@ public partial class ScopeToolbar : UserControl
         return half;
     }
 
-    /// <summary>
-    /// Whether <paramref name="model"/>'s tile is a half one where it lives: a tray child's always, a bar button's as the
-    /// bar of <paramref name="viewModel"/> pairs it now (<see cref="HalfTiles"/>).
-    /// </summary>
-    public static bool IsHalfTile(ScopeViewModel viewModel, ScopeButton model)
-    {
-        IReadOnlyList<ScopeButton> bar = viewModel.ToolbarButtons;
-        int index = bar.Select(b => b.Id).ToList().IndexOf(model.Id);
-        return (index < 0) || HalfTiles(bar, b => ShowsValue(viewModel, b))[index];
-    }
-
     private static ScopeButtonControl BuildButton(List<ScopeButtonControl> list, ScopeButton model, bool isHalf)
     {
-        var button = new ScopeButtonControl(model, isTearoff: false) { IsHalf = isHalf };
+        var button = new ScopeButtonControl(model) { IsHalf = isHalf };
         list.Add(button);
         return button;
     }
@@ -194,7 +183,6 @@ public partial class ScopeToolbar : UserControl
                 or nameof(ScopeViewModel.Brightness)
                 or nameof(ScopeViewModel.DbSettings)
                 or nameof(ScopeViewModel.ActivePrefSet)
-                or nameof(ScopeViewModel.IsDeletingTearoffs)
                 or nameof(ScopeViewModel.ArmedRingTool)
                 or nameof(ScopeViewModel.RingSizeNm)
                 or nameof(ScopeViewModel.ShowMvaHints)

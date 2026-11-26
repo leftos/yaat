@@ -50,7 +50,7 @@ namespace Yaat.Client.Views.Scope;
 /// <c>.scope tdm</c>, as the TDM button does. Typing goes to the Scope's entry (<see cref="ScopeEntryLayer"/>) while the canvas has the focus,
 /// which any press on it gives: printable text adds to the entry, Backspace edits it, Up and Down walk its history, Ctrl+R
 /// (Cmd+R on macOS) recalls the last entry on ERAM and Mixed, and Enter runs it; other chords, Tab and function keys pass on.
-/// Esc, in order: leaves a tear-off move to the tear-off layer, else takes the measuring tool's own prompt with the
+/// Esc, in order: leaves a view-card move to the floating-view layer, else takes the measuring tool's own prompt with the
 /// measurement, else clears the entry and its response, else drops an Alt-drag in flight, else cancels the Scope's measurement,
 /// else disarms the Rings tool.
 /// Esc and Ctrl+Shift+T are taken by a window-level handler that runs in the tunnel, so it acts before any control
@@ -228,8 +228,8 @@ public partial class ScopeView : UserControl
     }
 
     // Esc while a DCB spinner is latched is the spinner's, which cancels it. An Esc that no popup takes while a DCB submenu is
-    // open is the bar's, which returns to its Main page. Any other Esc, unless a tear-off move is on (the tear-off layer
-    // cancels it), runs HandleEscape's chain.
+    // open is the bar's, which returns to its Main page. Any other Esc, unless a view-card move is on (the floating-view
+    // layer cancels it), runs HandleEscape's chain.
     // Ctrl+M arms the measuring tool; Ctrl+Shift+T flips top-down mode. Any other key, or Esc with nothing to clear, passes on.
     // Only while the Scope has the keyboard focus (IsKeyFocusInside): docked in the main window, Esc, Ctrl+M and
     // Ctrl+Shift+T typed in the command box or a grid stay theirs.

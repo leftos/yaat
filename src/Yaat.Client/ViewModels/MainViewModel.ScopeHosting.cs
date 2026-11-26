@@ -13,8 +13,8 @@ namespace Yaat.Client.ViewModels;
 /// <summary>
 /// Where the YAAT Scope lives: the primary Scope, built with this view model and alive until the app exits, shows as the
 /// main window's Scope tab or, popped out, in its own window; extra Scope windows (#2, #3, …) open beside it, each with its
-/// own state; the Scope a typed verb acts on is the one whose canvas last took the focus, while a Scope's toolbar, tear-offs
-/// and cards act on their own Scope.
+/// own state; the Scope a typed verb acts on is the one whose canvas last took the focus, while a Scope's toolbar and cards act
+/// on their own Scope.
 /// </summary>
 public partial class MainViewModel
 {

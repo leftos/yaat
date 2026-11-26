@@ -1,4 +1,4 @@
-<!-- The Scope toolbar's tile look, shared by the bar, its tray and the buttons torn off onto the scope. -->
+<!-- The Scope toolbar's tile look, shared by the bar and its tray. -->
 <Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- A tile fills its control: no margin, text centred, padding 6 left and 9 right with the 1 DIP active ring inside it. -->
   <Style Selector="Button.scopeButton">
@@ -39,24 +39,5 @@
   </Style>
   <Style Selector="TextBlock.scopeMenuMark.active">
     <Setter Property="Foreground" Value="#58c4e6" />
-  </Style>
-  <!-- The tear-off pick strip over a tile's left edge, the tile's full height: gold under the pointer. -->
-  <Style Selector="Border.scopeStrip">
-    <Setter Property="Width" Value="4" />
-    <Setter Property="HorizontalAlignment" Value="Left" />
-    <Setter Property="VerticalAlignment" Value="Stretch" />
-    <Setter Property="Background" Value="Transparent" />
-  </Style>
-  <Style Selector="Border.scopeStrip:pointerover">
-    <Setter Property="Background" Value="#E0B84A" />
-  </Style>
-  <!-- A torn-off copy's accent bar, always drawn. -->
-  <Style Selector="Border.scopeStrip.accent">
-    <Setter Property="Background" Value="#E0B84A" />
-  </Style>
-  <!-- A tear-off marked for DEL TEAROFF. -->
-  <Style Selector="Border.scopeMark">
-    <Setter Property="BorderBrush" Value="#E05050" />
-    <Setter Property="BorderThickness" Value="2" />
   </Style>
 </Styles>

@@ -94,8 +94,8 @@ public sealed class EramBar : UserControl
     private static ScopeButtonId? PressIdOf(EramButtonType type) =>
         type switch
         {
-            EramButtonType.DeleteTearoff => ScopeButtonId.DeleteTearoff,
             EramButtonType.HideToolbar => ScopeButtonId.BarHide,
+            EramButtonType.ShowToolbar => ScopeButtonId.BarShow,
             EramButtonType.CrrView => ScopeButtonId.ViewCrr,
             EramButtonType.CaView => ScopeButtonId.ViewCa,
             EramButtonType.WeatherMenu => ScopeButtonId.DisplayWx,

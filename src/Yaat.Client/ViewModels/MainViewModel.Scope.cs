@@ -25,7 +25,6 @@ public partial class MainViewModel
     private static readonly string ScopeUsage =
         "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
-        + " | .scope tearoff <button> <corner> <dx> <dy> | .scope tearoff delete <button>..."
         + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
@@ -60,8 +59,6 @@ public partial class MainViewModel
     private const string PrefUsage =
         "Usage: .scope pref save | .scope pref saveas <name> | .scope pref load <name>"
         + " | .scope pref rename <old> <new> | .scope pref delete <name>";
-
-    private const string ScopeTearoffUsage = "Usage: .scope tearoff <button> <tl|tr|bl|br> <dx> <dy> | .scope tearoff delete <button>...";
 
     private const string ScopeRangeUsage = "Usage: .scope range <0.125-256>";
 
@@ -177,7 +174,7 @@ public partial class MainViewModel
     internal void RunScopeCommand(string text) => RunScopeCommand(OpenScope, text);
 
     /// <summary>
-    /// Runs a <c>.scope</c> command from <paramref name="scope"/>'s toolbar, tear-offs or cards against that Scope, whichever
+    /// Runs a <c>.scope</c> command from <paramref name="scope"/>'s toolbar or cards against that Scope, whichever
     /// Scope has the focus; nothing is added to the command history.
     /// </summary>
     public void RunScopeCommand(ScopeViewModel scope, string text) => TryHandleScopeCommand(text, new CommandLineSink(this), scope);
@@ -190,7 +187,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Handles <c>.scope range</c>, <c>.scope template</c>, <c>.scope brite</c>, <c>.scope map</c>, <c>.scope db</c>,
-    /// <c>.scope tearoff</c>, <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
+    /// <c>.scope pref</c>, <c>.scope profile</c>, <c>.scope others</c>, <c>.scope auto</c>,
     /// <c>.scope vector</c>, <c>.scope hist</c>, <c>.scope rings</c>, <c>.scope tdm</c>, <c>.scope ptl</c> and <c>.scope lens</c> against
     /// <paramref name="scope"/> (<see cref="OpenScope"/> for the typed line), reporting the echo or the error to <paramref name="sink"/>.
     /// </summary>
@@ -218,7 +215,6 @@ public partial class MainViewModel
             "BRITE" => SetScopeBrightness,
             "MAP" => SetScopeMap,
             "DB" => SetScopeDb,
-            "TEAROFF" => SetScopeTearoff,
             "PREF" => RunScopePref,
             "PROFILE" => PickScopeProfile,
             "OTHERS" => PinScopeOthers,
@@ -306,39 +302,9 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// <c>.scope tearoff &lt;button&gt; tl|tr|bl|br &lt;dx&gt; &lt;dy&gt;</c> (tear the button off, or move its tear-off) or
-    /// <c>.scope tearoff delete &lt;button&gt;...</c>.
-    /// </summary>
-    private static string SetScopeTearoff(ScopeViewModel scope, string[] parts)
-    {
-        if ((parts.Length >= 3) && string.Equals(parts[2], "delete", StringComparison.OrdinalIgnoreCase))
-        {
-            return DeleteScopeTearoffs(scope, parts);
-        }
-
-        if (!TryParsePlacement(parts, 3, out ScopePlacement? place))
-        {
-            return ScopeTearoffUsage;
-        }
-
-        if (!ScopeToolbarButtons.TryParseKey(parts[2], out ScopeButtonKey? key))
-        {
-            return $"Unknown Radar button: {parts[2]}";
-        }
-
-        if ((key.Id == ScopeButtonId.MapToggle) && (scope.FindMapToggle(key.Value ?? "") is null))
-        {
-            return $"Unknown video map: {key.Value}";
-        }
-
-        scope.PlaceTearoff(key, place);
-        return ScopeToolbarButtons.TearoffCommand(key, place);
-    }
-
-    /// <summary>
-    /// The placement that ends a command's <paramref name="parts"/> at <paramref name="index"/>, as in <c>.scope tearoff
-    /// &lt;button&gt; &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c> and <c>.view &lt;name&gt; tear &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c>:
-    /// exactly three last parts, a corner name and two non-negative whole offsets.
+    /// The placement that ends a command's <paramref name="parts"/> at <paramref name="index"/>, as in
+    /// <c>.view &lt;name&gt; tear &lt;corner&gt; &lt;dx&gt; &lt;dy&gt;</c>: exactly three last parts, a corner name and two
+    /// non-negative whole offsets.
     /// </summary>
     /// <returns>False when the parts are no such placement.</returns>
     private static bool TryParsePlacement(string[] parts, int index, [NotNullWhen(true)] out ScopePlacement? place)
@@ -353,34 +319,6 @@ public partial class MainViewModel
                 ? new ScopePlacement(corner, dx, dy)
                 : null;
         return place is not null;
-    }
-
-    /// <summary><c>.scope tearoff delete &lt;button&gt;...</c>: all or nothing, every name torn off.</summary>
-    private static string DeleteScopeTearoffs(ScopeViewModel scope, string[] parts)
-    {
-        if (parts.Length < 4)
-        {
-            return ScopeTearoffUsage;
-        }
-
-        List<ScopeButtonKey> keys = [];
-        foreach (string name in parts.Skip(3))
-        {
-            if (!ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? key))
-            {
-                return $"Unknown Radar button: {name}";
-            }
-
-            if (!scope.IsTornOff(key))
-            {
-                return $"No tear-off: {name}";
-            }
-
-            keys.Add(key);
-        }
-
-        scope.DeleteTearoffs(keys);
-        return ScopeToolbarButtons.TearoffDeleteCommand(keys);
     }
 
     /// <summary><c>.scope tdm on|off</c>: turns top-down mode, which shows ground targets, on or off.</summary>

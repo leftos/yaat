@@ -16,7 +16,7 @@ public sealed partial class ScopeViewModel
     /// <summary>The status line's message when a pref-set press needs an active set and there is none.</summary>
     internal const string NoActivePrefSetMessage = "No pref set is active: use .scope pref saveas <name>";
 
-    // One wheel accumulator per spinner id, shared by the bar's spinner and its tear-off and kept across tray rebuilds,
+    // One wheel accumulator per spinner id, shared by every control of that spinner and kept across tray rebuilds,
     // so a part-step on one spinner never carries to another.
     private readonly Dictionary<ScopeButtonId, ScrollStepAccumulator> _spinnerScroll = [];
 
@@ -45,8 +45,8 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// Hides the Scope's bar to its SHOW tile (<paramref name="hidden"/>) or shows it again; no change when it already is.
-    /// Hiding first closes the open tray, ends DEL TEAROFF's mode and clears the bar's spinner-latch and submenu flags, so Esc
-    /// reaches the Scope view and a tear-off presses again; each bar closes its own menus as the flag turns.
+    /// Hiding first closes the open tray and clears the bar's spinner-latch and submenu flags, so Esc reaches the Scope view;
+    /// each bar closes its own menus as the flag turns.
     /// </summary>
     internal void SetBarHidden(bool hidden)
     {
@@ -58,7 +58,6 @@ public sealed partial class ScopeViewModel
         if (hidden)
         {
             OpenMenu = null;
-            IsDeletingTearoffs = false;
             IsBarSpinnerLatched = false;
             IsBarSubmenuOpen = false;
         }
@@ -109,12 +108,6 @@ public sealed partial class ScopeViewModel
     /// </summary>
     public void Press(ScopeButton button)
     {
-        if (button.Id == ScopeButtonId.DeleteTearoff)
-        {
-            PressDeleteTearoff();
-            return;
-        }
-
         if (TryPressPref(button))
         {
             return;
@@ -233,14 +226,13 @@ public sealed partial class ScopeViewModel
     /// Whether <paramref name="button"/> draws in the active state: a menu while its tray is open, a toggle while what it
     /// turns on is on (<see cref="IsToggleOn"/>), a profile pick while its profile is the shown one, a command button while
     /// the template it picks is in use, a pref-set
-    /// button while its set is the active one, DEL TEAROFF while its mode is on, OTHERS, VECTOR and HIST while their own
+    /// button while its set is the active one, OTHERS, VECTOR and HIST while their own
     /// value is pinned (VECTOR's minutes; OWN or ALL never pins), AUTO while any band value is, TDM while top-down mode
     /// is on and PILOT LENS while the lens is on or its tray is open.
     /// </summary>
     public bool IsActive(ScopeButton button) =>
         button.Id switch
         {
-            ScopeButtonId.DeleteTearoff => IsDeletingTearoffs,
             ScopeButtonId.Tdm => IsTdm,
             ScopeButtonId.Others => Pins.OthersLevel is not null,
             ScopeButtonId.Vector => Pins.VectorMin is not null,

@@ -113,19 +113,19 @@ public partial class ScopeHost : UserControl
     /// <summary>The classic bar's SHOW BAR, a navy half tile drawn by the bar's styles.</summary>
     private ScopeButtonControl ClassicShowTile()
     {
-        var tile = new ScopeButtonControl(ScopeToolbarButtons.BarShow, isTearoff: false) { IsHalf = true };
+        var tile = new ScopeButtonControl(ScopeToolbarButtons.BarShow) { IsHalf = true };
         tile.Button.Click += (_, _) => RunShow();
         tile.Refresh();
         return tile;
     }
 
-    /// <summary>The ERAM bar's SHOW TOOLBAR, a command button as wide as the Master Toolbar's; its gold strip tears nothing off.</summary>
+    /// <summary>The ERAM bar's SHOW TOOLBAR, a command button as wide as the Master Toolbar's; its gold strip is drawn, inert.</summary>
     private EramToolbarButton EramShowTile()
     {
         var button = new EramToolbarButton(
-            EramButtonType.DeleteTearoff,
+            EramButtonType.ShowToolbar,
             EramMasterToolbar.PickAreaWidth(ShowSlot.FontFamily, ShowSlot.FontSize),
-            ("SHOW", "TOOLBAR"),
+            null,
             null
         );
         button.Invoked += (_, _) => RunShow();

@@ -73,12 +73,12 @@ public class EramMasterToolbarTests
         (Window window, EramMasterToolbar bar) = Host();
         List<EramButtonType> pressed = [];
         bar.Command += (_, e) => pressed.Add(e.Type);
-        EramToolbarButton delete = bar.Find(EramButtonType.DeleteTearoff)!;
+        EramToolbarButton hide = bar.Find(EramButtonType.HideToolbar)!;
 
-        Click(window, delete, MouseButton.Left);
-        Click(window, delete, MouseButton.Middle);
+        Click(window, hide, MouseButton.Left);
+        Click(window, hide, MouseButton.Middle);
 
-        Assert.Equal<EramButtonType>([EramButtonType.DeleteTearoff, EramButtonType.DeleteTearoff], pressed);
+        Assert.Equal<EramButtonType>([EramButtonType.HideToolbar, EramButtonType.HideToolbar], pressed);
     }
 
     [AvaloniaFact]
@@ -162,7 +162,7 @@ public class EramMasterToolbarTests
     [InlineData(EramButtonType.ViewsMenu, 0, 0, 212, false)]
     [InlineData(EramButtonType.RangeView, 0, 0, 0, false)]
     [InlineData(EramButtonType.VectorLength, 0, 205, 0, false)]
-    [InlineData(EramButtonType.DeleteTearoff, 0, 201, 212, false)]
+    [InlineData(EramButtonType.HideToolbar, 0, 201, 212, false)]
     [InlineData(EramButtonType.AnnotationMenu, 0, 0, 212, true)]
     public void EachKind_DrawsCrcsFillAndText(EramButtonType type, int red, int green, int blue, bool isDisabled)
     {

@@ -21,7 +21,7 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
   - Select the track, then type `$` and a YAAT command (`$DM 110` or `$ DM 110`). The Scope entry line reads only STARS and ERAM entries otherwise; other pilot commands go through the main command input.
   - Middle-click executes (ERAM).
   - Click a datablock field to open a menu. Field menus split scope data from pilot commands.
-- **Toolbar** combines ERAM menus, STARS spinners, tear-offs (any button or view can be pulled onto the scope) and named pref sets. The views dock holds the views: the status area (SSA) and the lists.
+- **Toolbar** combines ERAM menus, STARS spinners, floating views (any view can be pulled onto the scope) and named pref sets. The views dock holds the views: the status area (SSA) and the lists.
 - **Tools**: measure (range, bearing, time to fix), minimum separation, speed-to-time, rings (J-ring, cone or halo), CRR groups, and ERAM-style route display.
 
 ## Decisions
@@ -46,9 +46,9 @@ An instructor radar that takes the strongest parts of STARS and ERAM without cop
 - **Step 3 toolbar, dock and pref sets** (orchestrator decisions from the canvas's boards 01, 04 and 06 and from CRC, open to the owner):
   - The toolbar is one full-width row of buttons in one dark navy theme with a cyan active state, for every template. An opened menu is a tray below the bar, and the main row stays visible. A button shows once its behaviour exists; later steps' buttons are absent, never disabled. There is no show/hide hotkey.
   - The dock is a fixed-width right-hand column that hides when no view is open in it. The SSA is a view, placed by default on the scope at its top-left (torn off), as the canvas draws it.
-  - Tear-offs follow CRC's ERAM tear-offs (copy, move, anchored to the nearest corner, one per button, DELETE TEAROFF) and apply to views too. A button tears off by a left press on its 4 px left-edge strip over the tile's full height and a view moves by a left press on its card title, both placed by a click and cancelled by Esc; `.scope tearoff` and `.view <ssa|ca|rpoq> tear|dock` are the verbs, and the last bar button, DEL TEAROFF, deletes button copies only.
+  - Views float as cards, anchored to the nearest corner as CRC's ERAM tear-offs are. A view moves by a left press on its card title, placed by a click and cancelled by Esc; `.view <ssa|ca|rpoq> tear|dock` are the verbs. Toolbar buttons do not tear off.
   - BRITE ships a group per layer the Scope draws (MAP A, MAP B, TARGETS, FDB, LINE 4, ALERTS, DWELL), scaling colour by value/100 as CRC does; defaults keep today's look (100, MAP B 60, LINE 4 0, DWELL 20), and DWELL lifts a dwelled track toward full brightness by CRC's rule. The SSA draws CRC's UTC time, the primary airport's altimeter, the tracking status and the range; fields whose data YAAT lacks are left out.
-  - A pref set saves range, centre, maps, brightness, the DB settings, the views and the tear-offs. Pref sets are kept per facility, as CRC keeps STARS pref sets. The Scope's current state also saves itself, and a pref set is a named snapshot on top. The instructor's dwell locks are not saved. The verbs are `.scope pref save|saveas|load|rename|delete`, and the saved state is written when the Scope closes or its facility changes and restored when the Scope opens for a facility.
+  - A pref set saves range, centre, maps, brightness, the DB settings and the views. Pref sets are kept per facility, as CRC keeps STARS pref sets. The Scope's current state also saves itself, and a pref set is a named snapshot on top. The instructor's dwell locks are not saved. The verbs are `.scope pref save|saveas|load|rename|delete`, and the saved state is written when the Scope closes or its facility changes and restored when the Scope opens for a facility.
 
 ## Architecture
 

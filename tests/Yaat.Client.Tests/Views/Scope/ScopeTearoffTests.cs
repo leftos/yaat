@@ -6,13 +6,11 @@ using Yaat.Client.Views.Scope.Toolbar;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// The pure tear-off types: a button's key and its text name, and the corner placement a dropped tear-off anchors to.
+/// The corner placement a dropped floating view card anchors to, and a toolbar button's text name.
 /// </summary>
 public class ScopeTearoffTests
 {
     private static readonly Size Area = new(1000, 800);
-
-    private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
     public void Nearest_TopLeftQuadrant_AnchorsTopLeft() =>
@@ -74,84 +72,12 @@ public class ScopeTearoffTests
         Assert.Equal(vertical, place.VerticalAlignment);
     }
 
-    [Fact]
-    public void KeyNames_RoundTripEveryButton_AndAMapToggle()
-    {
-        ScopeButton[] buttons =
-        [
-            .. Flatten(ScopeToolbarButtons.All).Where(b => b.Id is not (ScopeButtonId.DeleteTearoff or ScopeButtonId.BarHide)),
-            ScopeToolbarButtons.MapClear,
-            ScopeToolbarButtons.MapToggle(15, "SFO"),
-        ];
-
-        foreach (ScopeButton button in buttons)
-        {
-            ScopeButtonKey key = ScopeToolbarButtons.KeyOf(button);
-            string name = ScopeToolbarButtons.NameOf(key);
-
-            Assert.True(ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? parsed), $"{name} parses");
-            Assert.Equal(key, parsed);
-            Assert.True(ScopeToolbarButtons.TryParseKey(name.ToUpperInvariant(), out ScopeButtonKey? upper), $"{name} parses in uppercase");
-            Assert.Equal(key, upper);
-        }
-    }
-
     [Theory]
     [InlineData(ScopeButtonId.Range, "range")]
     [InlineData(ScopeButtonId.Brite, "brite")]
     [InlineData(ScopeButtonId.BriteMapA, "britemapa")]
     [InlineData(ScopeButtonId.Db4thLine, "db4thline")]
     [InlineData(ScopeButtonId.TemplateStars, "templatestars")]
-    public void NameOf_IsTheIdLowercased_AndTheKeyHasNoValue(ScopeButtonId id, string expected)
-    {
-        ScopeButtonKey key = ScopeToolbarButtons.KeyOf(ScopeToolbarButtons.Find(id)!);
-
-        Assert.Equal(new ScopeButtonKey(id, null), key);
-        Assert.Equal(expected, ScopeToolbarButtons.NameOf(key));
-    }
-
-    [Fact]
-    public void AMapToggle_IsKeyedByItsStarsId_AndNamedMapAndTheId()
-    {
-        ScopeButtonKey key = ScopeToolbarButtons.KeyOf(ScopeToolbarButtons.MapToggle(15, "SFO"));
-
-        Assert.Equal(new ScopeButtonKey(ScopeButtonId.MapToggle, "15"), key);
-        Assert.Equal("map15", ScopeToolbarButtons.NameOf(key));
-        Assert.True(ScopeToolbarButtons.TryParseKey("MAP15", out ScopeButtonKey? parsed));
-        Assert.Equal(key, parsed);
-    }
-
-    [Theory]
-    [InlineData(ScopeButtonId.Pref, "pref")]
-    [InlineData(ScopeButtonId.PrefSave, "prefsave")]
-    [InlineData(ScopeButtonId.PrefSaveAs, "prefsaveas")]
-    [InlineData(ScopeButtonId.PrefRename, "prefrename")]
-    [InlineData(ScopeButtonId.PrefDelete, "prefdelete")]
-    public void APrefTrayButton_IsNamedForItsId_AndItsNameRoundTrips(ScopeButtonId id, string name)
-    {
-        var key = new ScopeButtonKey(id, null);
-
-        Assert.Equal(name, ScopeToolbarButtons.NameOf(key));
-        Assert.True(ScopeToolbarButtons.TryParseKey(name, out ScopeButtonKey? parsed), $"{name} parses");
-        Assert.Equal(key, parsed);
-        Assert.True(ScopeToolbarButtons.TryParseKey(name.ToUpperInvariant(), out ScopeButtonKey? upper), $"{name} parses in uppercase");
-        Assert.Equal(key, upper);
-    }
-
-    [Theory]
-    [InlineData("maptoggle")]
-    [InlineData("deletetearoff")]
-    [InlineData("prefset")]
-    [InlineData("barhide")]
-    [InlineData("barshow")]
-    [InlineData("map")]
-    [InlineData("mapx")]
-    [InlineData("nosuch")]
-    [InlineData("5")]
-    public void TryParseKey_RejectsNamesOfNoTearableButton(string name) => Assert.False(ScopeToolbarButtons.TryParseKey(name, out _));
-
-    [Theory]
-    [InlineData(ScopeButtonId.BarHide)]
-    [InlineData(ScopeButtonId.BarShow)]
-    public void HideAndShow_NeverTearOff(ScopeButtonId id) => Assert.False(ScopeToolbarButtons.CanTearOff(id));
+    public void NameOf_IsTheIdLowercased(ScopeButtonId id, string expected) =>
+        Assert.Equal(expected, ScopeToolbarButtons.NameOf(ScopeToolbarButtons.Find(id)!));
 }

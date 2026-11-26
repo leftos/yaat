@@ -1965,21 +1965,16 @@ public class ScopeEntryTests
     }
 
     [AvaloniaFact]
-    public async Task Esc_GivesWayToATearoffMove()
+    public async Task Esc_GivesWayToAViewMove()
     {
-        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
+        (_, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Stars);
         try
         {
-            main.RunScopeCommand(".scope tearoff range tl 10 10");
-            Settle(window);
             FocusCanvas(window, view);
             Type(window, "FH");
-            ScopeButtonControl copy = view
-                .TearoffLayer.GetVisualDescendants()
-                .OfType<ScopeButtonControl>()
-                .Single(c => c.IsTearoff && c.IsEffectivelyVisible && (c.Key == new ScopeButtonKey(ScopeButtonId.Range, null)));
-            Border strip = Assert.IsType<Border>(copy.Strip);
-            Point grab = strip.TranslatePoint(new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2), window)!.Value;
+            ScopeViewCard ssa = Assert.Single(view.TearoffLayer.GetVisualDescendants().OfType<ScopeViewCard>());
+            Border title = ssa.FindControl<Border>("PickArea")!;
+            Point grab = title.TranslatePoint(new Point(title.Bounds.Width / 2, title.Bounds.Height / 2), window)!.Value;
             window.MouseMove(grab);
             window.MouseDown(grab, MouseButton.Left);
             window.MouseUp(grab, MouseButton.Left);
