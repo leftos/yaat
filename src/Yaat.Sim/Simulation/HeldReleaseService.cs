@@ -417,7 +417,7 @@ public static class HeldReleaseService
     private static string DepartureAirportOf(AircraftState ac) => (ac.FlightPlan.Departure ?? string.Empty).Trim().ToUpperInvariant();
 
     /// <summary>Match a departure airport against an armed-airport entry, tolerating the FAA/ICAO "K" prefix (KSJC == SJC).</summary>
-    private static bool AirportMatches(string a, string b)
+    public static bool AirportMatches(string a, string b)
     {
         if (a.Equals(b, StringComparison.OrdinalIgnoreCase))
         {

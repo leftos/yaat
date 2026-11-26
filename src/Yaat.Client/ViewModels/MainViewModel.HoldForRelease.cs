@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
+using Yaat.Sim.Simulation;
 
 namespace Yaat.Client.ViewModels;
 
@@ -46,16 +47,13 @@ public partial class MainViewModel
 
         HoldForReleaseActive = rundown.ArmedAirports.Count > 0;
 
-        var grouped = rundown
-            .Held.GroupBy(h => h.Airport, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-
         // One group per armed airport (in armed order), so the controller still sees a field that is
-        // armed but currently has nothing held.
+        // armed but currently has nothing held. A held departure carries its flight plan's airport (KOAK) while the
+        // armed id is as typed (OAK), so both sides match through the server's one rule.
         foreach (string airport in rundown.ArmedAirports)
         {
-            grouped.TryGetValue(airport, out List<HeldDepartureDto>? held);
-            var items = (held ?? [])
+            var items = rundown
+                .Held.Where(h => HeldReleaseService.AirportMatches(airport, h.Airport))
                 .Select(h => new HeldDepartureItem(h.Callsign, h.AircraftType, h.Destination, h.Status, h.IsGroundDeparture))
                 .ToList();
             Rundown.Add(new RundownAirportGroup(airport, items));

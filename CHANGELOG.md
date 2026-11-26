@@ -28,6 +28,7 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
+- Hold for release lists the departures held at an airport armed by its FAA id (`HFR OAK`), not only by its ICAO id.
 - Scenario presets may lead with `AS {tcp}`, also after `WAIT` or `WAITD`: `AS 1Z RD PMRY` now releases acting as 1Z instead of failing.
 - A `CFIX` with a speed and a `DVXM` in one transmission are flown in route order: each crossing at its speed, the DVXM speed to its fix, then published speeds.
 - Presets and chained commands no longer stall behind an unrelated earlier instruction: each transmission's commands now advance on their own.
