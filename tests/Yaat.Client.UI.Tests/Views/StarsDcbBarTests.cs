@@ -461,4 +461,31 @@ public class StarsDcbBarTests
             Dispatcher.UIThread.RunJobs();
         }
     }
+
+    [AvaloniaFact]
+    public async Task YaatTile_SitsAtTheBarsRightEdge_WhenWide_AndFollowsTheFlow_WhenNarrow()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            int yaat = IndexOf(e => e.Opens == StarsDcbPage.Yaat);
+            Rect flowed = DcbLayout.Flow([.. StarsMainPage.Entries.Select(e => e.Shape)])[yaat];
+            window.Width = 2400;
+            Settle(window);
+            StarsDcbBar bar = Bar(host);
+            DcbTile tile = bar.Tiles[yaat];
+
+            Assert.Equal(2400, bar.Bounds.Width);
+            Assert.Equal(bar.Bounds.Width, tile.TranslatePoint(new Point(tile.Bounds.Width, 0), bar)!.Value.X);
+
+            window.Width = 400;
+            Settle(window);
+
+            Assert.Equal(flowed.X, tile.TranslatePoint(new Point(0, 0), bar)!.Value.X);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
 }

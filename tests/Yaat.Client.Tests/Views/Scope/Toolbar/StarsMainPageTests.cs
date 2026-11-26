@@ -41,6 +41,7 @@ public class StarsMainPageTests
             "SSA",
             "GI TEXT",
             "SHIFT",
+            "YAAT",
         ];
 
         Assert.Equal(expected, StarsMainPage.Entries.Select(e => e.Label.Split('\n')[0]));
@@ -83,9 +84,21 @@ public class StarsMainPageTests
             H, // SSA FILTER
             H, // GI TEXT FILTER
             F, // SHIFT
+            F, // YAAT
         ];
 
         Assert.Equal(expected, StarsMainPage.Entries.Select(e => e.Shape));
+    }
+
+    [Fact]
+    public void LastEntry_IsTheYaatOpener()
+    {
+        StarsDcbEntry last = StarsMainPage.Entries[^1];
+
+        Assert.Equal(
+            ("YAAT", DcbTileShape.Full, DcbTileKind.Normal, (ScopeButtonId?)null, (StarsDcbPage?)StarsDcbPage.Yaat),
+            (last.Label, last.Shape, last.Kind, last.Button, last.Opens)
+        );
     }
 
     [Fact]

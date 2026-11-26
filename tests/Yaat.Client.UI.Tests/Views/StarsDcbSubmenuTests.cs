@@ -529,4 +529,300 @@ public class StarsDcbSubmenuTests : IDisposable
             second.Dispose();
         }
     }
+
+    /// <summary>Presses the tile on the shown page that opens <paramref name="page"/>.</summary>
+    private static void OpenFromShown(Window window, ScopeHost host, StarsDcbPage page)
+    {
+        Press(window, Tile(host, e => e.Opens == page));
+        Assert.Equal(page, Bar(host).Page);
+    }
+
+    [AvaloniaFact]
+    public async Task Yaat_ShowsTheYaatPage_AndDoneReturnsToMain()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+
+            Assert.Equal(StarsSubmenus.EntriesOf(StarsDcbPage.Yaat), Bar(host).Entries);
+            Assert.True(scope.IsBarSubmenuOpen);
+
+            Press(window, Labelled(host, "DONE"));
+
+            Assert.Equal(StarsDcbPage.Main, Bar(host).Page);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_EscReturnsToTheYaatPage_ThenToMain()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+            FocusCanvas(window, host.ScopeView);
+
+            Esc(window);
+
+            Assert.Equal(StarsDcbPage.Yaat, Bar(host).Page);
+            Assert.True(scope.IsBarSubmenuOpen);
+            Assert.Null(scope.OpenMenu);
+
+            Esc(window);
+
+            Assert.Equal(StarsDcbPage.Main, Bar(host).Page);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_ArmsTheRingTool_AsTheClassicToolsTrayDoes()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+
+            Assert.Equal(ScopeButtonId.Tools, scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.JRing, scope.ArmedRingTool);
+            Assert.True(Labelled(host, "J-RING").IsPushed);
+
+            Press(window, Labelled(host, "CONE"));
+            Assert.Equal(ScopeRingTool.Cone, scope.ArmedRingTool);
+            Press(window, Labelled(host, "J-RING"));
+            Assert.Equal(ScopeRingTool.JRing, scope.ArmedRingTool);
+            Assert.True(Labelled(host, "J-RING").IsPushed);
+            Assert.False(Labelled(host, "CONE").IsPushed);
+            Press(window, Labelled(host, "J-RING"));
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+
+            Press(window, Labelled(host, "J-RING"));
+            Press(window, Labelled(host, "DONE"));
+
+            Assert.Equal(StarsDcbPage.Yaat, Bar(host).Page);
+            Assert.Null(scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_BarLeavesTheTreeAndComesBack_ShowsMain_WithTheTrayClosed()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+            Assert.Equal(ScopeRingTool.JRing, scope.ArmedRingTool);
+
+            window.Content = null;
+            Settle(window);
+            window.Content = host;
+            Settle(window);
+
+            Assert.Equal(StarsDcbPage.Main, Bar(host).Page);
+            Assert.False(scope.IsBarSubmenuOpen);
+            Assert.Null(scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatPilotLens_IsLitWhileTheLensIsOn()
+    {
+        (MainViewModel main, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            main.RunScopeCommand(".scope lens on");
+            Settle(window);
+            Open(window, host, StarsDcbPage.Yaat);
+
+            Assert.True(Labelled(host, "PILOT").IsPushed);
+
+            main.RunScopeCommand(".scope lens off");
+            Settle(window);
+
+            Assert.False(Labelled(host, "PILOT").IsPushed);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatLens_OpensTheLensTray_AndLeavingClosesIt()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatLens);
+
+            Assert.Equal(ScopeButtonId.Lens, scope.OpenMenu);
+
+            Press(window, Labelled(host, "DONE"));
+
+            Assert.Equal(StarsDcbPage.Yaat, Bar(host).Page);
+            Assert.Null(scope.OpenMenu);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatDisplay_DcnfShowsItsMode()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatDisplay);
+            Assert.Equal("DCNF", Labelled(host, "DCNF").Label);
+
+            Press(window, Labelled(host, "DCNF"));
+            string? mode = scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.DisplayDcnf)!);
+
+            Assert.NotNull(mode);
+            Assert.Equal($"DCNF\n{mode}", Labelled(host, "DCNF").Label);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatProfile_LightsTheActiveProfile()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatProfile);
+
+            Assert.Equal((true, false, false), (Labelled(host, "STARS").IsPushed, Labelled(host, "ERAM").IsPushed, Labelled(host, "MIXED").IsPushed));
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_TrayClosedByAnotherRoute_ReturnsToTheYaatPage()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+
+            scope.OpenMenu = null;
+            Settle(window);
+
+            Assert.Equal(StarsDcbPage.Yaat, Bar(host).Page);
+            Assert.True(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatToolsSize_LatchThenEsc_PutsTheRingSizeBack()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+            DcbTile size = Labelled(host, "SIZE");
+            double before = scope.RingSizeNm;
+
+            Press(window, size);
+            Assert.True(size.IsLatched);
+            Wheel(window, size, 1);
+            Assert.NotEqual(before, scope.RingSizeNm);
+
+            Esc(window);
+
+            Assert.False(size.IsLatched);
+            Assert.Equal(before, scope.RingSizeNm);
+            Assert.Equal(StarsDcbPage.YaatTools, Bar(host).Page);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_LeftByAProfileSwitch_ClosesTheTrayAndDisarms()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+
+            main.RunScopeCommand(".scope profile eram");
+            Settle(window);
+
+            Assert.Null(scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatTools_LeftByADataContextChange_ClosesTheTrayAndDisarms()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+            OpenFromShown(window, host, StarsDcbPage.YaatTools);
+
+            Bar(host).DataContext = null;
+            Settle(window);
+
+            Assert.Null(scope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, scope.ArmedRingTool);
+            Assert.False(scope.IsBarSubmenuOpen);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
 }

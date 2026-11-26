@@ -129,6 +129,7 @@ public class StarsSubmenusTests
                 ["CHAR"] = StarsDcbPage.CharSize,
                 ["PREF"] = StarsDcbPage.Pref,
                 ["SHIFT"] = StarsDcbPage.Aux,
+                ["YAAT"] = StarsDcbPage.Yaat,
             },
             openers
         );
@@ -237,5 +238,149 @@ public class StarsSubmenusTests
         Assert.True(StarsSubmenus.IsSubmenu(StarsDcbPage.Maps));
         Assert.Equal(StarsDcbPage.Aux, StarsSubmenus.ParentOf(StarsDcbPage.TpaAtpa));
         Assert.Equal(StarsDcbPage.Main, StarsSubmenus.ParentOf(StarsDcbPage.Maps));
+    }
+
+    private static readonly StarsDcbPage[] YaatMenus =
+    [
+        StarsDcbPage.YaatProfile,
+        StarsDcbPage.YaatTemplate,
+        StarsDcbPage.YaatTools,
+        StarsDcbPage.YaatDisplay,
+        StarsDcbPage.YaatDb,
+        StarsDcbPage.YaatViews,
+        StarsDcbPage.YaatLens,
+    ];
+
+    private static readonly string[] YaatLabels =
+    [
+        "PROFILE\n%value%",
+        "TEMPLATE",
+        "OTHERS\n%value%",
+        "AUTO",
+        "TOOLS",
+        "TDM",
+        "MVA",
+        "DISPLAY",
+        "DB",
+        "VIEWS",
+        "PILOT\nLENS",
+        "DONE",
+    ];
+
+    [Fact]
+    public void Yaat_IsTheYaatPage_InTheMocksOrder()
+    {
+        StarsDcbEntry[] yaat = [.. StarsSubmenus.EntriesOf(StarsDcbPage.Yaat)];
+        const DcbTileKind N = DcbTileKind.Normal;
+        const DcbTileKind T = DcbTileKind.Toggle;
+
+        Assert.Equal(0, StarsSubmenus.DimmedCountOf(StarsDcbPage.Yaat));
+        Assert.Equal(YaatLabels, yaat.Select(e => e.Label));
+        Assert.Equal([F, F, F, F, F, H, H, F, F, F, F, F], yaat.Select(e => e.Shape));
+        Assert.Equal([N, N, N, N, N, T, T, N, N, N, N, N], yaat.Select(e => e.Kind));
+        Assert.Equal(
+            [
+                ScopeButtonId.Profile,
+                null,
+                ScopeButtonId.Others,
+                ScopeButtonId.Auto,
+                null,
+                ScopeButtonId.Tdm,
+                ScopeButtonId.Mva,
+                null,
+                null,
+                null,
+                ScopeButtonId.Lens,
+                null,
+            ],
+            yaat.Select(e => e.Button)
+        );
+        Assert.Equal(
+            [
+                StarsDcbPage.YaatProfile,
+                StarsDcbPage.YaatTemplate,
+                null,
+                null,
+                StarsDcbPage.YaatTools,
+                null,
+                null,
+                StarsDcbPage.YaatDisplay,
+                StarsDcbPage.YaatDb,
+                StarsDcbPage.YaatViews,
+                StarsDcbPage.YaatLens,
+                StarsDcbPage.Main,
+            ],
+            yaat.Select(e => e.Opens)
+        );
+    }
+
+    /// <summary>
+    /// Asserts that <paramref name="page"/> starts with the YAAT page's tiles up to its opener, dimmed, and ends with DONE
+    /// back to the YAAT page.
+    /// </summary>
+    private static void AssertYaatMenuFrame(StarsDcbPage page, int dimmed)
+    {
+        StarsDcbEntry[] all = [.. StarsSubmenus.EntriesOf(page)];
+
+        Assert.Equal(dimmed, StarsSubmenus.DimmedCountOf(page));
+        Assert.Equal(YaatLabels.Take(dimmed), all.Take(dimmed).Select(e => e.Label));
+        Assert.Equal(StarsSubmenus.EntriesOf(StarsDcbPage.Yaat).Take(dimmed).Select(e => e.Shape), all.Take(dimmed).Select(e => e.Shape));
+        Assert.All(all.Take(dimmed), e => Assert.Equal((DcbTileKind.Disabled, (StarsDcbPage?)null), (e.Kind, e.Opens)));
+        Assert.Equal(("DONE", F, DcbTileKind.Normal, (StarsDcbPage?)StarsDcbPage.Yaat), (all[^1].Label, all[^1].Shape, all[^1].Kind, all[^1].Opens));
+    }
+
+    [Fact]
+    public void YaatTools_IsTheToolsTray_AfterTheDimmedYaatTiles()
+    {
+        StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatTools).SkipLast(1)];
+
+        AssertYaatMenuFrame(StarsDcbPage.YaatTools, 5);
+        Assert.Equal(["J-RING", "CONE", "DRI 5", "DRI 3", "SIZE\n%value%"], own.Select(e => e.Label));
+        Assert.Equal([H, H, H, H, F], own.Select(e => e.Shape));
+        Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Spinner], own.Select(e => e.Kind));
+        Assert.Equal(
+            [ScopeButtonId.ToolJRing, ScopeButtonId.ToolCone, ScopeButtonId.ToolDri5, ScopeButtonId.ToolDri3, ScopeButtonId.ToolSize],
+            own.Select(e => e.Button!.Value)
+        );
+    }
+
+    [Fact]
+    public void YaatDb_KeepsOnly4thLineAndCaRing()
+    {
+        StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatDb).SkipLast(1)];
+
+        AssertYaatMenuFrame(StarsDcbPage.YaatDb, 9);
+        Assert.Equal(["4TH LINE", "CA RING"], own.Select(e => e.Label));
+        Assert.Equal([H, H], own.Select(e => e.Shape));
+        Assert.All(own, e => Assert.Equal(DcbTileKind.Toggle, e.Kind));
+        Assert.Equal([ScopeButtonId.Db4thLine, ScopeButtonId.DbCaRing], own.Select(e => e.Button!.Value));
+        string[] dropped = ["CHAR", "DWELL", "ATPA DIST", "ALERT CONES", "MONITOR CONES"];
+        Assert.DoesNotContain(StarsSubmenus.EntriesOf(StarsDcbPage.YaatDb), e => dropped.Contains(FirstLine(e)));
+    }
+
+    [Fact]
+    public void YaatDisplay_KeepsFixWxLockAndDcnf_WithoutOffCntr()
+    {
+        StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatDisplay).SkipLast(1)];
+
+        AssertYaatMenuFrame(StarsDcbPage.YaatDisplay, 8);
+        Assert.Equal(["FIX", "WX", "LOCK", "DCNF\n%value%"], own.Select(e => e.Label));
+        Assert.Equal([H, H, H, H], own.Select(e => e.Shape));
+        Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Normal], own.Select(e => e.Kind));
+        Assert.Equal(
+            [ScopeButtonId.DisplayFix, ScopeButtonId.DisplayWx, ScopeButtonId.DisplayLock, ScopeButtonId.DisplayDcnf],
+            own.Select(e => e.Button!.Value)
+        );
+        Assert.DoesNotContain(StarsSubmenus.EntriesOf(StarsDcbPage.YaatDisplay), e => e.Label.Replace('\n', ' ') == "OFF CNTR");
+    }
+
+    [Fact]
+    public void TheYaatPages_AreSubmenus_UnderMainAndTheYaatPage()
+    {
+        Assert.True(StarsSubmenus.IsSubmenu(StarsDcbPage.Yaat));
+        Assert.Equal(StarsDcbPage.Main, StarsSubmenus.ParentOf(StarsDcbPage.Yaat));
+        Assert.Equal(StarsDcbPage.Yaat, StarsSubmenus.ParentOf(StarsDcbPage.YaatTools));
+        Assert.All(YaatMenus, page => Assert.True(StarsSubmenus.IsSubmenu(page)));
+        Assert.All(YaatMenus, page => Assert.Equal(StarsDcbPage.Yaat, StarsSubmenus.ParentOf(page)));
     }
 }

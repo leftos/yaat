@@ -1,14 +1,21 @@
 using System.Text.Json.Nodes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Xunit;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.ViewModels;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Dcb;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -458,5 +465,66 @@ public class ScopeProfilePickTests : IDisposable
         Assert.Equal(ScopeProfileKind.Stars, main.ScopeProfile);
         Assert.Equal(ScopeProfileKind.Stars, scope.ProfileKind);
         Assert.Equal("euroscope", scope.TemplateId);
+    }
+
+    private static void Settle(Window window)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>Clicks the tile on the STARS bar's shown page whose entry matches <paramref name="match"/>.</summary>
+    private static void PressTile(Window window, ScopeHost host, Func<StarsDcbEntry, bool> match)
+    {
+        StarsDcbBar bar = Assert.Single(host.GetVisualDescendants().OfType<StarsDcbBar>());
+        int index = bar.Entries.ToList().FindIndex(e => match(e));
+        Assert.True(index >= 0);
+        DcbTile tile = bar.Tiles[index];
+        Point point = tile.TranslatePoint(new Point(tile.Bounds.Width / 2, tile.Bounds.Height / 2), window)!.Value;
+        window.MouseMove(point);
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Settle(window);
+    }
+
+    [AvaloniaFact]
+    public async Task YaatProfileMixed_OnTheStarsBar_SwapsTheBarToTheClassicToolbar()
+    {
+        MainViewModel main = await NewMain();
+        ScopeViewModel scope = OpenScope(main, store: null);
+        var host = new ScopeHost { DataContext = scope };
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 800,
+            Content = host,
+        };
+        window.Closed += (_, _) => scope.Dispose();
+        window.Show();
+        main.RunScopeCommand(".scope profile stars");
+        Settle(window);
+        try
+        {
+            PressTile(window, host, e => e.Opens == StarsDcbPage.Yaat);
+            PressTile(window, host, e => e.Opens == StarsDcbPage.YaatProfile);
+            PressTile(window, host, e => e.Button == ScopeButtonId.ProfileMixed);
+
+            Assert.Equal(ScopeProfileKind.Mixed, scope.ProfileKind);
+            Assert.Single(host.GetVisualDescendants().OfType<ScopeToolbar>());
+            Assert.Empty(host.GetVisualDescendants().OfType<StarsDcbBar>());
+            Assert.False(scope.IsBarSubmenuOpen);
+            Assert.Null(scope.OpenMenu);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
     }
 }

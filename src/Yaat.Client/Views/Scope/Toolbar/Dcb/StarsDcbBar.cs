@@ -12,7 +12,10 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 /// <summary>
 /// The Scope's bar under the STARS profile: CRC's STARS DCB on a <see cref="DcbBar"/>, over the <see cref="ScopeViewModel"/>
 /// in its DataContext, showing its Main page (<see cref="StarsMainPage"/>), one of the submenus MAPS, BRITE, CHAR SIZE and
-/// PREF the Main page opens, the Aux page SHIFT shows or the TPA/ATPA submenu the Aux page opens (<see cref="StarsSubmenus"/>).
+/// PREF the Main page opens, the Aux page SHIFT shows, the TPA/ATPA submenu the Aux page opens, or the YAAT page the YAAT tile
+/// shows and the pages it opens (<see cref="StarsSubmenus"/>); the YAAT tile sits at the bar's right edge when the bar is
+/// wider than the Main page's tiles. While the YAAT TOOLS or PILOT LENS page shows, the Scope's open menu is that tray, as on
+/// the classic bar, so TOOLS arms the Rings tool.
 /// Each live tile runs the classic bar's action for its Scope button (<see cref="ScopeViewModel.Press"/>), a map tile toggles
 /// the map in its slot, a pref-set tile loads the set in its slot, PTL OWN and PTL ALL set the vector ownership, and a
 /// spinner steps the view model's own value live while latched, Esc putting back the value it had when the latch began.
@@ -38,6 +41,9 @@ public sealed class StarsDcbBar : UserControl
     private ScopeViewModel? _latchedOn;
     private string? _restoreCommand;
     private string? _unpinCommand;
+
+    // The TOOLS SIZE value when its latch began, which a cancel puts back: SIZE has no command, so it is set directly.
+    private double? _restoreRingSizeNm;
 
     /// <summary>A Main page with no Scope behind it until its DataContext is a ScopeViewModel.</summary>
     public StarsDcbBar()
@@ -84,11 +90,15 @@ public sealed class StarsDcbBar : UserControl
     {
         base.OnDetachedFromVisualTree(e);
         // A bar that leaves the tree, as on a profile change or a re-parent, closes its submenu on the view model it was opened
-        // on, showing the page the submenu opens from; the Main and Aux pages stay.
-        if (StarsSubmenus.IsSubmenu(_page))
+        // on, showing the nearest page up from it that is no submenu (the Main or the Aux page), so the submenu flag, the Esc
+        // handler and any tray a YAAT page opened are all cleared; the Main and Aux pages stay.
+        StarsDcbPage page = _page;
+        while (StarsSubmenus.IsSubmenu(page))
         {
-            ShowPage(StarsSubmenus.ParentOf(_page));
+            page = StarsSubmenus.ParentOf(page);
         }
+
+        ShowPage(page);
     }
 
     private int MapsAvailable => Math.Min(_viewModel?.MapToggles.Count ?? 0, StarsSubmenus.MapSlotsOf(_page));
@@ -107,8 +117,24 @@ public sealed class StarsDcbBar : UserControl
         {
             ShowMain();
         }
+        else if (e.PropertyName == nameof(ScopeViewModel.OpenMenu))
+        {
+            FollowTray();
+        }
 
         RebuildOrRefresh();
+    }
+
+    /// <summary>
+    /// Returns from the YAAT TOOLS or PILOT LENS page to the YAAT page when the Scope's open menu leaves that page's tray by
+    /// another route, so the page never shows with its tray closed (the Rings tool disarmed).
+    /// </summary>
+    private void FollowTray()
+    {
+        if ((TrayOf(_page) is { } tray) && (_viewModel?.OpenMenu != tray))
+        {
+            ShowPage(StarsDcbPage.Yaat);
+        }
     }
 
     private void OnMapTogglesChanged(object? sender, NotifyCollectionChangedEventArgs e) => RebuildOrRefresh();
@@ -133,7 +159,9 @@ public sealed class StarsDcbBar : UserControl
         _entries = StarsSubmenus.EntriesOf(_page);
         _mapsShown = MapsAvailable;
         _prefsShown = PrefsAvailable;
-        _bar.SetTiles([.. _entries.Select(BuildTile)]);
+        DcbTile[] tiles = [.. _entries.Select(BuildTile)];
+        int yaat = (_page == StarsDcbPage.Main) ? _entries.ToList().FindIndex(e => e.Opens == StarsDcbPage.Yaat) : -1;
+        _bar.SetTiles(tiles, (yaat >= 0) ? tiles[yaat] : null);
         Refresh();
     }
 
@@ -217,18 +245,41 @@ public sealed class StarsDcbBar : UserControl
         }
 
         Rebuild();
+        if (TrayOf(page) is { } tray)
+        {
+            _submenuOn?.OpenMenu = tray;
+        }
     }
+
+    /// <summary>
+    /// The classic tray whose open state the page <paramref name="page"/> stands for while it shows: TOOLS, whose opening arms
+    /// the Rings tool, and PILOT LENS, which lights its tile; null for any other page.
+    /// </summary>
+    private static ScopeButtonId? TrayOf(StarsDcbPage page) =>
+        page switch
+        {
+            StarsDcbPage.YaatTools => ScopeButtonId.Tools,
+            StarsDcbPage.YaatLens => ScopeButtonId.Lens,
+            _ => null,
+        };
 
     /// <summary>Returns to the Main page from any other page.</summary>
     private void ShowMain() => ShowPage(StarsDcbPage.Main);
 
     /// <summary>
-    /// Ends the open submenu's state without rebuilding: the flag cleared where it was set, the Esc handler removed, and the
-    /// page back to Main.
+    /// Ends the open submenu's state without rebuilding: the tray a YAAT page opened closed and the flag cleared where they were
+    /// set, the Esc handler removed, and the page back to Main.
     /// </summary>
     private void LeaveSubmenu()
     {
+        // The page is Main before the tray closes, so the open-menu change it raises finds no tray to follow.
+        ScopeButtonId? tray = TrayOf(_page);
         _page = StarsDcbPage.Main;
+        if ((tray is not null) && (_submenuOn?.OpenMenu == tray))
+        {
+            _submenuOn.OpenMenu = null;
+        }
+
         _submenuOn?.IsBarSubmenuOpen = false;
         _submenuOn = null;
         _escapeOn?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
@@ -273,6 +324,7 @@ public sealed class StarsDcbBar : UserControl
         _latchedOn = vm;
         _restoreCommand = RestoreCommand(vm, id);
         _unpinCommand = IsPinned(vm, id) ? null : UnpinCommand(id);
+        _restoreRingSizeNm = (id == ScopeButtonId.ToolSize) ? vm.RingSizeNm : null;
     }
 
     /// <summary>Whether the band value the spinner with <paramref name="id"/> steps is pinned; false for a spinner that never pins.</summary>
@@ -312,6 +364,7 @@ public sealed class StarsDcbBar : UserControl
         _latchedOn = null;
         _restoreCommand = null;
         _unpinCommand = null;
+        _restoreRingSizeNm = null;
     }
 
     /// <summary>
@@ -321,12 +374,23 @@ public sealed class StarsDcbBar : UserControl
     private void CancelLatch()
     {
         (ScopeButtonId? id, ScopeViewModel? on, string? restore, string? unpin) = (_latched, _latchedOn, _restoreCommand, _unpinCommand);
+        double? ringSizeNm = _restoreRingSizeNm;
         EndLatch();
         if ((on is not { } vm) || (id is not { } latched))
         {
             return;
         }
 
+        PutBack(vm, latched, restore, unpin);
+        if (ringSizeNm is { } nm)
+        {
+            vm.RingSizeNm = nm;
+        }
+    }
+
+    /// <summary>Runs a cancelled latch's restore command unless the value is already back, then its unpin command when it is pinned now.</summary>
+    private static void PutBack(ScopeViewModel vm, ScopeButtonId latched, string? restore, string? unpin)
+    {
         if ((restore is not null) && (restore != RestoreCommand(vm, latched)))
         {
             vm.RunCommand(restore);
@@ -430,11 +494,23 @@ public sealed class StarsDcbBar : UserControl
     {
         ScopeButton? button = (entry.Button is { } id) ? ScopeToolbarButtons.Find(id) : null;
         tile.Label = LabelOf(entry, button);
-        if ((tile.Kind == DcbTileKind.Toggle) && (button is not null) && (_viewModel is { } vm))
+        if (ShowsActive(tile, entry) && (button is not null) && (_viewModel is { } vm))
         {
             tile.IsPushed = vm.IsActive(button);
         }
     }
+
+    /// <summary>
+    /// Whether the tile of <paramref name="entry"/> is lit by its Scope button's active state, as on the classic bar: a toggle,
+    /// a page opener over a button (PILOT LENS), and a PROFILE or TEMPLATE pick.
+    /// </summary>
+    private static bool ShowsActive(DcbTile tile, StarsDcbEntry entry) =>
+        (tile.Kind == DcbTileKind.Toggle)
+        || ((tile.Kind == DcbTileKind.Normal) && (entry.Opens is not null))
+        || ((entry.Button is { } id) && (ScopeToolbarButtons.IsProfilePick(id) || IsTemplatePick(id)));
+
+    private static bool IsTemplatePick(ScopeButtonId id) =>
+        id is ScopeButtonId.TemplateStars or ScopeButtonId.TemplateEram or ScopeButtonId.TemplateMixed or ScopeButtonId.TemplateEuroScope;
 
     /// <summary>
     /// The label <paramref name="entry"/> draws: CRC's, its <c>%value%</c> filled with the view model's value for
