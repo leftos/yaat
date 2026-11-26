@@ -5,10 +5,8 @@
 ## Radar bar per Scope profile (feat/scope-dcb-per-profile)
 
 - [ ] YAAT-2855 Radar view: a STARS-like DCB on the STARS template and an ERAM-like DCB on ERAM; Mixed keeps today's · release vNext
-  - [ ] YAAT-2865 Radar bar: STARS DCB Main page over today's Scope features · release vNext
-  - [ ] YAAT-2866 Radar bar: STARS DCB submenus MAPS, BRITE, CHAR SIZE and PREF · release vNext
+  - [/] YAAT-2866 Radar bar: STARS DCB submenus MAPS, BRITE, CHAR SIZE and PREF · release vNext
   - [ ] YAAT-2867 Radar bar: STARS DCB Aux page (SHIFT) · release vNext
-  - [ ] YAAT-2869 Radar bar: ERAM toolbar menus over today's Scope features · release vNext
   - [ ] YAAT-2870 Radar bar: YAAT menu tile on the STARS and ERAM bars · release vNext
   - [ ] YAAT-2878 Merge feat/scope-dcb-per-profile to main (#1412)
 
@@ -155,7 +153,6 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-2814 Radar view: a rundown panel listing the active rundowns · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext+1
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
@@ -1798,6 +1795,7 @@
 - [ ] YAAT-2849 Cover RemoveCoordinationAtFloor in a JSON snapshot round trip
 - [ ] YAAT-2850 Notepad: a stamp over a rectangular selection deletes the text between its columns
 - [ ] YAAT-2851 Re-capture the Notes window screenshot after the editor change
+- [ ] YAAT-2882 Clear the hold-for-release rundown when a scenario is cleared
 
 ## Design files
 
