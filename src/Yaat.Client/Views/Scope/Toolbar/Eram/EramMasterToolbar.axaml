@@ -1,0 +1,22 @@
+<UserControl
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.Scope.Toolbar.Eram.EramMasterToolbar"
+  FontFamily="{StaticResource MonoFont}"
+  FontSize="12"
+>
+  <!-- CRC's bar: its grey across the full width, the move-down pick area down its left edge, its buttons over the rest,
+       and the interior border line under them. -->
+  <Border x:Name="Frame" BorderThickness="0,0,0,1">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Border x:Name="MoveDown" Grid.Column="0" />
+      <Border x:Name="Padded" Grid.Column="1">
+        <Grid x:Name="Cells" />
+      </Border>
+    </Grid>
+  </Border>
+</UserControl>
