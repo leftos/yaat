@@ -34,6 +34,7 @@
       CrrGroups="{Binding Main.CrrGroups}"
       CoordinationLists="{Binding Main.CoordinationLists}"
       ScenarioElapsedSeconds="{Binding Main.ScenarioElapsedSeconds}"
+      RundownOrigin="{Binding RundownOrigin, Mode=TwoWay}"
       EramConflicts="{Binding Main.EramConflictAlerts}"
       Lens="{Binding Lens}"
       LensPathCallsigns="{Binding LensPathCallsigns}"

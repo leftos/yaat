@@ -52,6 +52,13 @@ public sealed record ScopePrefSet
     /// <summary>Every view's place, docked or torn off.</summary>
     public IReadOnlyList<ScopePrefView> ViewPlaces { get; init; } = [];
 
+    /// <summary>
+    /// The top-left of the RUNDOWN list's title line in canvas points, or null while the list sits at its default place;
+    /// a null origin is left out of the file, and a file without one restores the default.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScopePrefPoint? RundownOrigin { get; init; }
+
     /// <summary>The tear-offs, in slot order.</summary>
     public IReadOnlyList<ScopePrefTearoff> Tearoffs { get; init; } = [];
 
@@ -137,6 +144,11 @@ public sealed record ScopePrefLens(bool Enabled, bool Path, bool Queue, bool Che
 /// <param name="Dx">The horizontal offset in pixels.</param>
 /// <param name="Dy">The vertical offset in pixels.</param>
 public sealed record ScopePrefView(string Name, string? Corner, int Dx, int Dy);
+
+/// <summary>A point on the Scope's canvas, in canvas points.</summary>
+/// <param name="X">The distance from the canvas's left edge.</param>
+/// <param name="Y">The distance from the canvas's top edge.</param>
+public sealed record ScopePrefPoint(double X, double Y);
 
 /// <summary>One tear-off: the button it shows and where it sits.</summary>
 /// <param name="Button">The tear-off button's name, such as <c>range</c> or <c>map15</c>.</param>

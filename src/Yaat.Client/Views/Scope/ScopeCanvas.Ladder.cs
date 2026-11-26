@@ -27,7 +27,7 @@ public sealed partial class ScopeCanvas
 {
     /// <summary>
     /// Offers <paramref name="press"/> to each rung in turn: the gestures that own the pointer first, then the middle button,
-    /// the measuring tool, the ring tool, the entry's fill, the block and menu gestures, the aircraft, the empty map and the
+    /// the measuring tool, the ring tool, the entry's fill, the RUNDOWN list's drag, the block and menu gestures, the aircraft, the empty map and the
     /// bubbles. Returns whether a rung took it.
     /// </summary>
     private bool RunPressLadder(in ScopePress press)
@@ -39,6 +39,7 @@ public sealed partial class ScopeCanvas
         PressMeasure(in press, ref handled);
         PressRangeRing(in press, ref handled);
         PressFill(in press, ref handled);
+        PressRundownDrag(in press, ref handled);
         PressBlockHide(in press, ref handled);
         PressMenuGesture(in press, ref handled);
         PressBlockDrag(in press, ref handled);
@@ -101,6 +102,8 @@ public sealed partial class ScopeCanvas
         }
     }
 
+    partial void PressRundownDrag(in ScopePress press, ref bool handled);
+
     partial void PressBlockHide(in ScopePress press, ref bool handled);
 
     partial void PressMenuGesture(in ScopePress press, ref bool handled);
@@ -138,12 +141,15 @@ public sealed partial class ScopeCanvas
     private bool RunReleaseLadder(in ScopeRelease release)
     {
         bool handled = false;
+        ReleaseRundownDrag(in release, ref handled);
         ReleaseHeadingVector(in release, ref handled);
         ReleaseBlockDrag(in release, ref handled);
         ReleaseMenuGesture(in release, ref handled);
         ReleaseBubble(in release, ref handled);
         return handled;
     }
+
+    partial void ReleaseRundownDrag(in ScopeRelease release, ref bool handled);
 
     partial void ReleaseHeadingVector(in ScopeRelease release, ref bool handled);
 
@@ -159,12 +165,15 @@ public sealed partial class ScopeCanvas
     /// </summary>
     private void RunMoveHooks(in ScopeMove move)
     {
+        MoveRundownDrag(in move);
         MoveHeadingVector(in move);
         MoveDrawRoute(in move);
         MoveBlockDrag(in move);
         MoveMapTools(in move);
         MoveMenuGesture(in move);
     }
+
+    partial void MoveRundownDrag(in ScopeMove move);
 
     partial void MoveHeadingVector(in ScopeMove move);
 

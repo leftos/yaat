@@ -20,12 +20,12 @@ public class ScopeRundownListTests
     private static IReadOnlyList<RundownRow> TwoRows() => Rows(Item("Unsent", null, "POAK-1"), Item("Unacknowledged", null, "POAK-2"));
 
     private static SKColor RowColor(string status, double? expiresAt, bool flashOn) =>
-        ScopeRundownList.Layout(Rows(Item(status, expiresAt)), Metrics, flashOn).Lines[1].Color;
+        ScopeRundownList.Layout(Rows(Item(status, expiresAt)), Metrics, flashOn, ScopeRundownList.DefaultOrigin).Lines[1].Color;
 
     [Fact]
     public void Layout_NoRows_DrawsNothing()
     {
-        var list = ScopeRundownList.Layout([], Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout([], Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
 
         Assert.Empty(list.Lines);
         Assert.Null(list.RowAt(10, 12));
@@ -36,7 +36,7 @@ public class ScopeRundownListTests
     {
         IReadOnlyList<RundownRow> rows = Rows(Item("Unsent", null));
 
-        var list = ScopeRundownList.Layout(rows, Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout(rows, Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
 
         Assert.Equal(2, list.Lines.Count);
         Assert.Equal("RUNDOWN", list.Lines[0].Text);
@@ -49,13 +49,50 @@ public class ScopeRundownListTests
     [Fact]
     public void Layout_PlacesLinesTopLeft()
     {
-        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
 
-        Assert.Equal(new SKRect(8, 8, 8 + (7 * 7), 8 + 14), list.Lines[0].Rect);
-        Assert.Equal(20f, list.Lines[0].Baseline);
-        Assert.Equal(34f, list.Lines[1].Baseline);
-        Assert.Equal(22f, list.Lines[1].Rect.Top);
-        Assert.Equal(48f, list.Lines[2].Baseline);
+        Assert.Equal(new SKRect(8, 190, 8 + (7 * 7), 190 + 14), list.Lines[0].Rect);
+        Assert.Equal(202f, list.Lines[0].Baseline);
+        Assert.Equal(216f, list.Lines[1].Baseline);
+        Assert.Equal(204f, list.Lines[1].Rect.Top);
+        Assert.Equal(230f, list.Lines[2].Baseline);
+    }
+
+    [Fact]
+    public void Layout_AtACustomOrigin_ShiftsEveryLine()
+    {
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, new SKPoint(300, 40));
+
+        Assert.Equal(300f, list.Lines[0].Rect.Left);
+        Assert.Equal(40f, list.Lines[0].Rect.Top);
+        Assert.Equal(54f, list.Lines[1].Rect.Top);
+    }
+
+    [Fact]
+    public void Contains_TheTitle_IsInside()
+    {
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
+        SKRect rect = list.Lines[0].Rect;
+
+        Assert.True(list.Contains(rect.MidX, rect.MidY));
+    }
+
+    [Fact]
+    public void Contains_PastTheWidestLine_IsOutside()
+    {
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
+        float widest = list.Lines.Max(line => line.Rect.Right);
+
+        Assert.False(list.Contains(widest + 1, list.Lines[1].Rect.MidY));
+    }
+
+    [Fact]
+    public void Contains_WithNoRows_IsFalse()
+    {
+        var list = ScopeRundownList.Layout([], Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
+        SKPoint origin = ScopeRundownList.DefaultOrigin;
+
+        Assert.False(list.Contains(origin.X + 1, origin.Y + 1));
     }
 
     [Fact]
@@ -79,7 +116,7 @@ public class ScopeRundownListTests
     public void RowAt_InsideARowLine_GivesThatRow()
     {
         IReadOnlyList<RundownRow> rows = TwoRows();
-        var list = ScopeRundownList.Layout(rows, Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout(rows, Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
         SKRect rect = list.Lines[2].Rect;
 
         Assert.Same(rows[1], list.RowAt(rect.MidX, rect.MidY));
@@ -88,7 +125,7 @@ public class ScopeRundownListTests
     [Fact]
     public void RowAt_OnTheTitle_GivesNull()
     {
-        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
         SKRect rect = list.Lines[0].Rect;
 
         Assert.Null(list.RowAt(rect.MidX, rect.MidY));
@@ -97,7 +134,7 @@ public class ScopeRundownListTests
     [Fact]
     public void RowAt_PastTheTextWidth_GivesNull()
     {
-        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true);
+        var list = ScopeRundownList.Layout(TwoRows(), Metrics, flashOn: true, ScopeRundownList.DefaultOrigin);
         SKRect rect = list.Lines[1].Rect;
 
         Assert.Null(list.RowAt(rect.Right + 1, rect.MidY));
@@ -105,6 +142,21 @@ public class ScopeRundownListTests
 
     [Fact]
     public void FrameBuild_CarriesTheRundown()
+    {
+        ScopeFrame frame = BuildFrame(origin: null);
+
+        Assert.Equal(2, frame.Rundown.Lines.Count);
+    }
+
+    [Fact]
+    public void FrameBuild_UsesTheInputsOrigin()
+    {
+        ScopeFrame frame = BuildFrame(new SKPoint(100, 100));
+
+        Assert.Equal(100f, frame.Rundown.Lines[0].Rect.Top);
+    }
+
+    private static ScopeFrame BuildFrame(SKPoint? origin)
     {
         using var font = new SKFont { Size = 12f };
         using var paint = new SKPaint();
@@ -131,12 +183,11 @@ public class ScopeRundownListTests
             HistoryCount: 0,
             LocalRings: new Dictionary<string, ScopeTrackRings>(),
             IntentPaths: new ScopeIntentPathCache(),
-            RundownRows: Rows(Item("Unsent", null))
+            RundownRows: Rows(Item("Unsent", null)),
+            RundownOrigin: origin
         );
 
-        var frame = ScopeFrame.Build(input);
-
-        Assert.Equal(2, frame.Rundown.Lines.Count);
+        return ScopeFrame.Build(input);
     }
 
     private static CoordinationItemHubDto Item(string status, double? expiresAt, string id = "POAK-1") =>

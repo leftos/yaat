@@ -1,3 +1,4 @@
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
@@ -115,6 +116,7 @@ public sealed partial class ScopeViewModel
             Maps = CaptureMaps(),
             OpenViews = [.. OpenViews],
             ViewPlaces = [.. _allViews.Select(CaptureViewPlace)],
+            RundownOrigin = (RundownOrigin == DefaultRundownOrigin) ? null : new ScopePrefPoint(RundownOrigin.X, RundownOrigin.Y),
             Tearoffs = [.. Tearoffs.Select(CaptureTearoff)],
             Toolbar = [.. ToolbarButtons.Select(button => ScopeToolbarButtons.NameOf(ScopeToolbarButtons.KeyOf(button)))],
             Views = [.. _allViews.Select(view => view.Name)],
@@ -154,6 +156,7 @@ public sealed partial class ScopeViewModel
         WarnUnknownOpenViews(set.OpenViews);
         ApplyOpenViews(set.OpenViews);
         ApplyViewPlaces(set.ViewPlaces);
+        ApplyRundownOrigin(set.RundownOrigin);
         ApplyTearoffs(set.Tearoffs);
         ApplyMapTools(set.MapTools);
         return hold ? 0 : ApplySeededParts(set);
@@ -405,6 +408,25 @@ public sealed partial class ScopeViewModel
                 Log.LogWarning("A pref set names unknown view '{Name}' to open; ignoring it", name);
             }
         }
+    }
+
+    // A set without an origin, or with one that is not a point, places the RUNDOWN list at its default.
+    private void ApplyRundownOrigin(ScopePrefPoint? origin)
+    {
+        if (origin is null)
+        {
+            RundownOrigin = DefaultRundownOrigin;
+            return;
+        }
+
+        if ((!double.IsFinite(origin.X)) || (!double.IsFinite(origin.Y)))
+        {
+            Log.LogWarning("A pref set's RUNDOWN origin {X}, {Y} is not a point; placing the list at its default", origin.X, origin.Y);
+            RundownOrigin = DefaultRundownOrigin;
+            return;
+        }
+
+        RundownOrigin = new Point(origin.X, origin.Y);
     }
 
     private void ApplyViewPlaces(IReadOnlyList<ScopePrefView> places)

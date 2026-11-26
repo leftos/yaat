@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Headless.XUnit;
 using Xunit;
 using Yaat.Client.Logging;
@@ -60,6 +61,37 @@ public class ScopePrefCommandTests : IDisposable
             main.RunScopeCommand(".scope pref load dec");
 
             Assert.Equal(0.5, scope.RangeNm);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RundownOrigin_RoundTripsThroughAPrefSet()
+    {
+        (_, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            Assert.Null(scope.CapturePrefSet(null).RundownOrigin);
+            scope.RundownOrigin = new Point(300, 120);
+            ScopePrefSet moved = scope.CapturePrefSet(null);
+            scope.RundownOrigin = new Point(50, 60);
+
+            scope.ApplyPrefSet(moved);
+
+            Assert.Equal(new ScopePrefPoint(300, 120), moved.RundownOrigin);
+            Assert.Equal(new Point(300, 120), scope.RundownOrigin);
+
+            scope.ApplyPrefSet(moved with { RundownOrigin = null });
+
+            Assert.Equal(new Point(8, 190), scope.RundownOrigin);
+
+            scope.RundownOrigin = new Point(50, 60);
+            scope.ApplyPrefSet(moved with { RundownOrigin = new ScopePrefPoint(double.NaN, 120) });
+
+            Assert.Equal(new Point(8, 190), scope.RundownOrigin);
         }
         finally
         {

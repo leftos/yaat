@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
@@ -149,6 +150,16 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public static readonly StyledProperty<double> ScenarioElapsedSecondsProperty = AvaloniaProperty.Register<ScopeCanvas, double>(
         nameof(ScenarioElapsedSeconds)
+    );
+
+    /// <summary>
+    /// The top-left of the RUNDOWN list's title line in canvas points (<c>ScopeViewModel.RundownOrigin</c>, two-way): a drag on
+    /// the list writes it; read in <see cref="BuildFrame"/>, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<Point> RundownOriginProperty = AvaloniaProperty.Register<ScopeCanvas, Point>(
+        nameof(RundownOrigin),
+        defaultValue: new Point(ScopeRundownList.DefaultOrigin.X, ScopeRundownList.DefaultOrigin.Y),
+        defaultBindingMode: BindingMode.TwoWay
     );
 
     /// <summary>
@@ -376,6 +387,13 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(ScenarioElapsedSecondsProperty);
         set => SetValue(ScenarioElapsedSecondsProperty, value);
+    }
+
+    /// <summary>The top-left of the RUNDOWN list's title line in canvas points (<see cref="RundownOriginProperty"/>).</summary>
+    public Point RundownOrigin
+    {
+        get => GetValue(RundownOriginProperty);
+        set => SetValue(RundownOriginProperty, value);
     }
 
     public IReadOnlyList<ConflictAlertDto> EramConflicts
@@ -800,6 +818,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
         || (property == CrrGroupsProperty)
         || (property == CoordinationListsProperty)
         || (property == ScenarioElapsedSecondsProperty)
+        || (property == RundownOriginProperty)
         || (property == EramConflictsProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
@@ -977,6 +996,7 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         CancelMeasureDrag();
+        EndRundownDrag();
         base.OnPointerCaptureLost(e);
     }
 
@@ -1286,7 +1306,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     EramConflicts: EramConflicts,
                     EramMetrics: eramMetrics,
                     UnownedTemplateId: UnownedTemplateId,
-                    RundownRows: RundownRows.Build(CoordinationLists, ScenarioElapsedSeconds)
+                    RundownRows: RundownRows.Build(CoordinationLists, ScenarioElapsedSeconds),
+                    RundownOrigin: ToSkPoint(ClampRundownOrigin(RundownOrigin))
                 ),
                 stepDeconfliction
             )

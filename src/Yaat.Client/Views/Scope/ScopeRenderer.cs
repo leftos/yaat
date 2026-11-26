@@ -106,7 +106,11 @@ namespace Yaat.Client.Views.Scope;
 /// </param>
 /// <param name="RundownRows">
 /// The rows of the room's merged RUNDOWN list (<see cref="Scope.RundownRows.Build"/>), built on the UI thread; null is none. The
-/// frame lays them out at the canvas's top-left (<see cref="ScopeRundownList"/>).
+/// frame lays them out from <see cref="RundownOrigin"/> (<see cref="ScopeRundownList"/>).
+/// </param>
+/// <param name="RundownOrigin">
+/// The top-left of the RUNDOWN title line's text box in canvas points, where the user dragged the list; null is
+/// <see cref="ScopeRundownList.DefaultOrigin"/>.
 /// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
@@ -143,7 +147,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyList<ConflictAlertDto>? EramConflicts = null,
     ScopeTextMetrics? EramMetrics = null,
     string UnownedTemplateId = ScopeTemplates.EramId,
-    IReadOnlyList<RundownRow>? RundownRows = null
+    IReadOnlyList<RundownRow>? RundownRows = null,
+    SKPoint? RundownOrigin = null
 )
 {
     /// <summary>
@@ -318,7 +323,10 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// </summary>
     public string UnownedTemplateId { get; init; } = ScopeTemplates.EramId;
 
-    /// <summary>The RUNDOWN overlay this frame draws at the canvas's top-left (<see cref="ScopeFrameInput.RundownRows"/>).</summary>
+    /// <summary>
+    /// The RUNDOWN overlay this frame draws at its origin (<see cref="ScopeFrameInput.RundownRows"/>,
+    /// <see cref="ScopeFrameInput.RundownOrigin"/>).
+    /// </summary>
     public ScopeRundownList Rundown { get; init; } = ScopeRundownList.Empty;
 
     /// <summary>The template <paramref name="ac"/> draws with in this frame (<see cref="ScopeOwnerKind.Resolve"/>).</summary>
@@ -364,7 +372,7 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         return new ScopeFrame(input.TemplateId, tracks)
         {
             UnownedTemplateId = input.UnownedTemplateId,
-            Rundown = ScopeRundownList.Layout(input.RundownRows ?? [], input.Metrics, flashOn),
+            Rundown = ScopeRundownList.Layout(input.RundownRows ?? [], input.Metrics, flashOn, input.RundownOrigin ?? ScopeRundownList.DefaultOrigin),
         };
     }
 
