@@ -125,6 +125,14 @@ public sealed record DispatchContext
     public required TrackOwner? StudentPosition { get; init; }
 
     /// <summary>
+    /// The position a scenario preset acts as, resolved from its leading <c>AS {tcp}</c>
+    /// (<see cref="Simulation.PresetActingAs"/>), or the one a deferred preset payload carries to its fire time
+    /// (<see cref="DeferredDispatch.ActingAs"/>); null for every other dispatch and for a preset that names none. The
+    /// preset and deferred-dispatch context builders set it.
+    /// </summary>
+    public TrackOwner? ActingAs { get; init; }
+
+    /// <summary>
     /// The engine's ground layout for an airport id, which a destination change (<c>APT</c>) on an airborne aircraft not
     /// low over its current field switches it to; null where no engine supplies one (a test harness), and the layout then
     /// stays as it is.

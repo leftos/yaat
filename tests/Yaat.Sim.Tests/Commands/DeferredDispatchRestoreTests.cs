@@ -47,6 +47,19 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
         return Assert.Single(aircraft.DeferredDispatches);
     }
 
+    /// <summary><see cref="DispatchAndTakeDeferral"/> with the dispatch acting as <paramref name="actingAs"/>, as a preset's AS sets it.</summary>
+    private static DeferredDispatch DispatchAndTakeDeferralActingAs(string command, AircraftState aircraft, TrackOwner actingAs)
+    {
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(command);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+
+        DispatchContext ctx = TestDispatch.Context(Random.Shared) with { ActingAs = actingAs };
+        CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
+        Assert.True(result.Success, result.Message);
+
+        return Assert.Single(aircraft.DeferredDispatches);
+    }
+
     [Fact]
     public void RestoredWaitDeferral_KeepsTheStrippedPayload_SoItDoesNotRestartItsCountdown()
     {
@@ -287,5 +300,58 @@ public sealed class DeferredDispatchRestoreTests(ITestOutputHelper output)
         Assert.True(restored.IsReactionDelay);
         Assert.Single(restored.Payload.Blocks);
         Assert.NotEmpty(restored.Payload.Blocks[0].Commands);
+    }
+
+    /// <summary>
+    /// The position a preset deferral acts as rides its snapshot on every gate kind, and a deferral with none writes no key.
+    /// </summary>
+    [Fact]
+    public void ActingAs_RoundTripsOnWaitWaitdAndGiveWay()
+    {
+        var owner = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        DeferredDispatch wait = DispatchAndTakeDeferralActingAs("WAIT 120 FH 090", MakeAirborneAircraft(), owner);
+        DeferredDispatch waitd = DispatchAndTakeDeferralActingAs("WAITD 5 FH 090", MakeAirborneAircraft(), owner);
+
+        // Built directly, as in RestoredGiveWayDeferral_KeepsTheStrippedPayload_SoItDoesNotReenterTheGate: the give-way
+        // admission rules are not what this is about.
+        const string GiveWayText = "BEHIND KLM605 TAXI A B";
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(GiveWayText);
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        var payload = new CompoundCommand([new ParsedBlock(null, parsed.Value!.Blocks[0].Commands)]) { SourceText = GiveWayText };
+        var giveWay = new DeferredDispatch(payload, "KLM605") { SourceText = GiveWayText, ActingAs = owner };
+
+        foreach (DeferredDispatch deferral in new[] { wait, waitd, giveWay })
+        {
+            Assert.Equal(owner, deferral.ActingAs);
+            var restored = DeferredDispatch.FromSnapshot(deferral.ToSnapshot(), null, FixResolutionContext.None);
+            Assert.NotNull(restored);
+            Assert.Equal(owner, restored.ActingAs);
+            Assert.Equal(owner.FacilityId, restored.ActingAs!.FacilityId);
+            Assert.Equal(owner.Subset, restored.ActingAs.Subset);
+            Assert.Equal(owner.SectorId, restored.ActingAs.SectorId);
+        }
+
+        DeferredDispatch bare = DispatchAndTakeDeferral("WAIT 120 FH 090", MakeAirborneAircraft());
+        Assert.Null(bare.ActingAs);
+        Assert.DoesNotContain("ActingAs", System.Text.Json.JsonSerializer.Serialize(bare.ToSnapshot()), StringComparison.Ordinal);
+    }
+
+    /// <summary>A non-null acting position survives the snapshot JSON the engine writes, not only the in-memory DTO.</summary>
+    [Fact]
+    public void ActingAs_SurvivesASnapshotJsonRoundTrip()
+    {
+        var owner = TrackOwner.CreateStars("OAK_TWR", "NCT", 3, "O");
+        DeferredDispatch wait = DispatchAndTakeDeferralActingAs("WAIT 120 FH 090", MakeAirborneAircraft(), owner);
+
+        string json = System.Text.Json.JsonSerializer.Serialize(wait.ToSnapshot(), RecordingJsonOptions.Default);
+        DeferredDispatchDto? dto = System.Text.Json.JsonSerializer.Deserialize<DeferredDispatchDto>(json, RecordingJsonOptions.Default);
+        Assert.NotNull(dto);
+        var restored = DeferredDispatch.FromSnapshot(dto, null, FixResolutionContext.None);
+
+        Assert.NotNull(restored);
+        Assert.NotNull(restored.ActingAs);
+        Assert.Equal(owner.FacilityId, restored.ActingAs.FacilityId);
+        Assert.Equal(owner.Subset, restored.ActingAs.Subset);
+        Assert.Equal(owner.SectorId, restored.ActingAs.SectorId);
     }
 }

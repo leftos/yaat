@@ -129,8 +129,8 @@ latched triggers make the re-scan next sub-tick lossless. Per-path regression ma
 `DispatchCompound` whole: the action router (and the live server before it) splits it with
 `CompoundPolicy.TrySplitSpecialCompound` into units that dispatch independently, so `DCT OAK; AT OAK
 HO ZZ9; SQ` applies the `SQ` at issue time. The path that hands a triggered track verb its chain-mates
-is a scenario preset (`DispatchPresetCommands` → `DispatchCompound` directly), which is the path the
-track-failure test drives.
+is a scenario preset (`DispatchPresetCommands` → `DispatchSinglePreset`, which tries `TryDispatchImmediateTrackPreset` and `TryDispatchImmediateCoordinationPreset` first and otherwise calls `DispatchCompound` directly), which is the path the
+track-failure test drives. A preset led by `AS {tcp}` (`PresetActingAs.Split`) dispatches on its own, acting as that position, and is never joined into a `CFIX` composition.
 
 Parallel (`,`) semantics: `BuildApplyAction` short-circuits at the first failing sibling — earlier
 siblings stay applied, the block as a whole counts failed, and the chain remainder is discarded.

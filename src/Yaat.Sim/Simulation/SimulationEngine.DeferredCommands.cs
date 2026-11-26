@@ -7,6 +7,7 @@ using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation.Actions;
+using Yaat.Sim.Simulation.Coordination;
 
 namespace Yaat.Sim.Simulation;
 
@@ -164,51 +165,7 @@ public sealed partial class SimulationEngine
                     EmitTerminal("System", aircraft.Callsign, $"[Deferred] {conditionDesc} → {payloadDesc}");
                 }
 
-                // A pure-track deferred payload (e.g. WAIT 5 SP1 …) has no ApplyCommand arm; route it to
-                // the track engine directly, mirroring DispatchSinglePreset. Strip payloads stay on
-                // DispatchCompound below — the ApplyCommand strip arm queues them for the host to apply.
-                if (TryDispatchImmediateTrackPreset(d.Payload, aircraft))
-                {
-                    continue;
-                }
-
-                AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
-                var deferredCtx = new DispatchContext
-                {
-                    GroundLayout = groundLayout,
-                    Rng = World.Rng,
-                    Weather = World.Weather,
-                    FindAircraft = FindAircraft,
-                    ListAircraft = () => World.GetSnapshot(),
-                    ValidateDctFixes = Scenario?.ValidateDctFixes ?? true,
-                    AutoCrossRunwayMode = Scenario?.AutoCrossRunwayMode ?? AutoCrossRunwayMode.Off,
-                    SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
-                    SoloRpoCommandsAllowed = Scenario?.SoloRpoCommandsAllowed ?? false,
-                    RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
-                    TerminalEmitter = AddTerminalEntry,
-                    ArtccConfig = Scenario?.ArtccConfig,
-                    AsdexSafetyLogicConfigs = Scenario?.AsdexSafetyLogicConfigs ?? AsdexSafetyLogicSeed.Empty,
-                    ToweredAirports = Scenario?.ToweredAirports ?? ToweredAirports.Empty,
-                    ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
-                    ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
-                    SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
-                    PreserveConditionals = true,
-                    IsScenarioScripted = d.IsScenarioScripted,
-                    ReportPledges = d.ReportPledges,
-                    FacilityHint = Scenario?.StudentPosition?.FacilityId,
-                    StudentPosition = Scenario?.StudentPosition,
-                    LayoutForAirport = ResolveAirportLayout,
-                    SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
-                    PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
-                };
-                CommandResult deferredResult = CommandDispatcher.DispatchCompound(d.Payload, aircraft, deferredCtx);
-                if (!deferredResult.Success)
-                {
-                    // A deferred/preset command that fails when it finally fires (e.g. a DVIA whose STAR
-                    // never activated) used to vanish silently after the optimistic line above — surface it.
-                    _logger.LogWarning("[Deferred] {Callsign}: dispatch failed — {Message}", aircraft.Callsign, deferredResult.Message);
-                    EmitTerminal("Warning", aircraft.Callsign, $"[Deferred] could not apply: {deferredResult.Message}");
-                }
+                FireDeferredDispatch(d, aircraft);
             }
 
             if (survivingDeferrals.Count > 0)
@@ -219,28 +176,101 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// Dispatches one ready deferral's payload acting as its <see cref="DeferredDispatch.ActingAs"/>: a pure-track payload
+    /// to the track engine and a pure-coordination one to the coordination handler, mirroring the preset path, and
+    /// everything else through <see cref="CommandDispatcher.DispatchCompound"/>. A refusal surfaces as a "could not apply"
+    /// warning.
+    /// </summary>
+    private void FireDeferredDispatch(DeferredDispatch d, AircraftState aircraft)
+    {
+        // A pure-track deferred payload (e.g. WAIT 5 SP1 …) has no ApplyCommand arm; route it to
+        // the track engine directly, mirroring DispatchSinglePreset. Strip payloads stay on
+        // DispatchCompound below — the ApplyCommand strip arm queues them for the host to apply.
+        if (TryDispatchImmediateTrackPreset(d.Payload, aircraft, d.ActingAs))
+        {
+            return;
+        }
+
+        CommandResult deferredResult =
+            TryDispatchImmediateCoordinationPreset(d.Payload, aircraft, d.ActingAs)
+            ?? CommandDispatcher.DispatchCompound(d.Payload, aircraft, BuildDeferredContext(d, aircraft));
+        if (!deferredResult.Success)
+        {
+            // A deferred/preset command that fails when it finally fires (e.g. a DVIA whose STAR
+            // never activated) used to vanish silently after the optimistic line above — surface it.
+            _logger.LogWarning("[Deferred] {Callsign}: dispatch failed — {Message}", aircraft.Callsign, deferredResult.Message);
+            EmitTerminal("Warning", aircraft.Callsign, $"[Deferred] could not apply: {deferredResult.Message}");
+        }
+    }
+
+    /// <summary>The dispatch context a deferral's payload fires under, acting as <see cref="DeferredDispatch.ActingAs"/>.</summary>
+    private DispatchContext BuildDeferredContext(DeferredDispatch d, AircraftState aircraft)
+    {
+        AirportGroundLayout? groundLayout = aircraft.Ground.Layout ?? ResolveGroundLayout(aircraft);
+        return new DispatchContext
+        {
+            GroundLayout = groundLayout,
+            Rng = World.Rng,
+            Weather = World.Weather,
+            FindAircraft = FindAircraft,
+            ListAircraft = () => World.GetSnapshot(),
+            ValidateDctFixes = Scenario?.ValidateDctFixes ?? true,
+            AutoCrossRunwayMode = Scenario?.AutoCrossRunwayMode ?? AutoCrossRunwayMode.Off,
+            SoloTrainingMode = Scenario?.SoloTrainingMode ?? false,
+            SoloRpoCommandsAllowed = Scenario?.SoloRpoCommandsAllowed ?? false,
+            RpoShowPilotSpeech = Scenario?.RpoShowPilotSpeech ?? false,
+            TerminalEmitter = AddTerminalEntry,
+            ArtccConfig = Scenario?.ArtccConfig,
+            AsdexSafetyLogicConfigs = Scenario?.AsdexSafetyLogicConfigs ?? AsdexSafetyLogicSeed.Empty,
+            ToweredAirports = Scenario?.ToweredAirports ?? ToweredAirports.Empty,
+            ActiveRunways = Scenario?.ActiveRunways ?? ActiveRunways.Empty,
+            ScenarioElapsedSeconds = Scenario?.ElapsedSeconds ?? 0,
+            SessionStartUtc = Scenario?.SessionStartUtc ?? SimScenarioState.ProcessDayUtc,
+            PreserveConditionals = true,
+            IsScenarioScripted = d.IsScenarioScripted,
+            ActingAs = d.ActingAs,
+            ReportPledges = d.ReportPledges,
+            FacilityHint = Scenario?.StudentPosition?.FacilityId,
+            StudentPosition = Scenario?.StudentPosition,
+            LayoutForAirport = ResolveAirportLayout,
+            SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
+            PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
+        };
+    }
+
+    /// <summary>
+    /// The commands of <paramref name="compound"/> when it is one unconditional block whose commands are all
+    /// <paramref name="isMember"/>; null for anything else, an empty block included.
+    /// </summary>
+    private static List<ParsedCommand>? SoleUnconditionalBlockOf(CompoundCommand compound, Predicate<ParsedCommand> isMember)
+    {
+        if (compound.Blocks.Count != 1 || compound.Blocks[0].Condition is not null)
+        {
+            return null;
+        }
+
+        List<ParsedCommand> commands = compound.Blocks[0].Commands;
+        return (commands.Count > 0) && commands.TrueForAll(isMember) ? commands : null;
+    }
+
+    /// <summary>
     /// Routes an immediate (unconditional) preset that is purely track commands straight to the track
     /// engine. Such presets never reach <see cref="CommandDispatcher.EnqueueBlocks"/> — the leading block
     /// applies inline through <see cref="CommandDispatcher.ApplyCommand"/>, which has no track-command arm
     /// (the no-dispatcher-arm default). Conditional or mixed compounds return false and fall
     /// through to the normal dispatcher, where <see cref="ProcessTriggeredTrackBlocks"/> handles any
-    /// triggered track commands.
+    /// triggered track commands. <paramref name="identity"/> is the position the preset acts as (its leading
+    /// <c>AS {tcp}</c>), null when it names none.
     /// </summary>
-    private bool TryDispatchImmediateTrackPreset(CompoundCommand compound, AircraftState aircraft)
+    private bool TryDispatchImmediateTrackPreset(CompoundCommand compound, AircraftState aircraft, TrackOwner? identity)
     {
-        if (compound.Blocks.Count != 1 || compound.Blocks[0].Condition is not null)
-        {
-            return false;
-        }
-
-        List<ParsedCommand> commands = compound.Blocks[0].Commands;
-        if (commands.Count == 0 || !commands.TrueForAll(TrackEngine.IsTrackCommand))
+        if (SoleUnconditionalBlockOf(compound, TrackEngine.IsTrackCommand) is not { } commands)
         {
             return false;
         }
 
         SimScenarioState scenario = Scenario!;
-        var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
+        var track = new TrackDispatchContext(Identity: identity, scenario, Redirect: null, ConflictAlerts);
         foreach (ParsedCommand command in commands)
         {
             // A verb the track table has no arm for returns null; treated as a refusal so it warns instead of
@@ -257,6 +287,40 @@ public sealed partial class SimulationEngine
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Routes an immediate (unconditional) preset that is purely STARS coordination verbs (RD, RDACK, …) to
+    /// <see cref="CoordinationCommandHandler.Handle"/> acting as <paramref name="identity"/>, which
+    /// <see cref="CommandDispatcher.ApplyCommand"/> has no arm for. Returns null when the compound is not such a preset;
+    /// else the first refusal, or the last verb's result. No identity refuses as the typed path does with no position.
+    /// </summary>
+    private CommandResult? TryDispatchImmediateCoordinationPreset(CompoundCommand compound, AircraftState aircraft, TrackOwner? identity)
+    {
+        if (SoleUnconditionalBlockOf(compound, TrackEngine.IsCoordinationCommand) is not { } commands)
+        {
+            return null;
+        }
+
+        if (identity is null)
+        {
+            return ActionRefusals.NoActivePosition();
+        }
+
+        CommandResult result = new(true, "");
+        foreach (ParsedCommand command in commands)
+        {
+            result =
+                (command is CoordinationAutoAckCommand autoAck)
+                    ? CoordinationCommandHandler.HandleGlobal(this, autoAck, identity)
+                    : CoordinationCommandHandler.Handle(this, command, aircraft.Callsign, identity);
+            if (!result.Success)
+            {
+                return result;
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

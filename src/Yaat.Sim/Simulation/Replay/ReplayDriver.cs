@@ -81,7 +81,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
             _engine.EramSectorMessages.Clear();
             _engine.EramWeatherReports.Clear();
 
-            // The coordination channels need no clear: Range runs InitializeFromArtcc first, which replaces every
+            // The coordination channels need no clear: the load's before-presets callback runs InitializeFromArtcc, which replaces every
             // channel whole — items, NextSequence and receivers — from the ARTCC, and a recording that carries no
             // ARTCC has no channels for a verb to have minted into. The tower lists above need the clear even though
             // that same init rebuilds their airports, because the dwell entries are session state the proximity step
@@ -131,6 +131,42 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         }
     }
 
+    /// <summary>
+    /// What the live room has in place before its t=0 presets dispatch, in the server's order (roster, then the ARTCC
+    /// state, then the aircraft): the student position, the resolved ATC roster and what
+    /// <see cref="SimulationEngine.InitializeFromArtcc"/> builds. A preset reads them as the live room did, so an
+    /// <c>AS {tcp}</c> preset resolves its TCP and finds its coordination lists.
+    /// </summary>
+    private void RestorePositionsAndArtccState(SessionRecording recording, SimScenarioState scenario)
+    {
+        // The scenario JSON does not carry the resolved runtime student position (the server sets it
+        // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,
+        // proactive check-ins, and Class B/C boundary holds replay as they did live.
+        if (recording.StudentPositionState is { } studentPosition)
+        {
+            scenario.StudentPosition = studentPosition.Position;
+            scenario.StudentTcp = studentPosition.Tcp;
+            _engine.World.StudentTcp = studentPosition.Tcp;
+            scenario.StudentPositionType = studentPosition.PositionType;
+            scenario.IsStudentTowerPosition = studentPosition.IsTowerPosition;
+        }
+
+        // Same reason for the resolved ATC roster: the scenario's atc entries are unresolved, so without this the
+        // deferred autotrack pass has nothing to match a departure's airport against. Fresh objects on every replay —
+        // the client scrubs by calling Replay on one SessionRecording many times.
+        if (recording.InitialAtcPositions is { } roster)
+        {
+            scenario.AtcPositions = [.. roster.Select(ResolvedAtcPosition.FromSnapshot)];
+        }
+
+        // The strip bays, TDLS facility configurations, coordination channels and tower list airports the presets, the
+        // mutations and the tick steps assume exist: the server's load builds them from the ARTCC, and the config and the
+        // student position it needs are restored above. They survive the ClearSession the replay's range runs at t=0
+        // because that clears the session only — TdlsState spares Configs, FlightStripState spares Bays and
+        // TowerListTracker spares its airports.
+        _engine.InitializeFromArtcc();
+    }
+
     public void To(SessionRecording recording, double targetSeconds, Action<SimScenarioState> configureAfterLoad)
     {
         _engine.TickTimings?.Clear();
@@ -167,6 +203,7 @@ internal sealed class ReplayDriver(SimulationEngine engine)
                     scenario.InitialActiveRunways = initialActiveRunways;
                     // The recording's own turn model, set before any preset dispatched during the load turns an aircraft.
                     scenario.TurnModel = recording.TurnModel;
+                    RestorePositionsAndArtccState(recording, scenario);
                 }
             );
         }
@@ -177,26 +214,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         }
 
         _engine.Scenario?.ReplaceWindGridPins(pins);
-
-        // The scenario JSON does not carry the resolved runtime student position (the server sets it
-        // at load via InitializeTrackPositions). Restore it from the recording so CanInitiateWithStudent,
-        // proactive check-ins, and Class B/C boundary holds replay as they did live.
-        if (_engine.Scenario is not null && recording.StudentPositionState is { } studentPosition)
-        {
-            _engine.Scenario.StudentPosition = studentPosition.Position;
-            _engine.Scenario.StudentTcp = studentPosition.Tcp;
-            _engine.World.StudentTcp = studentPosition.Tcp;
-            _engine.Scenario.StudentPositionType = studentPosition.PositionType;
-            _engine.Scenario.IsStudentTowerPosition = studentPosition.IsTowerPosition;
-        }
-
-        // Same reason for the resolved ATC roster: the scenario's atc entries are unresolved, so without this the
-        // deferred autotrack pass has nothing to match a departure's airport against. Fresh objects on every replay —
-        // the client scrubs by calling Replay on one SessionRecording many times.
-        if (_engine.Scenario is not null && recording.InitialAtcPositions is { } roster)
-        {
-            _engine.Scenario.AtcPositions = [.. roster.Select(ResolvedAtcPosition.FromSnapshot)];
-        }
 
         if (_engine.Scenario is not null)
         {
@@ -214,13 +231,6 @@ internal sealed class ReplayDriver(SimulationEngine engine)
         // sessions recorded with the feature, off for pre-feature recordings so they re-simulate
         // with the original uniform slow-down.
         _engine.Scenario?.FinalApproachSpeedVarietyEnabled = recording.FinalApproachSpeedVarietyEnabled;
-
-        // The strip bays, TDLS facility configurations and tower list airports the mutations and the tick steps assume
-        // exist: the server's load builds them from the ARTCC, and a replay has just restored the config and the
-        // student position it needs to do the same. They survive the ClearSession the range below runs at t=0 because
-        // that clears the session only — TdlsState spares Configs, FlightStripState spares Bays and TowerListTracker
-        // spares its airports.
-        _engine.InitializeFromArtcc();
 
         FromStartTo((int)targetSeconds, recording.Actions, actionApplier: null);
 

@@ -37,6 +37,7 @@ ScenarioRunwayUse.cs           # What a loaded scenario already decides about ru
                                # and the primary's arrival-generator runways. The load prompt's lines.
 ScenarioRunwaySignals.cs       # The runways a loaded aircraft is sent to (AircraftRunways: its expected approach, then its parsed preset commands, never dispatched, each with a
                                # departure/arrival/both use) and the primary airport's arrival-generator runways; shared by ImpliedActiveRunways.For and ScenarioRunwayUse.CountAssigned.
+PresetActingAs.cs             # Split: hoists a leading `AS {tcp}` (bare or behind WAIT n / WAITD n) out of a scenario preset so the engine dispatches the rest acting as that position.
 ActiveRunwayListParser.cs      # The one runway-list grammar (command, sidecar, snapshot, prompt): tokens split on commas, spaces or newlines; `30` both, `D28L`
                                # departures, `A28R` arrivals; ends 01-36 with optional L/R/C. Parse checks ends against navdata; FromTokenLists (sidecar, snapshot) warns and drops.
                                # ToTokenLists is its inverse (airport -> token list); ReadStored reads a recording's or checkpoint's stored starting list (null when it stored none).

@@ -2098,6 +2098,8 @@ By default, you operate as the scenario's student position. Use `AS` to act as a
 
 Resolution order: per-command `AS` prefix > persistent active position > student position default.
 
+A scenario preset may lead with `AS {tcp}`, bare or after `WAIT n` / `WAITD n` (`AS 2B RD …`, `WAIT 30 AS 2B RDACK …`): the command after it runs acting as that position, at once or when the wait ends, so track and coordination verbs (`RD`, `RDACK`, `RDH`, `RDR`, `RDAUTO`) work from a preset. A TCP that does not resolve warns `[Preset] could not apply: Unknown position: {tcp}`. A coordination verb in a preset with no `AS` warns `[Preset] could not apply: No active position — use AS to set one` (`[Deferred] …` when its wait ends). A preset led by `AS` runs on its own and is never joined into a `CFIX` composition.
+
 A position argument resolves as a TCP code (`2B`), an ERAM sector (`C44`), an interfacility handoff code, and last as a position callsign (`OAK_GND`) or `callsign@tcp` (`NCT_APP@1M`). A CRC client's position is synced onto its RPO connection as that connection's own recorded `AS`, using the shortest of those forms that names the position exactly.
 
 Ownership and pointout commands (`HO`, `ACCEPT`, `CANCEL`, `DROP`, `PO`, `OK`, `PORJ`, `PORT`) infer the acting position from the track itself — the current owner for `HO`/`CANCEL`/`DROP`/`PO`, the handoff target for `ACCEPT`, the pointout recipient for `OK`/`PORJ`, the pointout sender for `PORT` — so they never need an `AS` prefix.

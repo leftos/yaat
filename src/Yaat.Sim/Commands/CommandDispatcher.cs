@@ -2813,6 +2813,7 @@ public static class CommandDispatcher
             {
                 SourceText = compound.SourceText,
                 IsScenarioScripted = ctx.IsScenarioScripted,
+                ActingAs = ctx.ActingAs,
             };
             timerDesc = $"{waitCmd.Seconds}s";
         }
@@ -2822,6 +2823,7 @@ public static class CommandDispatcher
             {
                 SourceText = compound.SourceText,
                 IsScenarioScripted = ctx.IsScenarioScripted,
+                ActingAs = ctx.ActingAs,
             };
             timerDesc = $"{waitDistCmd.DistanceNm}nm";
         }
@@ -2920,7 +2922,12 @@ public static class CommandDispatcher
         // it onto aircraft.Ground.Hold during the wait — the aircraft remains under its
         // prior phase control until the condition fires and the payload dispatches.
         aircraft.DeferredDispatches.Add(
-            new DeferredDispatch(payload, gw.TargetCallsign) { SourceText = compound.SourceText, IsScenarioScripted = ctx.IsScenarioScripted }
+            new DeferredDispatch(payload, gw.TargetCallsign)
+            {
+                SourceText = compound.SourceText,
+                IsScenarioScripted = ctx.IsScenarioScripted,
+                ActingAs = ctx.ActingAs,
+            }
         );
         return new CommandResult(true, $"After {gw.TargetCallsign} passes: {payloadDesc}");
     }

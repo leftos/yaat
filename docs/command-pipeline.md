@@ -356,7 +356,7 @@ The canonical forms round-trip through the parser (`CoordinationCanonicalRoundTr
 
 (`DeferredDispatch` in `src/Yaat.Sim/CommandQueue.cs`; ticked by `SimulationEngine.ProcessDeferredDispatches`)
 
-Distinct from the CommandQueue (§6): a queued `CommandBlock` holds *part* of an already-dispatched compound behind a trigger and writes `ControlTargets` when the trigger fires. A `DeferredDispatch` instead holds the **entire un-dispatched compound** and re-runs it through `DispatchCompound` from scratch when its timer/condition expires — phases, queue clearing, and validation all happen fresh at fire time, not at issue time. Each aircraft owns a `DeferredDispatches` list (snapshot-serialized).
+Distinct from the CommandQueue (§6): a queued `CommandBlock` holds *part* of an already-dispatched compound behind a trigger and writes `ControlTargets` when the trigger fires. A `DeferredDispatch` instead holds the **entire un-dispatched compound** and re-runs it through `DispatchCompound` from scratch when its timer/condition expires — phases, queue clearing, and validation all happen fresh at fire time, not at issue time. Each aircraft owns a `DeferredDispatches` list (snapshot-serialized). A scenario preset that leads with `AS {tcp}` (`WAIT n AS 2B RD …`) carries the position as `DeferredDispatch.ActingAs`; `FireDeferredDispatch` dispatches the payload acting as it, and the snapshot restores it.
 
 Three things create a deferred dispatch:
 
@@ -382,7 +382,7 @@ The hold: while the aircraft's current phase is a `PushbackPhase`, a scenario-sc
 
 Scripted commands that never reach the gate (`SN`, squawk, strip ops) fire on time, and instructor-typed commands are not held. A newly held command emits "{command} held until pushback completes" on the terminal. Details in [ground/pushback.md](ground/pushback.md).
 
-**Non-standard payloads at fire time.** A ready payload that is a *pure track* compound (e.g. `WAIT 5 SP1 …`) is routed through `TryDispatchImmediateTrackPreset` → `TrackEngine.Dispatch` before `DispatchCompound`, mirroring the immediate-preset path (`DispatchSinglePreset`) — otherwise the transparent-command fast-path would send a track command to `ApplyCommand`'s no-dispatcher-arm default and fail.
+**Non-standard payloads at fire time.** A ready payload that is a *pure track* compound (e.g. `WAIT 5 SP1 …`) is routed through `TryDispatchImmediateTrackPreset` → `TrackEngine.Dispatch` before `DispatchCompound`, mirroring the immediate-preset path (`DispatchSinglePreset`, which also tries `TryDispatchImmediateCoordinationPreset`) — otherwise the transparent-command fast-path would send a track command to `ApplyCommand`'s no-dispatcher-arm default and fail.
 
 *Strip* payloads (e.g. `WAIT 2 ANNOTATE 10 ✓`) do reach `DispatchCompound`, but `ApplyCommand` queues them onto `AircraftState.PendingStripDispatches` for the host to apply (strip state is host-owned — see [flight-strips.md](flight-strips.md)) rather than failing. Before these two routes existed, every deferred/preset strip command and every deferred *transparent*-track command failed with `[Deferred] could not apply: …`.
 

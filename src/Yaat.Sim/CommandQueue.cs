@@ -767,6 +767,13 @@ public sealed class DeferredDispatch
     /// </summary>
     public IReadOnlyList<ReportPledge> ReportPledges { get; init; } = [];
 
+    /// <summary>
+    /// The position a scenario preset's payload acts as when it fires, resolved once from the preset's leading
+    /// <c>AS {tcp}</c> when the deferral was created (<see cref="Commands.DispatchContext.ActingAs"/>); null when there is
+    /// no acting identity. Snapshot-serialized and restored as it was, never re-resolved.
+    /// </summary>
+    public TrackOwner? ActingAs { get; init; }
+
     public DeferredDispatch(double seconds, Commands.CompoundCommand payload)
     {
         RemainingSeconds = seconds;
@@ -797,6 +804,7 @@ public sealed class DeferredDispatch
             IsReactionDelay = IsReactionDelay,
             IsScenarioScripted = IsScenarioScripted,
             ReportPledges = (ReportPledges.Count > 0) ? [.. ReportPledges.Select(pledge => pledge.ToSnapshot())] : null,
+            ActingAs = ActingAs?.ToSnapshot(),
         };
 
     public static DeferredDispatch? FromSnapshot(DeferredDispatchDto dto, string? aircraftRoute, Commands.FixResolutionContext ctx)
@@ -831,9 +839,15 @@ public sealed class DeferredDispatch
             payload = new Commands.CompoundCommand(payloadBlocks) { SourceText = dto.GiveWayTarget is not null ? dto.SourceText : null };
         }
 
+        TrackOwner? actingAs = (dto.ActingAs is { } owner) ? TrackOwner.FromSnapshot(owner) : null;
         if (dto.GiveWayTarget is not null)
         {
-            return new DeferredDispatch(payload, dto.GiveWayTarget) { SourceText = dto.SourceText, IsScenarioScripted = dto.IsScenarioScripted };
+            return new DeferredDispatch(payload, dto.GiveWayTarget)
+            {
+                SourceText = dto.SourceText,
+                IsScenarioScripted = dto.IsScenarioScripted,
+                ActingAs = actingAs,
+            };
         }
 
         if (dto.IsDistanceBased)
@@ -842,6 +856,7 @@ public sealed class DeferredDispatch
             {
                 SourceText = dto.SourceText,
                 IsScenarioScripted = dto.IsScenarioScripted,
+                ActingAs = actingAs,
             };
         }
 
@@ -851,6 +866,7 @@ public sealed class DeferredDispatch
             IsReactionDelay = dto.IsReactionDelay,
             IsScenarioScripted = dto.IsScenarioScripted,
             ReportPledges = ReportPledge.FromSnapshots(dto.ReportPledges),
+            ActingAs = actingAs,
         };
     }
 }

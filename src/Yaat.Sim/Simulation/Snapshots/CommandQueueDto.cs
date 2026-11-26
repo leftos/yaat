@@ -159,6 +159,13 @@ public sealed class DeferredDispatchDto
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ReportPledgeDto>? ReportPledges { get; init; }
+
+    /// <summary>
+    /// The position the deferral's payload acts as (<see cref="DeferredDispatch.ActingAs"/>). Written only when there is one,
+    /// so a snapshot with none serializes as before; absent, the deferral restores with no acting identity.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TrackOwnerDto? ActingAs { get; init; }
 }
 
 /// <summary>A reaction delay's REPORT REACHING / LEAVING answer (<see cref="Yaat.Sim.ReportPledge"/>).</summary>

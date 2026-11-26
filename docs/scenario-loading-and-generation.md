@@ -690,7 +690,7 @@ spawn:
 2. Backfills a missing destination for filed plans (above).
 3. Splits presets by `TimeOffset`: `> 0` presets go to `PresetQueue` (fired later by `ProcessTimedPresets`); `0` presets run
    immediately.
-4. Dispatches each immediate preset via `DispatchSinglePreset` (`:2063`), building a full `DispatchContext` — including the live
+4. Dispatches each immediate preset via `DispatchSinglePreset` (a preset led by `AS {tcp}` runs acting as that position, see `PresetActingAs`) (`:2063`), building a full `DispatchContext` — including the live
    `TerminalEmitter` (`_terminalEntries.Add`), RNG, weather, aircraft lookup, and the scenario's `ValidateDctFixes` /
    `AutoCrossRunwayMode` / `SoloTrainingMode` / `RpoShowPilotSpeech` flags.
 

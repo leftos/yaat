@@ -492,8 +492,9 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            (string? actingTcp, string timedCommand) = PresetActingAs.Split(preset.Command);
             ParseResult<CompoundCommand> timedResult = CommandParser.ParseCompound(
-                preset.Command,
+                timedCommand,
                 aircraft.FlightPlan.Route,
                 ctx: FixResolutionContext.From(aircraft.FlightPlan)
             );
@@ -504,11 +505,15 @@ public sealed partial class SimulationEngine
             }
 
             scenario.PresetQueue.Remove(preset);
-            DispatchTimedPreset(preset, aircraft, timedResult);
+            DispatchTimedPreset(preset, aircraft, timedResult, actingTcp);
         }
     }
 
-    private void DispatchTimedPreset(ScheduledPreset preset, AircraftState aircraft, ParseResult<CompoundCommand> timedResult)
+    /// <summary>
+    /// Dispatches a timed preset that is due. <paramref name="actingTcp"/> is the TCP its leading <c>AS</c> named
+    /// (<see cref="PresetActingAs.Split"/>), resolved now, when the preset fires, not when it was queued.
+    /// </summary>
+    private void DispatchTimedPreset(ScheduledPreset preset, AircraftState aircraft, ParseResult<CompoundCommand> timedResult, string? actingTcp)
     {
         if (!timedResult.IsSuccess)
         {
@@ -522,15 +527,19 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        CompoundCommand compound = timedResult.Value!;
-
-        if (TryDispatchImmediateTrackPreset(compound, aircraft))
+        if (!TryResolvePresetIdentity(aircraft, preset.Command, actingTcp, out TrackOwner? identity))
         {
-            EmitTerminal("System", preset.Callsign, $"[Preset] {preset.Command}");
             return;
         }
 
-        CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, BuildTimedPresetContext(aircraft));
+        CompoundCommand compound = timedResult.Value!;
+
+        if (TryDispatchRoutedPreset(compound, aircraft, identity, preset.Command))
+        {
+            return;
+        }
+
+        CommandResult timedOutcome = CommandDispatcher.DispatchCompound(compound, aircraft, BuildTimedPresetContext(aircraft, identity));
         // A scripted clearance still answers whatever the pilot last asked for, so the pending
         // request closes and stops following up. Scripted commands emit no read-back and are not
         // scored — the student didn't issue them.
@@ -540,7 +549,7 @@ public sealed partial class SimulationEngine
         ReportPresetOutcome(aircraft, preset.Command, timedOutcome);
     }
 
-    private DispatchContext BuildTimedPresetContext(AircraftState aircraft)
+    private DispatchContext BuildTimedPresetContext(AircraftState aircraft, TrackOwner? actingAs)
     {
         SimScenarioState scenario = Scenario!;
         return new DispatchContext
@@ -566,6 +575,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = scenario.StudentPosition?.FacilityId,
             StudentPosition = scenario.StudentPosition,
+            ActingAs = actingAs,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -646,8 +656,9 @@ public sealed partial class SimulationEngine
 
     private void DispatchSinglePreset(string command, AircraftState aircraft)
     {
+        (string? actingTcp, string presetCommand) = PresetActingAs.Split(command);
         ParseResult<CompoundCommand> presetResult = CommandParser.ParseCompound(
-            command,
+            presetCommand,
             aircraft.FlightPlan.Route,
             ctx: FixResolutionContext.From(aircraft.FlightPlan)
         );
@@ -658,11 +669,15 @@ public sealed partial class SimulationEngine
             return;
         }
 
+        if (!TryResolvePresetIdentity(aircraft, command, actingTcp, out TrackOwner? identity))
+        {
+            return;
+        }
+
         CompoundCommand compound = presetResult.Value!;
 
-        if (TryDispatchImmediateTrackPreset(compound, aircraft))
+        if (TryDispatchRoutedPreset(compound, aircraft, identity, command))
         {
-            EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
             return;
         }
 
@@ -690,6 +705,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = true,
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
+            ActingAs = identity,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -697,6 +713,52 @@ public sealed partial class SimulationEngine
 
         EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
         ReportPresetOutcome(aircraft, command, presetOutcome);
+    }
+
+    /// <summary>
+    /// Resolves the TCP a preset's leading <c>AS</c> named to the position it acts as, with the student position's
+    /// facility as the hint. No TCP leaves <paramref name="identity"/> null (no default identity: a scripted TRACK or RD
+    /// is never credited to the student); an unknown one refuses the preset and returns false.
+    /// </summary>
+    private bool TryResolvePresetIdentity(AircraftState aircraft, string command, string? actingTcp, out TrackOwner? identity)
+    {
+        identity = null;
+        if (actingTcp is null)
+        {
+            return true;
+        }
+
+        SimScenarioState scenario = Scenario!;
+        identity = TrackResolver.ResolveTcpToOwner(scenario, actingTcp, scenario.StudentPosition?.FacilityId);
+        if (identity is not null)
+        {
+            return true;
+        }
+
+        ReportPresetOutcome(aircraft, command, new CommandResult(false, $"Unknown position: {actingTcp}"));
+        return false;
+    }
+
+    /// <summary>
+    /// Sends a preset of track or coordination verbs to the engine's own handlers, which the command dispatcher has no arm
+    /// for, acting as <paramref name="identity"/>; false when the preset is neither and belongs to the dispatcher.
+    /// </summary>
+    private bool TryDispatchRoutedPreset(CompoundCommand compound, AircraftState aircraft, TrackOwner? identity, string command)
+    {
+        if (TryDispatchImmediateTrackPreset(compound, aircraft, identity))
+        {
+            EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+            return true;
+        }
+
+        if (TryDispatchImmediateCoordinationPreset(compound, aircraft, identity) is not { } outcome)
+        {
+            return false;
+        }
+
+        EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+        ReportPresetOutcome(aircraft, command, outcome);
+        return true;
     }
 
     /// <summary>
@@ -761,23 +823,42 @@ public sealed partial class SimulationEngine
             }
         }
 
-        // CFIX is additive — it stamps the named route fix in place — so multiple CFIX presets
-        // can be dispatched independently and all their crossing restrictions land at spawn.
-        // Compose into a single sequential compound only when a CFIX is followed by a non-CFIX
-        // command (e.g. "CFIX ...; CAPP"): that later command must wait until the crossing fix
-        // is reached, otherwise it would rebuild the route and lose the CFIX restrictions.
-        bool allCfix = immediatePresets.All(p => p.TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase));
-        if (!allCfix && immediatePresets.Count >= 2 && immediatePresets[0].TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase))
+        DispatchImmediatePresets(immediatePresets, loaded.State);
+    }
+
+    /// <summary>
+    /// Dispatches an aircraft's immediate presets in list order. CFIX is additive — it stamps the named route fix in
+    /// place — so multiple CFIX presets can be dispatched independently and all their crossing restrictions land at
+    /// spawn. The presets compose into a single sequential compound only when a CFIX is followed by a non-CFIX command
+    /// (e.g. "CFIX ...; CAPP"): that later command must wait until the crossing fix is reached, otherwise it would rebuild
+    /// the route and lose the CFIX restrictions. A preset led by <c>AS {tcp}</c> never composes (inside the joined string
+    /// its AS would no longer lead): it dispatches on its own, after the composed part.
+    /// </summary>
+    private void DispatchImmediatePresets(List<string> immediatePresets, AircraftState aircraft)
+    {
+        List<string> composable = immediatePresets.FindAll(p => PresetActingAs.Split(p).Tcp is null);
+        if (!ComposesCfix(composable))
         {
-            string composed = string.Join("; ", immediatePresets);
-            DispatchSinglePreset(composed, loaded.State);
+            foreach (string cmd in immediatePresets)
+            {
+                DispatchSinglePreset(cmd, aircraft);
+            }
+
             return;
         }
 
-        foreach (string cmd in immediatePresets)
+        DispatchSinglePreset(string.Join("; ", composable), aircraft);
+        foreach (string cmd in immediatePresets.Where(p => PresetActingAs.Split(p).Tcp is not null))
         {
-            DispatchSinglePreset(cmd, loaded.State);
+            DispatchSinglePreset(cmd, aircraft);
         }
+    }
+
+    /// <summary>Whether <paramref name="presets"/> lead with a CFIX that a non-CFIX command follows.</summary>
+    private static bool ComposesCfix(List<string> presets)
+    {
+        static bool IsCfix(string p) => p.TrimStart().StartsWith("CFIX ", StringComparison.OrdinalIgnoreCase);
+        return (presets.Count >= 2) && IsCfix(presets[0]) && !presets.TrueForAll(IsCfix);
     }
 
     // --- Replay helpers ---
