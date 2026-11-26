@@ -8,13 +8,11 @@
 
 ## Radar bar per Scope profile (feat/scope-dcb-per-profile)
 
-- [ ] YAAT-2855 Radar view: a STARS-like DCB on the STARS template and an ERAM-like DCB on ERAM; Mixed keeps today's · release vNext
-  - [ ] YAAT-2878 Merge feat/scope-dcb-per-profile to main (#1412)
 - [ ] YAAT-2894 Popping the Scope out may leave the docked DCB's submenu state on the shared view model
-- [ ] YAAT-2895 A Scope profile switch leaves the open toolbar tray, and an armed ring tool, on the next bar
-- [ ] YAAT-2896 ERAM YAAT menu may clip at the right edge of a narrow Radar window
 - [ ] YAAT-2897 STARS YAAT page: OTHERS and AUTO do not light while pinned
 - [ ] YAAT-2903 Radar under the ERAM profile shows two empty boxes at the scope's left
+- [ ] YAAT-2904 ERAM Master Toolbar clips its right columns in a Radar narrower than about 735 DIP
+- [ ] YAAT-2905 STARS DCB scroller swallows horizontal swipes and takes PageUp/PageDown from key bindings
 
 ## YAATEdit in YAAT
 
@@ -1742,6 +1740,7 @@
 - [ ] YAAT-2550 GuideCapture: the solo-advisory shot answers the worked-positions prompt; check routed captures are byte-stable
 - [ ] YAAT-2559 Client driver recording: a recorder that dies before cmd starts ffmpeg ends with a bare exit 255
 - [ ] YAAT-2827 Show point-out state in bug_bundle.py history and track
+- [ ] YAAT-2906 RINGS brightness docs omit the range ring it also dims
 
 ## Backlog
 
