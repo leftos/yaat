@@ -144,7 +144,6 @@
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position · release vNext+1
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [ ] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus
-- [ ] YAAT-2798 DVXM after a crossing speed in the same transmission: define and test the pair · release vNext
 - [ ] YAAT-2831 RDH for an aircraft with a sent RD item adds a second, Unsent item
 - [ ] YAAT-2832 RDH and RDR with a named list skip the sender check
 - [ ] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation
@@ -946,7 +945,7 @@
 
 ## SIDs, STARs and climb/descend via
 
-### 1 Defects (29/53 done)
+### 1 Defects (29/54 done)
 - [ ] YAAT-2732 Descent planning: a 'descend and maintain' to exactly an ATC at-or-above crossing's altitude leaves the aircraft stuck at cruise (CrossingTopOfDescentRate over-holds; regression from acb90180b/#1395)
 - [ ] YAAT-2446 Fly an FM leg as a course over the ground, not a heading
 - [ ] YAAT-1483 Sequence a SID's heading-to-intercept leg when the next leg is a fix-less course-to-altitude leg (KSJC SUNOL1 RW12B)
@@ -971,8 +970,9 @@
 - [ ] YAAT-1871 Apply a coded-leg CFIX's altitude revert when the departure procedure is abandoned
 - [ ] YAAT-2361 STAR spawn route drops the published fly-over flag on its fixes
 - [ ] YAAT-2740 Let a departure accelerate past its last SID speed restriction
+- [ ] YAAT-2858 CFIX then a later DVXM: the target speed is null past the crossing fix
 
-### 2 Refinements and rulings (1/21 done)
+### 2 Refinements and rulings (1/23 done)
 - [ ] YAAT-1024 Decide what a separate CFIX does while an earlier descend/climb via is in force
 - [ ] YAAT-965 Restore STAR restrictions without guessing a runway transition
 - [ ] YAAT-977 Decide what a departure does when vectored off a SID after a climb via
@@ -993,8 +993,10 @@
 - [ ] YAAT-2147 Let a PDC sent after LUAW or after a ground CM govern the departure climb
 - [ ] YAAT-2652 Hold the deferred departure turn below the IFR 400 ft gate when DCT or OC arrives in InitialClimbPhase
 - [ ] YAAT-2734 Keep planning past a higher published at-or-below speed on a STAR
+- [ ] YAAT-2859 DVXM with Mach plus a same-transmission CFIX speed: rule and fly in route order
+- [ ] YAAT-2861 DVXM end before a CFIX crossing: the aircraft speeds up briefly past the end fix before slowing for the crossing
 
-### 3 Hygiene and tests (0/8 done)
+### 3 Hygiene and tests (0/9 done)
 - [ ] YAAT-983 Read the active op config's SID top altitude before the others
 - [ ] YAAT-1030 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 - [ ] YAAT-1395 Tidy YAAT-1356 follow-ups: overlay stale stamps, the airspace hold's saved stamps, the speed target after an approach clearance
@@ -1003,12 +1005,12 @@
 - [ ] YAAT-2363 Bring ArrivalRouteResolver.AppendStarRunwayTransition under complexity 8
 - [ ] YAAT-2364 DEPART off a STAR: pin the altitude, speed and fly-over held after the turn at the fix
 - [ ] YAAT-2656 COAST9 departure never finishes its coded legs in the Sim test harness
+- [ ] YAAT-2860 Split NavigationCommandHandler.DispatchCrossFix under the complexity limit
 
 ### No milestone
 - [ ] YAAT-1519 Restore a crossed published ceiling on a re-issued CVIA; lift a SID waypoint's ceiling once passed
 - [ ] YAAT-1868 Climb at no less than the profile rate toward a far constrained fix
 - [ ] YAAT-2828 Fly a SID FM leg as a wind-corrected track, not a heading
-- [ ] YAAT-2856 Probe DVXM as an alias for DVIA plus SPD … UNTIL: which DVXM tests differ · release vNext
 
 ## Approaches and holds
 
@@ -1272,7 +1274,7 @@
 
 ## Server: CRC, ERAM, vEDST and rooms
 
-### 1 Defects (3/26 done)
+### 1 Defects (3/27 done)
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
 - [ ] YAAT-1489 Forward the disconnect-coast clears from RoomEngine.DrainStateChangesToRoom like the engine's own drain
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
@@ -1296,6 +1298,7 @@
 - [ ] YAAT-1498 Keep a runway configuration that names one runway twice from throwing in the ASDE-X alert step
 - [ ] YAAT-1502 Rebuild ASDE-X hold bars when a pushed runway footprint changes, not only on a layout or id change
 - [ ] YAAT-2711 Gate yaat-server's dev-auth every-ARTCC answers on the Development environment, as /auth/dev is
+- [ ] YAAT-2857 Guard the per-room STARS line-number store against the tick loop's concurrent writes
 
 ### 2 Refinements and rulings (1/7 done)
 - [ ] YAAT-197 Confirm which vNAS position entities go over UDP before moving any
@@ -1543,7 +1546,7 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (10/69 done)
+### 3 Hygiene and tests (10/70 done)
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
@@ -1603,6 +1606,7 @@
 - [ ] YAAT-2684 Tighten the Scope vector-grid tests: migration OWN, comma culture, fractional refusal
 - [ ] YAAT-2755 Give UI render-PNG tests one fixed output folder and route them through the gate
 - [ ] YAAT-2773 Make LayoutCloner.DeepClone copy every serialized runway member
+- [ ] YAAT-2862 Test that the client mirrors subscribe to their hub events (RD lists, ERAM CRR)
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
