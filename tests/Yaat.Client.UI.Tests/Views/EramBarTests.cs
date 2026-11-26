@@ -466,6 +466,34 @@ public class EramBarTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task Yaat_OpenMenu_HidesTheTenthColumnsHideToolbarInPlace()
+    {
+        await using Opened scope = await OpenAsync();
+        EramToolbarButton hide = scope.Toolbar.Find(EramButtonType.HideToolbar)!;
+        Rect hideBounds = hide.Bounds;
+
+        scope.Click(EramButtonType.YaatMenu);
+
+        Assert.Equal(0, hide.Opacity);
+        Assert.False(hide.IsHitTestVisible);
+        Assert.Equal(hideBounds, hide.Bounds);
+    }
+
+    [AvaloniaFact]
+    public async Task HideToolbar_HidesTheBar_ToTheShowToolbarTile()
+    {
+        await using Opened scope = await OpenAsync();
+        EramToolbarButton hide = scope.Toolbar.Find(EramButtonType.HideToolbar)!;
+        Assert.Equal(("HIDE", "TOOLBAR"), (hide.Line1, hide.Line2));
+
+        scope.Click(hide);
+
+        Assert.True(scope.Scope.IsBarHidden);
+        EramToolbarButton tile = Assert.IsType<EramToolbarButton>(scope.Host.FindControl<ContentControl>("ShowSlot")!.Content);
+        Assert.Equal(("SHOW", "TOOLBAR"), (tile.Line1, tile.Line2));
+    }
+
+    [AvaloniaFact]
     public async Task YaatDb_OpensItsSubmenu_AndAlertConesTogglesWhatTheClassicDbTrayToggles()
     {
         await using Opened scope = await OpenAsync();

@@ -21,7 +21,7 @@ public static class EramButtonKindExtensions
 {
     /// <summary>
     /// <paramref name="type"/>'s kind, as CRC's <c>ButtonFactory</c> builds it: its menu buttons open a menu, its brightness,
-    /// font-size, HISTORY, FDB LDR and VECTOR buttons go up and down, DELETE TEAROFF commands, and every type it names
+    /// font-size, HISTORY, FDB LDR and VECTOR buttons go up and down, DELETE TEAROFF and YAAT's HIDE TOOLBAR command, and every type it names
     /// nowhere falls through to its toggle button (RANGE, ALT LIM, a view, a radar filter or a DB field among them). Two
     /// departures: ATC TOOLS' WX toggles, as YAAT has one weather display and no Weather menu, and CRC's press-and-hold
     /// overrides (VRI, CODE, SPEED, DELAY FORMAT) command, as YAAT has no press-and-hold kind; the PREFSET items command. The
@@ -48,6 +48,7 @@ public static class EramButtonKindExtensions
             or EramButtonType.MapBrightnessMenu
             or EramButtonType.CpdlcBrightnessMenu => EramButtonKind.Menu,
             EramButtonType.DeleteTearoff
+            or EramButtonType.HideToolbar
             or EramButtonType.VriOverride
             or EramButtonType.BeaconCodeDisplayOverride
             or EramButtonType.SpeedDisplayOverride

@@ -2,9 +2,9 @@ namespace Yaat.Client.Views.Scope.Toolbar.Eram;
 
 /// <summary>
 /// One ERAM toolbar button, of the Master Toolbar or of one of its menus, named after the CRC <c>ButtonType</c> it stands
-/// for (CRC has one type for every toolbar button), except the PREFSET items, which are YAAT's own; where a Master Toolbar
-/// button sits in the bar is <see cref="EramMasterLayout.Placements"/>, and where a menu's buttons sit is
-/// <see cref="EramMenus"/>.
+/// for (CRC has one type for every toolbar button), except the PREFSET items, HIDE TOOLBAR (<see cref="HideToolbar"/>)
+/// and the <c>Yaat*</c> values, which are YAAT's own; where a Master Toolbar button sits in the bar is
+/// <see cref="EramMasterLayout.Placements"/>, and where a menu's buttons sit is <see cref="EramMenus"/>.
 /// </summary>
 public enum EramButtonType
 {
@@ -58,6 +58,9 @@ public enum EramButtonType
 
     /// <summary>CRC's DELETE TEAROFF command.</summary>
     DeleteTearoff,
+
+    /// <summary>YAAT's own HIDE TOOLBAR command in the bar's tenth column, which hides the bar to its SHOW TOOLBAR tile.</summary>
+    HideToolbar,
 
     /// <summary>CRC's VIEWS item CFR; YAAT has no feature behind it yet.</summary>
     CfrView,
@@ -452,7 +455,7 @@ public enum EramButtonType
     /// <summary>The PREFSET item DELETE, which deletes the active pref set; YAAT's own.</summary>
     PrefsetDelete,
 
-    /// <summary>The YAAT button in the Master Toolbar's last cell, which opens the YAAT-only controls; YAAT's own.</summary>
+    /// <summary>The YAAT button in the second row's ninth cell, which opens the YAAT-only controls; YAAT's own.</summary>
     YaatMenu,
 
     /// <summary>The YAAT menu's PROFILE, which opens the profile picks; YAAT's own.</summary>
@@ -601,6 +604,7 @@ public static class EramButtonTypeExtensions
             EramButtonType.RadarFilterMenu => ("RADAR", "FILTER"),
             EramButtonType.PrefsetMenu => ("PREFSET", ""),
             EramButtonType.DeleteTearoff => ("DELETE", "TEAROFF"),
+            EramButtonType.HideToolbar => ("HIDE", "TOOLBAR"),
             EramButtonType.CfrView => ("CFR", ""),
             EramButtonType.CrrView => ("CRR", ""),
             EramButtonType.AsView => ("ALTIM", "SET"),
@@ -751,7 +755,8 @@ public static class EramButtonTypeExtensions
             or EramButtonType.GeomapMenu
             or EramButtonType.RadarFilterMenu
             or EramButtonType.PrefsetMenu
-            or EramButtonType.DeleteTearoff => true,
+            or EramButtonType.DeleteTearoff
+            or EramButtonType.HideToolbar => true,
             EramButtonType.CrrView or EramButtonType.CaView or EramButtonType.WeatherMenu => true,
             EramButtonType.PairedTargetBrightness
             or EramButtonType.UnpairedTargetBrightness

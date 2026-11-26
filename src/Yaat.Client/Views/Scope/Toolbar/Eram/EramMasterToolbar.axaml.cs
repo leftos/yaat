@@ -7,10 +7,10 @@ using Avalonia.Media;
 namespace Yaat.Client.Views.Scope.Toolbar.Eram;
 
 /// <summary>
-/// CRC's ERAM Master Toolbar: its move-down pick area down the left edge, then its 2x9 table of buttons over the bar's
-/// grey across the full width of whatever holds it. The owner listens on <see cref="Menu"/>, <see cref="Toggle"/>,
-/// <see cref="Command"/>, <see cref="IncDec"/> and <see cref="Wheel"/>, and opens a menu with <see cref="OpenMenu"/> (a
-/// menu inside it with <see cref="OpenSubmenu"/>): the toolbar then expands that menu's buttons, from
+/// CRC's ERAM Master Toolbar: its move-down pick area down the left edge, then its 2x10 table of buttons (CRC's 2x9 plus
+/// YAAT's tenth column) over the bar's grey across the full width of whatever holds it. The owner listens on
+/// <see cref="Menu"/>, <see cref="Toggle"/>, <see cref="Command"/>, <see cref="IncDec"/> and <see cref="Wheel"/>, and
+/// opens a menu with <see cref="OpenMenu"/> (a menu inside it with <see cref="OpenSubmenu"/>): the toolbar then expands that menu's buttons, from
 /// <see cref="MenuSource"/>, as CRC's <c>MenuButton</c> does, right of its button inside CRC's 2 DIP BurntCoral outline,
 /// and hides every other Master Toolbar button in place.
 /// </summary>

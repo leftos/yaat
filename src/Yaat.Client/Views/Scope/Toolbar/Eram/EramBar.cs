@@ -95,6 +95,7 @@ public sealed class EramBar : UserControl
         type switch
         {
             EramButtonType.DeleteTearoff => ScopeButtonId.DeleteTearoff,
+            EramButtonType.HideToolbar => ScopeButtonId.BarHide,
             EramButtonType.CrrView => ScopeButtonId.ViewCrr,
             EramButtonType.CaView => ScopeButtonId.ViewCa,
             EramButtonType.WeatherMenu => ScopeButtonId.DisplayWx,

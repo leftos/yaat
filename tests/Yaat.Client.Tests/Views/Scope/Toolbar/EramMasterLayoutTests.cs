@@ -23,6 +23,7 @@ public class EramMasterLayoutTests
             EramButtonType.FontSizeMenu,
             EramButtonType.DbFieldsMenu,
             EramButtonType.VectorLength,
+            EramButtonType.HideToolbar,
         ];
 
         Assert.Equal(expected, Row(0));
@@ -45,7 +46,15 @@ public class EramMasterLayoutTests
         ];
 
         Assert.Equal(expected, Row(1));
-        Assert.Equal(EramButtonType.YaatMenu, EramMasterLayout.At(1, EramMasterLayout.Columns - 1));
+        Assert.Equal(EramButtonType.YaatMenu, EramMasterLayout.At(1, 8));
+    }
+
+    [Fact]
+    public void TenthColumn_HoldsHideToolbarOverAnEmptyCell()
+    {
+        Assert.Equal(10, EramMasterLayout.Columns);
+        Assert.Equal(EramButtonType.HideToolbar, EramMasterLayout.At(0, 9));
+        Assert.Null(EramMasterLayout.At(1, 9));
     }
 
     [Theory]
@@ -67,6 +76,7 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.PrefsetMenu, "PREFSET", "")]
     [InlineData(EramButtonType.DeleteTearoff, "DELETE", "TEAROFF")]
     [InlineData(EramButtonType.YaatMenu, "YAAT", "")]
+    [InlineData(EramButtonType.HideToolbar, "HIDE", "TOOLBAR")]
     public void EachButton_HasCrcsTwoLines(EramButtonType type, string line1, string line2) => Assert.Equal((line1, line2), type.Lines());
 
     [Theory]
@@ -88,6 +98,7 @@ public class EramMasterLayoutTests
     [InlineData(EramButtonType.PrefsetMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.DeleteTearoff, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatMenu, EramButtonKind.Menu)]
+    [InlineData(EramButtonType.HideToolbar, EramButtonKind.Command)]
     public void EachButton_HasCrcsKind(EramButtonType type, EramButtonKind kind) => Assert.Equal(kind, type.Kind());
 
     [Fact]

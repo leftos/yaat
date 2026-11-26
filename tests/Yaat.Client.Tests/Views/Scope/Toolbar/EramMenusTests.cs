@@ -129,6 +129,7 @@ public class EramMenusTests
         EramButtonType.RadarFilterMenu,
         EramButtonType.PrefsetMenu,
         EramButtonType.DeleteTearoff,
+        EramButtonType.HideToolbar,
         EramButtonType.CrrView,
         EramButtonType.CaView,
         EramButtonType.WeatherMenu,
@@ -319,6 +320,7 @@ public class EramMenusTests
     [InlineData(EramButtonType.YaatToolJRing, EramButtonKind.Toggle)]
     [InlineData(EramButtonType.YaatDbAtpaAlertCones, EramButtonKind.Toggle)]
     [InlineData(EramButtonType.YaatLensCheckIn, EramButtonKind.Toggle)]
+    [InlineData(EramButtonType.HideToolbar, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatProfileMixed, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatTemplateEuroScope, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatDisplayDcnf, EramButtonKind.Command)]
