@@ -214,11 +214,6 @@ public sealed partial class SimulationEngine
             aircraft.PendingWarnings.Add($"{aircraft.Callsign} queued command lost after restore: {block.Description}");
             aircraft.Queue.Blocks.Remove(block);
         }
-
-        if (aircraft.Queue.CurrentBlockIndex >= aircraft.Queue.Blocks.Count)
-        {
-            aircraft.Queue.CurrentBlockIndex = Math.Max(0, aircraft.Queue.Blocks.Count - 1);
-        }
     }
 
     private void RecordWorldTiming(string bucket, double ms)

@@ -610,7 +610,7 @@ The default view. Shows all aircraft in your scenario, grouped into **Active** a
 | Rwy | Assigned runway |
 | AHdg / AAlt / ASpd | Assigned targets — AHdg shows the next fix name when navigating, or heading when under vectors; ASpd reads `MAX 330` (`MAX M.80` above the IAS/Mach changeover) while the aircraft holds its maximum forward speed (`SMAX`) |
 | Dist | Distance in NM from the reference fix (see [Distance Column](#distance-column)) |
-| Pending Cmds | Numbered pending command blocks. Shows `[Active]` for the current block, then `[1]`, `[2]`, etc. for queued blocks |
+| Pending Cmds | Numbered pending command blocks. Shows `[Active]` for each running block (one per transmission that has one, not numbered), then `[1]`, `[2]`, etc. for queued blocks |
 
 Click an aircraft row to select it, or type a callsign in the command input and press the aircraft select key. The selected row is highlighted and expands to show a details pane beneath it; the highlight stays visible even after focus moves to the command input. Press **Esc** to deselect. Click a column header to sort; click again to reverse.
 
@@ -2594,7 +2594,9 @@ When a new command replaces queued work, YAAT clears only conflicting control su
 | `SPD`, `SPDN`, `RNS`, `RPS`, `RFAS`, `MACH` | Speed blocks | Lateral and altitude blocks |
 | Tower/ground phase commands | Usually all flight-control dimensions | Status/display commands |
 
-This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).
+This means adjusting speed does not cancel a turn, and issuing a heading does not cancel a previously queued altitude trigger unless that queued block also contained lateral work. A heading does cancel a pending `JRADO`, `JRADI`, `JAWY` or `DEPART` from an earlier transmission, together with the rest of that transmission (`JRADO SNS264; DCT SHOEY` then `FH 360` leaves only the heading).
+
+If a queued block is dropped, YAAT adds a terminal warning naming the lost block. Note that the supersede-on-conflict behavior applies only to **immediate** commands; commands gated by a precondition (`AT`/`ONHO`/`WAIT`/`BEHIND`/…) are additive and never cancel each other (see below).
 
 A fresh `TAXI`, `TAXIAUTO`, `PUSH` or `PUSHM` replaces the taxi plan queued behind the current movement, including a pending `WAIT`/`GIVEWAY` that would taxi the aircraft later, and the warning names what was dropped (`lost: WAIT 30 TAXI M4 M1`). `HOLD`, `RES`, a lone `HS` or `CROSS`, and a mid-push `PUSH FACE`/`PUSH TAIL` leave the queued route alone.
 

@@ -1,4 +1,5 @@
 using Xunit;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Phases;
 using Yaat.Sim.Phases.Ground;
@@ -150,6 +151,66 @@ public class TaxiCtoSequentialNotFiringTests(ITestOutputHelper output)
                     + "untriggered/unapplied because the queue path skips untriggered blocks while a phase is active."
             );
 
+            Assert.True(
+                finalPhase is LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or UpwindPhase,
+                $"Expected LineUp/LinedUpAndWaiting/Takeoff/Upwind phase at t={AssertByTime}; got {finalPhase?.GetType().Name ?? "null"}."
+            );
+        }
+    }
+
+    /// <summary>
+    /// The same TAXI; CTO compound with an earlier transmission's climb, armed for after departure, queued ahead of it: the
+    /// CTO still fires at the hold-short, since the unmet climb belongs to another transmission.
+    /// </summary>
+    [Fact]
+    public void TaxiThenCto_FiresAtHoldShort_WithUnmetClimbAhead()
+    {
+        RecordingArchive? archive = RecordingLoader.OpenArchive(RecordingPath);
+        SimulationEngine? engine = BuildEngine();
+        if (archive is null || engine is null)
+        {
+            output.WriteLine("Skipped: recording or NavData not available");
+            return;
+        }
+
+        using (archive)
+        {
+            SessionRecording recording = archive.ToBaseSessionRecording();
+            engine.Replay(recording, 0);
+
+            TimedSnapshot? snapshot = archive.ReadSnapshotAt(RestoreAtSeconds);
+            if (snapshot is null)
+            {
+                output.WriteLine($"Skipped: no snapshot at t={RestoreAtSeconds}");
+                return;
+            }
+
+            engine.RestoreFromSnapshot(snapshot.State);
+            int startTime = (int)snapshot.ElapsedSeconds;
+            engine.ReplayRange(startTime, DispatchTime + 1, recording.Actions);
+            AircraftState? ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+
+            // The recorded TAXI E RWY 28R takes every axis and clears the queue, so the climb is armed after it, directly
+            // (without the reaction delay), and moved ahead of the queued CTO: the place a block surviving an earlier
+            // transmission's supersede holds.
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT 5000 CM 7000");
+            Assert.True(parsed.IsSuccess, parsed.Reason);
+            CommandResult climb = CommandDispatcher.DispatchCompound(parsed.Value!, ac, engine.BuildDispatchContext(ac, false, facilityHint: null));
+            Assert.True(climb.Success, climb.Message);
+            CommandBlock armed = Assert.Single(ac.Queue.Blocks, b => !b.IsApplied && (b.ParsedCommands?.Any(c => c is ClimbMaintainCommand) == true));
+            ac.Queue.Blocks.Remove(armed);
+            ac.Queue.Blocks.Insert(0, armed);
+            output.WriteLine($"queued=[{string.Join(", ", ac.Queue.Blocks.Select(b => $"{b.Description}(applied={b.IsApplied})"))}]");
+            Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied && (b.Description ?? "").Contains("CTO"));
+
+            engine.ReplayRange(DispatchTime + 1, AssertByTime, recording.Actions);
+            ac = engine.FindAircraft(Callsign);
+            Assert.NotNull(ac);
+            Phase? finalPhase = ac.Phases?.CurrentPhase;
+            output.WriteLine($"t={AssertByTime}: phase={finalPhase?.GetType().Name ?? "null"}");
+
+            Assert.Contains(ac.Queue.Blocks, b => b.IsApplied && (b.Description ?? "").Contains("CTO"));
             Assert.True(
                 finalPhase is LineUpPhase or LinedUpAndWaitingPhase or TakeoffPhase or UpwindPhase,
                 $"Expected LineUp/LinedUpAndWaiting/Takeoff/Upwind phase at t={AssertByTime}; got {finalPhase?.GetType().Name ?? "null"}."

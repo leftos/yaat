@@ -59,7 +59,23 @@ public class SplitBlockTrackCommandTests : IDisposable
     }
 
     [Fact]
-    public void SupersedingLateral_PreservesTrackCommandFlagOnSplitConditionalBlock()
+    public void SupersedingVertical_PreservesTrackCommandFlagOnSplitConditionalBlock()
+    {
+        AircraftState ac = MakeAirborne();
+        DispatchOk(ac, "AT OAK CM 050, HO 2W");
+        Assert.True(Assert.Single(ac.Queue.Blocks).HasTrackCommand, "precondition: mixed conditional block should flag its track command");
+
+        // A vertical instruction supersedes the CM half only, so the block is split and rebuilt around the HO.
+        DispatchOk(ac, "CM 080");
+
+        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        Assert.NotNull(survivor.ParsedCommands);
+        Assert.Contains(survivor.ParsedCommands!, TrackEngine.IsTrackCommand);
+        Assert.True(survivor.HasTrackCommand, "split conditional block retained a track command in ParsedCommands but lost HasTrackCommand");
+    }
+
+    [Fact]
+    public void SupersedingLateral_DropsTheConditionalBlockAndItsTrackCommand()
     {
         AircraftState ac = MakeAirborne();
 
@@ -72,17 +88,11 @@ public class SplitBlockTrackCommandTests : IDisposable
         Assert.NotNull(queued.ParsedCommands);
         Assert.Contains(queued.ParsedCommands!, TrackEngine.IsTrackCommand);
 
-        // Fresh immediate lateral command supersedes: it conflicts with the FH half only, so the block is
-        // split and rebuilt from the surviving (non-lateral) parsed commands — the HO.
+        // A fresh immediate lateral command supersedes the FH half, so the block goes whole, its handoff included:
+        // nothing is split off, and no queued block is left carrying a track command.
         DispatchOk(ac, "FH 090");
 
-        // The AT OAK conditional block still exists and still carries the handoff in ParsedCommands...
-        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
-        Assert.NotNull(survivor.ParsedCommands);
-        Assert.Contains(survivor.ParsedCommands!, TrackEngine.IsTrackCommand);
-
-        // ...so HasTrackCommand MUST stay true, or ProcessTriggeredTrackBlocks skips the block and the
-        // handoff silently never fires (and the track command falls into the no-dispatcher-arm default).
-        Assert.True(survivor.HasTrackCommand, "split conditional block retained a track command in ParsedCommands but lost HasTrackCommand");
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.TransmissionId == queued.TransmissionId);
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.HasTrackCommand);
     }
 }

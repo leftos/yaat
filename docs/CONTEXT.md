@@ -186,6 +186,10 @@ _Avoid_: global command (`CommandDefinition.IsGlobal` is a different question: t
 A route altitude restriction that drives the aircraft now, decided by its restriction source (`AltitudeRestrictionInForce`): a controller's crossing always, a pattern-phase point while that phase flies, a published approach altitude once an approach clearance is active or a deferred one's connecting fix is behind the aircraft, a published SID or STAR altitude only under a climb via or descend via. A maintain leaves the published altitudes on the route but out of force.
 _Avoid_: active restriction (a restriction's speed applies whether or not its altitude is in force)
 
+**Chain frontier**:
+A transmission's first block the queue has not passed (`CommandQueue.FrontierOf`, keyed by `CommandBlock.TransmissionId`). Each transmission's chain advances on its own frontier, so one chain never holds another.
+_Avoid_: cursor (the queue has none; `CurrentBlockIndex` is only the first block not passed)
+
 **Clearance-limit direct**:
 The route target (`NavigationTarget.IsClearanceLimitDirect`) an airborne aircraft flies to its cleared destination when its route runs out. It is not a fix the controller cleared: a route holding only it counts as no route (`ControlTargets.HasRouteToFly`), and a fix appended to the route replaces it.
 _Avoid_: destination fix
@@ -209,6 +213,10 @@ _Avoid_: filed altitude (that is the scope-editable `FlightPlan.Altitude`)
 **Latent restriction**:
 A published route altitude or speed restriction the radar Show-nav-route overlay draws dimmed because it is on the route but does not bind now. An altitude (`AltitudeRestrictionInForce.IsShownLatent`) is latent when it is not in force by its restriction source, or is a published restriction above a climb via's "except maintain" top or below a descend via's bottom. A published SID or STAR speed (`NavRouteSpeedLatency.LatentAlongRoute`, judged by `FlightPhysics.PublishedSpeedApplies`) is latent when an ATC speed or a delete-speed-restrictions is in force at that fix, judged fix by fix past crossings that revert or resume. A controller's crossing speed is never latent.
 _Avoid_: inactive restriction, cancelled restriction (a maintain does not delete it, and a later via clearance makes it bind again)
+
+**Navigation follow-on**:
+The block a `JRADO`, `JRADI`, `JAWY` or `DEPART` dispatch inserts directly behind itself (`CommandQueue.InsertFollowUp`, flagged `CommandBlock.IsNavigationFollowUp`) to fire at the intercept or the fix, so the next `;` block waits behind it. A later lateral instruction discards it with its chain; a block the controller typed in the same shape is an ordinary conditional.
+_Avoid_: conditional (a typed `AT OAK120 JRADO OAK120` is one; a follow-on is part of its immediate instruction)
 
 **Restriction source**:
 Who wrote a route altitude restriction (`CifpAltitudeRestriction.Source`, a `CifpAltitudeRestrictionSource`): Procedure (a SID's or STAR's published restriction, the default), Approach (a published approach-segment altitude inserted with an approach clearance), Atc (a controller's crossing, from a CFIX or constrained DCTF), or System (a point a phase inserts as the pilot's own plan: pattern entry, teardrop re-entry). It decides whether the altitude is in force.

@@ -54,7 +54,23 @@ public class SplitBlockLabelTests : IDisposable
     }
 
     [Fact]
-    public void SupersedingLateral_KeepsConditionLabelOnSplitBlock()
+    public void SupersedingVertical_KeepsConditionLabelOnSplitBlock()
+    {
+        AircraftState ac = MakeAirborne();
+
+        DispatchOk(ac, "AT OAK CM 050, HO 2W");
+        Assert.Equal("at OAK: CM 5000, HO 2W", Assert.Single(ac.Queue.Blocks).Description);
+
+        // A vertical instruction supersedes the CM half only; the HO survives and the block is rebuilt around it.
+        DispatchOk(ac, "CM 080");
+
+        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        Assert.Equal("at OAK: HO 2W", survivor.Description);
+        Assert.Equal("At OAK: Initiate handoff to 2W", survivor.NaturalDescription);
+    }
+
+    [Fact]
+    public void SupersedingLateral_DropsTheConditionalBlockWhole()
     {
         AircraftState ac = MakeAirborne();
 
@@ -63,12 +79,11 @@ public class SplitBlockLabelTests : IDisposable
         Assert.Equal("at OAK: FH 270, HO 2W", queued.Description);
         Assert.Equal("At OAK: Fly heading 270, Initiate handoff to 2W", queued.NaturalDescription);
 
-        // Supersede the FH half; the HO survives and the block is rebuilt around it.
+        // A lateral instruction supersedes the FH half, so the block goes whole, its HO included: nothing is split off.
         DispatchOk(ac, "FH 090");
 
-        CommandBlock survivor = Assert.Single(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
-        Assert.Equal("at OAK: HO 2W", survivor.Description);
-        Assert.Equal("At OAK: Initiate handoff to 2W", survivor.NaturalDescription);
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.TransmissionId == queued.TransmissionId);
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
     }
 
     [Fact]

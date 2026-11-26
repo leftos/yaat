@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
@@ -584,5 +586,101 @@ public class NavigationQueuedBlockRestoreTests
     {
         Assert.Single(restored.Queue.Blocks, b => b.Trigger is not null);
         Assert.Equal(live.Queue.Blocks.Count, restored.Queue.Blocks.Count);
+    }
+
+    /// <summary>
+    /// Two running chains and a triggered preset restored mid-flight: the restored queue reaches SHOEY and SPD 210 on the
+    /// same ticks as the live one, so each chain's frontier survives the snapshot.
+    /// </summary>
+    [Fact]
+    public void RestoreMidChain_ReproducesFrontiers()
+    {
+        AircraftState aircraft = AircraftAt(Project(Fix("SNS"), 240, 14), 293);
+        aircraft.Altitude = 3000;
+        aircraft.IndicatedAirspeed = 180;
+
+        SimulationEngine live = NewEngine();
+        live.World.AddAircraft(aircraft);
+        Dispatch(live, aircraft, "CM 7000");
+        Dispatch(live, aircraft, "JRADO SNS264; DCT SHOEY");
+        Dispatch(live, aircraft, "AT 5000 SPD 210");
+        for (int t = 0; t < 20; t++)
+        {
+            live.TickOneSecond();
+        }
+
+        StateSnapshotDto snapshot = live.CaptureSnapshot();
+        (int? liveShoey, int? liveSpeed) = TicksToShoeyAndSpeed(live, aircraft);
+        (SimulationEngine restored, AircraftState restoredAircraft) = Restore(snapshot);
+        (int? restoredShoey, int? restoredSpeed) = TicksToShoeyAndSpeed(restored, restoredAircraft);
+
+        Assert.NotNull(liveShoey);
+        Assert.NotNull(liveSpeed);
+        Assert.Equal(liveShoey, restoredShoey);
+        Assert.Equal(liveSpeed, restoredSpeed);
+    }
+
+    /// <summary>Ticks until SHOEY is on the route and SPD 210 is assigned, returning the tick of each (null if never).</summary>
+    private static (int? Shoey, int? Speed) TicksToShoeyAndSpeed(SimulationEngine engine, AircraftState aircraft)
+    {
+        int? shoey = null;
+        int? speed = null;
+        for (int t = 1; (t <= 1800) && (shoey is null || speed is null); t++)
+        {
+            engine.TickOneSecond();
+            shoey ??= aircraft.Targets.NavigationRoute.Any(n => n.Name == "SHOEY") ? t : null;
+            speed ??= aircraft.Targets.AssignedSpeed == 210 ? t : null;
+        }
+
+        return (shoey, speed);
+    }
+
+    /// <summary>
+    /// A queue restored mid-JRADI from a snapshot that predates the follow-on's dimension (written as None) rebuilds the
+    /// follow-on as Lateral and keeps holding the chain: the chained FH applies on the same tick as the live one's, after the
+    /// intercept.
+    /// </summary>
+    [Fact]
+    public void RestoreMidJradi_KeepsTheFollowOnLateralAndHoldsTheChain()
+    {
+        AircraftState aircraft = AircraftAt(Project(Fix("SNS"), 240, 14), 30);
+        aircraft.Altitude = 3000;
+        aircraft.IndicatedAirspeed = 180;
+
+        SimulationEngine live = NewEngine();
+        live.World.AddAircraft(aircraft);
+        Dispatch(live, aircraft, "JRADI SNS264; FH 180");
+        TickFor(live, 20);
+        Assert.Equal(CommandDimension.Lateral, QueuedFollowUpBlock(aircraft).Dimensions);
+
+        StateSnapshotDto snapshot = live.CaptureSnapshot();
+        int followUpIdx = snapshot.Aircraft[0].Queue.Blocks.FindIndex(b => b.Trigger is not null);
+        JsonObject old = JsonSerializer.SerializeToNode(snapshot.Aircraft[0].Queue.Blocks[followUpIdx])!.AsObject();
+        old["Dimensions"] = (int)CommandDimension.None;
+        snapshot.Aircraft[0].Queue.Blocks[followUpIdx] = old.Deserialize<CommandBlockDto>()!;
+
+        int? liveHeading = TicksToHeading180(live, aircraft);
+        (SimulationEngine restored, AircraftState restoredAircraft) = Restore(snapshot);
+        restored.TickOneSecond();
+        Assert.Equal(CommandDimension.Lateral, QueuedFollowUpBlock(restoredAircraft).Dimensions);
+        int? restoredHeading = TicksToHeading180(restored, restoredAircraft);
+
+        Assert.True(liveHeading is > 1, $"FH 180 applied {liveHeading?.ToString() ?? "never"} s after the snapshot, not held by the intercept");
+        Assert.Equal(liveHeading, restoredHeading + 1);
+    }
+
+    /// <summary>Ticks until FH 180 is assigned, returning the tick (null if never).</summary>
+    private static int? TicksToHeading180(SimulationEngine engine, AircraftState aircraft)
+    {
+        for (int t = 1; t <= 900; t++)
+        {
+            engine.TickOneSecond();
+            if (aircraft.Targets.AssignedMagneticHeading?.Degrees == 180)
+            {
+                return t;
+            }
+        }
+
+        return null;
     }
 }

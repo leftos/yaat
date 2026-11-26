@@ -159,6 +159,50 @@ public class ChainAbortAndCompletionTests
         Assert.True(ac.Altitude > 1200, $"Pre-armed climb never engaged after departure; altitude={ac.Altitude:F0}");
     }
 
+    /// <summary>
+    /// A climb pre-issued to a departure that sits in a ground phase (lined up and waiting, as every scenario runway
+    /// spawn does) must not hold a later, separate chain once airborne. Completion tracking does not run while a phase is
+    /// active, so the on-ground escape in UpdateBlockCompletion never completed the climb; airborne, the regime-A cursor
+    /// then waited for the whole climb.
+    /// </summary>
+    [Fact]
+    public void GroundedAltitudeCommand_InAGroundPhase_DoesNotHoldALaterChainOnceAirborne()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = LinedUpAircraft.AtOak28R("CHN110");
+        engine.World.AddAircraft(ac);
+        Assert.True(engine.SendCommand(ac.Callsign, "CM 7000").Success);
+        Assert.True(engine.SendCommand(ac.Callsign, "LV 015 FH 329; WAIT 10; DCT SUNOL").Success);
+        for (int t = 0; t < 10; t++)
+        {
+            engine.TickOneSecond();
+        }
+
+        Assert.True(engine.SendCommand(ac.Callsign, "CTO").Success);
+        double? altitudeAtDirect = null;
+        for (int t = 0; (t < 400) && (altitudeAtDirect is null); t++)
+        {
+            engine.TickOneSecond();
+            if (ac.Targets.NavigationRoute.Any(n => n.Name == "SUNOL"))
+            {
+                altitudeAtDirect = ac.Altitude;
+            }
+        }
+
+        DumpQueue(ac);
+        Assert.True(
+            altitudeAtDirect is < 6000,
+            $"DCT SUNOL ran at {altitudeAtDirect?.ToString("F0") ?? "never"} ft: the chain waited for the separate CM 7000"
+        );
+        Assert.Equal(7000, ac.Targets.TargetAltitude); // the pre-issued climb is still armed
+    }
+
     // ------------------------------------------------------------------
     // Abort-remainder matrix: a block that FAILS at fire time must discard
     // the rest of its own chain (equal SourceCommandText), warn naming the
@@ -422,5 +466,41 @@ public class ChainAbortAndCompletionTests
         ac.Phases.Start(CommandDispatcher.BuildMinimalContext(ac, ActiveRunways.Empty));
         engine.World.AddAircraft(ac);
         return ac;
+    }
+
+    /// <summary>
+    /// The same conditional compound sent twice is two transmissions: the first one's failure discards only its own
+    /// remainder, so the second still fires (and fails, and discards its own).
+    /// </summary>
+    [Fact]
+    public void ChainAbort_SameTextTwoTransmissions()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = AddAirborne(engine, "CHN208");
+        CommandResult r0 = engine.SendCommand(ac.Callsign, "DCT OAK");
+        Assert.True(r0.Success, r0.Message);
+        CommandResult r1 = engine.SendCommand(ac.Callsign, "AT OAK TAXI ZZ; SQ");
+        Assert.True(r1.Success, r1.Message);
+        CommandResult r2 = engine.SendCommand(ac.Callsign, "AT OAK TAXI ZZ; SQ");
+        Assert.True(r2.Success, r2.Message);
+
+        TickUntil(engine, 30, () => ac.Queue.Blocks.Count(b => b.Trigger is { Type: BlockTriggerType.ReachFix }) == 2);
+        List<CommandBlock> armed = [.. ac.Queue.Blocks.Where(b => b.Trigger is { Type: BlockTriggerType.ReachFix })];
+        Assert.Equal(2, armed.Count);
+        Assert.NotEqual(armed[0].TransmissionId, armed[1].TransmissionId);
+
+        TickUntil(engine, 240, () => armed.TrueForAll(b => b.IsApplied));
+        DumpQueue(ac);
+        _output.WriteLine($"warnings=[{string.Join(" | ", _warnings)}]");
+
+        Assert.All(armed, b => Assert.True(b.IsApplied, "each transmission's AT OAK block fires on its own"));
+        Assert.Equal(7654u, ac.Transponder.Code);
+        Assert.DoesNotContain(ac.Queue.Blocks, b => !b.IsApplied && (b.Description ?? "").Contains("SQ", StringComparison.Ordinal));
     }
 }

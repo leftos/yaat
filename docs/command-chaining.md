@@ -13,11 +13,11 @@ block fails after it was accepted. Read this before changing `FlightPhysics.Upda
 `aircraft.Phases?.CurrentPhase`:
 
 - **A — free-flying (no phase).** The current applied block's per-command completion predicates run
-  (`UpdateBlockCompletion`), and `CommandBlock.ReadyToAdvance` gates `CurrentBlockIndex++`. A block
+  (`UpdateBlockCompletion`), and `CommandBlock.ReadyToAdvance` gates passing the block (`CommandBlock.IsPassed`). A block
   containing a lateral command (Heading/Navigation) advances on the lateral alone — altitude/speed
   siblings run concurrently and never block the next instruction; a block with no lateral command
-  requires all its commands complete. While the current block runs, `ApplyReadyConditionalBlocks`
-  scans the contiguous *triggered* run behind it so `AT`/`LV`/`ATFN`/… can fire early.
+  requires all its commands complete. Each transmission's chain steps on its own frontier (see below). While a frontier runs, `ApplyReadyConditionalBlocks`
+  scans the contiguous *triggered* run behind it, within its own chain, so `AT`/`LV`/`ATFN`/… can fire early.
 - **B — active phase.** The phase owns `ControlTargets`; completion tracking does not run. Only
   *triggered* blocks fire (per-tick scan plus the event paths `NotifyFixSequenced`,
   `NotifyGroundEntityReached`, and the `NotifyPhaseAdvanced` head-block hook). Untriggered
@@ -26,11 +26,27 @@ block fails after it was accepted. Read this before changing `FlightPhysics.Upda
 
   The commands after that one apply against the phase it installs, so `PUSH; TAXIAUTO 30, HS B` taxis after the push although HoldingAfterPushback rejects a bare `HS` (issue #475). A later command whose own apply fails takes the [fire-time abort](#abort-on-fire-time-failure); the installed phase's `CanAcceptCommand` is not consulted for it, as on a direct dispatch, which gates only a block's first command.
 
-**Decided, not built yet: a block holds only behind an unfired predecessor of its own dispatch.** The queue has one cursor today, so a block a fresh compound preserves and the compound's own chain share one list and whichever comes first can hold the other: preserved-first lets a pre-armed `AT 1000 CM 5000` fire but makes `TAXI D; SQ 1234` wait behind an unmet `AT 5000 CM 7000` until 5,000 ft.
+**A block holds only behind an unfired predecessor of its own transmission.** The queue has no single cursor: every block carries the `TransmissionId` of the transmission that queued it, and each transmission's chain advances on its own frontier, its first block not yet passed (`CommandQueue.FrontierOf`, `IsFrontier`).
 
-The rule scopes "hold behind an unfired predecessor" to blocks of the same dispatch, keyed by `CommandBlock.SourceCommandText` (the per-dispatch key `DiscardChainRemainder` already groups by), at all three advancement sites: `ApplyReadyConditionalBlocks` records the blocker's text and continues past it instead of stopping, `AdvanceQueueWhileIdle`'s `frontierBroken` is per dispatch, and regime A's cursor in `UpdateCommandQueue` becomes a frontier per chain.
+`CommandBlock.IsPassed` is set when the queue advances past a block and never cleared; `CommandQueue.CurrentBlockIndex` is derived (the first block not passed) and read-only. A block a fresh compound preserves, and the compound's own chain, therefore never hold each other: a pre-armed `AT 1000 CM 5000` fires, and `TAXI D; SQ 1234` does not wait behind an unmet `AT 5000 CM 7000`.
 
-Both counter-cases (the pre-armed block and the chain behind it) are pinned by tests.
+All three advancement sites scope to the chain: regime A steps each chain's frontier in frontier order (at most one block passed per chain per tick), `ApplyReadyConditionalBlocks` and `AdvanceQueueWhileIdle` track state per transmission (`TransmissionSet` over stack storage; a queue with more unpassed blocks than it holds tracks them in a heap array, and the small id sets elsewhere count every id as held once full).
+
+A chain that waits never holds another. Blocks with no id (hand-built, or restored from before ids) form one chain under id 0. Both counter-cases (the pre-armed block and the chain behind it) are pinned by tests. `SHOWAT` shows another transmission's running block as `[Active]`, unnumbered and not deletable.
+
+**Follow-on blocks hold the chain.** `JRADO`, `JRADI`, `JAWY` and `DEPART` each queue a block that fires at the intercept or the fix.
+
+It is inserted directly behind the block being applied (`CommandQueue.InsertFollowUp`, the block in `CommandQueue.Applying`), carries the parent's `TransmissionId`, and is marked `CommandBlock.IsNavigationFollowUp` (set by the four builders, snapshotted; a block the controller typed in the same shape, such as `AT OAK120 JRADO OAK120`, is an ordinary conditional), so the next `;` block of the chain waits behind it.
+
+It waits until the `JRADO` intercept has applied and the outbound heading is reached, until `DEPART`'s fix is reached and its heading flown, and, for `JRADI` and `JAWY`, until the aircraft is established: the follow-on's `TrackedCommandType.Established` completes once the intercept has applied and the true ground track is within `RadialInterceptDeg` of the course to the active fix (or the route is flown out).
+
+`Established` counts as lateral and is appended to the enum. The four builders set `Dimensions = Lateral`, so a restored follow-on is lateral too; a follow-on restored from before `IsNavigationFollowUp` is a conditional, and one from before `Established` keeps its saved kind and waits for the fix.
+
+**A later lateral instruction discards the pending join.** A heading, or any later lateral instruction from another transmission, supersedes the pending lateral block of a chain: `PartitionQueue` drops that block whole and every later unapplied block of its transmission, altitude and speed parts included, nothing split off (`JRADO SNS264; DCT SHOEY, CM 070` then `FH 360` drops the join, the DCT and the CM).
+
+Unapplied blocks of that chain before the superseded block split as before (`CM 050; SPD 100; DCT OAK` then `FH` keeps the speed). A heading that fires from a condition or preset (`AT 5000 FH 090`) does the same to other transmissions' pending follow-ons when it fires (`CommandQueue.DiscardFollowUpsSupersededBy`). Only an incoming lateral instruction drops the chain; vertical and speed supersede keep the per-block split.
+
+Blocks with no transmission id are skipped by both. `JAWY` with no fix behind the aircraft sets its trigger radial to the bearing from the first fix to the aircraft, so the intercept fires on the next tick and the aircraft goes direct to the first fix.
 
 ## Completion per command category
 
@@ -42,7 +58,7 @@ classifies `Immediate` to a curated allowlist — a new command silently falling
 | TrackedCommandType | Complete when | Notes |
 |---|---|---|
 | `Heading` | `NavigationRoute` empty and heading within 0.5° of target | `IsHeadingReached` |
-| `Altitude` | `Targets.TargetAltitude` nulled (within 10 ft) **or the aircraft is on the ground** | on-ground: `UpdateAltitude` early-returns, so a pre-issued climb counts as accepted-and-pending — the chain advances while the target stays armed for departure (the standard pre-departure "maintain" clearance, 7110.65 §4-3-2.e / AIM §4-4-10.7). Speed deliberately gets **no** such escape: `UpdateSpeed` runs on the ground and genuinely converges, so its target nulls normally — the asymmetry is intentional |
+| `Altitude` | `Targets.TargetAltitude` nulled (within 10 ft) **or the aircraft is on the ground** | on-ground: `UpdateAltitude` early-returns, so a pre-issued climb counts as accepted-and-pending — the chain advances while the target stays armed for departure (while a ground phase owns the aircraft completion tracking does not run, so `FlightPhysics` marks each applied block's pending Altitude command complete there, for a climb queued behind a lined-up aircraft's chain) (the standard pre-departure "maintain" clearance, 7110.65 §4-3-2.e / AIM §4-4-10.7). Speed deliberately gets **no** such escape: `UpdateSpeed` runs on the ground and genuinely converges, so its target nulls normally — the asymmetry is intentional |
 | `Speed` | `Targets.TargetSpeed` nulled (within 2 kt), or `FlightPhysics.IsSpeedAssignmentHeldAtSpeedLimit` | An assignment above the speed limit (14 CFR 91.117 or the type's Vmo/Mmo) keeps its target standing at the cap; the block completes once IAS settles within 2 kt of `min(limit, SpeedCeiling)` (`SPD 210; H 090` under a Class B shelf advances at 200) |
 | `Navigation` | `Targets.NavigationRoute` fully consumed | 0.5 nm arrival / turn anticipation |
 | `Immediate` | instantly on apply | one-shot commands, and **every phase-installing command** — see below |
@@ -93,8 +109,8 @@ remainder of that compound's chain** — the follow-on instructions were premise
 and the FAA model for a partially-invalidated clearance is re-issuance, not fragment survival
 (7110.65 §4-2-5.b "restate all applicable altitude restrictions"; AIM §4-4-10.7 — omission from an
 amended clearance cancels). `CommandQueue.DiscardChainRemainder` removes every later,
-not-yet-applied block with the same `SourceCommandText` (the per-dispatch grouping key — blocks
-queued by *other* dispatches survive), marks the failed block's commands complete so the queue
+not-yet-applied block with the same `TransmissionId` (for blocks with no id, the same `SourceCommandText` — blocks
+queued by *other* transmissions survive; a transmission whose first block fails at dispatch removes only its own blocks, `RemoveTransmission`), marks the failed block's commands complete so the queue
 advances past it, and one warning names both the failure and the discarded commands. A discarded or refused speed stamps no `ControlTargets.AssignedSpeedTransmissionId`, so a via or approach clearance of the same transmission does not treat it as restated: `NavigationCommandHandler.SpeedStandsUnderClearance` judges the speed in force when the clearance fires.
 
 One block is not a fire-time failure: a CTO, CTOPP or LUAW block for a departure under a hold for release (`Ground.HeldForRelease`). `FlightPhysics.ApplyBlock` leaves it unapplied with its chain intact (`WaitsForRelease`) and returns `BlockApplyOutcome.Deferred`, not `Failed`: nothing is discarded.
@@ -192,9 +208,8 @@ the words cannot drift. `LV`, `ATFN`, `ONHS` and `OTG` never reach this case: ea
    Blocks a fresh compound preserves (`ClearConflictingBlocks` survivors) are re-inserted *ahead* of the
    compound's own new blocks, not behind them: a survivor's trigger predates the transmission, and behind an
    untriggered chain-mate it was never examined again (`ApplyReadyConditionalBlocks` stops at the first
-   untriggered block while a phase is active), so `AT 1000 CM 5000` then `CTO; SQ 1234` fires the climb. The
-   queue still has one cursor for independent chains, so the fresh compound's chained tail now waits behind
-   an unmet survivor trigger instead — the per-dispatch scoping that closes both sides is a MAIN.md Backlog item.
+   untriggered block while a phase is active), so `AT 1000 CM 5000` then `CTO; SQ 1234` fires the climb. Each
+   transmission advances on its own frontier, so neither side holds the other.
 
    A single-block fresh taxi or pushback clearance (`TAXI`, `TAXIAUTO`, `RTAXI`, `PUSH`, `PUSHM`, forced forms) given during a phase supersedes like a multi-block compound for ground work: it drops queued `Ground` blocks and cancels pending or expired `WAIT` / `GIVEWAY` deferrals carrying surface work, and the `lost:` warning names the cancelled deferrals. Deferrals with no ground axis stay. `HOLD`, `RES`, a lone `HS` / `CROSS`, `AIRTAXI`, `FOLLOWG` and a mid-push `PUSH FACE` / `PUSH TAIL` keep the chain.
 

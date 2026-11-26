@@ -702,9 +702,8 @@ public static class CommandDispatcher
                         ctx
                     );
                     // Ahead of the compound's own blocks, not behind them: a preserved block predates this
-                    // transmission, so chaining it behind the compound would hold it under the `;` rules of a
-                    // chain it was never part of (ApplyReadyConditionalBlocks stops at the first unapplied
-                    // untriggered block while a phase is active).
+                    // transmission and goes back to its place in queue order. Each transmission advances on its own
+                    // (its blocks share its TransmissionId), so the order does not decide when it fires.
                     aircraft.Queue.Blocks.InsertRange(firstRemainingIdx, phasePreserved);
 
                     var combinedMessages = new List<string> { result.Message ?? "" };
@@ -768,15 +767,13 @@ public static class CommandDispatcher
         AttachAfterRunwayCrossingTrigger(compound, aircraft, firstNewBlockIdx, currentPhaseBeforeDispatch, hadPendingCrossingBeforeDispatch, ctx);
 
         // Preserved blocks go back where they were — ahead of the compound that spared them — rather than
-        // behind it: they predate this transmission and are not part of its `;` chain. The insert shifts the
+        // behind it: they predate this transmission and keep their own transmission's chain. The insert shifts the
         // compound's blocks right, so every index below counts from the moved first block.
         aircraft.Queue.Blocks.InsertRange(firstNewBlockIdx, preserved);
         firstNewBlockIdx += preserved.Count;
 
-        // Apply the first NEW block immediately (if no trigger).
-        // After dimension-aware clearing, CurrentBlock may still point to an old applied block
-        // (e.g. phases prevented the queue from advancing), so we target the first new block
-        // by index rather than using CurrentBlock.
+        // Apply the first NEW block immediately (if no trigger). Other transmissions' blocks may sit
+        // ahead of it (applied frontiers, preserved blocks), so it is targeted by index.
         HandlerReadback? firstBlockReadback = null;
         TaxiCommand? firstBlockReRouteAs = null;
         if (firstNewBlockIdx < aircraft.Queue.Blocks.Count)
@@ -787,9 +784,9 @@ public static class CommandDispatcher
                 CommandResult applyResult = ApplyBlock(firstNewBlock, aircraft);
                 if (!applyResult.Success)
                 {
-                    // First block failed — clear the queue and propagate the failure
-                    aircraft.Queue.Blocks.Clear();
-                    aircraft.Queue.CurrentBlockIndex = 0;
+                    // First block failed: remove this transmission's blocks and propagate the failure. Other
+                    // transmissions' pending work (a pre-armed AT 1000 CM 5000) survives.
+                    aircraft.Queue.RemoveTransmission(firstNewBlock.TransmissionId);
                     return applyResult;
                 }
 
@@ -797,11 +794,10 @@ public static class CommandDispatcher
                 firstBlockReadback = applyResult.PilotReadback;
                 firstBlockReRouteAs = applyResult.ReRouteAppliedAs;
 
-                // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID)
-                if (messages.Count > 0)
-                {
-                    messages[0] = firstNewBlock.NaturalDescription;
-                }
+                // ApplyBlock may update NaturalDescription (e.g. implied CAPP resolving approach ID). EnqueueBlocks queued one block per
+                // message, so the blocks beyond those are the follow-ons (JRADO, JRADI, JAWY, DEPART) this apply inserted behind it.
+                SetMessageSlot(messages, 0, firstNewBlock.NaturalDescription);
+                int insertedFollowOns = aircraft.Queue.Blocks.Count - firstNewBlockIdx - messages.Count;
 
                 // If the just-applied block installed pattern phases (e.g. ERD), any
                 // subsequent SA/MNA/EXT/clearance blocks would otherwise sit in the queue
@@ -833,10 +829,7 @@ public static class CommandDispatcher
                         }
 
                         block.IsApplied = true;
-                        if (bi - firstNewBlockIdx < messages.Count)
-                        {
-                            messages[bi - firstNewBlockIdx] = modResult.Message ?? block.NaturalDescription;
-                        }
+                        SetMessageSlot(messages, bi - firstNewBlockIdx - insertedFollowOns, modResult.Message ?? block.NaturalDescription);
                     }
                 }
                 // A clearance in a transmission whose pattern entry is still QUEUED (e.g.
@@ -866,10 +859,7 @@ public static class CommandDispatcher
                         }
 
                         block.IsApplied = true;
-                        if (bi - firstNewBlockIdx < messages.Count)
-                        {
-                            messages[bi - firstNewBlockIdx] = armResult.Message ?? block.NaturalDescription;
-                        }
+                        SetMessageSlot(messages, bi - firstNewBlockIdx - insertedFollowOns, armResult.Message ?? block.NaturalDescription);
                     }
                 }
             }
@@ -880,6 +870,15 @@ public static class CommandDispatcher
 
         string fullMessage = string.Join(" ; then ", messages);
         return new CommandResult(true, fullMessage) { PilotReadback = firstBlockReadback, ReRouteAppliedAs = firstBlockReRouteAs };
+    }
+
+    /// <summary>Writes <paramref name="text"/> into the transmission's message slot <paramref name="slot"/>, when it has one.</summary>
+    private static void SetMessageSlot(List<string> messages, int slot, string text)
+    {
+        if (slot < messages.Count)
+        {
+            messages[slot] = text;
+        }
     }
 
     /// <summary>
@@ -2109,15 +2108,12 @@ public static class CommandDispatcher
     /// <c>CROSS 28R; DEL</c>, <c>AT FIXIE DEL</c>. Leaving one behind is not a cosmetic miss: when it
     /// eventually fires it raises <see cref="AircraftGroundOps.PendingAutoDelete"/>, which deliberately
     /// bypasses the <see cref="AircraftGroundOps.AutoDeleteExempt"/> flag NODEL just set, so the
-    /// aircraft would disappear despite the cancel. Blocks removed from before the cursor pull
-    /// <see cref="CommandQueue.CurrentBlockIndex"/> back with them so it keeps pointing at the same
-    /// logical block.
+    /// aircraft would disappear despite the cancel.
     /// </summary>
     private static int RemoveQueuedDeleteBlocks(AircraftState aircraft)
     {
         CommandQueue queue = aircraft.Queue;
         var removed = new List<CommandBlock>();
-        int removedBeforeCursor = 0;
 
         for (int i = queue.Blocks.Count - 1; i >= 0; i--)
         {
@@ -2128,13 +2124,8 @@ public static class CommandDispatcher
 
             removed.Add(queue.Blocks[i]);
             queue.Blocks.RemoveAt(i);
-            if (i < queue.CurrentBlockIndex)
-            {
-                removedBeforeCursor++;
-            }
         }
 
-        queue.CurrentBlockIndex = Math.Max(0, queue.CurrentBlockIndex - removedBeforeCursor);
         return removed.Count;
     }
 
@@ -4657,7 +4648,17 @@ public static class CommandDispatcher
     private static CommandResult ApplyBlock(CommandBlock block, AircraftState aircraft)
     {
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft, false);
+        CommandBlock? previous = aircraft.Queue.Applying;
+        aircraft.Queue.Applying = block;
+        CommandResult? result;
+        try
+        {
+            result = block.ApplyAction?.Invoke(aircraft, false);
+        }
+        finally
+        {
+            aircraft.Queue.Applying = previous;
+        }
 
         if (result is not null && !result.Success)
         {
@@ -4687,7 +4688,7 @@ public static class CommandDispatcher
     /// </summary>
     /// <summary>
     /// Removes pending queue blocks whose dimensions conflict with the incoming command,
-    /// preserving non-conflicting blocks. For the current applied block, marks conflicting
+    /// preserving non-conflicting blocks. For each transmission's applied frontier, marks conflicting
     /// tracked commands as complete (superseded). Returns the preserved blocks (removed
     /// from the queue) so the caller can re-append them after enqueueing new blocks.
     /// <paramref name="droppedBlocks"/> receives every pending block that was lost outright
@@ -4717,8 +4718,8 @@ public static class CommandDispatcher
             && ((incomingDimensions & CommandDimension.AllAirborne) == CommandDimension.AllAirborne || incomingDimensions == CommandDimension.None)
         )
         {
-            int fastStart = queue.CurrentBlockIndex + (queue.CurrentBlock is { IsApplied: true } ? 1 : 0);
-            for (int i = fastStart; i < queue.Blocks.Count; i++)
+            // Every passed block was applied, so scanning from the start reports exactly the unapplied blocks.
+            for (int i = 0; i < queue.Blocks.Count; i++)
             {
                 if (!queue.Blocks[i].IsApplied)
                 {
@@ -4726,66 +4727,119 @@ public static class CommandDispatcher
                 }
             }
             queue.Blocks.Clear();
-            queue.CurrentBlockIndex = 0;
             return [];
         }
 
-        // Mark conflicting tracked commands in the current applied block as complete (superseded).
-        // GetDimension(TrackedCommandType) can never yield Ground — no tracked type is a surface command — so an
-        // incoming Ground marks nothing here by design; the surface half of a supersede is decided per command in
-        // SplitBlockNonConflicting, against the queued dimension.
-        CommandBlock? current = queue.CurrentBlock;
-        if (current is { IsApplied: true })
-        {
-            foreach (TrackedCommand cmd in current.Commands)
-            {
-                if (!cmd.IsComplete && (CommandDescriber.GetDimension(cmd.Type) & incomingDimensions) != 0)
-                {
-                    cmd.IsComplete = true;
-                }
-            }
-        }
+        return PartitionQueue(queue, incomingDimensions, ctx, preserveTriggeredBlocks, droppedBlocks);
+    }
 
-        // Partition pending blocks into preserved vs removed
-        int pendingStart = queue.CurrentBlockIndex + (current is { IsApplied: true } ? 1 : 0);
+    /// <summary>
+    /// The per-block half of <see cref="ClearConflictingBlocks"/>. Passed blocks stay in place. Each transmission's applied
+    /// frontier stays in place too, with its conflicting tracked commands marked complete (superseded): partitioning it
+    /// would split it and re-queue it as a block that holds its chain until the rest of it finishes. Every other block is
+    /// removed and returned when it survives (whole or split), or reported in <paramref name="droppedBlocks"/> when it is an
+    /// unapplied block lost outright.
+    /// </summary>
+    private static List<CommandBlock> PartitionQueue(
+        CommandQueue queue,
+        CommandDimension incomingDimensions,
+        DispatchContext ctx,
+        bool preserveTriggeredBlocks,
+        List<CommandBlock> droppedBlocks
+    )
+    {
+        var kept = new List<CommandBlock>();
         var preserved = new List<CommandBlock>();
-
-        for (int i = pendingStart; i < queue.Blocks.Count; i++)
+        var supersededChains = new HashSet<int>();
+        foreach (CommandBlock block in queue.Blocks)
         {
-            CommandBlock block = queue.Blocks[i];
-
-            // A firing deferral preserves pending conditionals verbatim — only fresh
-            // immediate commands supersede triggered blocks.
-            if (preserveTriggeredBlocks && block.Trigger is not null)
+            if (IsKeptInPlace(queue, block))
             {
-                preserved.Add(block);
+                MarkSupersededCommands(block, incomingDimensions);
+                kept.Add(block);
                 continue;
             }
 
-            CommandBlock? split = SplitBlockNonConflicting(block, incomingDimensions, ctx);
-            if (split is null)
+            // A chain whose pending lateral part the incoming instruction supersedes loses that block whole and every unapplied
+            // block after it, their altitude and speed parts included: none is split off. Queue order is chain order.
+            if (IsLaterallySuperseded(block, incomingDimensions, preserveTriggeredBlocks))
+            {
+                supersededChains.Add(block.TransmissionId);
+            }
+
+            CommandBlock? survivor =
+                (!block.IsApplied && supersededChains.Contains(block.TransmissionId))
+                    ? null
+                    : SurvivorOf(block, incomingDimensions, ctx, preserveTriggeredBlocks);
+
+            if (survivor is not null)
+            {
+                preserved.Add(survivor);
+            }
+            else if (!block.IsApplied)
             {
                 // Already-applied blocks have delivered their effect; superseding them is not a
                 // loss (e.g. a chain of CFIX restrictions already stamped on the route), so drop
                 // them silently. Only not-yet-applied queued work is reported as lost.
-                if (!block.IsApplied)
-                {
-                    droppedBlocks.Add(block);
-                }
-            }
-            else
-            {
-                preserved.Add(split);
+                droppedBlocks.Add(block);
             }
         }
 
-        // Remove all pending blocks from the queue.
-        if (pendingStart < queue.Blocks.Count)
-        {
-            queue.Blocks.RemoveRange(pendingStart, queue.Blocks.Count - pendingStart);
-        }
-
+        queue.Blocks.Clear();
+        queue.Blocks.AddRange(kept);
         return preserved;
+    }
+
+    /// <summary>A passed block, or a transmission's applied frontier: both stay where they are in the queue.</summary>
+    private static bool IsKeptInPlace(CommandQueue queue, CommandBlock block) => block.IsPassed || (block.IsApplied && queue.IsFrontier(block));
+
+    /// <summary>
+    /// What is left of <paramref name="block"/> once the incoming dimensions take theirs: the block whole, when a firing
+    /// deferral preserves it as a pending conditional, else its non-conflicting split, or null. A JRADO, JRADI, JAWY or DEPART
+    /// follow-on is part of an immediate instruction rather than a conditional, so it is split like any other block.
+    /// </summary>
+    private static CommandBlock? SurvivorOf(
+        CommandBlock block,
+        CommandDimension incomingDimensions,
+        DispatchContext ctx,
+        bool preserveTriggeredBlocks
+    ) => IsPreservedWhole(block, preserveTriggeredBlocks) ? block : SplitBlockNonConflicting(block, incomingDimensions, ctx);
+
+    /// <summary>A pending conditional a firing deferral keeps verbatim; never a JRADO, JRADI, JAWY or DEPART follow-on.</summary>
+    private static bool IsPreservedWhole(CommandBlock block, bool preserveTriggeredBlocks) =>
+        preserveTriggeredBlocks && (block.Trigger is not null) && !block.IsNavigationFollowUp;
+
+    /// <summary>
+    /// An unapplied block whose lateral part an incoming lateral instruction supersedes. Blocks with no transmission id
+    /// (hand-built, or restored from before ids) form no chain whose rest could be dropped.
+    /// </summary>
+    private static bool IsLaterallySuperseded(CommandBlock block, CommandDimension incomingDimensions, bool preserveTriggeredBlocks) =>
+        ((incomingDimensions & CommandDimension.Lateral) != 0)
+        && !block.IsApplied
+        && (block.TransmissionId != 0)
+        && ((block.Dimensions & CommandDimension.Lateral) != 0)
+        && !IsPreservedWhole(block, preserveTriggeredBlocks);
+
+    /// <summary>
+    /// Marks an applied frontier's tracked commands the incoming dimensions take over as complete (superseded); a passed
+    /// block's commands are already complete or past caring. GetDimension(TrackedCommandType) can never yield Ground — no
+    /// tracked type is a surface command — so an incoming Ground marks nothing here by design; the surface half of a
+    /// supersede is decided per command in SplitBlockNonConflicting, against the queued dimension.
+    /// </summary>
+    private static void MarkSupersededCommands(CommandBlock block, CommandDimension incomingDimensions)
+    {
+        if (block.IsPassed)
+        {
+            return;
+        }
+
+        foreach (TrackedCommand cmd in block.Commands)
+        {
+            if (!cmd.IsComplete && (CommandDescriber.GetDimension(cmd.Type) & incomingDimensions) != 0)
+            {
+                cmd.IsComplete = true;
+            }
+        }
     }
 
     /// <summary>
@@ -5154,9 +5208,9 @@ public static class CommandDispatcher
 
         CommandBlock? rebuilt = command switch
         {
-            JoinRadialOutboundCommand jrado => NavigationCommandHandler.BuildJradoInterceptBlock(jrado),
-            JoinRadialInboundCommand jradi => NavigationCommandHandler.BuildJradiInterceptBlock(jradi),
-            DepartFixCommand depart => NavigationCommandHandler.BuildDepartBlock(depart),
+            JoinRadialOutboundCommand jrado => NavigationCommandHandler.BuildJradoInterceptBlock(jrado, block.TransmissionId),
+            JoinRadialInboundCommand jradi => NavigationCommandHandler.BuildJradiInterceptBlock(jradi, block.TransmissionId),
+            DepartFixCommand depart => NavigationCommandHandler.BuildDepartBlock(depart, block.TransmissionId),
             _ => null,
         };
 
@@ -5186,7 +5240,7 @@ public static class CommandDispatcher
 
         foreach (NavigationCommandHandler.AirwayInterceptPlan plan in NavigationCommandHandler.PlanAirwayInterceptsFromTrigger(jawy, trigger))
         {
-            CommandBlock candidate = NavigationCommandHandler.BuildAirwayInterceptBlock(jawy, plan);
+            CommandBlock candidate = NavigationCommandHandler.BuildAirwayInterceptBlock(jawy, plan, block.TransmissionId);
             if (string.Equals(candidate.Description, block.Description, StringComparison.Ordinal))
             {
                 return candidate;
@@ -5283,6 +5337,7 @@ public static class CommandDispatcher
         rebuilt.TrackApplied = block.TrackApplied;
         rebuilt.WaitingForRelease = block.WaitingForRelease;
         rebuilt.IsApplied = block.IsApplied;
+        rebuilt.IsPassed = block.IsPassed;
         rebuilt.TriggerMet = block.TriggerMet;
         rebuilt.TriggerCrossingObserved = block.TriggerCrossingObserved;
         rebuilt.TriggerTerminatorObserved = block.TriggerTerminatorObserved;

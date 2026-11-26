@@ -139,6 +139,13 @@ public enum TrackedCommandType
     Navigation,
     Immediate,
     Wait,
+
+    /// <summary>
+    /// A JRADI or JAWY follow-on's lateral completion: the intercept has applied and the aircraft has turned onto the course
+    /// to its active fix, so a chained ';' block fires once it is established rather than at the fix. Appended so the
+    /// serialized values of the members above stay put.
+    /// </summary>
+    Established,
 }
 
 [Flags]
@@ -190,6 +197,13 @@ public class CommandBlock
     public List<TrackedCommand> Commands { get; init; } = [];
     public bool IsApplied { get; set; }
     public bool TriggerMet { get; set; }
+
+    /// <summary>
+    /// Whether the queue has advanced past this block: set when the block was ready to advance at the head of the
+    /// queue, and never cleared. <see cref="CommandQueue.CurrentBlockIndex"/> is the first block without it.
+    /// </summary>
+    public bool IsPassed { get; set; }
+
     public bool AllComplete => Commands.TrueForAll(c => c.IsComplete);
 
     /// <summary>
@@ -219,11 +233,15 @@ public class CommandBlock
     {
         get
         {
-            bool hasLateral = Commands.Exists(c => c.Type is TrackedCommandType.Heading or TrackedCommandType.Navigation);
+            bool hasLateral = Commands.Exists(c =>
+                c.Type is TrackedCommandType.Heading or TrackedCommandType.Navigation or TrackedCommandType.Established
+            );
 
             if (hasLateral)
             {
-                return Commands.TrueForAll(c => c.IsComplete || c.Type is not (TrackedCommandType.Heading or TrackedCommandType.Navigation));
+                return Commands.TrueForAll(c =>
+                    c.IsComplete || c.Type is not (TrackedCommandType.Heading or TrackedCommandType.Navigation or TrackedCommandType.Established)
+                );
             }
 
             return AllComplete;
@@ -353,6 +371,14 @@ public class CommandBlock
     public int TransmissionId { get; init; }
 
     /// <summary>
+    /// True only for the block a JRADO, JRADI, JAWY or DEPART dispatch inserts behind itself (<see cref="CommandQueue.InsertFollowUp"/>)
+    /// to fire at the intercept or the fix: part of the immediate instruction that queued it, so a later heading supersedes it.
+    /// Never true for a block the controller typed, whatever its shape: a typed <c>AT OAK120 JRADO OAK120</c> is a conditional
+    /// like any other. Serialized; a snapshot from before it restores its follow-ons as false.
+    /// </summary>
+    public bool IsNavigationFollowUp { get; init; }
+
+    /// <summary>
     /// The runways a <c>CROSS</c> in an earlier block of the transmission that queued this block cleared
     /// (<see cref="Commands.DispatchContext.CrossingsClearedInTransmission"/>), which a takeoff or line-up clearance here crosses
     /// on its implicit taxi from a taxiway hold short; null when none. Serialized and carried through a split, never
@@ -401,6 +427,8 @@ public class CommandBlock
             HasDeleteCommand = HasDeleteCommand,
             IsScenarioScripted = IsScenarioScripted,
             TransmissionId = TransmissionId,
+            IsPassed = IsPassed,
+            IsNavigationFollowUp = IsNavigationFollowUp,
             CrossingsClearedInTransmission = CrossingsClearedInTransmission is { } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = CrossFeedsFollowingClearance,
         };
@@ -428,6 +456,8 @@ public class CommandBlock
             HasDeleteCommand = dto.HasDeleteCommand,
             IsScenarioScripted = dto.IsScenarioScripted,
             TransmissionId = dto.TransmissionId,
+            IsPassed = dto.IsPassed,
+            IsNavigationFollowUp = dto.IsNavigationFollowUp,
             CrossingsClearedInTransmission = dto.CrossingsClearedInTransmission is { Count: > 0 } crossings ? [.. crossings] : null,
             CrossFeedsFollowingClearance = dto.CrossFeedsFollowingClearance,
             // ApplyAction is NOT restored here — this is a static context with no DispatchContext.
@@ -440,11 +470,96 @@ public class CommandBlock
 public class CommandQueue
 {
     public List<CommandBlock> Blocks { get; } = [];
-    public int CurrentBlockIndex { get; set; }
 
-    public CommandBlock? CurrentBlock => CurrentBlockIndex >= 0 && CurrentBlockIndex < Blocks.Count ? Blocks[CurrentBlockIndex] : null;
+    /// <summary>
+    /// The block whose apply action is running, set around it by the dispatcher's and the physics loop's block apply and
+    /// restored after; null outside an apply. A handler that queues a follow-on block places it behind this one
+    /// (<see cref="InsertFollowUp"/>). Transient: never snapshotted.
+    /// </summary>
+    internal CommandBlock? Applying { get; set; }
 
-    public bool IsComplete => CurrentBlockIndex >= Blocks.Count;
+    /// <summary>
+    /// Queues <paramref name="followUp"/> directly behind <see cref="Applying"/>, ahead of the later blocks of its chain, so
+    /// the next block waits on the follow-on; appends when no block is applying or the applying block is not in the queue.
+    /// </summary>
+    internal void InsertFollowUp(CommandBlock followUp)
+    {
+        int index = (Applying is { } applying) ? Blocks.IndexOf(applying) : -1;
+        if (index < 0)
+        {
+            Blocks.Add(followUp);
+            return;
+        }
+
+        Blocks.Insert(index + 1, followUp);
+    }
+
+    /// <summary>
+    /// The index of the first block the queue has not advanced past (<see cref="CommandBlock.IsPassed"/> false), or
+    /// <c>Blocks.Count</c> when every block is passed. Derived, so inserting or removing blocks needs no fix-up.
+    /// </summary>
+    public int CurrentBlockIndex
+    {
+        get
+        {
+            for (int i = 0; i < Blocks.Count; i++)
+            {
+                if (!Blocks[i].IsPassed)
+                {
+                    return i;
+                }
+            }
+
+            return Blocks.Count;
+        }
+    }
+
+    /// <summary>
+    /// The frontier of the chain of transmission <paramref name="transmissionId"/> (the blocks one transmission queued; id 0
+    /// gathers every block that carries no id into one chain): its first block the queue has not advanced past, or null.
+    /// </summary>
+    internal CommandBlock? FrontierOf(int transmissionId)
+    {
+        foreach (CommandBlock block in Blocks)
+        {
+            if (!block.IsPassed && (block.TransmissionId == transmissionId))
+            {
+                return block;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>True when <paramref name="block"/> is its chain's frontier (<see cref="FrontierOf"/>).</summary>
+    internal bool IsFrontier(CommandBlock block) => !block.IsPassed && ReferenceEquals(FrontierOf(block.TransmissionId), block);
+
+    /// <summary>
+    /// Writes the distinct transmission ids of the blocks not passed into <paramref name="keys"/>, in frontier order (the
+    /// queue order of each chain's frontier), and returns how many; stops when <paramref name="keys"/> is full.
+    /// </summary>
+    internal int FrontierKeys(Span<int> keys)
+    {
+        int count = 0;
+        foreach (CommandBlock block in Blocks)
+        {
+            if (block.IsPassed || keys[..count].Contains(block.TransmissionId))
+            {
+                continue;
+            }
+
+            if (count == keys.Length)
+            {
+                break;
+            }
+
+            keys[count++] = block.TransmissionId;
+        }
+
+        return count;
+    }
+
+    public bool IsComplete => Blocks.TrueForAll(b => b.IsPassed);
 
     /// <summary>
     /// The id of the last accepted transmission to this aircraft (0 before the first); every dispatched transmission takes
@@ -461,10 +576,10 @@ public class CommandQueue
 
     /// <summary>
     /// Aborts the remainder of a chained compound after <paramref name="failedBlock"/> failed at fire
-    /// time: every later, not-yet-applied block from the same dispatch (equal
-    /// <see cref="CommandBlock.SourceCommandText"/> — stamped identically on all blocks of one compound
-    /// and preserved by split/rehydrate) is removed, and the failed block's tracked commands are marked
-    /// complete so the queue advances past it instead of stalling on targets its handler never set.
+    /// time: every later, not-yet-applied block from the same transmission (equal
+    /// <see cref="CommandBlock.TransmissionId"/>, kept by split, rehydrate and follow-on blocks; for id 0, the blocks that
+    /// carry no id, also equal <see cref="CommandBlock.SourceCommandText"/>) is removed, and the failed block's tracked
+    /// commands are marked complete so the queue advances past it instead of stalling on targets its handler never set.
     /// Blocks queued by other dispatches (independent conditionals) survive; earlier blocks — applied or
     /// still awaiting their trigger — are untouched. Returns the removed blocks' descriptions for the
     /// caller's warning.
@@ -481,7 +596,7 @@ public class CommandQueue
         for (int i = Blocks.Count - 1; i > failedIndex; i--)
         {
             CommandBlock block = Blocks[i];
-            if (block.IsApplied || !string.Equals(block.SourceCommandText, failedBlock.SourceCommandText, StringComparison.Ordinal))
+            if (block.IsApplied || !SameTransmission(block, failedBlock))
             {
                 continue;
             }
@@ -497,13 +612,54 @@ public class CommandQueue
             cmd.IsComplete = true;
         }
 
-        if (CurrentBlockIndex > Blocks.Count)
-        {
-            CurrentBlockIndex = Blocks.Count;
-        }
-
         return discarded;
     }
+
+    /// <summary>
+    /// Removes every block of transmission <paramref name="transmissionId"/>, for a transmission whose first block failed at
+    /// dispatch; other transmissions' blocks stay queued.
+    /// </summary>
+    internal void RemoveTransmission(int transmissionId) => Blocks.RemoveAll(b => b.TransmissionId == transmissionId);
+
+    /// <summary>
+    /// For a heading that fired from a condition (<paramref name="firing"/>): removes every other transmission's pending
+    /// navigation follow-on (<see cref="CommandBlock.IsNavigationFollowUp"/>) together with the rest of that transmission's
+    /// unapplied blocks, as a typed heading would. Returns the removed blocks' descriptions, in queue order.
+    /// </summary>
+    internal List<string> DiscardFollowUpsSupersededBy(CommandBlock firing)
+    {
+        Span<int> storage = stackalloc int[TransmissionSet.StackCapacity];
+        var chains = new TransmissionSet(storage);
+        foreach (CommandBlock block in Blocks)
+        {
+            if (IsFollowUpSupersededBy(block, firing))
+            {
+                chains.Add(block.TransmissionId);
+            }
+        }
+
+        var discarded = new List<string>();
+        for (int i = Blocks.Count - 1; i >= 0; i--)
+        {
+            CommandBlock block = Blocks[i];
+            if (!block.IsApplied && chains.Contains(block.TransmissionId))
+            {
+                discarded.Add(!string.IsNullOrEmpty(block.Description) ? block.Description : block.NaturalDescription);
+                Blocks.RemoveAt(i);
+            }
+        }
+
+        discarded.Reverse();
+        return discarded;
+    }
+
+    /// <summary>A pending follow-on of another, identified transmission than <paramref name="firing"/>'s.</summary>
+    private static bool IsFollowUpSupersededBy(CommandBlock block, CommandBlock firing) =>
+        !block.IsApplied && block.IsNavigationFollowUp && (block.TransmissionId != 0) && (block.TransmissionId != firing.TransmissionId);
+
+    private static bool SameTransmission(CommandBlock block, CommandBlock other) =>
+        (block.TransmissionId == other.TransmissionId)
+        && ((block.TransmissionId != 0) || string.Equals(block.SourceCommandText, other.SourceCommandText, StringComparison.Ordinal));
 
     public CommandQueueDto ToSnapshot() =>
         new()
@@ -515,13 +671,54 @@ public class CommandQueue
 
     public static CommandQueue FromSnapshot(CommandQueueDto dto)
     {
-        var queue = new CommandQueue { CurrentBlockIndex = dto.CurrentBlockIndex, LastTransmissionId = dto.LastTransmissionId };
-        foreach (CommandBlockDto blockDto in dto.Blocks)
+        var queue = new CommandQueue { LastTransmissionId = dto.LastTransmissionId };
+        for (int i = 0; i < dto.Blocks.Count; i++)
         {
-            queue.Blocks.Add(CommandBlock.FromSnapshot(blockDto));
+            var block = CommandBlock.FromSnapshot(dto.Blocks[i]);
+            // A snapshot from before the per-block flag carries only the cursor: every block ahead of it was passed.
+            block.IsPassed = dto.Blocks[i].IsPassed || (i < dto.CurrentBlockIndex);
+            queue.Blocks.Add(block);
         }
         return queue;
     }
+}
+
+/// <summary>
+/// A small set of transmission ids over caller-owned storage (stack memory), for queue scans that must not allocate. When
+/// the storage is full the set saturates and reports every id as a member, which holds every transmission back the way one
+/// queue-wide flag would.
+/// </summary>
+internal ref struct TransmissionSet
+{
+    /// <summary>The storage a scan stackallocs for its set.</summary>
+    internal const int StackCapacity = 32;
+
+    private readonly Span<int> _storage;
+    private int _count;
+    private bool _saturated;
+
+    public TransmissionSet(Span<int> storage)
+    {
+        _storage = storage;
+    }
+
+    public void Add(int transmissionId)
+    {
+        if (Contains(transmissionId))
+        {
+            return;
+        }
+
+        if (_count == _storage.Length)
+        {
+            _saturated = true;
+            return;
+        }
+
+        _storage[_count++] = transmissionId;
+    }
+
+    public readonly bool Contains(int transmissionId) => _saturated || _storage[.._count].Contains(transmissionId);
 }
 
 /// <summary>

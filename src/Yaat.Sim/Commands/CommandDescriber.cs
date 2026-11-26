@@ -313,6 +313,7 @@ public static class CommandDescriber
         {
             TrackedCommandType.Heading => CommandDimension.Lateral,
             TrackedCommandType.Navigation => CommandDimension.Lateral,
+            TrackedCommandType.Established => CommandDimension.Lateral,
             TrackedCommandType.Altitude => CommandDimension.Vertical,
             TrackedCommandType.Speed => CommandDimension.Speed,
             TrackedCommandType.Immediate => CommandDimension.None,

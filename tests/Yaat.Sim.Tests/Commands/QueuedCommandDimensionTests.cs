@@ -664,9 +664,9 @@ public class QueuedCommandDimensionTests
     [Fact]
     public void ChainedTaxiClearance_KeepsTheQueuedAirborneBlockAheadOfTheUntriggeredChainMate()
     {
-        // Same ordering contract on the surface side: the queued climb predates the taxi compound, so it
-        // must not end up behind the compound's untriggered SQ — where the regime-B conditional scan stops
-        // and would never examine it for the whole taxi.
+        // Same ordering contract on the surface side: the queued climb predates the taxi compound, so it goes
+        // back ahead of the compound's untriggered SQ. It is a transmission of its own, so the SQ would not hold it
+        // either way; the order keeps the queue in the order the transmissions were given.
         AirportGroundLayout? layout = OaklandLayout();
         if (layout is null)
         {
@@ -814,7 +814,7 @@ public class QueuedCommandDimensionTests
     /// the lineup and takeoff phases are skipped the way KaseLindz1DepartureE2ETests skips them — and then
     /// <paramref name="seconds"/> ticks of phase + physics. The climb starts on the SID transition's TDLS maintain.
     /// </summary>
-    private static void FlyTheDepartureClimb(AircraftState ac, int seconds)
+    private static void FlyTheDepartureClimb(AircraftState ac, int seconds, Action? afterTick)
     {
         RunwayInfo runway = ac.Phases!.AssignedRunway!;
         ac.IsOnGround = false;
@@ -841,17 +841,17 @@ public class QueuedCommandDimensionTests
         {
             PhaseRunner.Tick(ac, ctx);
             FlightPhysics.Update(ac, 1.0);
+            afterTick?.Invoke();
         }
     }
 
     [Fact]
     public void ChainedTakeoffClearance_LetsTheSurvivingClimbFireAheadOfTheUntriggeredChainMate()
     {
-        // The shape the ordering has to get right: the survivor predates the compound, so it belongs AHEAD
-        // of the compound's own untriggered SQ. Behind it, FlightPhysics.ApplyReadyConditionalBlocks — which
-        // stops at the first unapplied untriggered block while a phase is active (regime B) — never examines
-        // it, its 1,000 ft trigger passes unseen during the departure climb, and the controller's altitude
-        // is silently stranded in the queue: worse than the wipe this dimension change replaced.
+        // The survivor predates the compound, so it goes back AHEAD of the compound's own untriggered SQ. It
+        // is a transmission of its own: the SQ waiting for the departure phases to end does not hold it in either
+        // order (ConditionalAfterChainedTakeoff_FiresDuringClimbOut queues it behind), so its 1,000 ft trigger
+        // fires during the departure climb rather than leaving the controller's altitude stranded in the queue.
         ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
         if (artccConfig is null)
         {
@@ -868,7 +868,7 @@ public class QueuedCommandDimensionTests
         Assert.True(squawkIdx >= 0, "the compound's squawk must be queued behind the phase");
         Assert.True(climbIdx < squawkIdx, $"the surviving climb must sit ahead of the compound's squawk (climb {climbIdx}, squawk {squawkIdx})");
 
-        FlyTheDepartureClimb(ac, seconds: 240);
+        FlyTheDepartureClimb(ac, seconds: 240, afterTick: null);
 
         Assert.False(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "the surviving climb must fire at its 1,000 ft trigger");
         Assert.True(
@@ -894,7 +894,7 @@ public class QueuedCommandDimensionTests
         Assert.Equal(Nimi6InitialAltitudeFt, ac.Procedure.SidInitialAltitudeFt);
         Assert.True(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "setup: the queued climb must survive the takeoff clearance");
 
-        FlyTheDepartureClimb(ac, seconds: 240);
+        FlyTheDepartureClimb(ac, seconds: 240, afterTick: null);
 
         Assert.False(StillQueued(ac, CanonicalCommandType.ClimbMaintain), "the queued climb should have fired passing 1,000 ft");
         Assert.Equal(5000, ac.Targets.AssignedAltitude);
@@ -1022,5 +1022,48 @@ public class QueuedCommandDimensionTests
         Assert.True(result.Success, $"EXT must arm against the preserved queued entry, but got: {result.Message}");
         Assert.True(StillQueued(ac, CanonicalCommandType.EnterRightDownwind), "the queued entry must survive the modifier that targets it");
         Assert.Equal(PendingEntryModifierKind.ExtendLeg, ac.Pattern.PendingEntryModifier?.Kind);
+    }
+
+    [Fact]
+    public void ConditionalAfterChainedTakeoff_FiresDuringClimbOut()
+    {
+        // The two transmissions in the other order: the conditional climb queues behind the compound's untriggered SQ.
+        // It is a transmission of its own, so the SQ waiting for the departure phases to end does not hold it.
+        ArtccConfigRoot? artccConfig = TestArtccConfig.LoadZoa();
+        if (artccConfig is null)
+        {
+            return;
+        }
+
+        AircraftState ac = HoldingShortOf28RAtOakland(Nimi6Route);
+        DispatchWithArtccConfig("CTO; SQ 1234", ac, artccConfig);
+        DispatchWithArtccConfig("AT 1000 CM 5000", ac, artccConfig);
+
+        int climbIdx = QueuedBlockIndex(ac, CanonicalCommandType.ClimbMaintain);
+        int squawkIdx = QueuedBlockIndex(ac, CanonicalCommandType.Squawk);
+        Assert.True(climbIdx >= 0, "setup: the conditional climb must be queued");
+        Assert.True(squawkIdx >= 0, "setup: the compound's squawk must be queued behind the phase");
+        CommandBlock climb = ac.Queue.Blocks[climbIdx];
+        CommandBlock squawk = ac.Queue.Blocks[squawkIdx];
+
+        double? climbFiredAtFt = null;
+        bool squawkDuringPhase = false;
+        FlyTheDepartureClimb(
+            ac,
+            seconds: 240,
+            afterTick: () =>
+            {
+                climbFiredAtFt ??= climb.IsApplied ? ac.Altitude : null;
+                squawkDuringPhase |= squawk.IsApplied && (ac.Phases?.CurrentPhase is not null);
+            }
+        );
+
+        Assert.True(
+            climbFiredAtFt is >= 950 and < 1300,
+            $"the climb must fire passing 1,000 ft, fired at {climbFiredAtFt?.ToString("F0") ?? "never"}"
+        );
+        Assert.True(ac.Altitude > 4900 && ac.Altitude < 5100, $"...and be flown: the aircraft should level at 5,000, but is at {ac.Altitude:F0}");
+        Assert.True(squawk.IsApplied, "the squawk applies once the departure phases end");
+        Assert.False(squawkDuringPhase, "the squawk is chained behind the takeoff clearance and waits for its phases to end");
     }
 }

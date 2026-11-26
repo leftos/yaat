@@ -171,7 +171,13 @@ Chaining also works for the STARS ownership commands — track (`HO`, `ACCEPT`, 
 
 **Failure mid-chain aborts the remainder.** Only the first block of a chain is validated when you send it; later blocks are validated when their turn comes.
 
-If one of them fails then (unknown taxiway, unresolvable handoff position, …), the rest of *that* chain is discarded and an amber warning names both the failed command and the discarded ones — the follow-on instructions were premised on the failed one, so they must not execute as if it had succeeded. Conditionals queued by other, separate transmissions are unaffected.
+If one of them fails then (unknown taxiway, unresolvable handoff position, …), the rest of *that* chain is discarded and an amber warning names both the failed command and the discarded ones — the follow-on instructions were premised on the failed one, so they must not execute as if it had succeeded. Conditionals queued by other, separate transmissions are unaffected. Each transmission's blocks advance on their own, so a pending conditional never holds a later transmission's chain.
+
+**A `;` after a join or a departure waits for it.** `JRADO SNS264; DCT SHOEY` flies the join outbound first, then goes direct: the next block waits until the aircraft has intercepted the radial (within 3°) and reached the outbound heading.
+
+After `DEPART` it waits until the fix is reached and the departure heading flown; after `JRADI` or `JAWY`, until the aircraft is established on the inbound course or tracking the airway (turned onto it, within 3° of the course to the active fix, not station passage or the airway's end). `LV 011 FH 329; JRADO SNS264; DCT SHOEY` runs all three in order.
+
+**A later heading cancels a pending join.** A separate transmission that gives a heading (or any lateral instruction) before the aircraft joins drops the pending `JRADO`/`JRADI`/`JAWY`/`DEPART` and every later block of that transmission, including its altitude and speed parts: after `JRADO SNS264; DCT SHOEY, CM 070`, a typed `FH 360` drops the join, the DCT and the CM. A heading that fires from `AT` or a preset does the same when it fires.
 
 **Chaining behind a hold or follow.** `HOLDP`, the VFR holds (`HPPL`/`HPPR`/`HPPH`/`HFIXL`/…), and `FOLLOW` install behavior that continues until you end it — an *untriggered* command chained behind one (`HOLDP OAK 180 1M R; FH 090`) cannot execute until the hold is cancelled or further clearance is issued, and the dispatch warns you so up front.
 

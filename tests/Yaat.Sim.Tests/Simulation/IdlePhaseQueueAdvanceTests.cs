@@ -733,4 +733,38 @@ public class IdlePhaseQueueAdvanceTests
         Assert.IsType<TaxiingPhase>(ac.Phases?.CurrentPhase);
         return ac;
     }
+
+    /// <summary>
+    /// A squawk chained behind a taxi clearance fires at the hold-short even though an earlier transmission's climb, armed
+    /// for after departure, still waits on its trigger: the two transmissions advance on their own.
+    /// </summary>
+    [Fact]
+    public void ChainedSquawk_NotHeldBehindUnmetSurvivor()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            _output.WriteLine("Skipped: OAK layout not available");
+            return;
+        }
+
+        AircraftState ac = AddParked(engine);
+        CommandResult push = engine.SendCommand(ac.Callsign, "PUSH");
+        Assert.True(push.Success, push.Message);
+        TickUntil(engine, 90, () => ac.Phases?.CurrentPhase is HoldingAfterPushbackPhase);
+        Assert.IsType<HoldingAfterPushbackPhase>(ac.Phases?.CurrentPhase);
+
+        CommandResult climb = engine.SendCommand(ac.Callsign, "AT 5000 CM 7000");
+        Assert.True(climb.Success, climb.Message);
+        CommandResult taxi = engine.SendCommand(ac.Callsign, "TAXI B3 HS B; SQ 1234");
+        Assert.True(taxi.Success, taxi.Message);
+
+        TickUntil(engine, 400, () => ac.Phases?.CurrentPhase is HoldingShortPhase);
+        Assert.IsType<HoldingShortPhase>(ac.Phases?.CurrentPhase);
+        TickUntil(engine, 10, () => ac.Transponder.Code == 1234u);
+
+        DumpQueue(ac);
+        Assert.Equal(1234u, ac.Transponder.Code);
+        Assert.Contains(ac.Queue.Blocks, b => !b.IsApplied && (b.ParsedCommands?.Any(c => c is ClimbMaintainCommand) == true));
+    }
 }

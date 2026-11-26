@@ -61,11 +61,14 @@ public class SplitBlockPreservationTests : IDisposable
         ["TrackApplied"] = "copied",
         ["WaitingForRelease"] = "copied",
         ["IsApplied"] = "copied",
+        ["IsPassed"] = "copied",
         ["TriggerMet"] = "copied",
         ["TriggerCrossingObserved"] = "copied",
         ["TriggerTerminatorObserved"] = "copied",
         ["TriggerMissed"] = "copied",
         ["TriggerClosestApproach"] = "copied",
+        // Never rebuilt: a follow-on holds one command, which SplitBlockNonConflicting keeps whole or drops
+        ["IsNavigationFollowUp"] = "single-command block: SplitBlockNonConflicting keeps it whole or it is dropped, never rebuilt",
     };
 
     [Fact]
@@ -82,7 +85,7 @@ public class SplitBlockPreservationTests : IDisposable
     }
 
     [Fact]
-    public void SplitConditionalBlock_PreservesEveryField()
+    public void VerticalSupersede_SplitConditionalBlock_PreservesEveryField()
     {
         var ac = new AircraftState
         {
@@ -102,7 +105,7 @@ public class SplitBlockPreservationTests : IDisposable
         };
 
         DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
-        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT OAK FH 270, HO 2W");
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT OAK CM 050, HO 2W");
         Assert.True(parsed.IsSuccess, parsed.Reason);
         CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
         Assert.True(dispatchResult.Success, dispatchResult.Message);
@@ -120,8 +123,8 @@ public class SplitBlockPreservationTests : IDisposable
         original.TrackApplied = true;
         original.WaitingForRelease = true;
 
-        // Fresh immediate lateral supersede: conflicts with the FH half only → block is split.
-        ParseResult<CompoundCommand> supersede = CommandParser.ParseCompound("FH 090");
+        // A fresh immediate vertical supersede conflicts with the CM half only, so the block is split.
+        ParseResult<CompoundCommand> supersede = CommandParser.ParseCompound("CM 080");
         Assert.True(supersede.IsSuccess, supersede.Reason);
         CommandResult supersedeResult = CommandDispatcher.DispatchCompound(supersede.Value!, ac, ctx);
         Assert.True(supersedeResult.Success, supersedeResult.Message);
@@ -151,5 +154,42 @@ public class SplitBlockPreservationTests : IDisposable
         Assert.True(survivor.TrackApplied, "TrackApplied guard lost — an already-fired handoff would re-dispatch");
         Assert.True(survivor.WaitingForRelease, "WaitingForRelease lost — the RPO would be told of the same wait twice");
         Assert.False(survivor.IsApplied);
+    }
+
+    [Fact]
+    public void LateralSupersede_DropsTheConditionalBlockWhole()
+    {
+        var ac = new AircraftState
+        {
+            Callsign = "N435C",
+            AircraftType = "B738",
+            Position = new LatLon(37.62, -122.19),
+            TrueHeading = new TrueHeading(340),
+            Altitude = 10_000,
+            IndicatedAirspeed = 250,
+            IsOnGround = false,
+            FlightPlan = new AircraftFlightPlan
+            {
+                HasFlightPlan = true,
+                FlightRules = "IFR",
+                Destination = "KOAK",
+            },
+        };
+
+        DispatchContext ctx = TestDispatch.Context(Random.Shared, validateDctFixes: false);
+        ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound("AT OAK FH 270, HO 2W");
+        Assert.True(parsed.IsSuccess, parsed.Reason);
+        CommandResult dispatchResult = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+        Assert.True(dispatchResult.Success, dispatchResult.Message);
+        CommandBlock original = Assert.Single(ac.Queue.Blocks);
+
+        // A lateral supersede takes the FH half, so the block goes whole, its HO included: nothing is split off.
+        ParseResult<CompoundCommand> supersede = CommandParser.ParseCompound("FH 090");
+        Assert.True(supersede.IsSuccess, supersede.Reason);
+        CommandResult supersedeResult = CommandDispatcher.DispatchCompound(supersede.Value!, ac, ctx);
+        Assert.True(supersedeResult.Success, supersedeResult.Message);
+
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.TransmissionId == original.TransmissionId);
+        Assert.DoesNotContain(ac.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
     }
 }

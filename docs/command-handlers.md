@@ -550,6 +550,8 @@ Enum + registry + scheme + parser are covered in `architecture.md`. Inside the d
 
   The follow-up blocks that `NavigationCommandHandler` queues (JRADO, JRADI, DEPART's reach-fix block, the airway intercept after JAWY) serialize their `SourceCommandText` too, and `CommandDispatcher.TryRebuildQueuedNavigationBlock` rebuilds them from the same factory that built them live (`BuildJradoInterceptBlock`, `BuildJradiInterceptBlock`, `BuildDepartBlock`, `BuildAirwayInterceptBlock`), keeping the serialized trigger.
 
+  Each is inserted directly behind the block being applied (`CommandQueue.InsertFollowUp`), carries its parent's `TransmissionId`, and is flagged `CommandBlock.IsNavigationFollowUp`, which the snapshot keeps; a snapshot from before the flag restores them as ordinary conditionals.
+
   Applying the re-parsed instruction instead would set its immediate half and queue a second block. The factory's description must equal the saved `Description`, else the ordinary path runs.
 
   A JAWY block's fix sequence is rebuilt from its saved trigger (`PlanAirwayInterceptsFromTrigger`) and accepted only when the rebuilt description equals the saved one; otherwise the block is dropped with the RPO warning.

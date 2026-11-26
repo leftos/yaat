@@ -450,6 +450,60 @@ public class QueuedLandingClearanceTests(ITestOutputHelper output)
         Assert.Null(ac.Pattern.PendingLandingClearance);
     }
 
+    /// <summary>
+    /// A JRADO head inserts its intercept follow-on right behind itself as it applies, so the compound's later blocks sit
+    /// one further along the queue than their place in the transmission. The pre-issued CLAND's readback still lands in
+    /// its own slot of the transmission's message.
+    /// </summary>
+    [Fact]
+    public void TrailingClandAfterJradoFollowOn_ReadsBackInItsOwnSlot()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        SpawnAirborneOverOak(engine, "TSC020");
+        CommandResult joined = engine.SendCommand("TSC020", "JRADO OAK120; DCT VPCOL; ERD 28R; CLAND");
+        output.WriteLine($"JRADO OAK120; DCT VPCOL; ERD 28R; CLAND: {joined.Message}");
+        Assert.True(joined.Success, joined.Message);
+
+        string[] expected =
+        [
+            "Fly present heading, intercept OAK 120 radial outbound",
+            "Proceed direct VPCOL",
+            "Enter right downwind, Runway 28R",
+            "Cleared to land runway 28R, armed for the queued pattern entry",
+        ];
+        Assert.Equal(expected, joined.Message!.Split(" ; then "));
+    }
+
+    /// <summary>
+    /// A conditional the controller typed in a follow-on's shape is one of its transmission's own blocks, not a follow-on, so
+    /// the blocks after it keep their readback slots: the pre-issued CLAND lands in the last slot, not over the pattern entry's.
+    /// </summary>
+    [Fact]
+    public void TypedRadialConditional_DoesNotShiftLaterReadbackSlots()
+    {
+        SimulationEngine? engine = BuildEngine();
+        if (engine is null)
+        {
+            return;
+        }
+
+        SpawnAirborneOverOak(engine, "TSC021");
+        CommandResult result = engine.SendCommand("TSC021", "DCT VPCOL; AT OAK120 JRADO OAK120; ERD 28R; CLAND");
+        output.WriteLine($"DCT VPCOL; AT OAK120 JRADO OAK120; ERD 28R; CLAND: {result.Message}");
+        Assert.True(result.Success, result.Message);
+
+        string[] slots = result.Message!.Split(" ; then ");
+        Assert.Equal(4, slots.Length);
+        Assert.Equal("Proceed direct OAKLAND COLISEUM (VPCOL)", slots[0]);
+        Assert.Equal("Enter right downwind, Runway 28R", slots[2]);
+        Assert.Equal("Cleared to land runway 28R, armed for the queued pattern entry", slots[3]);
+    }
+
     private static void SpawnAirborneOverOak(SimulationEngine engine, string callsign)
     {
         // A few miles east of OAK 28R on the right downwind side, slow VFR piston.

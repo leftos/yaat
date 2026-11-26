@@ -680,6 +680,18 @@
     "Solo": true
   },
   {
+    "File": "issue1401-mry-lv-heading-chain-stall-recording.zip",
+    "Commands": 2,
+    "ByKind": {
+      "Compound": 1,
+      "SetActivePosition": 1
+    },
+    "Unparsed": [],
+    "ReactionDelayed": 1,
+    "AsPrefixed": 0,
+    "Solo": false
+  },
+  {
     "File": "issue154-vfr-cold-calls-recording.zip",
     "Commands": 37,
     "ByKind": {

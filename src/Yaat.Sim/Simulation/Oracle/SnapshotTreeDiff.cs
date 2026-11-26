@@ -153,7 +153,7 @@ public static class SnapshotTreeDiff
     private static void WalkArray(string path, string? propertyName, JsonArray left, JsonArray right, List<SnapshotDivergence> sink)
     {
         // Index keying is correct for every collection in the snapshot except the aircraft list. Several are
-        // index-semantic — Queue.Blocks is addressed by CurrentBlockIndex, Phases.Phases by CurrentIndex,
+        // index-semantic — Queue.Blocks is in chain order, Phases.Phases is addressed by CurrentIndex,
         // AssignedTaxiRoute.Segments by CurrentSegmentIndex — and Targets.NavigationRoute may legally repeat a fix
         // name. Only the aircraft list genuinely reorders between runs, so only it gets a natural key.
         if (string.Equals(propertyName, AircraftArrayProperty, StringComparison.Ordinal))

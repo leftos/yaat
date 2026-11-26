@@ -624,12 +624,11 @@ public class DescendViaSupersedesEarlierAltitudeTests
     }
 
     /// <summary>
-    /// A lateral command that drops the queued DVIA out of "AT A DM 080, CFIX X 110, DVIA" leaves a lone CFIX behind: it
-    /// no longer restates the crossing with a via clearance, so it fires with its reverts, as "AT A DM 080, CFIX X 110"
-    /// would. The DM rides in the queued block, so the aircraft is still level above the crossing when A fires.
+    /// A lateral command that supersedes the queued "AT A DM 080, CFIX X 110, DVIA" drops the whole block, its DM and CFIX
+    /// included: nothing is split off, so the crossing is never set and the assigned altitude stays where it was.
     /// </summary>
     [Fact]
-    public void QueuedSameTransmissionCrossFix_DescendViaSplitOut_KeepsTheReverts()
+    public void QueuedSameTransmissionCrossFix_DescendViaBlockSupersededLaterally_DropsTheCrossing()
     {
         if (BuildOakesHarness() is not { } harness)
         {
@@ -640,13 +639,15 @@ public class DescendViaSupersedesEarlierAltitudeTests
         AircraftState aircraft = harness.Aircraft;
         string triggerFix = aircraft.Targets.NavigationRoute[1].Name;
         string fixName = aircraft.Targets.NavigationRoute[3].Name;
+        double? assignedBefore = aircraft.Targets.AssignedAltitude;
         SendOk(harness, $"AT {triggerFix} DM 080, CFIX {fixName} 110, DVIA");
         SendOk(harness, $"DCTF {triggerFix}");
-        Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
+        Assert.DoesNotContain(aircraft.Queue.Blocks, b => !b.IsApplied);
 
-        NavigationTarget fix = TickUntilCrossingSet(harness.Engine, aircraft, fixName, 11000);
+        AssertCrossingNeverSet(harness.Engine, aircraft, fixName, 11000);
         Assert.False(aircraft.Procedure.StarViaMode);
-        Assert.Equal(8000, fix.RevertAssignedAltitude);
+        Assert.Equal(assignedBefore, aircraft.Targets.AssignedAltitude);
+        Assert.NotEqual(8000, aircraft.Targets.AssignedAltitude);
     }
 
     /// <summary>
@@ -696,7 +697,7 @@ public class DescendViaSupersedesEarlierAltitudeTests
         SendOk(harness, "DM 080");
         SendOk(harness, $"CFIX {fixName} A110; AT {triggerFix} DVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesDescendVia);
-        SendOk(harness, "DELAT 2");
+        SendOk(harness, "DELAT 1");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesDescendVia);
 
         NavigationTarget fix = aircraft.Targets.NavigationRoute.First(t => t.Name == fixName);
@@ -1058,6 +1059,17 @@ public class DescendViaSupersedesEarlierAltitudeTests
         }
 
         throw new InvalidOperationException($"The queued CFIX never set At {altitudeFt:N0} on {fixName} within 1800 s");
+    }
+
+    private static void AssertCrossingNeverSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
+    {
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
+        for (int t = 0; t < 1800; t++)
+        {
+            engine.TickOneSecond();
+            bool set = aircraft.Targets.NavigationRoute.Exists(f => (f.Name == fixName) && (f.AltitudeRestriction == crossing));
+            Assert.False(set, $"the dropped CFIX set At {altitudeFt:N0} on {fixName} {t + 1} s after the lateral supersede");
+        }
     }
 
     private static void AssertNoReverts(NavigationTarget fix)

@@ -7,7 +7,7 @@ namespace Yaat.Sim.Commands;
 /// </summary>
 public enum ConditionalEntryKind
 {
-    /// <summary>The current applied-but-incomplete queue block. Shown as [Active], not deletable.</summary>
+    /// <summary>A transmission's applied-but-incomplete frontier block. Shown as [Active], not deletable.</summary>
     ActiveBlock,
 
     /// <summary>A pending precondition-gated queue block (AT / ONHO / ATFN / LV / …).</summary>
@@ -35,7 +35,7 @@ public readonly record struct ConditionalEntry(ConditionalEntryKind Kind, int Nu
 /// listing, the "Pending Cmds" client column, and DELAT/DELCOND deletion so all three
 /// agree on numbering and contents.
 ///
-/// Numbering: the active block (if any) is shown but not numbered; pending queue blocks are
+/// Numbering: the active blocks (one per transmission running one) are shown but not numbered; pending queue blocks are
 /// numbered 1..k in queue order; deferred dispatches continue k+1..m in insertion order.
 /// Automatic pilot-reaction-delay deferrals (<see cref="DeferredDispatch.IsReactionDelay"/>)
 /// are internal timers, not controller-authored conditionals, and are omitted.
@@ -54,10 +54,10 @@ public static class ConditionalList
         CommandQueue queue = aircraft.Queue;
 
         int number = 1;
-        for (int i = Math.Max(0, queue.CurrentBlockIndex); i < queue.Blocks.Count; i++)
+        for (int i = 0; i < queue.Blocks.Count; i++)
         {
             CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied && block.AllComplete)
+            if (block.IsPassed || (block.IsApplied && block.AllComplete))
             {
                 continue; // finished — nothing pending
             }
@@ -68,10 +68,10 @@ public static class ConditionalList
                 continue;
             }
 
-            // The applied-but-incomplete current block is executing now: shown as [Active],
-            // not deletable. Everything else (an unapplied trigger at the head, or any block
+            // A transmission's applied-but-incomplete frontier is executing now: shown as [Active],
+            // not deletable. Everything else (an unapplied trigger at a chain's head, or any block
             // behind it) is a pending conditional, numbered and deletable.
-            if (i == queue.CurrentBlockIndex && block.IsApplied)
+            if (block.IsApplied && queue.IsFrontier(block))
             {
                 entries.Add(new ConditionalEntry(ConditionalEntryKind.ActiveBlock, 0, desc, i, null));
             }
@@ -98,7 +98,7 @@ public static class ConditionalList
     }
 
     /// <summary>
-    /// Render the conditional list as display lines: "[Active] …" for the current block and
+    /// Render the conditional list as display lines: "[Active] …" for each active block and
     /// "[n] …" for each numbered entry. Empty when there is nothing pending.
     /// </summary>
     public static List<string> ToLines(AircraftState aircraft, bool liveCountdown)

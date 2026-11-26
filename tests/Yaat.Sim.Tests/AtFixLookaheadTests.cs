@@ -105,4 +105,57 @@ public class AtFixLookaheadTests(ITestOutputHelper output)
         Assert.True(routeStillHasFixC, "Navigation route should still contain FIX_C (DCT not abandoned)");
         Assert.Equal(1400, ac.Targets.TargetAltitude);
     }
+
+    /// <summary>
+    /// A WAIT armed at a fix holds only its own transmission: another transmission's block armed at the same fix fires there,
+    /// and the WAIT's payload follows its countdown.
+    /// </summary>
+    [Fact]
+    public void AtFixWait_InOneChain_DoesNotHoldOtherChainAtSameFix()
+    {
+        TestVnasData.EnsureInitialized();
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("SUNOL")!.Value;
+        var sunol = new LatLon(lat, lon);
+        LatLon start = GeoMath.ProjectPoint(sunol, new TrueHeading(180), 6);
+        var toward = new TrueHeading(GeoMath.BearingTo(start, sunol));
+        var ac = new AircraftState
+        {
+            Callsign = "TST02",
+            AircraftType = "B738",
+            Position = start,
+            TrueHeading = toward,
+            TrueTrack = toward,
+            Altitude = 8000,
+            IndicatedAirspeed = 250,
+            IsOnGround = false,
+        };
+        foreach (string text in new[] { "DCT SUNOL", "AT SUNOL WAIT 30 SPD 210", "AT SUNOL CM 090" })
+        {
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+            Assert.True(parsed.IsSuccess, parsed.Reason);
+            CommandResult result = CommandDispatcher.DispatchCompound(
+                parsed.Value!,
+                ac,
+                TestDispatch.Context(Random.Shared, validateDctFixes: false)
+            );
+            Assert.True(result.Success, $"'{text}': {result.Message}");
+        }
+
+        CommandBlock wait = Assert.Single(ac.Queue.Blocks, b => b.IsWaitBlock);
+        int? latchedAt = null;
+        int? climbAt = null;
+        int? speedAt = null;
+        for (int t = 1; (t <= 400) && (speedAt is null || climbAt is null); t++)
+        {
+            FlightPhysics.Update(ac, 1.0);
+            latchedAt ??= wait.TriggerMet ? t : null;
+            climbAt ??= ac.Targets.AssignedAltitude == 9000 ? t : null;
+            speedAt = ac.Targets.AssignedSpeed == 210 ? t : null;
+        }
+
+        output.WriteLine($"latched t={latchedAt}, CM 090 t={climbAt}, SPD 210 t={speedAt}");
+        Assert.NotNull(latchedAt);
+        Assert.True(climbAt - latchedAt is >= 0 and <= 1, $"CM 090 applied {climbAt - latchedAt} s after SUNOL, expected at the fix");
+        Assert.True(speedAt - latchedAt is >= 28 and <= 33, $"SPD 210 applied {speedAt - latchedAt} s after SUNOL, expected about 30 s");
+    }
 }

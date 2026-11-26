@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim.Tests;
 
@@ -127,5 +128,45 @@ public class ConditionalListTests
 
         Assert.False(result.Success);
         Assert.Equal(2, result.DeletableCount);
+    }
+
+    /// <summary>Two transmissions each running an applied block list both as [Active]; only the pending block is numbered.</summary>
+    [Fact]
+    public void ConditionalList_TwoRunningChains_TwoActiveEntries()
+    {
+        TestVnasData.EnsureInitialized();
+        (double lat, double lon) = NavigationDatabase.Instance.GetFixPosition("SNS")!.Value;
+        var ac = new AircraftState
+        {
+            Callsign = "EJA802",
+            AircraftType = "B738",
+            Position = GeoMath.ProjectPoint(new LatLon(lat, lon), new TrueHeading(240), 14),
+            TrueHeading = new TrueHeading(293),
+            TrueTrack = new TrueHeading(293),
+            Altitude = 3000,
+            IndicatedAirspeed = 180,
+            IsOnGround = false,
+        };
+        DispatchContext ctx = TestDispatch.Context(new SerializableRandom(42), validateDctFixes: false);
+        foreach (string text in new[] { "CM 7000", "FH 329; DCT SHOEY" })
+        {
+            ParseResult<CompoundCommand> parsed = CommandParser.ParseCompound(text);
+            Assert.True(parsed.IsSuccess, parsed.Reason);
+            CommandResult result = CommandDispatcher.DispatchCompound(parsed.Value!, ac, ctx);
+            Assert.True(result.Success, $"'{text}': {result.Message}");
+        }
+
+        List<string> lines = ConditionalList.ToLines(ac, liveCountdown: false);
+        Assert.Equal(3, lines.Count);
+        Assert.StartsWith("[Active] ", lines[0], StringComparison.Ordinal);
+        Assert.StartsWith("[Active] ", lines[1], StringComparison.Ordinal);
+        Assert.StartsWith("[1] ", lines[2], StringComparison.Ordinal);
+        Assert.Contains("SHOEY", lines[2], StringComparison.OrdinalIgnoreCase);
+
+        ConditionalList.DeleteResult deleted = ConditionalList.Delete(ac, 1);
+        Assert.True(deleted.Success);
+        List<string> after = ConditionalList.ToLines(ac, liveCountdown: false);
+        Assert.Equal(2, after.Count);
+        Assert.All(after, line => Assert.StartsWith("[Active] ", line, StringComparison.Ordinal));
     }
 }

@@ -595,4 +595,56 @@ public class CommandQueueTests
         CommandDimension dims = CommandDescriber.GetCompoundDimensions(compound);
         Assert.Equal(CommandDimension.Lateral | CommandDimension.Vertical, dims);
     }
+
+    /// <summary>
+    /// A transmission whose first block fails at dispatch removes only its own blocks: a pre-armed AT 1000 CM 5000 queued
+    /// by an earlier transmission survives.
+    /// </summary>
+    [Fact]
+    public void FirstBlockFailure_RemovesOnlyItsOwnChain()
+    {
+        var queue = new CommandQueue();
+        var armed = new CommandBlock
+        {
+            Trigger = new BlockTrigger { Type = BlockTriggerType.ReachAltitude, Altitude = 1000 },
+            Description = "at 1000ft: CM 5000",
+            TransmissionId = 1,
+        };
+        queue.Blocks.Add(armed);
+        queue.Blocks.Add(new CommandBlock { Description = "FH 270", TransmissionId = 2 });
+        queue.Blocks.Add(new CommandBlock { Description = "DCT SHOEY", TransmissionId = 2 });
+
+        queue.RemoveTransmission(2);
+
+        Assert.Same(armed, Assert.Single(queue.Blocks));
+    }
+
+    /// <summary>
+    /// A session's passed blocks stay in the queue, so an aircraft given 40 single-block instructions, all passed, then
+    /// one pending chain, sizes its queue scan by that one live chain and keeps the scan state on the stack.
+    /// </summary>
+    [Fact]
+    public void ChainScanCapacity_IgnoresPassedBlocks()
+    {
+        var queue = new CommandQueue();
+        for (int id = 1; id <= 40; id++)
+        {
+            queue.Blocks.Add(
+                new CommandBlock
+                {
+                    Description = $"FH {id:000}",
+                    TransmissionId = id,
+                    IsApplied = true,
+                    IsPassed = true,
+                }
+            );
+        }
+
+        queue.Blocks.Add(new CommandBlock { Description = "DCT SHOEY", TransmissionId = 41 });
+
+        int capacity = FlightPhysics.ChainScanCapacity(queue);
+
+        Assert.Equal(1, capacity);
+        Assert.True(capacity <= FlightPhysics.MaxStackChains);
+    }
 }

@@ -1884,23 +1884,22 @@ public class ClimbViaTopAltitudeTests
     }
 
     /// <summary>
-    /// A lateral command that drops the queued CVIA out of "AT REBAS CFIX TIPRE 220, CVIA" leaves a lone CFIX behind: it
-    /// no longer restates the crossing with a via clearance, so it fires with its reverts, as "AT REBAS CFIX TIPRE 220" would.
-    /// The crossing sits high enough that the aircraft, climbing to FL230, is still below it at REBAS.
+    /// A lateral command that supersedes the queued "AT REBAS CFIX TIPRE 220, CVIA" drops the whole block, its CFIX
+    /// included: nothing is split off, so the crossing is never set and the aircraft keeps climbing to FL230.
     /// </summary>
     [Fact]
-    public void QueuedSameTransmissionCrossFix_ClimbViaSplitOut_KeepsTheReverts()
+    public void QueuedSameTransmissionCrossFix_ClimbViaBlockSupersededLaterally_DropsTheCrossing()
     {
         Harness harness = BuildHussh2Harness();
         AircraftState aircraft = harness.Aircraft;
         SendOk(harness, "CM 230");
         SendOk(harness, "AT REBAS CFIX TIPRE 220, CVIA");
         SendOk(harness, "DCTF REBAS");
-        Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesClimbVia);
+        Assert.DoesNotContain(aircraft.Queue.Blocks, b => !b.IsApplied);
 
-        NavigationTarget tipre = TickUntilCrossingSet(harness.Engine, aircraft, "TIPRE", 22000);
+        AssertCrossingNeverSet(harness.Engine, aircraft, "TIPRE", 22000);
         Assert.Null(aircraft.Procedure.ClimbViaTargetFt);
-        Assert.Equal(23000, tipre.RevertAssignedAltitude);
+        Assert.Equal(23000, aircraft.Targets.AssignedAltitude);
     }
 
     /// <summary>
@@ -1937,7 +1936,7 @@ public class ClimbViaTopAltitudeTests
         SendOk(harness, "CM 140");
         SendOk(harness, "CFIX TIPRE 110; AT REBAS CVIA");
         Assert.Contains(aircraft.Queue.Blocks, CarriesClimbVia);
-        SendOk(harness, "DELAT 2");
+        SendOk(harness, "DELAT 1");
         Assert.DoesNotContain(aircraft.Queue.Blocks, CarriesClimbVia);
 
         NavigationTarget tipre = RouteFix(aircraft, "TIPRE");
@@ -2279,6 +2278,17 @@ public class ClimbViaTopAltitudeTests
 
         Assert.Fail($"The queued CFIX never set At {altitudeFt:N0} on {fixName} within 1800 s");
         return RouteFix(aircraft, fixName);
+    }
+
+    private static void AssertCrossingNeverSet(SimulationEngine engine, AircraftState aircraft, string fixName, int altitudeFt)
+    {
+        var crossing = new CifpAltitudeRestriction(CifpAltitudeRestrictionType.At, altitudeFt) { Source = CifpAltitudeRestrictionSource.Atc };
+        for (int t = 0; t < 1800; t++)
+        {
+            engine.TickOneSecond();
+            bool set = aircraft.Targets.NavigationRoute.Exists(f => (f.Name == fixName) && (f.AltitudeRestriction == crossing));
+            Assert.False(set, $"the dropped CFIX set At {altitudeFt:N0} on {fixName} {t + 1} s after the lateral supersede");
+        }
     }
 
     private void SendOk(Harness harness, string command)

@@ -4661,6 +4661,30 @@ public static class FlightPhysics
         }
     }
 
+    /// <summary>
+    /// How many transmissions a queue scan tracks on the stack; a queue with more unpassed blocks than this
+    /// (<see cref="ChainScanCapacity"/>) tracks them in a heap array for that call.
+    /// </summary>
+    internal const int MaxStackChains = 32;
+
+    /// <summary>
+    /// The size of a queue scan's per-transmission state: the queue's unpassed blocks, which bound its live transmissions.
+    /// Passed blocks stay in the queue for the session but belong to no live chain, so they never push a scan onto the heap.
+    /// </summary>
+    internal static int ChainScanCapacity(CommandQueue queue)
+    {
+        int count = 0;
+        foreach (CommandBlock block in queue.Blocks)
+        {
+            if (!block.IsPassed)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private static void UpdateCommandQueue(AircraftState aircraft, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
     {
         CommandQueue queue = aircraft.Queue;
@@ -4670,6 +4694,13 @@ public static class FlightPhysics
         }
 
         DiscardMissedCycleTerminatorBlocks(aircraft);
+
+        // Each transmission's blocks (a chain) advance on their own. The scan state is per call and lives on the stack:
+        // a block's apply can re-enter and change the queue, so it is never shared between calls.
+        int capacity = ChainScanCapacity(queue);
+        Span<int> keys = capacity <= MaxStackChains ? stackalloc int[MaxStackChains] : new int[capacity];
+        Span<byte> states = capacity <= MaxStackChains ? stackalloc byte[MaxStackChains] : new byte[capacity];
+        var scan = new ChainScan(keys, states, queue.FrontierKeys(keys));
 
         // During active phases, the phase system owns control targets. The full
         // command queue logic (block advancement, untriggered block application) is
@@ -4681,326 +4712,443 @@ public static class FlightPhysics
         // phase never completes on its own, so the queue is the only source of progress.
         if (aircraft.Phases?.CurrentPhase is { } activePhase)
         {
-            int triggerStart = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
+            CompleteGroundedAltitudeCommands(aircraft);
             if (activePhase.IsIdleAwaitingCommands)
             {
-                AdvanceQueueWhileIdle(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
+                AdvanceQueueWhileIdle(aircraft, scan, deltaSeconds, aircraftLookup);
             }
             else
             {
-                ApplyReadyConditionalBlocks(aircraft, queue, triggerStart, deltaSeconds, aircraftLookup);
+                ScanTriggeredBlocks(aircraft, scan, deltaSeconds, aircraftLookup, skipFrontiers: false);
             }
             return;
         }
 
-        CommandBlock? block = queue.CurrentBlock;
-        if (block is null)
+        // No phase: step each chain's frontier, then one triggered-block scan in queue order that skips the frontiers
+        // (each block is visited at most once per call, so a counting WAIT is never counted twice).
+        if (StepFrontiers(aircraft, scan, deltaSeconds, aircraftLookup))
         {
-            return;
+            ScanTriggeredBlocks(aircraft, scan, deltaSeconds, aircraftLookup, skipFrontiers: true);
+        }
+    }
+
+    /// <summary>
+    /// The first pass with no phase active: steps each chain's frontier, in frontier order, and seeds the chain's scan state
+    /// from the result. Returns false when the tick's queue work ends here: an apply failed (the queue changed under the
+    /// scan) or a block installed a phase.
+    /// </summary>
+    private static bool StepFrontiers(AircraftState aircraft, ChainScan scan, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
+    {
+        for (int k = 0; k < scan.Count; k++)
+        {
+            int key = scan.KeyAt(k);
+            FrontierStep step = StepChainFrontier(aircraft, key, deltaSeconds, aircraftLookup);
+            if ((step == FrontierStep.StopTick) || (aircraft.Phases?.CurrentPhase is not null))
+            {
+                return false;
+            }
+
+            scan.Set(key, SeedState(step));
         }
 
-        // Check completion of commands in the current applied block
+        return true;
+    }
+
+    private static ChainState SeedState(FrontierStep step) =>
+        step switch
+        {
+            FrontierStep.Lookahead => ChainState.Open,
+            FrontierStep.Latch => ChainState.Holding,
+            _ => ChainState.Blocked,
+        };
+
+    /// <summary>
+    /// One chain's frontier step: the chain's first block not passed is checked for completion (and passed when ready to
+    /// advance) or, when unapplied, for its trigger and applied. At most one block is passed per call.
+    /// </summary>
+    private static FrontierStep StepChainFrontier(AircraftState aircraft, int key, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
+    {
+        CommandQueue queue = aircraft.Queue;
+        CommandBlock? block = queue.FrontierOf(key);
+        if (block is null)
+        {
+            return FrontierStep.Done;
+        }
+
         if (block.IsApplied)
         {
             UpdateBlockCompletion(aircraft, block, deltaSeconds);
-
-            if (block.ReadyToAdvance)
+            if (!block.ReadyToAdvance)
             {
-                queue.CurrentBlockIndex++;
-                block = queue.CurrentBlock;
-                if (block is null)
-                {
-                    return;
-                }
+                // Lookahead: the chain's following conditional blocks may fire while this block is still running. This
+                // allows "DCT A B C; AT B CM 014", "CM 100; LV 050 FH 270", and "SPD 210; ATFN 10 RNS" to fire on their
+                // trigger without waiting for the current lateral, altitude, or speed target to complete.
+                return FrontierStep.Lookahead;
             }
-            else
+
+            block.IsPassed = true;
+            block = queue.FrontierOf(key);
+            if (block is null || block.IsApplied)
             {
-                // Lookahead: check following conditional blocks while the current
-                // block is still running. This allows "DCT A B C; AT B CM 014",
-                // "CM 100; LV 050 FH 270", and "SPD 210; ATFN 10 RNS" to fire
-                // on their trigger without waiting for the current lateral,
-                // altitude, or speed target to complete.
-                ApplyReadyConditionalBlocks(aircraft, queue, queue.CurrentBlockIndex + 1, deltaSeconds, aircraftLookup);
-                return;
+                return FrontierStep.Done;
             }
         }
 
-        // For unapplied blocks, check if trigger is met
-        if (!block.IsApplied)
+        return StepUnappliedFrontier(aircraft, block, deltaSeconds, aircraftLookup);
+    }
+
+    /// <summary>
+    /// An unapplied frontier: an unmet trigger holds the chain (no lookahead); otherwise the block applies. A triggered
+    /// WAIT holds its payload until its countdown elapses, and the chain's following triggered blocks latch meanwhile so a
+    /// ReachFix trigger survives the aircraft flying past the fix during the countdown. A Failed apply has already
+    /// discarded the chain remainder and stops the tick; a Deferred one waits for its departure's release, unapplied.
+    /// </summary>
+    private static FrontierStep StepUnappliedFrontier(
+        AircraftState aircraft,
+        CommandBlock block,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup
+    )
+    {
+        if ((block.Trigger is not null) && !LatchTrigger(aircraft, block, deltaSeconds, aircraftLookup))
         {
-            if (block.Trigger is not null && !block.TriggerMet)
-            {
-                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
-                if (!block.TriggerMet)
-                {
-                    TrackFrdMiss(aircraft, block);
-                    return;
-                }
+            return FrontierStep.Done;
+        }
 
-                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
-                {
-                    aircraft.Track.HandoffAccepted = false;
-                }
-            }
+        return ApplyOrCountdownWait(aircraft, block, deltaSeconds) switch
+        {
+            BlockApplyOutcome.WaitCounting => FrontierStep.Latch,
+            BlockApplyOutcome.Failed => FrontierStep.StopTick,
+            _ => FrontierStep.Done,
+        };
+    }
 
-            // Apply the block's commands (a triggered WAIT holds the payload until its countdown
-            // elapses; a Failed apply has already discarded the chain remainder — stop for this tick; a Deferred one
-            // waits for its departure's release, unapplied, and is retried next tick).
-            if (ApplyOrCountdownWait(aircraft, block, deltaSeconds) == BlockApplyOutcome.WaitCounting)
+    /// <summary>
+    /// Latches a triggered block's trigger: once met it stays met, so a post-trigger WAIT (and any later block held behind
+    /// it) survives the aircraft flying past the fix (a ReachFix check would otherwise flip back to false and orphan the
+    /// block). Returns true when the trigger is met.
+    /// </summary>
+    private static bool LatchTrigger(AircraftState aircraft, CommandBlock block, double deltaSeconds, Func<string, AircraftState?>? aircraftLookup)
+    {
+        if (block.TriggerMet)
+        {
+            return true;
+        }
+
+        block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
+        if (!block.TriggerMet)
+        {
+            TrackFrdMiss(aircraft, block);
+            return false;
+        }
+
+        if (block.Trigger?.Type is BlockTriggerType.OnHandoff)
+        {
+            aircraft.Track.HandoffAccepted = false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Applies ready conditional blocks, in queue order, per chain: each chain's contiguous triggered run fires, and the
+    /// chain stops at its first unapplied untriggered block so ordinary semicolon sequencing is preserved; other chains
+    /// carry on. With <paramref name="skipFrontiers"/> each chain's frontier is left to the frontier step that already
+    /// visited it this call.
+    /// </summary>
+    private static void ScanTriggeredBlocks(
+        AircraftState aircraft,
+        ChainScan scan,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup,
+        bool skipFrontiers
+    )
+    {
+        List<CommandBlock> blocks = aircraft.Queue.Blocks;
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            CommandBlock block = blocks[i];
+            if (
+                scan.Visits(block, skipFrontiers)
+                && (ScanTriggeredBlock(aircraft, block, scan, deltaSeconds, aircraftLookup) == BlockApplyOutcome.Failed)
+            )
             {
-                // The current block is a WAIT still counting down. Latch the triggers of the following
-                // `;`-sequenced blocks now (without applying them) so a ReachFix trigger survives the
-                // aircraft flying past the fix during the countdown — otherwise the trailing block orphans
-                // when the queue finally advances to it. Mirrors the holdApplies latching in
-                // ApplyReadyConditionalBlocks, which only covers the lookahead (current-block-applied) path.
-                LatchFollowingTriggers(aircraft, queue, queue.CurrentBlockIndex + 1, deltaSeconds, aircraftLookup);
+                // Chain remainder already discarded; the queue list mutated under this loop — stop scanning for the tick
+                // (latched triggers re-fire next sub-tick).
+                return;
             }
         }
     }
 
     /// <summary>
-    /// Latches (but does not apply) the triggers of the contiguous run of conditional blocks starting at
-    /// <paramref name="startIndex"/>. Used while a current-block WAIT counts down so a trailing block's
-    /// <see cref="BlockTriggerType.ReachFix"/> trigger stays met even after the aircraft flies past the fix.
-    /// Stops at the first unapplied untriggered block so ordinary `;` sequencing is preserved.
+    /// One block of <see cref="ScanTriggeredBlocks"/>. An untriggered block ends its chain's scan. Once a preceding
+    /// triggered WAIT of the chain is still counting down, the chain's following blocks are held too (a semicolon
+    /// sequences them after the wait's payload); their trigger stays latched so they apply once the wait clears. A Deferred
+    /// block waits for its departure's release, trigger latched, and is skipped like an unmet trigger. Null when nothing
+    /// was applied.
     /// </summary>
-    private static void LatchFollowingTriggers(
+    private static BlockApplyOutcome? ScanTriggeredBlock(
         AircraftState aircraft,
-        CommandQueue queue,
-        int startIndex,
+        CommandBlock block,
+        ChainScan scan,
         double deltaSeconds,
         Func<string, AircraftState?>? aircraftLookup
     )
     {
-        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        int key = block.TransmissionId;
+        if (block.Trigger is null)
         {
-            CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
-            {
-                continue;
-            }
-
-            if (block.Trigger is null)
-            {
-                break;
-            }
-
-            if (!block.TriggerMet)
-            {
-                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
-                if (!block.TriggerMet)
-                {
-                    TrackFrdMiss(aircraft, block);
-                    continue;
-                }
-
-                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
-                {
-                    aircraft.Track.HandoffAccepted = false;
-                }
-            }
+            scan.Set(key, ChainState.Blocked);
+            return null;
         }
-    }
 
-    /// <summary>
-    /// Applies ready conditional blocks in the contiguous triggered run starting at
-    /// <paramref name="startIndex"/>. Stops at the first unapplied untriggered block
-    /// so ordinary semicolon sequencing is preserved.
-    /// </summary>
-    private static void ApplyReadyConditionalBlocks(
-        AircraftState aircraft,
-        CommandQueue queue,
-        int startIndex,
-        double deltaSeconds,
-        Func<string, AircraftState?>? aircraftLookup
-    )
-    {
-        bool holdApplies = false;
-        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        if (!LatchTrigger(aircraft, block, deltaSeconds, aircraftLookup) || (scan.Get(key) == ChainState.Holding))
         {
-            CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
-            {
-                continue;
-            }
-
-            if (block.Trigger is null)
-            {
-                break;
-            }
-
-            // Latch the trigger: once met it stays met, so a post-trigger WAIT (and any later block held
-            // behind it) survives the aircraft flying past the fix (a ReachFix check would otherwise flip
-            // back to false and orphan the block).
-            if (!block.TriggerMet)
-            {
-                block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
-                if (!block.TriggerMet)
-                {
-                    TrackFrdMiss(aircraft, block);
-                    continue;
-                }
-
-                if (block.Trigger.Type is BlockTriggerType.OnHandoff)
-                {
-                    aircraft.Track.HandoffAccepted = false;
-                }
-            }
-
-            // Once a preceding triggered WAIT is still counting down, hold the following blocks too:
-            // `;` sequences them after the wait's payload. Their trigger stays latched (above) so they
-            // apply once the wait clears, rather than firing at the fix in parallel with the wait.
-            if (holdApplies)
-            {
-                continue;
-            }
-
-            BlockApplyOutcome outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
-            if (outcome == BlockApplyOutcome.Failed)
-            {
-                // Chain remainder already discarded; the queue list mutated under this loop —
-                // stop scanning for the tick (latched triggers re-fire next sub-tick).
-                return;
-            }
-            if (outcome == BlockApplyOutcome.Deferred)
-            {
-                // Waiting for its departure's release, trigger latched: skipped like an unmet trigger, so the
-                // triggered blocks behind it still fire; the next sub-tick retries it.
-                continue;
-            }
-            if (outcome == BlockApplyOutcome.WaitCounting)
-            {
-                holdApplies = true;
-            }
+            return null;
         }
+
+        BlockApplyOutcome outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
+        if (outcome == BlockApplyOutcome.WaitCounting)
+        {
+            scan.Set(key, ChainState.Holding);
+        }
+
+        return outcome;
     }
 
     /// <summary>
     /// Queue advancement while the aircraft sits in a terminal command-waiting phase
-    /// (<see cref="Phase.IsIdleAwaitingCommands"/>). Triggered blocks are handled exactly like
-    /// <see cref="ApplyReadyConditionalBlocks"/>; additionally, untriggered blocks are applied in
-    /// strict `;` order — an idle phase never completes on its own, so without this the blocks
-    /// queued behind PUSH / TAXI-to-hold-short strand forever (issue #407). An untriggered block
-    /// never leapfrogs an earlier unfired block, is held while a non-transparent command before its
-    /// first phase-clearing command is Rejected by the idle phase (it stays queued and visible; the
-    /// pre-check stops at the first phase-clearing command), counts a WAIT down before firing
-    /// its payload, and stops advancing the moment an applied block leaves the idle phase.
+    /// (<see cref="Phase.IsIdleAwaitingCommands"/>), per chain. Triggered blocks are handled like
+    /// <see cref="ScanTriggeredBlocks"/>; additionally, untriggered blocks are applied in strict semicolon order — an
+    /// idle phase never completes on its own, so without this the blocks queued behind PUSH / TAXI-to-hold-short strand
+    /// forever (issue #407). An untriggered block never leapfrogs an earlier unfired block of its chain, is held while a
+    /// non-transparent command before its first phase-clearing command is Rejected by the idle phase (it stays queued and
+    /// visible; the pre-check stops at the first phase-clearing command), counts a WAIT down before firing its payload, and
+    /// stops the scan the moment an applied block leaves the idle phase. A chain that waits never holds another chain.
     /// </summary>
     private static void AdvanceQueueWhileIdle(
         AircraftState aircraft,
-        CommandQueue queue,
-        int startIndex,
+        ChainScan scan,
         double deltaSeconds,
         Func<string, AircraftState?>? aircraftLookup
     )
     {
-        bool holdApplies = false;
-        bool frontierBroken = false;
-        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        List<CommandBlock> blocks = aircraft.Queue.Blocks;
+        for (int i = 0; i < blocks.Count; i++)
         {
-            CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
+            CommandBlock block = blocks[i];
+            if (!scan.Visits(block, skipFrontier: false))
             {
                 continue;
             }
 
-            if (block.Trigger is not null)
+            IdleApply outcome = block.Trigger is not null
+                ? AdvanceIdleTriggeredBlock(aircraft, block, scan, deltaSeconds, aircraftLookup)
+                : AdvanceIdleUntriggeredBlock(aircraft, block, scan, deltaSeconds);
+            if (outcome == IdleApply.StopScan)
             {
-                // Mirror ApplyReadyConditionalBlocks: latch the trigger once met; an unmet trigger
-                // is skipped (later triggered siblings may still fire out of order) but pins the
-                // frontier so no untriggered block behind it can jump the sequence.
-                if (!block.TriggerMet)
-                {
-                    block.TriggerMet = IsTriggerMet(aircraft, block, deltaSeconds, aircraftLookup);
-                    if (!block.TriggerMet)
-                    {
-                        TrackFrdMiss(aircraft, block);
-                        frontierBroken = true;
-                        continue;
-                    }
-
-                    if (block.Trigger.Type is BlockTriggerType.OnHandoff)
-                    {
-                        aircraft.Track.HandoffAccepted = false;
-                    }
-                }
-
-                if (holdApplies)
-                {
-                    continue;
-                }
-
-                BlockApplyOutcome outcome = ApplyOrCountdownWait(aircraft, block, deltaSeconds);
-                if (outcome == BlockApplyOutcome.Failed)
-                {
-                    // Chain remainder already discarded; stop scanning the mutated queue this tick.
-                    return;
-                }
-                if (outcome == BlockApplyOutcome.Deferred)
-                {
-                    // Waiting for its departure's release: like an unmet trigger, later triggered blocks may still
-                    // fire, but no untriggered block behind it jumps the sequence.
-                    frontierBroken = true;
-                    continue;
-                }
-                if (outcome == BlockApplyOutcome.WaitCounting)
-                {
-                    holdApplies = true;
-                }
-
-                continue;
-            }
-
-            if (frontierBroken || holdApplies)
-            {
-                break;
-            }
-
-            if (!TryApplyIdleUntriggeredBlock(aircraft, block, deltaSeconds))
-            {
-                break;
+                return;
             }
         }
     }
 
     /// <summary>
-    /// Applies one untriggered block while the aircraft idles. Returns <c>false</c> when the idle
-    /// scan must stop: the aircraft left its idle phase (an earlier applied block installed a new
-    /// one), the idle phase rejects a command in the block ahead of its first phase-clearing command
-    /// (it stays queued and visible), or an untriggered WAIT is still counting down. Consecutive
-    /// returns of <c>true</c> deliberately do NOT wait for the previous block's tracked commands to complete — completion tracking does
-    /// not run while a phase is active, so gating on it would re-strand pre-arm chains like
-    /// <c>PUSH; CM 5000; TAXI ...</c> whose altitude target cannot complete on the ground.
+    /// A triggered block of the idle scan: an unmet trigger is skipped (later triggered blocks of its chain may still fire
+    /// out of order) but pins the chain's frontier so no untriggered block behind it jumps the sequence; a block waiting
+    /// for its departure's release does the same. A Failed apply has already discarded the chain remainder and stops the
+    /// scan of the mutated queue.
     /// </summary>
-    private static bool TryApplyIdleUntriggeredBlock(AircraftState aircraft, CommandBlock block, double deltaSeconds)
+    private static IdleApply AdvanceIdleTriggeredBlock(
+        AircraftState aircraft,
+        CommandBlock block,
+        ChainScan scan,
+        double deltaSeconds,
+        Func<string, AircraftState?>? aircraftLookup
+    )
+    {
+        int key = block.TransmissionId;
+        if (!LatchTrigger(aircraft, block, deltaSeconds, aircraftLookup))
+        {
+            scan.Break(key);
+            return IdleApply.ChainWaits;
+        }
+
+        if (scan.Get(key) == ChainState.Holding)
+        {
+            return IdleApply.ChainWaits;
+        }
+
+        switch (ApplyOrCountdownWait(aircraft, block, deltaSeconds))
+        {
+            case BlockApplyOutcome.Failed:
+                return IdleApply.StopScan;
+            case BlockApplyOutcome.Deferred:
+                scan.Break(key);
+                return IdleApply.ChainWaits;
+            case BlockApplyOutcome.WaitCounting:
+                scan.Set(key, ChainState.Holding);
+                return IdleApply.ChainWaits;
+            default:
+                return IdleApply.Applied;
+        }
+    }
+
+    /// <summary>
+    /// An untriggered block of the idle scan: applied unless its chain's frontier is pinned or held, or the idle phase
+    /// does not take it; a block that cannot apply ends its chain's scan.
+    /// </summary>
+    private static IdleApply AdvanceIdleUntriggeredBlock(AircraftState aircraft, CommandBlock block, ChainScan scan, double deltaSeconds)
+    {
+        int key = block.TransmissionId;
+        IdleApply outcome = scan.Get(key) is ChainState.Open ? TryApplyIdleUntriggeredBlock(aircraft, block, deltaSeconds) : IdleApply.ChainWaits;
+        if (outcome == IdleApply.ChainWaits)
+        {
+            scan.Set(key, ChainState.Blocked);
+        }
+
+        return outcome;
+    }
+
+    /// <summary>
+    /// Applies one untriggered block while the aircraft idles. Returns <see cref="IdleApply.StopScan"/> when the aircraft
+    /// left its idle phase (an earlier applied block installed a new one) or the apply failed (the chain remainder is
+    /// already discarded), and <see cref="IdleApply.ChainWaits"/> when the idle phase rejects a command in the block ahead
+    /// of its first phase-clearing command (it stays queued and visible), an untriggered WAIT is still counting down, or the
+    /// block waits for its departure's release. Consecutive applies deliberately do NOT wait for the previous block's
+    /// tracked commands to complete — completion tracking does not run while a phase is active, so gating on it would
+    /// re-strand pre-arm chains like <c>PUSH; CM 5000; TAXI ...</c> whose altitude target cannot complete on the ground.
+    /// </summary>
+    private static IdleApply TryApplyIdleUntriggeredBlock(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         // An applied block may have installed a new phase (TAXI → TaxiingPhase) or cleared the
         // chain; only keep advancing while the aircraft is still idling.
         if (aircraft.Phases?.CurrentPhase is not { IsIdleAwaitingCommands: true } idlePhase)
         {
-            return false;
+            return IdleApply.StopScan;
         }
 
-        if (block.ParsedCommands is not { Count: > 0 } parsed)
+        if ((block.ParsedCommands is not { Count: > 0 } parsed) || !IdlePhaseAcceptsBlock(idlePhase, parsed))
         {
-            return false;
-        }
-
-        if (!IdlePhaseAcceptsBlock(idlePhase, parsed))
-        {
-            return false;
+            return IdleApply.ChainWaits;
         }
 
         // An untriggered WAIT holds its payload until the countdown elapses (a triggered WAIT
         // is handled by ApplyOrCountdownWait on the triggered path).
         if (block.IsWaitBlock && !CheckWaitComplete(block, aircraft, deltaSeconds))
         {
-            return false;
+            return IdleApply.ChainWaits;
         }
 
-        // A failed apply has already discarded the chain remainder, and a block waiting for its departure's release holds
-        // its `;` successors behind it; either way stop the idle scan this tick.
-        return ApplyBlock(aircraft, block) == BlockApplyOutcome.Applied;
+        return ApplyBlock(aircraft, block) switch
+        {
+            BlockApplyOutcome.Applied => IdleApply.Applied,
+            BlockApplyOutcome.Failed => IdleApply.StopScan,
+            _ => IdleApply.ChainWaits,
+        };
+    }
+
+    /// <summary>One chain's state in a queue scan.</summary>
+    private enum ChainState : byte
+    {
+        /// <summary>Triggered blocks fire; the next untriggered block applies (idle scan) or ends the chain's scan.</summary>
+        Open,
+
+        /// <summary>Idle scan: an unmet or deferred triggered block pins the chain's order; later triggered blocks still fire.</summary>
+        Broken,
+
+        /// <summary>A triggered WAIT of the chain is counting down: later triggered blocks latch without applying.</summary>
+        Holding,
+
+        /// <summary>Nothing more of the chain is looked at in this scan.</summary>
+        Blocked,
+    }
+
+    /// <summary>What a chain's frontier step leaves for the triggered-block scan.</summary>
+    private enum FrontierStep
+    {
+        /// <summary>Nothing more of the chain this tick.</summary>
+        Done,
+
+        /// <summary>The frontier is applied and still running: the chain's following triggered blocks may fire.</summary>
+        Lookahead,
+
+        /// <summary>The frontier is a counting WAIT: the chain's following triggered blocks latch without applying.</summary>
+        Latch,
+
+        /// <summary>An apply failed and changed the queue: no more queue work this tick.</summary>
+        StopTick,
+    }
+
+    /// <summary>What one block of the idle scan leaves for the rest of the scan.</summary>
+    private enum IdleApply
+    {
+        Applied,
+        ChainWaits,
+        StopScan,
+    }
+
+    /// <summary>
+    /// Per-chain state of one queue scan, keyed by <see cref="CommandBlock.TransmissionId"/> over caller-owned storage.
+    /// It also tracks which chains the scan has met an unpassed block of, so the first one met is the chain's frontier.
+    /// </summary>
+    private readonly ref struct ChainScan
+    {
+        private const byte SeenBit = 0x80;
+        private readonly Span<int> _keys;
+        private readonly Span<byte> _states;
+
+        public ChainScan(Span<int> keys, Span<byte> states, int count)
+        {
+            _keys = keys[..count];
+            _states = states[..count];
+            _states.Clear();
+        }
+
+        public int Count => _keys.Length;
+
+        public int KeyAt(int index) => _keys[index];
+
+        /// <summary>The chain's state; a chain the scan does not track (queued mid-scan) reads as blocked.</summary>
+        public ChainState Get(int key)
+        {
+            int index = _keys.IndexOf(key);
+            return index < 0 ? ChainState.Blocked : (ChainState)(_states[index] & ~SeenBit);
+        }
+
+        public void Set(int key, ChainState state)
+        {
+            int index = _keys.IndexOf(key);
+            if (index >= 0)
+            {
+                _states[index] = (byte)((_states[index] & SeenBit) | (byte)state);
+            }
+        }
+
+        /// <summary>Pins an open chain's order; a holding or blocked chain keeps its state.</summary>
+        public void Break(int key)
+        {
+            if (Get(key) == ChainState.Open)
+            {
+                Set(key, ChainState.Broken);
+            }
+        }
+
+        /// <summary>
+        /// Whether the scan looks at <paramref name="block"/>: not passed, not applied, of a tracked chain that is not
+        /// blocked, and, with <paramref name="skipFrontier"/>, not its chain's frontier.
+        /// </summary>
+        public bool Visits(CommandBlock block, bool skipFrontier)
+        {
+            int index = block.IsPassed ? -1 : _keys.IndexOf(block.TransmissionId);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            bool frontier = (_states[index] & SeenBit) == 0;
+            _states[index] |= SeenBit;
+            return !block.IsApplied && !(frontier && skipFrontier) && (Get(block.TransmissionId) != ChainState.Blocked);
+        }
     }
 
     /// <summary>
@@ -5439,6 +5587,38 @@ public static class FlightPhysics
         aircraft.Ground.HoldElapsedSeconds = 0;
     }
 
+    /// <summary>
+    /// While a phase owns a grounded aircraft (lined up, taking off, taxiing), completion tracking does not run, so
+    /// the on-ground Altitude escape in <see cref="UpdateBlockCompletion"/> never reaches a climb issued there.
+    /// Marks every applied block's pending Altitude command complete on the ground, giving the same answer that
+    /// escape gives, so the chain's frontier passes the climb once the phases end. The altitude target stays armed for
+    /// departure, and no other command type is touched: the phase owns heading and navigation, and a WAIT
+    /// countdown runs elsewhere.
+    /// </summary>
+    private static void CompleteGroundedAltitudeCommands(AircraftState aircraft)
+    {
+        if (!aircraft.IsOnGround)
+        {
+            return;
+        }
+
+        foreach (CommandBlock block in aircraft.Queue.Blocks)
+        {
+            if (!block.IsApplied)
+            {
+                continue;
+            }
+
+            foreach (TrackedCommand cmd in block.Commands)
+            {
+                if (cmd.Type == TrackedCommandType.Altitude)
+                {
+                    cmd.IsComplete = true;
+                }
+            }
+        }
+    }
+
     private static void UpdateBlockCompletion(AircraftState aircraft, CommandBlock block, double deltaSeconds)
     {
         foreach (TrackedCommand cmd in block.Commands)
@@ -5460,6 +5640,7 @@ public static class FlightPhysics
                 // may fly here and the instruction is as done as it can be, which is what the chain advances on.
                 TrackedCommandType.Speed => (aircraft.Targets.TargetSpeed is null) || IsSpeedAssignmentHeldAtSpeedLimit(aircraft),
                 TrackedCommandType.Navigation => !aircraft.Targets.HasRouteToFly,
+                TrackedCommandType.Established => IsEstablishedOnRoute(aircraft),
                 TrackedCommandType.Immediate => true,
                 TrackedCommandType.Wait => CheckWaitComplete(block, aircraft, deltaSeconds),
                 _ => true,
@@ -5481,6 +5662,24 @@ public static class FlightPhysics
 
         double diff = NormalizeAngle(aircraft.TrueHeading.Degrees - target.Degrees);
         return Math.Abs(diff) < HeadingSnapDeg;
+    }
+
+    /// <summary>
+    /// Whether a JRADI or JAWY follow-on is established: its intercept has applied (the block is only checked once applied)
+    /// and the ground track is within the radial-intercept tolerance of the course to the active fix, the inbound course or the
+    /// airway leg. Track, not heading: in a crosswind the aircraft holds a wind-corrected heading off the course it flies. A
+    /// route already flown out counts as established, so the chain never waits past the fix.
+    /// </summary>
+    private static bool IsEstablishedOnRoute(AircraftState aircraft)
+    {
+        NavigationTarget? active = aircraft.Targets.NavigationRoute.Find(t => !t.IsClearanceLimitDirect);
+        if (active is null)
+        {
+            return true;
+        }
+
+        double course = GeoMath.BearingTo(aircraft.Position, active.Position);
+        return Math.Abs(NormalizeAngle(aircraft.TrueTrack.Degrees - course)) < RadialInterceptDeg;
     }
 
     private static bool CheckWaitComplete(CommandBlock block, AircraftState aircraft, double deltaSeconds)
@@ -5686,10 +5885,6 @@ public static class FlightPhysics
             if (index >= 0)
             {
                 queue.Blocks.RemoveAt(index);
-                if (queue.CurrentBlockIndex > index)
-                {
-                    queue.CurrentBlockIndex--;
-                }
             }
 
             string src = !string.IsNullOrEmpty(block.SourceCommandText)
@@ -5701,11 +5896,6 @@ public static class FlightPhysics
                 warning += $" — rest of transmission discarded ({discarded.Count}): {string.Join("; ", discarded)}";
             }
             aircraft.PendingWarnings.Add(warning);
-        }
-
-        if (queue.CurrentBlockIndex > queue.Blocks.Count)
-        {
-            queue.CurrentBlockIndex = queue.Blocks.Count;
         }
     }
 
@@ -5988,7 +6178,17 @@ public static class FlightPhysics
         }
 
         block.IsApplied = true;
-        CommandResult? result = block.ApplyAction?.Invoke(aircraft, true);
+        CommandBlock? previous = aircraft.Queue.Applying;
+        aircraft.Queue.Applying = block;
+        CommandResult? result;
+        try
+        {
+            result = block.ApplyAction?.Invoke(aircraft, true);
+        }
+        finally
+        {
+            aircraft.Queue.Applying = previous;
+        }
 
         if (result is not null && !result.Success)
         {
@@ -6032,9 +6232,32 @@ public static class FlightPhysics
         {
             string desc = RunwayIdentifier.ToDisplayDesignator(block.NaturalDescription.Length > 0 ? block.NaturalDescription : block.Description);
             aircraft.PendingNotifications.Add($"[Executing] {desc}");
+            DiscardFollowUpsSupersededByHeading(aircraft, block);
         }
 
         return BlockApplyOutcome.Applied;
+    }
+
+    /// <summary>
+    /// A heading that takes effect from a condition supersedes the other transmissions' pending JRADO, JRADI, JAWY and DEPART
+    /// follow-ons as a typed heading does, at the moment it fires: each is dropped with the rest of its transmission's chain,
+    /// and one warning names what was dropped.
+    /// </summary>
+    private static void DiscardFollowUpsSupersededByHeading(AircraftState aircraft, CommandBlock block)
+    {
+        if (block.IsNavigationFollowUp || !block.Commands.Exists(c => c.Type == TrackedCommandType.Heading))
+        {
+            return;
+        }
+
+        List<string> discarded = aircraft.Queue.DiscardFollowUpsSupersededBy(block);
+        if (discarded.Count == 0)
+        {
+            return;
+        }
+
+        string src = !string.IsNullOrEmpty(block.SourceCommandText) ? block.SourceCommandText : block.Description;
+        aircraft.PendingWarnings.Add($"{aircraft.Callsign} queue cleared by {src} (lost: {string.Join(", ", discarded)})");
     }
 
     /// <summary>
@@ -6126,21 +6349,15 @@ public static class FlightPhysics
             return;
         }
 
-        bool pendingWaitAhead = false;
+        var held = new TransmissionSet(stackalloc int[TransmissionSet.StackCapacity]);
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
             CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
-            {
-                continue;
-            }
-
-            if (block.Trigger is not { Type: BlockTriggerType.ReachFix } trigger)
-            {
-                continue;
-            }
-
-            if (!string.Equals(trigger.FixName, fixName, StringComparison.OrdinalIgnoreCase))
+            if (
+                block.IsApplied
+                || (block.Trigger is not { Type: BlockTriggerType.ReachFix } trigger)
+                || !string.Equals(trigger.FixName, fixName, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 continue;
             }
@@ -6150,24 +6367,32 @@ public static class FlightPhysics
                 Log.LogDebug("[AtFix] {Callsign}: fix {Fix} sequenced from route, firing block {Idx}", aircraft.Callsign, fixName, i);
             }
 
-            block.TriggerMet = true;
-
-            // A triggered WAIT latches its trigger here but is applied only once its countdown elapses,
-            // driven by the per-tick queue update — so the payload fires n seconds after the fix, not on
-            // it (issue #286). Blocks sequenced after it (`;`) latch too but must not fire ahead of the
-            // wait's payload, so hold them for the per-tick update as well.
-            if (block.IsWaitBlock)
+            if (FireEventTriggeredBlock(aircraft, block, ref held))
             {
-                pendingWaitAhead = true;
-            }
-            else if (!pendingWaitAhead && (ApplyBlock(aircraft, block) == BlockApplyOutcome.Failed))
-            {
-                // Chain remainder already discarded; stop scanning the mutated queue. A block deferred for its
-                // departure's release keeps its latched trigger and the scan goes on, so a later block on the same
-                // event still latches and fires.
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Fires a block whose event trigger (a fix sequenced, a ground entity reached) just happened. A triggered WAIT latches
+    /// its trigger here but is applied only once its countdown elapses, driven by the per-tick queue update — so the payload
+    /// fires n seconds after the event, not on it (issue #286). The blocks of its transmission sequenced after it (`;`)
+    /// latch too but must not fire ahead of the wait's payload, so they are held for the per-tick update as well; other
+    /// transmissions are not held. Returns true when the apply failed: the chain remainder is already discarded and the
+    /// caller stops scanning the mutated queue. A block deferred for its departure's release keeps its latched trigger and
+    /// the scan goes on, so a later block on the same event still latches and fires.
+    /// </summary>
+    private static bool FireEventTriggeredBlock(AircraftState aircraft, CommandBlock block, ref TransmissionSet held)
+    {
+        block.TriggerMet = true;
+        if (block.IsWaitBlock)
+        {
+            held.Add(block.TransmissionId);
+            return false;
+        }
+
+        return !held.Contains(block.TransmissionId) && (ApplyBlock(aircraft, block) == BlockApplyOutcome.Failed);
     }
 
     /// <summary>
@@ -6192,27 +6417,11 @@ public static class FlightPhysics
             return;
         }
 
-        bool pendingWaitAhead = false;
+        var held = new TransmissionSet(stackalloc int[TransmissionSet.StackCapacity]);
         for (int i = 0; i < queue.Blocks.Count; i++)
         {
             CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
-            {
-                continue;
-            }
-
-            if (block.Trigger is not { Type: BlockTriggerType.AtGroundEntity } trigger)
-            {
-                continue;
-            }
-
-            bool nodeMatch = arrivedNodeId.HasValue && trigger.GroundNodeId == arrivedNodeId.Value;
-            bool taxiwayMatch =
-                !string.IsNullOrEmpty(newTaxiwayName)
-                && !string.IsNullOrEmpty(trigger.GroundTaxiwayName)
-                && string.Equals(trigger.GroundTaxiwayName, newTaxiwayName, StringComparison.OrdinalIgnoreCase);
-
-            if (!nodeMatch && !taxiwayMatch)
+            if (block.IsApplied || !GroundEntityTriggerMatches(block.Trigger, arrivedNodeId, newTaxiwayName))
             {
                 continue;
             }
@@ -6222,41 +6431,47 @@ public static class FlightPhysics
                 Log.LogDebug(
                     "[AtGround] {Callsign}: ground entity reached (kind={Kind}, node={Node}, taxiway={Taxi}), firing block {Idx}",
                     aircraft.Callsign,
-                    trigger.GroundKind,
+                    block.Trigger?.GroundKind,
                     arrivedNodeId,
                     newTaxiwayName,
                     i
                 );
             }
 
-            block.TriggerMet = true;
-
-            // See NotifyFixSequenced: a triggered WAIT latches here and applies its payload only after
-            // its countdown; blocks sequenced after it (`;`) are held for the per-tick update too.
-            if (block.IsWaitBlock)
+            if (FireEventTriggeredBlock(aircraft, block, ref held))
             {
-                pendingWaitAhead = true;
-            }
-            else if (!pendingWaitAhead && (ApplyBlock(aircraft, block) == BlockApplyOutcome.Failed))
-            {
-                // Chain remainder already discarded; stop scanning the mutated queue. A block deferred for its
-                // departure's release keeps its latched trigger and the scan goes on, so a later block on the same
-                // event still latches and fires.
                 return;
             }
         }
+    }
+
+    /// <summary>True when an AT ground-entity trigger names the node arrived at or the taxiway just entered.</summary>
+    private static bool GroundEntityTriggerMatches(BlockTrigger? trigger, int? arrivedNodeId, string? newTaxiwayName)
+    {
+        if (trigger is not { Type: BlockTriggerType.AtGroundEntity })
+        {
+            return false;
+        }
+
+        bool nodeMatch = arrivedNodeId.HasValue && (trigger.GroundNodeId == arrivedNodeId.Value);
+        return nodeMatch
+            || (
+                !string.IsNullOrEmpty(newTaxiwayName)
+                && !string.IsNullOrEmpty(trigger.GroundTaxiwayName)
+                && string.Equals(trigger.GroundTaxiwayName, newTaxiwayName, StringComparison.OrdinalIgnoreCase)
+            );
     }
 
     /// <summary>
     /// Called by <see cref="Phases.PhaseRunner"/> after a phase advances to a new
     /// current phase. If the new phase is a "wait" phase (has at least one
     /// unsatisfied clearance requirement, e.g. HoldingShortPhase waiting on
-    /// RunwayCrossing) and the head of the command queue is an untriggered,
+    /// RunwayCrossing) and the head of a transmission's chain is an untriggered,
     /// unapplied block whose commands the new phase accepts, fire it now. This
     /// lets sequential compounds like <c>TAXI ... ; CTO MRT</c> auto-fire the
     /// second block when the aircraft reaches the hold-short —
     /// <see cref="UpdateCommandQueue"/> early-returns while a phase is active,
-    /// and <see cref="ApplyReadyConditionalBlocks"/> stops at the first
+    /// and <see cref="ScanTriggeredBlocks"/> stops each chain at its first
     /// untriggered block, so without this hook the queued block would sit
     /// untouched until the next user dispatch.
     ///
@@ -6285,7 +6500,7 @@ public static class FlightPhysics
 
         // Fire when the aircraft reaches a phase that waits for input (an unsatisfied clearance
         // requirement). Additionally, fire a queued runway-crossing clearance as soon as the
-        // aircraft is taxiing again (see the CROSS guard in the loop below): a CROSS block
+        // aircraft is taxiing again (see the CROSS guard in PhaseAdvanceAccepts): a CROSS block
         // pre-clears an upcoming crossing and is idempotent, so applying it while moving lets
         // "RES; CROSS 28L" clear 28L before arrival instead of installing a transient
         // HoldingShortPhase — and its spurious "holding short" warning — at the runway crossed.
@@ -6298,52 +6513,36 @@ public static class FlightPhysics
                 break;
             }
         }
+
         bool movingGroundPhase = currentPhase is Phases.Ground.TaxiingPhase or Phases.Ground.CrossingRunwayPhase;
         if (!isWaitPhase && !movingGroundPhase)
         {
             return;
         }
 
-        // Locate the head unapplied block (matches ApplyReadyConditionalBlocks's
-        // start-index logic: skip the current applied block, then look forward).
-        int startIndex = queue.CurrentBlock is { IsApplied: true } ? queue.CurrentBlockIndex + 1 : queue.CurrentBlockIndex;
-        for (int i = startIndex; i < queue.Blocks.Count; i++)
+        FireFirstAcceptedChainHead(aircraft, currentPhase, isWaitPhase);
+    }
+
+    /// <summary>
+    /// Fires the first chain head (a transmission's first unapplied block) the new phase accepts, in queue order; a head it
+    /// does not accept leaves its chain queued and the scan moves on to the next chain. Fires at most one block.
+    /// </summary>
+    private static void FireFirstAcceptedChainHead(AircraftState aircraft, Phase currentPhase, bool isWaitPhase)
+    {
+        CommandQueue queue = aircraft.Queue;
+        var seen = new TransmissionSet(stackalloc int[TransmissionSet.StackCapacity]);
+        for (int i = 0; i < queue.Blocks.Count; i++)
         {
             CommandBlock block = queue.Blocks[i];
-            if (block.IsApplied)
+            if (block.IsApplied || seen.Contains(block.TransmissionId))
             {
                 continue;
             }
 
-            // Triggered blocks are handled by their own trigger pathway.
-            if (block.Trigger is not null)
+            seen.Add(block.TransmissionId);
+            if (!PhaseAdvanceAccepts(currentPhase, block, isWaitPhase))
             {
-                return;
-            }
-
-            // Untriggered head block: ask the new current phase whether it accepts
-            // every command in the block. Any Rejected leaves the block queued.
-            if (block.ParsedCommands is not { Count: > 0 } parsed)
-            {
-                return;
-            }
-
-            // On a moving (non-wait) ground phase, only eager-apply runway-crossing clearances.
-            // Other queued blocks (e.g. HOLD) keep waiting for the next hold-short phase so the
-            // aircraft doesn't stop prematurely.
-            if (!isWaitPhase && !parsed.Exists(c => c is CrossRunwayCommand))
-            {
-                return;
-            }
-
-            foreach (ParsedCommand cmd in parsed)
-            {
-                CanonicalCommandType canonical = CommandDescriber.ToCanonicalType(cmd);
-                CommandAcceptance acceptance = currentPhase.CanAcceptCommand(canonical);
-                if (acceptance.IsRejected)
-                {
-                    return;
-                }
+                continue;
             }
 
             if (Log.IsEnabled(LogLevel.Debug))
@@ -6363,6 +6562,35 @@ public static class FlightPhysics
             _ = ApplyBlock(aircraft, block);
             return;
         }
+    }
+
+    /// <summary>
+    /// Whether the new phase takes a chain head: an untriggered block (a triggered one is handled by its own trigger
+    /// pathway) whose every command the phase accepts. On a moving (non-wait) ground phase only a runway-crossing
+    /// clearance is eagerly applied; other queued blocks (e.g. HOLD) keep waiting for the next hold-short phase so the
+    /// aircraft doesn't stop prematurely.
+    /// </summary>
+    private static bool PhaseAdvanceAccepts(Phase currentPhase, CommandBlock block, bool isWaitPhase)
+    {
+        if ((block.Trigger is not null) || (block.ParsedCommands is not { Count: > 0 } parsed))
+        {
+            return false;
+        }
+
+        if (!isWaitPhase && !parsed.Exists(c => c is CrossRunwayCommand))
+        {
+            return false;
+        }
+
+        foreach (ParsedCommand cmd in parsed)
+        {
+            if (currentPhase.CanAcceptCommand(CommandDescriber.ToCanonicalType(cmd)).IsRejected)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // --- Math helpers ---

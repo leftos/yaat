@@ -25,6 +25,10 @@
 - `ADCT` and `ADCTF` responses now list the aircraft's whole route after the appended fixes.
 
 ### Fixed
+- Presets and chained commands no longer stall behind an unrelated earlier instruction: each transmission's commands now advance on their own.
+- A `;` after `JRADO`, `JRADI`, `JAWY` or `DEPART` now waits until the aircraft joins the radial, is established on it, or reaches the fix.
+- A heading given before a `JRADO`, `JRADI`, `JAWY` or `DEPART` takes effect cancels the pending join and the rest of that transmission.
+- `JAWY` with no airway fix behind the aircraft now intercepts the airway instead of possibly never turning onto it.
 - The Follow traffic menu now offers traffic a VFR aircraft has reported in sight, instead of greying it out.
 - Arrivals descending via a STAR or cleared to cross a fix hold their altitude and speed until top of descent, changing speed only just before each restriction.
 - Every release package now ships NOTICE and the bundled fonts' licence texts beside the program.

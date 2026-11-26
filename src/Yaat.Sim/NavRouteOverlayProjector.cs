@@ -119,12 +119,13 @@ public static class NavRouteOverlayProjector
     /// <summary>
     /// A hold that fires as <paramref name="last"/> is sequenced (one of the blocks <see cref="QueuedHolds"/> draws): the
     /// hold's phase puts its fix back on the route before the route end is judged, so the terminal course past it is never
-    /// flown. A hold inside a WAIT block, or behind a WAIT block at the same fix, fires only once the wait has run out
-    /// (<see cref="FlightPhysics.NotifyFixSequenced"/> latches a WAIT and holds back what follows it), so the terminal
-    /// course is flown meanwhile and stays drawn.
+    /// flown. A hold inside a WAIT block, or behind a WAIT block of its own transmission at the same fix, fires only once
+    /// the wait has run out (<see cref="FlightPhysics.NotifyFixSequenced"/> latches a WAIT and holds back what its
+    /// transmission sequences after it), so the terminal course is flown meanwhile and stays drawn.
     /// </summary>
     private static bool HoldQueuedAt(AircraftState aircraft, NavigationTarget last)
     {
+        var held = new TransmissionSet(stackalloc int[TransmissionSet.StackCapacity]);
         foreach (CommandBlock block in aircraft.Queue.Blocks)
         {
             if (
@@ -138,10 +139,11 @@ public static class NavRouteOverlayProjector
 
             if (block.IsWaitBlock)
             {
-                return false;
+                held.Add(block.TransmissionId);
+                continue;
             }
 
-            if (block.ParsedCommands?.OfType<HoldingPatternCommand>().Any() == true)
+            if (!held.Contains(block.TransmissionId) && (block.ParsedCommands?.OfType<HoldingPatternCommand>().Any() == true))
             {
                 return true;
             }

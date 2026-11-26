@@ -156,19 +156,16 @@ public class QueuedBlockScriptedFlagRestoreTests
     }
 
     /// <summary>
-    /// A block the student's partial supersede split is rebuilt by <c>CommandDispatcher.SplitBlockNonConflicting</c>
-    /// around the superseding dispatch's context, so its survivor is unscripted even though the block it came from was
-    /// scripted — and that survivor fires the same way after a snapshot restore as it does live.
+    /// A scripted block whose lateral part the student's lateral instruction supersedes is dropped whole, its speed part
+    /// included: nothing is split off, so the speed never fires, live or after a restore.
     /// </summary>
     [Fact]
-    public void ScriptedBlockSplitByStudentDispatch_SurvivorRestoresAsStudentIssued()
+    public void ScriptedBlockSupersededByStudentLateral_IsDroppedWhole()
     {
         AircraftState aircraft = AirborneAtFix();
         SimulationEngine live = NewEngine();
         live.World.AddAircraft(aircraft);
 
-        // A scripted block holding a lateral and a speed command: the student's lateral supersede conflicts with the
-        // lateral half only, so the split rebuilds the block around the surviving speed command.
         string scripted = $"AT {Fix} FH 270 SPD 210";
         CommandResult queued = CommandDispatcher.DispatchCompound(
             Parse(scripted),
@@ -186,21 +183,15 @@ public class QueuedBlockScriptedFlagRestoreTests
         );
         Assert.True(supersede.Success, supersede.Message);
 
-        CommandBlock survivor = Assert.Single(aircraft.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
-        Assert.NotSame(original, survivor);
-        Assert.False(survivor.IsScenarioScripted, "the student's supersede should have left an unscripted survivor");
+        Assert.DoesNotContain(aircraft.Queue.Blocks, b => b.TransmissionId == original.TransmissionId);
+        Assert.DoesNotContain(aircraft.Queue.Blocks, b => b.Trigger is { Type: BlockTriggerType.ReachFix });
+        for (int second = 0; second < TickBudgetSeconds; second++)
+        {
+            live.TickOneSecond();
+        }
 
-        StateSnapshotDto snapshot = live.CaptureSnapshot();
-
-        // The same survivor fired twice: live on the engine that dispatched it, and after a restore.
-        TickUntilSpeedApplied(live, aircraft);
-        AircraftState afterRestore = RestoreAndFire(snapshot);
-
-        Assert.True(
-            aircraft.Targets.SpeedCommandIsControllerIssued,
-            "the unscripted survivor's live firing did not claim the speed, so the probe is not measuring the student's dispatch"
-        );
-        Assert.Equal(aircraft.Targets.SpeedCommandIsControllerIssued, afterRestore.Targets.SpeedCommandIsControllerIssued);
+        Assert.False(aircraft.Targets.HasExplicitSpeedCommand, "the dropped block's SPD 210 fired");
+        Assert.Null(aircraft.Targets.AssignedSpeed);
     }
 
     /// <summary>
