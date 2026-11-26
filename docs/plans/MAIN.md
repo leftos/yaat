@@ -9,14 +9,12 @@
 ## Radar bar per Scope profile (feat/scope-dcb-per-profile)
 
 - [ ] YAAT-2855 Radar view: a STARS-like DCB on the STARS template and an ERAM-like DCB on ERAM; Mixed keeps today's · release vNext
-  - [ ] YAAT-2870 Radar bar: YAAT menu tile on the STARS and ERAM bars · release vNext
-    - [ ] YAAT-2885 Radar bar: STARS DCB YAAT page for the YAAT-only controls · release vNext
-    - [ ] YAAT-2886 Radar bar: ERAM YAAT menu for the YAAT-only controls · release vNext
-    - [ ] YAAT-2887 Radar bar: tear-off keys and copies for bar-only and YAAT-tile buttons · release vNext
-    - [/] YAAT-2888 Radar bar: what the profile and pref-set toolbar arrays mean on the STARS and ERAM bars · release vNext
-    - [ ] YAAT-2889 Radar bar: user guide, Scope decision text and the toolbar GuideCapture scene for the per-profile bars · release vNext
   - [ ] YAAT-2878 Merge feat/scope-dcb-per-profile to main (#1412)
-  - [ ] YAAT-2893 Radar bar: hide the STARS DCB, ERAM toolbar or classic bar to a small SHOW tile · release vNext
+- [ ] YAAT-2894 Popping the Scope out may leave the docked DCB's submenu state on the shared view model
+- [ ] YAAT-2895 A Scope profile switch leaves the open toolbar tray, and an armed ring tool, on the next bar
+- [ ] YAAT-2896 ERAM YAAT menu may clip at the right edge of a narrow Radar window
+- [ ] YAAT-2897 STARS YAAT page: OTHERS and AUTO do not light while pinned
+- [ ] YAAT-2903 Radar under the ERAM profile shows two empty boxes at the scope's left
 
 ## YAATEdit in YAAT
 
@@ -1832,5 +1830,5 @@
 - [taxi-append.md](taxi-append.md) — Taxi append
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
-- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT-2889, YAAT Scope (feat/yaat-scope)
+- [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
 - [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
