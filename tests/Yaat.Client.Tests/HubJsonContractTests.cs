@@ -102,6 +102,61 @@ public class HubJsonContractTests
         Assert.Equal(new EramCrrGroupHubDto("BOSOX", "Coral", 37.7, -122.2), Assert.Single(dto.Groups));
     }
 
+    // The coordination list push and its element types, read through the source-gen context with the server's wire names.
+    [Fact]
+    public void CoordinationListsChangedDto_ReadsTheServersWireNamesThroughYaatHubJsonContext()
+    {
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(CoordinationListHubDto)));
+        Assert.NotNull(YaatHubJsonContext.Default.GetTypeInfo(typeof(CoordinationItemHubDto)));
+        const string json = """
+            {
+              "lists": [
+                {
+                  "listId": "POAK",
+                  "title": "OAK DEP",
+                  "autoAcknowledge": true,
+                  "senderTcps": [
+                    "3O"
+                  ],
+                  "receiverTcps": [
+                    "4U"
+                  ],
+                  "items": [
+                    {
+                      "id": "POAK-1",
+                      "callsign": "SWA1234",
+                      "status": "Acknowledged",
+                      "lineNumber": 7,
+                      "aircraftType": "B738",
+                      "beacon": "0425",
+                      "category": "F",
+                      "exitFix": "SJC",
+                      "message": "RWY 30",
+                      "originTcp": "3O",
+                      "expireElapsedSeconds": 123.5
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        var dto = (CoordinationListsChangedDto?)
+            JsonSerializer.Deserialize(json, YaatHubJsonContext.Default.GetTypeInfo(typeof(CoordinationListsChangedDto))!);
+
+        Assert.NotNull(dto);
+        CoordinationListHubDto list = Assert.Single(dto.Lists);
+        Assert.Equal("POAK", list.ListId);
+        Assert.Equal("OAK DEP", list.Title);
+        Assert.True(list.AutoAcknowledge);
+        Assert.Equal(["3O"], list.SenderTcps);
+        Assert.Equal(["4U"], list.ReceiverTcps);
+        Assert.Equal(
+            new CoordinationItemHubDto("POAK-1", "SWA1234", "Acknowledged", 7, "B738", "0425", "F", "SJC", "RWY 30", "3O", 123.5),
+            Assert.Single(list.Items)
+        );
+    }
+
     // An older server sends a conflict pair with only its id and callsigns: the pair reads as an unsuppressed, unacknowledged
     // STARS pair shown to no ERAM facility.
     [Fact]

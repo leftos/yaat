@@ -140,6 +140,8 @@ CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (
                                # successful mutation calls SimulationEngine.MarkCoordinationChanged; an RD / RDH for a recalled item inside its linger revives it in place
 CoordinationAuthority.cs       # The TCPs a position answers for on the coordination lists (its own plus every TCP consolidated under it); AnswersFor / IsSender / IsReceiver,
                                # the one rule the verbs and yaat-server's F13 entry share
+CoordinationListProjection.cs  # Read-only projection of the channels into the lists a display draws: Build(channels, findAircraft) → CoordinationListView / CoordinationItemView (every channel and item kept, Unsent
+                               # included, items in sequence order; type, beacon and category follow CRC and are empty when the engine no longer holds the aircraft; expiry in sim-elapsed seconds). yaat-server's hub CoordinationListsChanged is built from it
 
 # Simulation/Bookmarks/ — timeline-bookmark verb logic, engine-owned (SimulationEngine.Bookmarks.cs owns the bodies + dirty flag)
 BookmarkCommandHandler.cs      # Static dispatch of BM ADD / RENAME / DELETE / DEL ALL (HandleAdd/HandleRename/HandleDelete/HandleDeleteAll) onto the engine bodies;

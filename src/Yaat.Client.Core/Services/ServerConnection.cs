@@ -96,6 +96,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
     public event Action<BookmarksChangedDto>? BookmarksChanged;
     public event Action<ConflictAlertsChangedDto>? ConflictAlertsChanged;
     public event Action<EramCrrGroupsChangedDto>? EramCrrGroupsChanged;
+    public event Action<CoordinationListsChangedDto>? CoordinationListsChanged;
     public event Action<AtpaResultsChangedDto>? AtpaResultsChanged;
     public event Action<PositionDisplayConfigDto>? PositionDisplayChanged;
     public event Action<ScenarioLoadedDto>? ScenarioLoaded;
@@ -253,6 +254,7 @@ public sealed class ServerConnection : IStripsTransport, ITdlsTransport, IAsyncD
         _connection.On<BookmarksChangedDto>("BookmarksChanged", dto => BookmarksChanged?.Invoke(dto));
         _connection.On<ConflictAlertsChangedDto>("ConflictAlertsChanged", dto => ConflictAlertsChanged?.Invoke(dto));
         _connection.On<EramCrrGroupsChangedDto>("EramCrrGroupsChanged", dto => EramCrrGroupsChanged?.Invoke(dto));
+        _connection.On<CoordinationListsChangedDto>("CoordinationListsChanged", dto => CoordinationListsChanged?.Invoke(dto));
         _connection.On<AtpaResultsChangedDto>("AtpaResultsChanged", dto => AtpaResultsChanged?.Invoke(dto));
 
         _connection.On<PositionDisplayConfigDto>("PositionDisplayChanged", dto => PositionDisplayChanged?.Invoke(dto));
@@ -1916,6 +1918,8 @@ public record RoomStateDto(
     bool RpoShowPilotSpeech = false,
     FlightStripsConfigDto? FlightStripsConfig = null,
     RundownDto? Rundown = null,
+    // The room's STARS coordination (RD) lists, so a joining / reconnecting client holds them before the next push.
+    List<CoordinationListHubDto>? CoordinationLists = null,
     List<TimerDto>? Timers = null,
     List<TimelineBookmarkDto>? Bookmarks = null,
     List<ConflictAlertDto>? ConflictAlerts = null,
@@ -2193,6 +2197,41 @@ public record EramCrrGroupHubDto(string Label, string Color, double Latitude, do
 
 /// <summary>The room's whole CRR group list, ordered by label, pushed whenever a group is created, replaced, recolored or deleted.</summary>
 public record EramCrrGroupsChangedDto(List<EramCrrGroupHubDto> Groups);
+
+/// <summary>
+/// One STARS coordination item as the training hub carries it. <see cref="Status"/> is the <c>StarsCoordinationStatus</c>
+/// member name; <see cref="LineNumber"/> is the room's STARS line number for the callsign (null when none is assigned);
+/// <see cref="ExpireElapsedSeconds"/> is sim-elapsed seconds, so a paused sim holds the countdown.
+/// </summary>
+public record CoordinationItemHubDto(
+    string Id,
+    string Callsign,
+    string Status,
+    int? LineNumber,
+    string AircraftType,
+    string Beacon,
+    string Category,
+    string ExitFix,
+    string Message,
+    string OriginTcp,
+    double? ExpireElapsedSeconds
+);
+
+/// <summary>
+/// One STARS coordination (RD) list: the channel's list id and adapted title, whether any receiver auto-acknowledges,
+/// its sender and receiver TCPs, and every item in ascending sequence order.
+/// </summary>
+public record CoordinationListHubDto(
+    string ListId,
+    string Title,
+    bool AutoAcknowledge,
+    List<string> SenderTcps,
+    List<string> ReceiverTcps,
+    List<CoordinationItemHubDto> Items
+);
+
+/// <summary>The room's whole set of STARS coordination lists, unfiltered by position, pushed whenever any of them changes.</summary>
+public record CoordinationListsChangedDto(List<CoordinationListHubDto> Lists);
 
 /// <summary>
 /// One ATPA in-trail pairing: <see cref="Callsign"/> is the trailing (subject) aircraft and

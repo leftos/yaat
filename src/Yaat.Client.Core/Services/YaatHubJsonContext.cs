@@ -85,6 +85,9 @@ namespace Yaat.Client.Services;
 [JsonSerializable(typeof(ConflictAlertsChangedDto))]
 [JsonSerializable(typeof(EramCrrGroupsChangedDto))]
 [JsonSerializable(typeof(EramCrrGroupHubDto))]
+[JsonSerializable(typeof(CoordinationListsChangedDto))]
+[JsonSerializable(typeof(CoordinationListHubDto))]
+[JsonSerializable(typeof(CoordinationItemHubDto))]
 // Strip-side broadcast payloads (FlightStripsStateDto, List<StripItemDto>)
 // live in YaatStripsHubJsonContext (Yaat.Client.Strips) so the WASM client
 // can ship without Core. The resolver chain in
