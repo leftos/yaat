@@ -1011,6 +1011,7 @@ public partial class MainViewModel
         ApplyBookmarks(state.Bookmarks);
         ApplyConflictAlerts(state.ConflictAlerts);
         ApplyCrrGroups(state.EramCrrGroups);
+        ApplyCoordinationLists(state.CoordinationLists);
         ApplyAtpaResults(state.AtpaResults);
 
         // A member's load may be running: the server refuses load, unload, restart and rewind until it finishes.

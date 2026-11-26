@@ -1073,6 +1073,8 @@ public partial class MainViewModel
         ReplaceConflictAlerts([]);
         // The server sends an empty CRR list on unload; a client leaving the room hears nothing, so it drops its own.
         ApplyCrrGroups([]);
+        // The server sends an empty coordination set on unload; a client leaving the room hears nothing, so it drops its own.
+        ApplyCoordinationLists([]);
         ClearBookmarks();
         InitialDelayedSpawnCount = 0;
         PendingDelayedSpawnCount = 0;

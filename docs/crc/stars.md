@@ -528,7 +528,7 @@ The entry of a flight in a coordination list is called a coordination message. A
 
 - **Unsent:** Displayed in steady green at sender (tower) position.
 - **Unacknowledged:** Displayed at sender and receiver positions in blinking green to indicate receiver acknowledgement is needed.
-- **Acknowledged:** Displayed at sender and receiver positions in steady green and includes the plus symbol (+).
+- **Acknowledged:** Displayed at sender and receiver positions steady and includes the plus symbol (+). CRC draws it in the caution colour (yellow), not green.
 - **Recalled:** At the receiver’s position, displayed in blinking green with “RECALL” in the text area for an adapted interval before the entire message is removed from the list. At the sender’s position, displayed with steady green and with “RECALL” in the text area for an adapted interval, and then displayed as Unsent. If there was text associated with the message, the text is displayed after the adapted interval.
 - **Departure Expiration Warning:** Displayed at sender and receiver positions with a blinking yellow color to indicate that the corresponding flight has not yet departed and the acknowledgement of the flight’s coordination message is about to expire (will become Unacknowledged).
 - **Void Unacknowledged:** Displayed at sender and receiver positions with a blinking green color and an expired time stamp to indicate that the corresponding flight has not yet departed and the acknowledgement of the flight’s coordination message has expired, rendering the message as Unacknowledged. Receiver acknowledgement is needed.
