@@ -104,6 +104,10 @@ namespace Yaat.Client.Views.Scope;
 /// The template a track nobody owns draws with under <see cref="ScopeTemplates.MixedId"/> (the zoom band's
 /// <see cref="Profiles.ScopeZoomBand.Unowned"/>): <see cref="ScopeTemplates.StarsId"/> or <see cref="ScopeTemplates.EramId"/>.
 /// </param>
+/// <param name="RundownRows">
+/// The rows of the room's merged RUNDOWN list (<see cref="Scope.RundownRows.Build"/>), built on the UI thread; null is none. The
+/// frame lays them out at the canvas's top-left (<see cref="ScopeRundownList"/>).
+/// </param>
 public sealed record ScopeFrameInput(
     IReadOnlyList<AircraftModel> Aircraft,
     AircraftModel? Selected,
@@ -138,7 +142,8 @@ public sealed record ScopeFrameInput(
     IReadOnlyDictionary<string, SKPoint>? DeconflictOffsets = null,
     IReadOnlyList<ConflictAlertDto>? EramConflicts = null,
     ScopeTextMetrics? EramMetrics = null,
-    string UnownedTemplateId = ScopeTemplates.EramId
+    string UnownedTemplateId = ScopeTemplates.EramId,
+    IReadOnlyList<RundownRow>? RundownRows = null
 )
 {
     /// <summary>
@@ -313,6 +318,9 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// </summary>
     public string UnownedTemplateId { get; init; } = ScopeTemplates.EramId;
 
+    /// <summary>The RUNDOWN overlay this frame draws at the canvas's top-left (<see cref="ScopeFrameInput.RundownRows"/>).</summary>
+    public ScopeRundownList Rundown { get; init; } = ScopeRundownList.Empty;
+
     /// <summary>The template <paramref name="ac"/> draws with in this frame (<see cref="ScopeOwnerKind.Resolve"/>).</summary>
     public string TemplateIdOf(AircraftModel ac) => ScopeOwnerKind.Resolve(TemplateId, ac, UnownedTemplateId);
 
@@ -353,7 +361,11 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         tracks.AddRange(locked);
         tracks.AddRange(hovered);
         input.IntentPaths.Sweep();
-        return new ScopeFrame(input.TemplateId, tracks) { UnownedTemplateId = input.UnownedTemplateId };
+        return new ScopeFrame(input.TemplateId, tracks)
+        {
+            UnownedTemplateId = input.UnownedTemplateId,
+            Rundown = ScopeRundownList.Layout(input.RundownRows ?? [], input.Metrics, flashOn),
+        };
     }
 
     /// <summary>
@@ -1217,6 +1229,28 @@ public sealed partial class ScopeRenderer : IDisposable
         _rangeBearingRenderer.Draw(canvas, vp, snapshot.RangeBearingLines, snapshot.PendingRangeBearingLine, snapshot.RblReadoutRects);
         _minSepRenderer.Draw(canvas, vp, snapshot.MinSep);
         DrawMapToolsOverlay(canvas, snapshot, vp);
+
+        // Over everything: the RUNDOWN list is screen-space text at the top-left.
+        DrawRundown(canvas, snapshot.Frame.Rundown, snapshot);
+    }
+
+    /// <summary>
+    /// Draws <paramref name="list"/>'s lines in the STARS track font, each in its colour with its baseline at its
+    /// <see cref="ScopeRundownLine.Baseline"/>.
+    /// </summary>
+    private void DrawRundown(SKCanvas canvas, ScopeRundownList list, ScopeRenderSnapshot snapshot)
+    {
+        if (list.Lines.Count == 0)
+        {
+            return;
+        }
+
+        SKFont font = (snapshot.StarsStrikePx is { } px) ? RealisticFont(px) : FontFor(snapshot.FontSize);
+        foreach (ScopeRundownLine line in list.Lines)
+        {
+            _textPaint.Color = line.Color;
+            DrawTextAt(canvas, line.Text, new SKPoint(line.Rect.Left, line.Baseline), font, _textPaint);
+        }
     }
 
     /// <summary>

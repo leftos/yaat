@@ -32,6 +32,8 @@
       LocalRings="{Binding LocalRings}"
       LocalPtlCallsigns="{Binding LocalPtlCallsigns}"
       CrrGroups="{Binding Main.CrrGroups}"
+      CoordinationLists="{Binding Main.CoordinationLists}"
+      ScenarioElapsedSeconds="{Binding Main.ScenarioElapsedSeconds}"
       EramConflicts="{Binding Main.EramConflictAlerts}"
       Lens="{Binding Lens}"
       LensPathCallsigns="{Binding LensPathCallsigns}"

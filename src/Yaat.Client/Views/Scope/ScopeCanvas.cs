@@ -136,6 +136,22 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     >(nameof(CrrGroups), defaultValue: []);
 
     /// <summary>
+    /// The room's STARS coordination lists (<c>MainViewModel.CoordinationLists</c>, replaced whole); read in
+    /// <see cref="BuildFrame"/> into the RUNDOWN rows, never on the render thread.
+    /// </summary>
+    public static readonly StyledProperty<IReadOnlyList<CoordinationListHubDto>> CoordinationListsProperty = AvaloniaProperty.Register<
+        ScopeCanvas,
+        IReadOnlyList<CoordinationListHubDto>
+    >(nameof(CoordinationLists), defaultValue: []);
+
+    /// <summary>
+    /// The sim's elapsed seconds (<c>MainViewModel.ScenarioElapsedSeconds</c>), the clock the RUNDOWN rows' countdowns read.
+    /// </summary>
+    public static readonly StyledProperty<double> ScenarioElapsedSecondsProperty = AvaloniaProperty.Register<ScopeCanvas, double>(
+        nameof(ScenarioElapsedSeconds)
+    );
+
+    /// <summary>
     /// The room's ERAM conflict pairs (<c>MainViewModel.EramConflictAlerts</c>, replaced whole); read in <see cref="BuildFrame"/>,
     /// never on the render thread.
     /// </summary>
@@ -348,6 +364,18 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     {
         get => GetValue(CrrGroupsProperty);
         set => SetValue(CrrGroupsProperty, value);
+    }
+
+    public IReadOnlyList<CoordinationListHubDto> CoordinationLists
+    {
+        get => GetValue(CoordinationListsProperty);
+        set => SetValue(CoordinationListsProperty, value);
+    }
+
+    public double ScenarioElapsedSeconds
+    {
+        get => GetValue(ScenarioElapsedSecondsProperty);
+        set => SetValue(ScenarioElapsedSecondsProperty, value);
     }
 
     public IReadOnlyList<ConflictAlertDto> EramConflicts
@@ -764,12 +792,14 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
     }
 
     /// <summary>
-    /// Whether <paramref name="property"/> sets the vector, history, ring, PTL, pilot lens, CRR or top-down layer (its TDM-only
-    /// maps among them), which the frame lays out.
+    /// Whether <paramref name="property"/> sets the vector, history, ring, PTL, pilot lens, CRR, RUNDOWN or top-down layer (its
+    /// TDM-only maps among them), which the frame lays out.
     /// </summary>
     private static bool IsLayerProperty(AvaloniaProperty property) =>
         (property == VectorMinutesProperty)
         || (property == CrrGroupsProperty)
+        || (property == CoordinationListsProperty)
+        || (property == ScenarioElapsedSecondsProperty)
         || (property == EramConflictsProperty)
         || (property == VectorOwnershipProperty)
         || (property == HistoryCountProperty)
@@ -1255,7 +1285,8 @@ public sealed partial class ScopeCanvas : MapCanvasBase, IDisposable
                     SyncLeaderDirection: Preferences?.SyncStudentLeaderDirection ?? false,
                     EramConflicts: EramConflicts,
                     EramMetrics: eramMetrics,
-                    UnownedTemplateId: UnownedTemplateId
+                    UnownedTemplateId: UnownedTemplateId,
+                    RundownRows: RundownRows.Build(CoordinationLists, ScenarioElapsedSeconds)
                 ),
                 stepDeconfliction
             )
