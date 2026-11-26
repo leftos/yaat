@@ -6,7 +6,7 @@ ERAM-template tracks on the Radar now draw the way CRC's ERAM display does, so i
 
 Settings › Appearance › Scope text picks how STARS and ERAM datablocks draw: Compact keeps the system monospace font, and Realistic draws Terminus Bold at CRC's text sizes, with its own size for STARS and for ERAM.
 
-![The Radar in the Mixed template with ERAM-look tracks beside STARS tracks, both in realistic text](img/whats-new-eram-look.png)
+![The Radar under the Mixed profile with an ERAM-look track beside STARS tracks, both in realistic text](img/whats-new-eram-look.png)
 
 ## Rundowns
 
@@ -21,6 +21,10 @@ View › Bars › Rundowns… opens a Rundowns window with the same lists, one s
 ## The Radar bar follows the profile
 
 The bar across the top of the Radar now matches the room's Radar profile. Under STARS it is CRC's STARS DCB, a black band of green bevelled tiles with its Main page, submenus and Aux page (SHIFT); under ERAM it is CRC's ERAM Master Toolbar with its menus; under Mixed it is the classic navy bar.
+
+![The Radar under the STARS profile with the STARS DCB on its Main page: RANGE, PLACE CNTR, RR, MAPS, the WX tiles, BRITE, CHAR SIZE, PREF, SHIFT, HIDE DCB and YAAT](img/whats-new-stars-dcb.png)
+
+![The Radar under the ERAM profile with CRC's ERAM Master Toolbar at rest: ATC TOOLS, RANGE, BRIGHT, FONT, DB FIELDS, VECTOR, VIEWS, GEOMAP, RADAR FILTER, PREFSET, HIDE TOOLBAR and YAAT](img/whats-new-eram-toolbar.png)
 
 YAAT's own controls (profile, template, others, tools, TDM, MVA, display, DB, views and the pilot lens) are on the DCB's YAAT page and in the Master Toolbar's YAAT menu. Any bar hides to a small SHOW tile with its HIDE button or `.scope bar hide`, and `.scope bar show` brings it back. Toolbar tiles no longer tear off onto the scope; view cards still float.
 
