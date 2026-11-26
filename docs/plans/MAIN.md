@@ -13,9 +13,10 @@
     - [ ] YAAT-2885 Radar bar: STARS DCB YAAT page for the YAAT-only controls · release vNext
     - [ ] YAAT-2886 Radar bar: ERAM YAAT menu for the YAAT-only controls · release vNext
     - [ ] YAAT-2887 Radar bar: tear-off keys and copies for bar-only and YAAT-tile buttons · release vNext
-    - [ ] YAAT-2888 Radar bar: what the profile and pref-set toolbar arrays mean on the STARS and ERAM bars · release vNext
+    - [/] YAAT-2888 Radar bar: what the profile and pref-set toolbar arrays mean on the STARS and ERAM bars · release vNext
     - [ ] YAAT-2889 Radar bar: user guide, Scope decision text and the toolbar GuideCapture scene for the per-profile bars · release vNext
   - [ ] YAAT-2878 Merge feat/scope-dcb-per-profile to main (#1412)
+  - [ ] YAAT-2893 Radar bar: hide the STARS DCB, ERAM toolbar or classic bar to a small SHOW tile · release vNext
 
 ## YAATEdit in YAAT
 
@@ -169,7 +170,6 @@
 - [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS
 - [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked
 - [ ] YAAT-2881 Prefill the RUNDOWN entry menu's Modify… box with the entry's current message
-- [/] YAAT-2883 Capture the Rundowns screenshot for the release showcase · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -1658,7 +1658,7 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (59/117 done)
+### 3 Hygiene and tests (59/118 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI · release vNext+1
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning · release vNext+1
@@ -1717,6 +1717,7 @@
 - [ ] YAAT-2678 Fold the atomic-write copies into one Yaat.Sim helper
 - [ ] YAAT-2733 Split SimulationEngine.TickVisualDetection into one method per pass
 - [ ] YAAT-2810 Add a bug_bundle.py view of a callsign's command queue over time
+- [ ] YAAT-2892 Share one send-and-check helper across GuideCapture scenes
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
