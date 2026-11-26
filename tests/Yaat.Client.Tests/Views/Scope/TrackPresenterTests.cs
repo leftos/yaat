@@ -30,6 +30,52 @@ public class TrackPresenterTests
         Assert.Equal("UAL238", Field(vfr, ScopeFieldSlot.Callsign).Text);
     }
 
+    [Theory]
+    [InlineData("Pending", "PO")]
+    [InlineData(null, "")]
+    [InlineData("Accepted", "")]
+    [InlineData("Rejected", "")]
+    public void PointoutMark_PoWhilePending_EmptyOtherwise(string? pointoutStatus, string expected)
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.PointoutStatus = pointoutStatus;
+
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId));
+
+        Assert.Equal(expected, Field(p, ScopeFieldSlot.PointoutMark).Text);
+    }
+
+    [Fact]
+    public void PointoutMark_EramHoldsNoField()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.PointoutStatus = "Pending";
+
+        TrackPresentation p = TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.EramId));
+
+        Assert.DoesNotContain(p.Fields, f => f.Slot == ScopeFieldSlot.PointoutMark);
+    }
+
+    [Fact]
+    public void PendingPointout_LaysOutPoAfterTheCallsignOnLine1()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.PointoutStatus = "Pending";
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+
+        ScopeBlockLayout layout = DatablockTemplate.Layout(
+            TrackPresenter.Present(ScopeTestAircraft.Input(ac, ScopeTemplates.StarsId)),
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint))
+        );
+        FieldRect callsign = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.Callsign);
+        FieldRect po = Assert.Single(layout.Fields, f => f.Slot == ScopeFieldSlot.PointoutMark);
+
+        Assert.Equal("PO", po.Text);
+        Assert.Equal(callsign.Rect.Top, po.Rect.Top);
+        Assert.True(callsign.Rect.Right <= po.Rect.Left, $"callsign ends at {callsign.Rect.Right}, 'PO' starts at {po.Rect.Left}");
+    }
+
     [Fact]
     public void Line2Slots_CarryAltitudeGroundSpeedAndCwtType()
     {
@@ -333,6 +379,108 @@ public class TrackPresenterTests
         Assert.Equal(
             ScopeBlockColor.Default,
             BlockColorOf(templateId, _ => { }, Display(true, null, false, false), isHighlighted: false, isSelected: true)
+        );
+
+    [Fact]
+    public void PendingPointout_Stars_IsPointoutColor_WithSyncOff() =>
+        Assert.Equal(
+            ScopeBlockColor.StudentPointout,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac => ac.PointoutStatus = "Pending",
+                Display(false, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Fact]
+    public void PendingPointout_Stars_BeatsTheRpoTint() =>
+        Assert.Equal(
+            ScopeBlockColor.StudentPointout,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac =>
+                {
+                    ac.PointoutStatus = "Pending";
+                    ac.AssignedTo = Initials;
+                },
+                Display(true, Initials, true, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Fact]
+    public void PendingPointout_Stars_BeatsTheStudentColor() =>
+        Assert.Equal(
+            ScopeBlockColor.StudentPointout,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac =>
+                {
+                    ac.PointoutStatus = "Pending";
+                    ac.StudentDatablockColor = StarsDatablockColor.Owned;
+                },
+                Display(true, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Fact]
+    public void PendingPointout_Stars_BeatsTheUnassignedTint() =>
+        Assert.Equal(
+            ScopeBlockColor.StudentPointout,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac =>
+                {
+                    ac.PointoutStatus = "Pending";
+                    ac.AssignedTo = "XX";
+                },
+                Display(true, Initials, false, true),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Fact]
+    public void PendingPointout_Stars_HighlightStillWins() =>
+        Assert.Equal(
+            ScopeBlockColor.Highlighted,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac => ac.PointoutStatus = "Pending",
+                Display(false, null, false, false),
+                isHighlighted: true,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Accepted")]
+    [InlineData("Rejected")]
+    public void NoPendingPointout_KeepsTodaysColor(string? pointoutStatus) =>
+        Assert.Equal(
+            ScopeBlockColor.Default,
+            BlockColorOf(
+                ScopeTemplates.StarsId,
+                ac => ac.PointoutStatus = pointoutStatus,
+                Display(false, null, false, false),
+                isHighlighted: false,
+                isSelected: false
+            )
+        );
+
+    [Theory]
+    [InlineData(ScopeTemplates.EramId)]
+    [InlineData(ScopeTemplates.EuroScopeId)]
+    public void PendingPointout_OtherTemplates_Unchanged(string templateId) =>
+        Assert.Equal(
+            ScopeBlockColor.Default,
+            BlockColorOf(templateId, ac => ac.PointoutStatus = "Pending", Display(false, null, false, false), isHighlighted: false, isSelected: false)
         );
 
     [Fact]

@@ -88,12 +88,12 @@ public static class ScopeTemplates
     public const string MixedId = "mixed";
 
     /// <summary>
-    /// The STARS full datablock: callsign (with the VFR mark and the student-level marker), then altitude, ground speed, cwt/type,
-    /// the ATPA in-trail distance (at line 2's right end, as CRC places it) and the ident, then the squawk-mismatch, status,
-    /// ModeC, warning, conflict and note lines. Limited and Partial draw the collapsed blocks
-    /// (<see cref="Map.DatablockText.BuildCollapsedLines"/>): the beacon code (in the squawk
-    /// slot), altitude and ident; or the altitude, handoff, ground speed and ident, then scratchpad 1. Dwell adds the ERAM
-    /// altitude's line under line 2 while the two sides differ. Ground draws the ground target's block in top-down mode.
+    /// The STARS full datablock: callsign (with the VFR mark, the student-level marker and the <c>PO</c> of a pending point-out),
+    /// then altitude, ground speed, cwt/type, the ATPA in-trail distance (at line 2's right end, as CRC places it) and the ident,
+    /// then the squawk-mismatch, status, ModeC, warning, conflict and note lines. Limited and Partial draw the collapsed blocks
+    /// (<see cref="Map.DatablockText.BuildCollapsedLines"/>): the beacon code (in the squawk slot), altitude and ident; or the
+    /// altitude, handoff, ground speed and ident, then scratchpad 1. Dwell adds the ERAM altitude's line under line 2 while the
+    /// two sides differ. Ground draws the ground target's block in top-down mode.
     /// </summary>
     public static readonly ScopeTemplate Stars = WithDwellLine(
         new(
@@ -106,7 +106,8 @@ public static class ScopeTemplates
                     true,
                     Steady(ScopeFieldSlot.Callsign),
                     new ScopeSlotPlacement(ScopeFieldSlot.VfrMark, "", false),
-                    new ScopeSlotPlacement(ScopeFieldSlot.StudentLevelMark, "", false)
+                    new ScopeSlotPlacement(ScopeFieldSlot.StudentLevelMark, "", false),
+                    Steady(ScopeFieldSlot.PointoutMark)
                 ),
                 Line(
                     true,
@@ -141,8 +142,9 @@ public static class ScopeTemplates
     );
 
     /// <summary>
-    /// The ERAM datablock: line 1 as STARS; line 2 the ERAM altitude (Field B, its character 4 and Field C) and the
-    /// altitude-mismatch cell flush after it, followed by the STARS right side (ground speed, cwt/type, the ATPA in-trail
+    /// The ERAM datablock: line 1 as STARS but the pending point-out's <c>PO</c>; line 2 the ERAM altitude (Field B, its
+    /// character 4 and Field C) and the altitude-mismatch cell flush after it, followed by the STARS right side (ground speed,
+    /// cwt/type, the ATPA in-trail
     /// distance, then the ident); line 3 the status text and the HSF indicator; line 4 one of the HSF free text, the HSF
     /// heading and speed tokens (a blank pad before a speed shown alone), or the type/destination fallback; then the ModeC,
     /// warning, conflict and note lines. Column 0 holds the VCI mark on row 2 and the not-your-control <c>R</c> on row 3.

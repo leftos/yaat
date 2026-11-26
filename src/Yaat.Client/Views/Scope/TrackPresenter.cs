@@ -669,14 +669,20 @@ public static class TrackPresenter
     }
 
     /// <summary>
-    /// The block's colour role, in order: the middle-click highlight, then the RPO assignment tint,
-    /// then the student's STARS colour when sync is on, then the default. Selection does not change it.
+    /// The block's colour role, in order: the middle-click highlight, then a pending point-out on a STARS-template block
+    /// (a Mixed track drawn as STARS included), then the RPO assignment tint, then the student's STARS colour when sync is on,
+    /// then the default. Selection does not change it.
     /// </summary>
     private static ScopeBlockColor BlockColorFor(TrackPresenterInput input, ScopeTintRole tint)
     {
         if (input.IsHighlighted)
         {
             return ScopeBlockColor.Highlighted;
+        }
+
+        if (ShowsPendingPointout(input))
+        {
+            return ScopeBlockColor.StudentPointout;
         }
 
         return tint switch
@@ -686,6 +692,16 @@ public static class TrackPresenter
             _ => input.Display.SyncStudentColors ? StudentBlockColor(input.Aircraft.StudentDatablockColor) : ScopeBlockColor.Default,
         };
     }
+
+    /// <summary>
+    /// Whether a pending point-out turns the whole block steady point-out yellow, whoever the recipient is: only a STARS-template
+    /// block, since ERAM and EuroScope show none.
+    /// </summary>
+    private static bool ShowsPendingPointout(TrackPresenterInput input) =>
+        (input.TemplateId == ScopeTemplates.StarsId) && AircraftCommandApplicability.HasPendingPointout(input.Aircraft);
+
+    /// <summary>The <c>PO</c> a STARS block shows after its callsign while a point-out of the track is pending, else empty.</summary>
+    private static string PendingPointoutMark(AircraftModel ac) => AircraftCommandApplicability.HasPendingPointout(ac) ? "PO" : "";
 
     /// <summary>
     /// The RPO tint that applies to the track whatever its highlight: with the user's initials
@@ -730,6 +746,7 @@ public static class TrackPresenter
             Steady(ScopeFieldSlot.Callsign, ac.Callsign, ScopeColorToken.Default),
             Steady(ScopeFieldSlot.VfrMark, isVfr ? "*" : "", ScopeColorToken.Default),
             Steady(ScopeFieldSlot.StudentLevelMark, levelMark, ScopeColorToken.Default),
+            Steady(ScopeFieldSlot.PointoutMark, PendingPointoutMark(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.Altitude, AltitudeHundreds(ac), MvaToken(input.Mva)),
             Steady(ScopeFieldSlot.GroundSpeed, GroundSpeedTens(ac), ScopeColorToken.Default),
             Steady(ScopeFieldSlot.CwtType, DatablockText.FormatCwtType(cwt, ac.DisplayAircraftType), typeToken),
@@ -758,7 +775,7 @@ public static class TrackPresenter
         var eramAltitude = EramAltitudeInput.From(input.Aircraft);
         fields[altitude] = EramAltitudeField(eramAltitude);
         fields.Insert(altitude + 1, MismatchField(eramAltitude));
-        fields.RemoveAll(f => f.Slot == ScopeFieldSlot.StatusLine3);
+        fields.RemoveAll(f => f.Slot is ScopeFieldSlot.StatusLine3 or ScopeFieldSlot.PointoutMark);
         fields.AddRange(EramLineFields(input));
         fields.AddRange(EramColumn0Fields(input));
         return fields;

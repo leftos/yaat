@@ -477,7 +477,7 @@ A track whose resolved template is `ScopeTemplates.EramId` (the ERAM profile, an
 ## Datablock and tag layout
 
 The Scope lays each block out once, in `ScopeFrame`, from the text `TrackPresenter` builds for the track's template (`ScopeTemplates.cs`, `DatablockTemplate.cs`, `FieldRect.cs`); the renderer, the hit tests and the deconfliction all read that one layout. The Radar engine section lists the files and the STARS, ERAM and EuroScope slots. The STARS full block's lines, top to bottom:
-1. Callsign (`*`-suffixed for VFR).
+1. Callsign (`*`-suffixed for VFR), then the `(LDB)`/`(PDB)` mark when it shows, then ` PO` (the `PointoutMark` slot) while a point-out of the track is pending. The pending point-out also turns the whole block steady yellow (`ScopeBlockColor.StudentPointout`, set in `TrackPresenter.BlockColorFor` whatever the recipient and whatever `SyncStudentDatablockColors` says), above the RPO tint and below the middle-click highlight; ERAM and EuroScope blocks show neither. The mark is not clickable.
 2. Altitude-hundreds + speed-tens + CWT/type, with a flashing `ID` appended while the aircraft is identing
    (see **IDENT** below).
 3. Beacon-code mismatch (`SquawkLine`, e.g. `1200 0301`) — the reported code solid, then the assigned code

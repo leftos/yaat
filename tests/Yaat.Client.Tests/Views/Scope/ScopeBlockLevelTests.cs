@@ -324,4 +324,69 @@ public class ScopeBlockLevelTests
         Assert.All(frame.Tracks, t => Assert.Equal(ScopeBlockLevel.Full, t.Level));
         Assert.All(frame.Tracks, t => Assert.True(t.ShowsLeader));
     }
+
+    private static readonly ScopeViewer OtherViewer = new(new ActingPosition("OAK_44_CTR", "ZOA", "C44"), "ZOA", "44");
+
+    /// <summary>A track owned by another sector of the viewer's facility, so the viewer does not own it.</summary>
+    private static AircraftModel OthersTrack()
+    {
+        AircraftModel ac = ScopeTestAircraft.CreateModel();
+        ac.Owner = "OAK_12_CTR";
+        ac.OwnerFacilityId = "ZOA";
+        ac.OwnerSectorCode = "C12";
+        return ac;
+    }
+
+    /// <summary>The block level a one-track frame picks for <see cref="OtherViewer"/> at <paramref name="othersLevel"/>.</summary>
+    private static ScopeBlockLevel OthersLevelOf(AircraftModel ac, string templateId, string othersLevel)
+    {
+        using var font = new SKFont { Size = 12f };
+        using var paint = new SKPaint();
+        var input = new ScopeFrameInput(
+            [ac],
+            null,
+            new MapViewport
+            {
+                PixelWidth = 1000,
+                PixelHeight = 800,
+                CenterLat = 37.0,
+                CenterLon = -122.0,
+            },
+            templateId,
+            ScopeTextMetrics.FromStyle(new TextStyle(font, paint)),
+            ScopeTestAircraft.AllAlerts,
+            ScopeTestAircraft.AllDisplay with
+            {
+                Viewer = OtherViewer,
+            },
+            new Dictionary<string, SKPoint>(),
+            new HashSet<string>(),
+            MvaFacilityId: null,
+            othersLevel,
+            VectorMinutes: 0,
+            VectorOwnership: ScopeVectorOwnership.Own,
+            HistoryCount: 0,
+            LocalRings: new Dictionary<string, ScopeTrackRings>(),
+            IntentPaths: new ScopeIntentPathCache()
+        );
+        return Assert.Single(ScopeFrame.Build(input).Tracks).Level;
+    }
+
+    [Theory]
+    [InlineData(ScopeTemplates.StarsId, ScopeProfile.OthersPartial, ScopeBlockLevel.Full)]
+    [InlineData(ScopeTemplates.StarsId, ScopeProfile.OthersFull, ScopeBlockLevel.Full)]
+    [InlineData(ScopeTemplates.EramId, ScopeProfile.OthersPartial, ScopeBlockLevel.Partial)]
+    public void PendingPointout_ForcesTheStarsBlockFull(string templateId, string othersLevel, ScopeBlockLevel expected)
+    {
+        AircraftModel ac = OthersTrack();
+        ac.PointoutStatus = "Pending";
+
+        Assert.Equal(expected, OthersLevelOf(ac, templateId, othersLevel));
+    }
+
+    [Theory]
+    [InlineData(ScopeTemplates.StarsId, ScopeProfile.OthersPartial, ScopeBlockLevel.Limited)]
+    [InlineData(ScopeTemplates.EramId, ScopeProfile.OthersPartial, ScopeBlockLevel.Partial)]
+    public void NoPendingPointout_KeepsTheOthersLevel(string templateId, string othersLevel, ScopeBlockLevel expected) =>
+        Assert.Equal(expected, OthersLevelOf(OthersTrack(), templateId, othersLevel));
 }

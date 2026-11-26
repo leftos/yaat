@@ -1,5 +1,6 @@
 using System.Globalization;
 using SkiaSharp;
+using Yaat.Client.ContextMenus;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Map;
@@ -358,9 +359,10 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
     /// <summary>
     /// The one place a track's block level is chosen: <see cref="ScopeBlockLevel.Ground"/> for a ground target
     /// (<see cref="IsGroundTarget"/>), dwelled or not; else <see cref="ScopeBlockLevel.Dwell"/> while it is
-    /// <paramref name="dwelled"/> (hovered, or <see cref="IsDwellLockedTrack"/>); else Full for the viewer's own track and for every track
-    /// when there is no viewer, and for a track a conflict pair forces Full (<see cref="IsForcedFullForConflict"/>); else the
-    /// others' level for the track's template (<see cref="OthersLevelFor"/>).
+    /// <paramref name="dwelled"/> (hovered, or <see cref="IsDwellLockedTrack"/>); else Full for the viewer's own track and for every
+    /// track when there is no viewer, and for a track a conflict pair forces Full (<see cref="IsForcedFullForConflict"/>) or, on a
+    /// STARS-template block, a pending point-out does (<see cref="IsForcedFullForPointout"/>), so its <c>PO</c> always shows; else
+    /// the others' level for the track's template (<see cref="OthersLevelFor"/>).
     /// </summary>
     private static ScopeBlockLevel LevelFor(AircraftModel ac, string templateId, ScopeFrameInput input, bool dwelled, bool inEramConflict)
     {
@@ -375,13 +377,25 @@ public sealed partial record ScopeFrame(string TemplateId, IReadOnlyList<ScopeTr
         }
 
         ScopeViewer viewer = input.Display.Viewer;
-        if (IsOwnTrack(ac, viewer) || IsForcedFullForConflict(ac, templateId, input.Alerts, inEramConflict))
+        if (
+            IsOwnTrack(ac, viewer)
+            || IsForcedFullForConflict(ac, templateId, input.Alerts, inEramConflict)
+            || IsForcedFullForPointout(ac, templateId)
+        )
         {
             return ScopeBlockLevel.Full;
         }
 
         return OthersLevelFor(templateId, input.OthersLevel);
     }
+
+    /// <summary>
+    /// Whether a pending point-out (<see cref="AircraftCommandApplicability.HasPendingPointout"/>) draws <paramref name="ac"/>'s
+    /// block Full, so the block's steady yellow always carries its <c>PO</c>: only on a block drawn with the STARS template. An ERAM
+    /// or EuroScope block shows no mark and keeps its others' level.
+    /// </summary>
+    private static bool IsForcedFullForPointout(AircraftModel ac, string templateId) =>
+        (templateId == ScopeTemplates.StarsId) && AircraftCommandApplicability.HasPendingPointout(ac);
 
     /// <summary>
     /// Whether a conflict draws <paramref name="ac"/>'s block Full, so its CA field or whole-block flash shows, while conflict

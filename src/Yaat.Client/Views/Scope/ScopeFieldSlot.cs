@@ -21,6 +21,9 @@ public enum ScopeFieldSlot
     /// <summary>The <c>(LDB)</c>/<c>(PDB)</c> marker after the callsign: the level the student's scope shows the track at.</summary>
     StudentLevelMark,
 
+    /// <summary>The <c>PO</c> after a STARS callsign while the track has a pending point-out.</summary>
+    PointoutMark,
+
     /// <summary>Reported altitude in hundreds of feet.</summary>
     Altitude,
 

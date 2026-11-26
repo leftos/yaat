@@ -8,8 +8,8 @@ using Yaat.Sim.Data.Mva;
 namespace Yaat.Client.Tests.Views.Scope;
 
 /// <summary>
-/// The ERAM template: line 1 as STARS, line 2 the ERAM altitude then the STARS right side, and the ERAM altitude field as
-/// <see cref="TrackPresenter.EramAltitudeText"/> formats it from the aircraft, in the block colour.
+/// The ERAM template: line 1 as STARS but the pending point-out's <c>PO</c>, line 2 the ERAM altitude then the STARS right side,
+/// and the ERAM altitude field as <see cref="TrackPresenter.EramAltitudeText"/> formats it from the aircraft, in the block colour.
 /// </summary>
 [Collection(MapBlinkClockCollection.Name)]
 public class ScopeEramTemplateTests
@@ -32,7 +32,10 @@ public class ScopeEramTemplateTests
         );
         Assert.Equal(ScopeGapMode.TextSeparator, ScopeTemplates.Eram.GapMode);
         Assert.Same(ScopeTemplates.Eram, ScopeTemplates.Get(ScopeTemplates.EramId));
-        Assert.Equal(ScopeTemplates.Stars.Lines[0].Slots.Select(s => s.Slot), ScopeTemplates.Eram.Lines[0].Slots.Select(s => s.Slot));
+        Assert.Equal(
+            ScopeTemplates.Stars.Lines[0].Slots.Select(s => s.Slot).Where(s => s != ScopeFieldSlot.PointoutMark),
+            ScopeTemplates.Eram.Lines[0].Slots.Select(s => s.Slot)
+        );
     }
 
     [Fact]
