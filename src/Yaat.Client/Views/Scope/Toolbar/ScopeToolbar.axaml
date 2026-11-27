@@ -1,6 +1,7 @@
 <UserControl
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:dcb="using:Yaat.Client.Views.Scope.Toolbar.Dcb"
   x:Class="Yaat.Client.Views.Scope.Toolbar.ScopeToolbar"
   FontFamily="{StaticResource MonoFont}"
   FontSize="12"
@@ -24,7 +25,7 @@
         />
         <!-- A focused tile is brought into view only when the keyboard focused it, so a press on a part-hidden tile never
              moves the bar under the pointer. -->
-        <ScrollViewer
+        <dcb:KeyIgnoringScrollViewer
           x:Name="MainScroll"
           Grid.Column="1"
           HorizontalScrollBarVisibility="Hidden"
@@ -33,7 +34,7 @@
         >
           <!-- The 1 DIP spacing over the row's background draws the dividers between tiles. -->
           <StackPanel x:Name="MainRow" Background="#22313b" Orientation="Horizontal" Spacing="1" HorizontalAlignment="Left" />
-        </ScrollViewer>
+        </dcb:KeyIgnoringScrollViewer>
         <Button
           x:Name="ScrollRight"
           Grid.Column="2"

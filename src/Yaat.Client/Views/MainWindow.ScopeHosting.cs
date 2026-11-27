@@ -54,6 +54,10 @@ public partial class MainWindow
             return;
         }
 
+        // A docked bar whose tab area collapses (the Scope the only docked tab) stays in the tree, so its own detach cleanup
+        // never runs: it leaves its submenus here, before the pop-out's bar opens on the same Scope.
+        vm.PrimaryScope.LeaveBarSubmenus();
+
         // The window shows the primary Scope but does not own it: the view model outlives the window and docks back.
         _scopeWindow = new ScopeWindow(vm.Preferences, vm.PrimaryScope, ownsViewModel: false);
         _scopeWindow.Closing += OnScopeWindowClosing;

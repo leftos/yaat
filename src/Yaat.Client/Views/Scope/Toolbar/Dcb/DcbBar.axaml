@@ -1,9 +1,10 @@
 <UserControl
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:dcb="using:Yaat.Client.Views.Scope.Toolbar.Dcb"
   x:Class="Yaat.Client.Views.Scope.Toolbar.Dcb.DcbBar"
 >
-  <ScrollViewer
+  <dcb:KeyIgnoringScrollViewer
     x:Name="Scroller"
     HorizontalScrollBarVisibility="Hidden"
     VerticalScrollBarVisibility="Disabled"
@@ -12,5 +13,5 @@
     BringIntoViewOnFocusChange="False"
   >
     <Canvas x:Name="TilesHost" HorizontalAlignment="Left" />
-  </ScrollViewer>
+  </dcb:KeyIgnoringScrollViewer>
 </UserControl>

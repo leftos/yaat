@@ -72,6 +72,7 @@ public sealed class StarsDcbBar : UserControl
         {
             old.PropertyChanged -= OnViewModelPropertyChanged;
             old.MapToggles.CollectionChanged -= OnMapTogglesChanged;
+            old.BarSubmenusLeaving -= OnBarSubmenusLeaving;
         }
 
         _viewModel = DataContext as ScopeViewModel;
@@ -79,6 +80,7 @@ public sealed class StarsDcbBar : UserControl
         {
             vm.PropertyChanged += OnViewModelPropertyChanged;
             vm.MapToggles.CollectionChanged += OnMapTogglesChanged;
+            vm.BarSubmenusLeaving += OnBarSubmenusLeaving;
         }
 
         Rebuild();
@@ -133,8 +135,11 @@ public sealed class StarsDcbBar : UserControl
         RebuildOrRefresh();
     }
 
+    /// <summary>The Scope has its bars leave their submenus (<see cref="ScopeViewModel.LeaveBarSubmenus"/>), as on a hide.</summary>
+    private void OnBarSubmenusLeaving(object? sender, EventArgs e) => CloseForHide();
+
     /// <summary>
-    /// Closes what the bar holds open as it hides: a submenu, leaving for the nearest page up that is no submenu (Main or Aux,
+    /// Closes what the bar holds open as it hides, or as the Scope has its bars leave their submenus: a submenu, leaving for the nearest page up that is no submenu (Main or Aux,
     /// its flag, Esc handler and tray cleared), and a latched spinner (its value put back), so nothing waits behind the SHOW
     /// tile and the bar comes back on the page it left from.
     /// </summary>
@@ -553,12 +558,14 @@ public sealed class StarsDcbBar : UserControl
 
     /// <summary>
     /// Whether the tile of <paramref name="entry"/> is lit by its Scope button's active state, as on the classic bar: a toggle,
-    /// a page opener over a button (PILOT LENS), and a PROFILE or TEMPLATE pick.
+    /// a page opener over a button (PILOT LENS), a PROFILE or TEMPLATE pick, and OTHERS and AUTO, lit while their pins hold
+    /// (<see cref="ScopeViewModel.IsActive"/>).
     /// </summary>
     private static bool ShowsActive(DcbTile tile, StarsDcbEntry entry) =>
         (tile.Kind == DcbTileKind.Toggle)
         || ((tile.Kind == DcbTileKind.Normal) && (entry.Opens is not null))
-        || ((entry.Button is { } id) && (ScopeToolbarButtons.IsProfilePick(id) || IsTemplatePick(id)));
+        || ((entry.Button is { } id) && (ScopeToolbarButtons.IsProfilePick(id) || IsTemplatePick(id)))
+        || (entry.Button is ScopeButtonId.Others or ScopeButtonId.Auto);
 
     private static bool IsTemplatePick(ScopeButtonId id) =>
         id is ScopeButtonId.TemplateStars or ScopeButtonId.TemplateEram or ScopeButtonId.TemplateMixed or ScopeButtonId.TemplateEuroScope;

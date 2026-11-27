@@ -9,6 +9,10 @@
 - Preset and triggered handoffs and point-outs to an unstaffed position follow STARS consolidation, as typed ones do.
 - The RUNDOWN list shows an entry's STARS line number as soon as the aircraft gets one, as CRC does.
 - Radar: with Realistic scope text, the ERAM climb and descend arrows draw crisp in Terminus like the rest of the datablock.
+- Radar: the STARS DCB's YAAT page lights OTHERS while the others level is pinned and AUTO while any band pin is set.
+- Radar: popping the Radar out while it is the only docked tab, then docking it back, leaves the STARS DCB on its Main page.
+- Radar: a sideways touchpad swipe scrolls a narrow STARS DCB, and PageUp and PageDown reach your key bindings while a bar tile has focus.
+- Radar: in a narrow Radar the ERAM Master Toolbar scrolls with the wheel or a swipe, its open menus moving with it, so YAAT and HIDE TOOLBAR stay reachable.
 
 ## v0.20.0-beta [2026/11/26]
 

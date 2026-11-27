@@ -9,8 +9,10 @@ namespace Yaat.Client.Views.Scope.Toolbar.Dcb;
 /// <summary>
 /// A STARS DCB bar: a black band of <see cref="DcbTile"/>s laid out left to right by <see cref="DcbLayout"/>, in the order
 /// they were set, the band as wide as its widest column ends; a group of them may sit together at the bar's right edge instead
-/// when the bar is wider than that. A bar narrower than its tiles scrolls them sideways, with no scrollbar: the wheel over it
-/// moves them by <see cref="WheelStep"/> a notch, as CRC's DCB does, and never reaches the Scope behind it.
+/// when the bar is wider than that. A bar narrower than its tiles scrolls them sideways, with no scrollbar: the wheel over it,
+/// and a sideways swipe alike, moves them by <see cref="WheelStep"/> a notch, as CRC's DCB does, and never reaches the Scope
+/// behind it, even over a bar that does not overflow. Its scroller leaves every key to the window
+/// (<see cref="KeyIgnoringScrollViewer"/>).
 /// </summary>
 public partial class DcbBar : UserControl
 {
@@ -92,11 +94,14 @@ public partial class DcbBar : UserControl
         ScrollTo(Math.Min(offset, left));
     }
 
-    /// <summary>The wheel over the bar scrolls its tiles a step a notch, the wheel down moving them left; the Scope never sees it.</summary>
+    /// <summary>
+    /// The wheel over the bar scrolls its tiles a step a notch, the wheel down and a leftward swipe moving them left; the Scope
+    /// never sees it.
+    /// </summary>
     private void OnWheel(object? sender, PointerWheelEventArgs e)
     {
         e.Handled = true;
-        ScrollTo(Scroller.Offset.X - (e.Delta.Y * WheelStep));
+        ScrollTo(Scroller.Offset.X - ((e.Delta.Y + e.Delta.X) * WheelStep));
     }
 
     /// <summary>Scrolls the tiles to <paramref name="offset"/>, kept between the first tile and the last one at the bar's right edge.</summary>

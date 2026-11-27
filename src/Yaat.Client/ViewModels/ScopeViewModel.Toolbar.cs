@@ -65,6 +65,24 @@ public sealed partial class ScopeViewModel
         IsBarHidden = hidden;
     }
 
+    /// <summary>Raised by <see cref="LeaveBarSubmenus"/>: each bar on the Scope leaves what it holds open as it does on a hide.</summary>
+    internal event EventHandler? BarSubmenusLeaving;
+
+    /// <summary>
+    /// Has every bar on the Scope leave what it holds open, as hiding does: each bar follows <see cref="BarSubmenusLeaving"/>
+    /// (the STARS DCB back to its Main or Aux page, its submenu flag, Esc handler, tray and latched spinner cleared; the ERAM
+    /// bar's menus and the tray a YAAT submenu stands for closed), then the open tray closes, which disarms the Rings tool
+    /// TOOLS armed, and the spinner-latch and submenu flags clear. The pop-out runs it as the Scope leaves its docked bar,
+    /// which may stay in the tree.
+    /// </summary>
+    internal void LeaveBarSubmenus()
+    {
+        BarSubmenusLeaving?.Invoke(this, EventArgs.Empty);
+        OpenMenu = null;
+        IsBarSpinnerLatched = false;
+        IsBarSubmenuOpen = false;
+    }
+
     /// <summary>The wheel accumulator of the spinner with <paramref name="id"/>, made on first use.</summary>
     internal ScrollStepAccumulator SpinnerScroll(ScopeButtonId id)
     {

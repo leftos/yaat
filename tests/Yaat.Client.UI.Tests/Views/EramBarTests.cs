@@ -15,6 +15,7 @@ using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
+using Yaat.Client.Views.Scope.Toolbar.Dcb;
 using Yaat.Client.Views.Scope.Toolbar.Eram;
 
 namespace Yaat.Client.UI.Tests.Views;
@@ -27,6 +28,9 @@ public class EramBarTests : IDisposable
 {
     /// <summary>A host wide enough for every menu to open right of its button.</summary>
     private const double WideWidth = 2400;
+
+    /// <summary>A host narrower than the Master Toolbar, which then scrolls sideways.</summary>
+    private const double NarrowBarWidth = 400;
 
     private static readonly ActivePositionDto Sector44 = new(
         Callsign: "OAK_44_CTR",
@@ -808,6 +812,84 @@ public class EramBarTests : IDisposable
         Assert.False(scope.Main.Measure.IsMeasuring);
     }
 
+    [AvaloniaFact]
+    public async Task NarrowBar_TheYaatColumnIsReachable_AfterScrolling()
+    {
+        await using Opened scope = await OpenAtAsync(NarrowBarWidth);
+        EramBar bar = scope.Bar;
+        EramMasterToolbar toolbar = scope.Toolbar;
+        EramToolbarButton first = toolbar.Buttons.MinBy(button => LeftIn(bar, button))!;
+        EramToolbarButton yaat = toolbar.Find(EramButtonType.YaatMenu)!;
+        EramToolbarButton hide = toolbar.Find(EramButtonType.HideToolbar)!;
+        double firstLeft = LeftIn(bar, first);
+        Assert.True(LeftIn(bar, hide) + hide.Bounds.Width > bar.Bounds.Width);
+
+        // The wheel over RANGE steps the range and leaves the bar where it is.
+        double range = scope.Scope.RangeNm;
+        scope.Wheel(EramButtonType.RangeView, 1);
+        Assert.Equal(range - 1, scope.Scope.RangeNm);
+        Assert.Equal(firstLeft, LeftIn(bar, first));
+
+        // Anywhere else the wheel scrolls the bar a 25 DIP step a notch, and a sideways swipe does too.
+        scope.WheelOverBar(new Vector(0, -1));
+        Assert.Equal(firstLeft - DcbBar.WheelStep, LeftIn(bar, first));
+        scope.WheelOverBar(new Vector(1, 0));
+        Assert.Equal(firstLeft, LeftIn(bar, first));
+        scope.WheelOverBar(new Vector(0, -1000));
+
+        Assert.InRange(LeftIn(bar, yaat), 0, bar.Bounds.Width - yaat.Bounds.Width);
+        Assert.InRange(LeftIn(bar, hide), 0, bar.Bounds.Width - hide.Bounds.Width);
+        Assert.Equal(range - 1, scope.Scope.RangeNm);
+        scope.Click(EramButtonType.YaatMenu);
+        Assert.Equal(EramButtonType.YaatMenu, toolbar.OpenMenu);
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_SidewaysSwipeOverRange_ScrollsTheBarByOneStep()
+    {
+        await using Opened scope = await OpenAtAsync(NarrowBarWidth);
+        EramBar bar = scope.Bar;
+        EramToolbarButton first = scope.Toolbar.Buttons.MinBy(button => LeftIn(bar, button))!;
+        double firstLeft = LeftIn(bar, first);
+        double range = scope.Scope.RangeNm;
+
+        scope.WheelOver(EramButtonType.RangeView, new Vector(-1, 0));
+
+        Assert.Equal(firstLeft - DcbBar.WheelStep, LeftIn(bar, first));
+        Assert.Equal(range, scope.Scope.RangeNm);
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_OpenMenu_ScrollsWithItsButton()
+    {
+        await using Opened scope = await OpenAtAsync(NarrowBarWidth);
+        EramBar bar = scope.Bar;
+        scope.WheelOverBar(new Vector(0, -1000));
+        scope.Click(EramButtonType.YaatMenu);
+        Border menu = scope.Toolbar.Expansion!;
+        EramToolbarButton yaat = scope.Toolbar.Find(EramButtonType.YaatMenu)!;
+        double menuLeft = LeftIn(bar, menu);
+        double yaatLeft = LeftIn(bar, yaat);
+
+        scope.WheelOverBar(new Vector(0, 1));
+
+        Assert.Equal(yaatLeft + DcbBar.WheelStep, LeftIn(bar, yaat));
+        Assert.Equal(menuLeft + DcbBar.WheelStep, LeftIn(bar, menu));
+        Assert.Equal(EramButtonType.YaatMenu, scope.Toolbar.OpenMenu);
+
+        // The scrolled menu still takes the pointer: its lowest button in view is the one under it.
+        EramToolbarButton lowest = scope.Toolbar.MenuButtons.Where(button => InView(bar, button)).MaxBy(button => TopIn(bar, button))!;
+        Point centre = lowest.TranslatePoint(new Point(lowest.Bounds.Width / 2, lowest.Bounds.Height / 2), scope.Window)!.Value;
+        Assert.True((scope.Window.InputHitTest(centre) is Visual hit) && ((hit == lowest) || lowest.IsVisualAncestorOf(hit)));
+    }
+
+    private static double LeftIn(EramBar bar, Control control) => control.TranslatePoint(default, bar)!.Value.X;
+
+    private static double TopIn(EramBar bar, Control control) => control.TranslatePoint(default, bar)!.Value.Y;
+
+    private static bool InView(EramBar bar, Control control) =>
+        (LeftIn(bar, control) >= 0) && ((LeftIn(bar, control) + control.Bounds.Width) <= bar.Bounds.Width);
+
     [Fact]
     public void EveryButton_HasAnAction_ExactlyWhenItIsBuilt() =>
         Assert.All(Enum.GetValues<EramButtonType>(), type => Assert.Equal(type.IsBuilt(), EramBar.HasAction(type)));
@@ -901,7 +983,22 @@ public class EramBarTests : IDisposable
 
         public ScopeHost Host { get; } = host;
 
-        public EramMasterToolbar Toolbar => Assert.Single(Host.GetVisualDescendants().OfType<EramBar>()).Toolbar;
+        public Window Window => window;
+
+        public EramBar Bar => Assert.Single(Host.GetVisualDescendants().OfType<EramBar>());
+
+        public EramMasterToolbar Toolbar => Bar.Toolbar;
+
+        /// <summary>Turns the wheel by <paramref name="delta"/> over the bar's bottom row near its left end, away from RANGE.</summary>
+        public void WheelOverBar(Vector delta)
+        {
+            window.UpdateLayout();
+            Point? at = Bar.TranslatePoint(new Point(40, Bar.Bounds.Height * 3 / 4), window);
+            Assert.NotNull(at);
+            window.MouseWheel(at.Value, delta);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
 
         /// <summary>Presses an empty corner of the Scope's canvas, which takes the keyboard focus and hits no track.</summary>
         public void FocusCanvas()
@@ -933,13 +1030,16 @@ public class EramBarTests : IDisposable
         /// Turns the wheel <paramref name="steps"/> notches up (negative for down) over the shown button of
         /// <paramref name="type"/>.
         /// </summary>
-        public void Wheel(EramButtonType type, int steps)
+        public void Wheel(EramButtonType type, int steps) => WheelOver(type, new Vector(0, steps));
+
+        /// <summary>Turns the wheel by <paramref name="delta"/> over the shown button of <paramref name="type"/>.</summary>
+        public void WheelOver(EramButtonType type, Vector delta)
         {
             window.UpdateLayout();
             EramToolbarButton target = Toolbar.Find(type) ?? throw new InvalidOperationException($"No {type} button is shown");
             Point? centre = target.TranslatePoint(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2), window);
             Assert.NotNull(centre);
-            window.MouseWheel(centre.Value, new Vector(0, steps));
+            window.MouseWheel(centre.Value, delta);
             Dispatcher.UIThread.RunJobs();
         }
 

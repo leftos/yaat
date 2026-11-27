@@ -486,6 +486,128 @@ public class StarsDcbSubmenuTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task PopOut_WithMapsOpenOnTheDockedDcb_LeavesNoSubmenuState()
+    {
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
+        try
+        {
+            ScopeHost host = DockedStarsHost(main, vm);
+            Open(main, host, StarsDcbPage.Maps);
+            Assert.True(vm.PrimaryScope.IsBarSubmenuOpen);
+
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+
+            Assert.False(vm.PrimaryScope.IsBarSubmenuOpen);
+            Assert.Null(vm.PrimaryScope.OpenMenu);
+        }
+        finally
+        {
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PopOut_ScopeOnlyDockedTab_WithYaatToolsOpen_DisarmsTheRingTool()
+    {
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
+        try
+        {
+            SetOtherTabsPoppedOut(vm, true);
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
+            MainWindowHost.Pump();
+            ScopeHost host = DockedStarsHost(main, vm);
+            Open(main, host, StarsDcbPage.Yaat);
+            OpenFromShown(main, host, StarsDcbPage.YaatTools);
+            Assert.Equal(ScopeButtonId.Tools, vm.PrimaryScope.OpenMenu);
+            Assert.Equal(ScopeRingTool.JRing, vm.PrimaryScope.ArmedRingTool);
+
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+
+            Assert.False(vm.IsAnyTabVisible);
+            Assert.False(vm.PrimaryScope.IsBarSubmenuOpen);
+            Assert.Null(vm.PrimaryScope.OpenMenu);
+            Assert.Equal(ScopeRingTool.None, vm.PrimaryScope.ArmedRingTool);
+        }
+        finally
+        {
+            vm.IsScopePoppedOut = false;
+            SetOtherTabsPoppedOut(vm, false);
+            MainWindowHost.Pump();
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PopOut_ScopeOnlyDockedTab_ThenDockBack_TheDcbIsOnMain()
+    {
+        (MainWindow main, MainViewModel vm) = await MainWindowHost.BootDockedScopeAsync();
+        try
+        {
+            SetOtherTabsPoppedOut(vm, true);
+            vm.SelectedTabIndex = MainWindow.ScopeTabIndex;
+            MainWindowHost.Pump();
+            ScopeHost host = DockedStarsHost(main, vm);
+            Open(main, host, StarsDcbPage.Yaat);
+            OpenFromShown(main, host, StarsDcbPage.YaatTools);
+
+            vm.IsScopePoppedOut = true;
+            MainWindowHost.Pump();
+            vm.IsScopePoppedOut = false;
+            MainWindowHost.Pump();
+            main.UpdateLayout();
+            MainWindowHost.Pump();
+
+            ScopeHost docked = Assert.Single(main.GetVisualDescendants().OfType<ScopeHost>());
+            Assert.Equal(StarsDcbPage.Main, Bar(docked).Page);
+            Assert.False(vm.PrimaryScope.IsBarSubmenuOpen);
+            FocusCanvas(main, docked.ScopeView);
+            vm.PrimaryScope.ArmMeasure();
+            Assert.True(vm.Measure.IsMeasuring);
+
+            Esc(main);
+
+            Assert.False(vm.Measure.IsMeasuring);
+        }
+        finally
+        {
+            vm.IsScopePoppedOut = false;
+            SetOtherTabsPoppedOut(vm, false);
+            MainWindowHost.Pump();
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    /// <summary>The docked Scope host of <paramref name="main"/>, its bar switched to the STARS DCB.</summary>
+    private static ScopeHost DockedStarsHost(MainWindow main, MainViewModel vm)
+    {
+        vm.RunScopeCommand(".scope profile stars");
+        MainWindowHost.Pump();
+        main.UpdateLayout();
+        MainWindowHost.Pump();
+        return Assert.Single(main.GetVisualDescendants().OfType<ScopeHost>());
+    }
+
+    /// <summary>Pops every docked tab but the Scope out (or docks them back), so the Scope is the only docked tab.</summary>
+    private static void SetOtherTabsPoppedOut(MainViewModel vm, bool poppedOut)
+    {
+        vm.IsDataGridPoppedOut = poppedOut;
+        vm.IsGroundViewPoppedOut = poppedOut;
+        vm.IsControllersPoppedOut = poppedOut;
+        vm.IsMetarPoppedOut = poppedOut;
+        foreach (VStripsDockEntryViewModel entry in vm.StripsEntries)
+        {
+            entry.IsPoppedOut = poppedOut;
+        }
+
+        foreach (VTdlsDockEntryViewModel entry in vm.TdlsEntries)
+        {
+            entry.IsPoppedOut = poppedOut;
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Esc_WithAFieldPopupOpenAndMapsOpen_ClosesThePopup_ThenTheNextEscReturnsToMain()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync(2);
@@ -696,6 +818,58 @@ public class StarsDcbSubmenuTests : IDisposable
             Settle(window);
 
             Assert.False(Labelled(host, "PILOT").IsPushed);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatPage_Others_LightsWhileTheOthersLevelIsPinned()
+    {
+        (MainViewModel main, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+
+            Assert.False(Labelled(host, "OTHERS").IsPushed);
+
+            main.RunScopeCommand(".scope others full");
+            Settle(window);
+
+            Assert.True(Labelled(host, "OTHERS").IsPushed);
+
+            main.RunScopeCommand(".scope auto");
+            Settle(window);
+
+            Assert.False(Labelled(host, "OTHERS").IsPushed);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatPage_Auto_LightsWhileABandPinIsSet()
+    {
+        (MainViewModel main, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            Open(window, host, StarsDcbPage.Yaat);
+
+            Assert.False(Labelled(host, "AUTO").IsPushed);
+
+            main.RunScopeCommand(".scope hist 3");
+            Settle(window);
+
+            Assert.True(Labelled(host, "AUTO").IsPushed);
+
+            main.RunScopeCommand(".scope auto");
+            Settle(window);
+
+            Assert.False(Labelled(host, "AUTO").IsPushed);
         }
         finally
         {

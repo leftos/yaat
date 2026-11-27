@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Xunit;
@@ -697,6 +698,62 @@ public class StarsDcbBarTests
             Assert.True(LeftIn(bar, yaat) + yaat.Bounds.Width <= bar.Bounds.Width);
             Press(window, yaat);
             Assert.Equal(StarsDcbPage.Yaat, bar.Page);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowBar_HorizontalSwipe_ScrollsTheTiles()
+    {
+        (_, ScopeViewModel scope, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile first = bar.Tiles[0];
+            double range = scope.RangeNm;
+
+            SwipeOverBar(window, bar, -1);
+            Assert.Equal(-25, LeftIn(bar, first));
+            SwipeOverBar(window, bar, -2);
+            Assert.Equal(-75, LeftIn(bar, first));
+            SwipeOverBar(window, bar, 10);
+            Assert.Equal(0, LeftIn(bar, first));
+
+            Assert.Equal(range, scope.RangeNm);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static void SwipeOverBar(Window window, StarsDcbBar bar, int notches)
+    {
+        window.MouseWheel(bar.TranslatePoint(new Point(bar.Bounds.Width / 2, bar.Bounds.Height / 2), window)!.Value, new Vector(notches, 0));
+        Settle(window);
+    }
+
+    [AvaloniaFact]
+    public async Task TileFocused_PageDown_IsNotHandledByTheBar()
+    {
+        (_, _, ScopeHost host, Window window) = await ShowStarsHostAsync();
+        try
+        {
+            StarsDcbBar bar = Narrow(host, window);
+            DcbTile tile = bar.Tiles.First(t => t.Focusable);
+            Assert.True(tile.Focus());
+            bool? handled = null;
+            window.AddHandler(InputElement.KeyDownEvent, (_, e) => handled = e.Handled, RoutingStrategies.Bubble, handledEventsToo: true);
+
+            window.KeyPressQwerty(PhysicalKey.PageDown, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(handled);
         }
         finally
         {

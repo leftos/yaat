@@ -1201,6 +1201,27 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
+    public async Task TileFocused_PageDown_IsNotHandledByTheBar()
+    {
+        (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));
+        try
+        {
+            Assert.True(ButtonOf(window, ScopeButtonId.Auto).Focus());
+            bool? handled = null;
+            window.AddHandler(InputElement.KeyDownEvent, (_, e) => handled = e.Handled, RoutingStrategies.Bubble, handledEventsToo: true);
+
+            window.KeyPressQwerty(PhysicalKey.PageDown, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.False(handled);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Widening_UntilTheBarFits_HidesTheChevrons_AndResetsTheOffset()
     {
         (_, _, ScopeWindow window) = await OpenAsync(new Size(500, 800));

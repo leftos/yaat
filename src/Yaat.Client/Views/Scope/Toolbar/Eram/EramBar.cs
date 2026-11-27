@@ -3,12 +3,15 @@ using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Extensions.Logging;
 using Yaat.Client.Logging;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope.Toolbar.Dcb;
 
 namespace Yaat.Client.Views.Scope.Toolbar.Eram;
 
@@ -16,7 +19,8 @@ namespace Yaat.Client.Views.Scope.Toolbar.Eram;
 /// The Scope's bar under the ERAM profile: CRC's Master Toolbar over the <see cref="ScopeViewModel"/> in its DataContext,
 /// its menus opening and closing on their buttons, and each live button acting through the classic bar's own path
 /// (<see cref="ScopeViewModel.Press"/>, <see cref="ScopeViewModel.StepSpinner"/>), so it does exactly what its classic
-/// counterpart does. Toggles and labels follow the view model on every change.
+/// counterpart does. Toggles and labels follow the view model on every change. A Radar narrower than the bar scrolls it
+/// sideways under the wheel, its open menus with it (<see cref="Scroller"/>).
 /// </summary>
 public sealed class EramBar : UserControl
 {
@@ -37,8 +41,26 @@ public sealed class EramBar : UserControl
         Toolbar.Command += OnPress;
         Toolbar.IncDec += OnIncDec;
         Toolbar.Wheel += OnWheel;
-        Content = Toolbar;
+        Scroller = new KeyIgnoringScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false,
+            IsTabStop = false,
+            BringIntoViewOnFocusChange = false,
+            ClipsVertically = false,
+            Content = Toolbar,
+        };
+        Content = Scroller;
+        // Tunnelling, so the scroller's own wheel handling never runs and only RANGE's own wheel reaches its button.
+        AddHandler(PointerWheelChangedEvent, OnBarWheel, RoutingStrategies.Tunnel);
     }
+
+    /// <summary>
+    /// The scroller the Master Toolbar sits in at its full width: a Radar narrower than the bar scrolls it sideways, with no
+    /// scrollbar, and the open menus, which hang from their buttons, scroll with it.
+    /// </summary>
+    private KeyIgnoringScrollViewer Scroller { get; }
 
     /// <summary>The Master Toolbar the bar shows.</summary>
     public EramMasterToolbar Toolbar { get; }
@@ -63,6 +85,7 @@ public sealed class EramBar : UserControl
         {
             old.PropertyChanged -= OnViewModelPropertyChanged;
             old.MapToggles.CollectionChanged -= OnMapTogglesChanged;
+            old.BarSubmenusLeaving -= OnBarSubmenusLeaving;
             CloseTrays(old);
         }
 
@@ -71,6 +94,7 @@ public sealed class EramBar : UserControl
         {
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
             viewModel.MapToggles.CollectionChanged += OnMapTogglesChanged;
+            viewModel.BarSubmenusLeaving += OnBarSubmenusLeaving;
         }
 
         Toolbar.RefreshMenu();
@@ -416,6 +440,20 @@ public sealed class EramBar : UserControl
         FollowEscape();
     }
 
+    /// <summary>
+    /// The Scope has its bars leave their submenus (<see cref="ScopeViewModel.LeaveBarSubmenus"/>): the bar closes its menus
+    /// and the tray a YAAT submenu stands for, as on a hide.
+    /// </summary>
+    private void OnBarSubmenusLeaving(object? sender, EventArgs e)
+    {
+        if (_viewModel is { } viewModel)
+        {
+            CloseTrays(viewModel);
+        }
+
+        Refresh();
+    }
+
     /// <summary>Closes the YAAT TOOLS or PILOT LENS submenu when the Scope closes the tray it stands for (a command press does).</summary>
     private void FollowTray(ScopeViewModel viewModel)
     {
@@ -439,6 +477,26 @@ public sealed class EramBar : UserControl
         {
             viewModel.StepSpinner(id, e.Delta);
         }
+    }
+
+    /// <summary>
+    /// The wheel over the bar, anywhere but up or down over RANGE, scrolls it by the STARS DCB's <see cref="DcbBar.WheelStep"/> a notch, the
+    /// wheel down and a leftward swipe moving the buttons left; the Scope never sees it.
+    /// </summary>
+    private void OnBarWheel(object? sender, PointerWheelEventArgs e)
+    {
+        // RANGE keeps the wheel's up and down for its range; a sideways swipe over it scrolls the bar.
+        if (
+            (e.Delta.Y != 0) && ((e.Source as Visual)?.FindAncestorOfType<EramToolbarButton>(includeSelf: true) is { Type: EramButtonType.RangeView })
+        )
+        {
+            return;
+        }
+
+        e.Handled = true;
+        double max = Math.Max(0, Scroller.Extent.Width - Scroller.Viewport.Width);
+        double offset = Scroller.Offset.X - ((e.Delta.Y + e.Delta.X) * DcbBar.WheelStep);
+        Scroller.Offset = new Vector(Math.Clamp(offset, 0, max), 0);
     }
 
     /// <summary>The wheel over RANGE steps the range as the classic RANGE spinner's wheel does.</summary>
