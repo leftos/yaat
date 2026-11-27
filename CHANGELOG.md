@@ -1,22 +1,29 @@
 # Changelog
 
-## Unreleased
+## v0.20.1-beta [2026/11/26]
+
+### Highlights
+
+- Radar: the PROFILE button alone picks the datablock look, with a new EUROSCOPE profile for EuroScope-style tags.
+- Hawaii, Alaska and Guam airports have their approaches, SIDs, STARs, ground layouts and weather.
+- RDH and RDR refuse the cases that used to send the wrong rundown item or drop its text.
+- In a narrow Radar, the STARS DCB and the ERAM toolbar scroll so every button stays reachable.
 
 ### Changed
 
 - Radar: the profile alone picks the datablock look; the TEMPLATE control and `.scope template` are gone, and PROFILE gains EUROSCOPE for EuroScope-style tags.
 - Radar: until the room's profile arrives, the Radar runs the STARS profile, with the STARS DCB instead of the classic bar.
-- Settings › Radar's EuroScope-style tags option is gone; if it was on, the EuroScope profile becomes your pick for every position type, once.
+- Settings › Radar's EuroScope-style tags option is gone; if it was on, the EuroScope profile becomes your pick in every room, once.
+- Radar: a profile picked by hand in a room without a student position is remembered for later rooms without one.
 
 ### Fixed
 
 - `RDH` with text on a release that has not been sent is refused, pointing to `RDTXT` then `RDH`, instead of sending it and dropping the text.
-- Radar: with Realistic scope text, the ERAM HSF, VCI and ≠ marks draw crisp like the rest of the datablock.
+- Radar: with Realistic scope text, the ERAM HSF, VCI and ≠ marks and the climb and descend arrows draw crisp in Terminus like the rest of the datablock.
 - `RDH` on an aircraft whose rundown item was already sent is refused with RD's message instead of adding a second item.
 - `RDH` and `RDR` naming a rundown list are refused from a position that does not send on that list.
 - Preset and triggered handoffs and point-outs to an unstaffed position follow STARS consolidation, as typed ones do.
 - The RUNDOWN list shows an entry's STARS line number as soon as the aircraft gets one, as CRC does.
-- Radar: with Realistic scope text, the ERAM climb and descend arrows draw crisp in Terminus like the rest of the datablock.
 - Radar: the STARS DCB's YAAT page lights OTHERS while the others level is pinned and AUTO while any band pin is set.
 - Radar: popping the Radar out while it is the only docked tab, then docking it back, leaves the STARS DCB on its Main page.
 - Radar: a sideways touchpad swipe scrolls a narrow STARS DCB, and PageUp and PageDown reach your key bindings while a bar tile has focus.

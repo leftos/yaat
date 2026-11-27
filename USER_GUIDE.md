@@ -1172,11 +1172,11 @@ A small **▸** in a tile's top-right corner marks a button that opens a tray, a
 
 The default window is wide enough for the whole bar. When the classic bar is wider than the window, it scrolls sideways: a **‹** tile at its left end and a **›** at its right end appear, each greyed out at its end of the bar, and a press moves the bar three quarters of a window.
 
-On the STARS DCB and the classic bar, PageUp and PageDown keep working as your key bindings even with a tile focused. Popping the Radar out leaves any open STARS DCB submenu for its Main page, so docking it back shows Main. The mouse wheel does not scroll the bar; over a spinner such as RANGE, VECTOR or HIST it still steps the value. Pressing a button that is partly out of view does not scroll the bar; Tab or an arrow key onto a hidden button does.
+On the STARS DCB and the classic bar, PageUp and PageDown keep working as your key bindings even with a tile focused. A sideways touchpad swipe scrolls a STARS DCB narrower than the Radar. Popping the Radar out leaves any open STARS DCB submenu for its Main page, so docking it back shows Main. The mouse wheel does not scroll the bar; over a spinner such as RANGE, VECTOR or HIST it still steps the value. Pressing a button that is partly out of view does not scroll the bar; Tab or an arrow key onto a hidden button does.
 
 On the classic bar, the open button's tray stays under the bar at the window's full width. Every tray is a grid of one-line half-height tiles (`LABEL value`, and `ID NAME` for a map) filled column by column in two rows; a tray wider than the window continues in another two-row block underneath. The MAPS tray starts with CLR ALL.
 
-The profile is picked once per room, when your student position first arrives: ERAM for an ERAM sector, STARS for a TRACON or tower (ATCT) position, otherwise Mixed. Changing position later (`AS`) keeps it. A profile you pick by hand is remembered for that kind of student position (GND, TWR, APP, CTR) and wins in later rooms of that kind.
+The profile is picked once per room, when your student position first arrives: ERAM for an ERAM sector, STARS for a TRACON or tower (ATCT) position, otherwise Mixed. Changing position later (`AS`) keeps it. A profile you pick by hand is remembered for that kind of student position (GND, TWR, APP, CTR) and wins in later rooms of that kind; picked in a room without a student position, it wins in later rooms without one.
 The profiles are files in `%LOCALAPPDATA%/yaat/scope/profiles/` (`stars.json`, `eram.json`, `mixed.json`, `euroscope.json`), written when absent and never overwritten, so you can edit them. A field that is wrong falls back to the shipped value, and a file that cannot be read is renamed to a `.bak` and replaced with the shipped copy.
 
 `views` lists the views in the order you want them, and in `mixed.json` and `euroscope.json` `toolbar` lists the buttons of the classic bar the same way (`stars.json` and `eram.json` have no `toolbar`, since the STARS and ERAM bars are fixed; one left in a file you edited is ignored; a `template` field left in an old file is ignored too); ones you leave out follow in the default order.
@@ -1267,7 +1267,7 @@ Brightness belongs to the Radar and is never sent to the server. It is kept in t
 
 A pref set is a named snapshot of the Radar: range, centre, profile, brightness (every BRITE group), whose tracks VECTOR draws on (OWN or ALL), TDM, the pilot lens's ON, PATH, QUEUE and CHECKIN switches, your pinned vector and history values, the DB settings (4TH LINE, DWELL, ATPA DIST, ALERT CONES, MONITOR CONES, CA RING, CHAR), the maps that are on, which views are open and and where each one sits.
 
-It does not hold your dwell locks, the MVA tint, the selection or an open menu. A name is 1 to 16 characters of A-Z, 0-9, `-` and `_`; any letter case, shown in capitals. Windows device names such as CON, NUL and COM1 are refused. A set saved with the EuroScope template loads as the EuroScope profile.
+It does not hold your dwell locks, the MVA tint, the selection or an open menu. A name is 1 to 16 characters of A-Z, 0-9, `-` and `_`; any letter case, shown in capitals. Windows device names such as CON, NUL and COM1 are refused. A set an older version saved with the EuroScope template loads as the EuroScope profile.
 
 Loading a set replaces the Radar's state: the profile switches to the set's and the views open exactly as saved. A saved value that is out of range keeps the current one. A map the Radar does not have is skipped, and the echo names how many (`(2 maps not on this Radar)`). A load made while the Radar waits for the facility's maps applies its maps, range and centre once they arrive.
 
@@ -1397,7 +1397,7 @@ The detailed popup (Tabbed or Side by side) sits just below the block (above it,
 
 A click runs the entry at once and the answer shows in the feedback area; **Shift+click** puts the bare entry in the preview, focus goes to the Radar, and Enter sends it with the track as the pick. **PILOT** (gold, "sends a pilot command") is the Maintain altitude panel: a click sends, Shift+click stages `$ {callsign} CM nnnn` (a further Shift+click for the same aircraft appends `, {command}` to that entry). The popup closes after either, and Esc closes it. A click outside closes it and still reaches the Radar.
 
-Only one field menu, popup or aircraft menu is open at a time. With no ERAM position the ERAM column still shows and the server answers `NOT ADAPTED`. The EuroScope template has its own altitude flyout; Mixed resolves each track to STARS or ERAM.
+Only one field menu, popup or aircraft menu is open at a time. With no ERAM position the ERAM column still shows and the server answers `NOT ADAPTED`. The EuroScope profile has its own altitude flyout; Mixed resolves each track to STARS or ERAM.
 
 - **STARS**: with **STARS field menus** off (the default, as in CRC's STARS) a click on the altitude, ground speed, squawk or ident, or line 3 only selects the track, and only the instructor note still opens its note box. With it on, altitude opens Maintain altitude, ground speed Assign speed, squawk and ident Squawk…, and line 3 Scratchpad…. On Mixed, a STARS-owned track follows the setting. The callsign and other fields only select.
   - Altitude and ground speed follow the **ERAM field menus** style: **Side by side** opens the single-entry menus above; **Tabbed** opens a popup with one **PILOT** tab (the Maintain altitude or Assign speed panel); **Simple (CRC)** opens CRC's compact menu in STARS colours, with no ERAM | PILOT chip, lined up with the block's second line, whose picks send the pilot command (`CM`/`DM`, `SPD`/`MACH`/`RNS`). Squawk, ident and line 3 open the single-entry menus in every style. Shift+click stages, and a STARS pick never changes the tab the ERAM menus remember.
@@ -1710,7 +1710,7 @@ Pick a preset distance (or type `JRING 3` / `CONE 5`, 1–30 NM) to draw a blue 
 
 #### EuroScope-Style Interactive Tags
 
-Pick the **EUROSCOPE** profile (the PROFILE button, or `.scope profile euroscope`) to switch the radar tag layout to a EuroScope pseudopilot-style block where individual fields are clickable. A user who had the old "EuroScope-style interactive tags" setting on starts with the EuroScope profile for DEL, GND, TWR, APP, DEP and CTR positions, unless a profile was already picked for that type. With it on, every aircraft data block has four lines:
+Pick the **EUROSCOPE** profile (the PROFILE button, or `.scope profile euroscope`) to switch the radar tag layout to a EuroScope pseudopilot-style block where individual fields are clickable. A user who had the old "EuroScope-style interactive tags" setting on starts with the EuroScope profile in every room, whatever the student position, replacing any profile picked before. With it on, every aircraft data block has four lines:
 
 ```
 ABC CALLSIGN                 ← owner initials + callsign  ('--' if uncontrolled)
@@ -3383,7 +3383,6 @@ Links at the top: **Font sizes → Appearance**, **Always on top → General**.
 
 | Setting | What it does | Default |
 |---------|--------------|---------|
-| **EuroScope-style interactive tags** | Replaces the STARS/ERAM datablock with a EuroScope pseudopilot-style tag whose fields are clickable. See [EuroScope-Style Interactive Tags](#euroscope-style-interactive-tags). | Off |
 | **ERAM field menus** | What a click on an ERAM block's altitude, heading or speed opens: **Simple (CRC)** (CRC's compact menu with an ERAM \| PILOT chip row), **Tabbed** (the detailed popup, one column at a time behind an ERAM \| PILOT tab strip that opens on the tab you last sent from) or **Side by side** (both columns at once). See **Field menus** under [Radar](#radar). | Tabbed |
 | **STARS field menus** | Whether a click on a STARS block's altitude, ground speed, squawk or ident, or line 3 opens a pick menu, in the **ERAM field menus** style. Off, as in CRC's STARS, those clicks only select the track; the instructor note still opens its note box. See **Field menus** under [Radar](#radar). | Off |
 | **Flash 'NoLndgClnc' on datablock when approaching final without landing clearance** | Flashes a red `NoLndgClnc` line on the radar datablock once the aircraft reaches the no-landing-clearance warning point, until clearance is granted. | On |
