@@ -178,6 +178,10 @@ If the dry-run reports zero duplicates, the skill exits without committing and w
 
 Captures render the client as the code now stands, so a change this cycle that moved a picture shows up here. GuideCapture is a yaat-server tool, so run these from the sibling `../yaat-server` checkout (with yaat beside it as `../yaat`, which is where the PNGs land), through yaat's gate script (yaat-server has none) and a log under yaat-server's `.tmp/`. Run in the background, one gate call after another (the runs share one build output), on 2.0's build (`test-all.ps1 -BuildOnly` builds yaat-server's solution, GuideCapture included):
 
+A routed 2.0 build brings GuideCapture's binaries back only while the gate's `outputs.yaat-server` lists `tools/Yaat.GuideCapture/bin/Release/**` (`pwsh tools/gate.ps1 remote add outputs yaat-server "tools/Yaat.GuideCapture/bin/Release/**"` adds it). Before the first capture, check that `tools/Yaat.GuideCapture/bin/Release/net10.0/Yaat.GuideCapture.dll` is newer than yaat's HEAD commit.
+
+When it is older, the captures would render a stale client: add the glob and drop `--no-build` from the first run below.
+
 ```bash
 cd ../yaat-server
 pwsh ../yaat/tools/gate.ps1 -Log .tmp/guide-capture-all.log -TimeoutSeconds 1800 -Slot heavy -- dotnet run -c Release --no-build --project tools/Yaat.GuideCapture
