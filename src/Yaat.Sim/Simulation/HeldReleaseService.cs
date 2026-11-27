@@ -93,7 +93,11 @@ public static class HeldReleaseService
         return new HeldReleaseResult(true, $"Hold for release armed at {normalized}{suffix}");
     }
 
-    /// <summary>Disarm an airport; auto-releases anything still held there (ground departures and queued spawns).</summary>
+    /// <summary>
+    /// Disarm an airport; auto-releases the held ground departures there and the queued spawns already due. A queued spawn
+    /// not yet due keeps its hold candidacy, so it spawns on schedule while the field is disarmed, and a later arm at the
+    /// field holds it again. "(N released)" counts only the departures this call released.
+    /// </summary>
     public static HeldReleaseResult Disarm(SimScenarioState scenario, SimulationWorld world, string airport)
     {
         string normalized = airport.Trim().ToUpperInvariant();
@@ -113,12 +117,17 @@ public static class HeldReleaseService
             }
         }
 
-        // Queued held spawns at this airport become spawn-eligible immediately (the armed-set check in
+        // Queued held spawns at this airport that are already due become spawn-eligible immediately (the armed-set check in
         // ProcessDelayedSpawns now returns false). Release each through the spawn gate as REL would, so a runway spawn
-        // already has its release and never asks the student for one once it lines up (ReleaseOneCore does the same).
+        // already has its release and never asks the student for one once it lines up (ReleaseOneCore does the same). A
+        // spawn not yet due keeps its candidacy: it spawns on schedule while the field is disarmed, and a later arm holds it.
         foreach (DelayedSpawn entry in scenario.DelayedQueue)
         {
-            if (entry.HeldForRelease && AirportMatches(DepartureAirportOf(entry.Aircraft.State), normalized))
+            if (
+                (entry.HeldForRelease)
+                && (entry.SpawnAtSeconds <= scenario.ElapsedSeconds)
+                && (AirportMatches(DepartureAirportOf(entry.Aircraft.State), normalized))
+            )
             {
                 entry.HeldForRelease = false;
                 entry.Aircraft.State.Ground.ReleasedAtSpawnGate = true;

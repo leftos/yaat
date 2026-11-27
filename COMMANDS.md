@@ -771,7 +771,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Hold for release | `HFR SJC` | — | Arms hold-for-release for an airport's IFR departures (global) |
-| Disarm hold for release | `HFROFF SJC` | — | Auto-releases anything still held (global) |
+| Disarm hold for release | `HFROFF SJC` | — | Auto-releases the held departures and the queued spawns already due (global) |
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Call for release | `CFR 1830` | — | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release; `CFR OFF` clears; `CFR CHECK` prints the window status |
 | Active runways | `ARWY OAK 28L 28R` | — | Replaces an airport's active runways (`28L,28R` too); airport omitted = the primary airport. `D28L` departures only, `A28R` arrivals only, `30` both. `ARWY OAK` shows the list; `ARWY OAK NONE` clears it (global) |
@@ -2356,7 +2356,7 @@ or callsign rides in the argument, no aircraft selection is needed.
 | Command | Effect |
 |---------|--------|
 | `HFR <airport>` | Arm hold-for-release for an airport. Its **IFR** departures are then held until released — those that spawn airborne/on-the-runway don't appear until released; those at parking/taxiway taxi out and **hold short** of the runway (they never take the runway while held). VFR departures are unaffected. |
-| `HFROFF <airport>` | Disarm the airport. Anything still held there is auto-released. |
+| `HFROFF <airport>` | Disarm the airport. Held departures there and queued spawns already due are auto-released; a queued spawn not yet due keeps its schedule and is held again by a later `HFR`. |
 | `REL <airport>` (alias `CTOA <airport>`) | Release the **next pending** departure at that field (earliest-scheduled first). |
 | `REL <callsign>` | Release a specific held departure. |
 | `REL <airport> <minutes>` | Release the field's **whole** held queue, auto-spaced by the given interval in minutes (e.g. `REL SJC 2` = one every two minutes). |

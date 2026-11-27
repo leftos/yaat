@@ -2197,7 +2197,7 @@ Release them in any of these ways:
 - `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
 - `REL <callsign>` — release a specific aircraft (also available as the first icon of the aircraft's right-click menu strip, on the radar, ground view and aircraft list).
 - `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
-- `HFROFF <airport>` — disarm the field; anything still held is auto-released.
+- `HFROFF <airport>` — disarm the field; the held departures and the queued spawns already due are auto-released, and one not yet due keeps its schedule and is held again by a later `HFR`.
 
 **View > Bars > Rundowns…** (right after **Notes…**) opens the **Rundowns** window, or brings it forward when it is already open; its geometry is saved, and the preferences reopen it at the next launch. The window shows one section per STARS coordination (RD) list that has items, headed by the list's title (or its id), each row one monospace line in CRC's green or yellow with countdowns updating every second. Right-click a row for the same coordination menu as the Radar view's RUNDOWN list. Below, a **Hold for release** section (shown while a field is armed) lists each armed field with **Release next** and each held departure with **Release**. With nothing to show the window reads **No active rundowns**. Released aircraft don't appear instantly — they take off after a short, realistic delay.
 

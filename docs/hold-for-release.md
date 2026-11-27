@@ -39,7 +39,7 @@ and broadcasts). `HeldReleaseService` is the only writer.
 | State | Where | Meaning |
 |---|---|---|
 | `SimScenarioState.HeldDepartureAirports : HashSet<string>` | `Yaat.Sim/Simulation/SimScenarioState.cs` | Airports armed for hold-for-release. Single source of truth for "airport X is armed." |
-| `DelayedSpawn.HeldForRelease : bool` | `Yaat.Sim/Simulation/ScenarioQueues.cs` | Marks a delayed spawn as a held-spawn *candidate* (runway/airborne departure). Set at load via `DepartureSpawnClassifier`; the runtime armed check decides if it's actually held. |
+| `DelayedSpawn.HeldForRelease : bool` | `Yaat.Sim/Simulation/ScenarioQueues.cs` | Marks a delayed spawn as a held-spawn *candidate* (runway/airborne departure). Set at load via `DepartureSpawnClassifier` and cleared only when that spawn is released; the runtime armed check decides if it's actually held. |
 | `AircraftGroundOps.HeldForRelease : bool` | `Yaat.Sim/AircraftGroundOps.cs` | A spawned ground departure is held short until released. The runway-entry gate reads this; the rundown lists it. |
 | `AircraftGroundOps.ReleasedForDeparture : bool` + `ReleasedAtSeconds : double` | `Yaat.Sim/AircraftGroundOps.cs` | Set by REL on a ground departure: authorized, awaiting the auto-issued takeoff clearance once it's holding short (or lined up, for a runway spawn that asked for its release). Solo rooms only act on it; an RPO room clears it on the next tick and the departure waits for a `CTO`. `ReleasedAtSeconds` anchors the readback jitter. |
 | `AircraftGroundOps.ReleasedAtSpawnGate : bool` | `Yaat.Sim/AircraftGroundOps.cs` | Set when a held runway/airborne spawn is released through the spawn gate: it already has its release, so a runway spawn never asks for one and departs as one that asked and got REL. |
@@ -131,7 +131,7 @@ group commands** (`isGlobal=true`, like `TAXIALL`/`SQALL`) — the airport/calls
 | Verb | Canonical type | Effect |
 |---|---|---|
 | `HFR <airport>` | `HoldForRelease` | Arm hold-for-release; sweep current on-ground IFR departures at the field to held. |
-| `HFROFF <airport>` | `DisarmHoldForRelease` | Disarm; auto-release anything still held there, answering any release request it made. A released ground departure then takes off by itself in a solo room; in an RPO room it waits for the RPO's `CTO` or its timed preset. |
+| `HFROFF <airport>` | `DisarmHoldForRelease` | Disarm; auto-release the held ground departures there and every queued spawn already due, answering any release request it made (the reply's "(N released)" counts only those). A queued spawn not yet due keeps its schedule and its hold candidacy, so a later `HFR` holds it again. A released ground departure then takes off by itself in a solo room; in an RPO room it waits for the RPO's `CTO` or its timed preset. |
 | `REL <airport>` / `CTOA <airport>` | `ReleaseDeparture` | Release the next-pending at the field (then as for `HFROFF`: solo rooms launch it, RPO rooms wait for `CTO` or a preset). |
 | `REL <callsign>` | `ReleaseDeparture` | Release a specific held departure. |
 | `REL <airport> <minutes>` | `ReleaseDeparture` (interval) | Release the whole field's queue auto-spaced. |
@@ -224,9 +224,10 @@ via `AircraftGroundOps`, so a rewind reproduces it, but replaying a recording ne
 ## Footguns
 
 - **Disarm auto-releases the field.** `HFROFF` (and the spawn gate's `Contains` check going false)
-  releases everything still held there — call it out, it's intentional.
+  releases the held ground departures there and the queued spawns already due — call it out, it's intentional. Every due spawn is released at once and they spawn together on the next tick. A queued spawn not yet due is left alone: it spawns on schedule while the field is disarmed, and a later `HFR` holds it again.
+- **`DelayedSpawn.HeldForRelease` is set only at load.** Nothing re-derives it, so any writer that clears it for an entry that was not actually released makes that entry unholdable until the scenario reloads (`Disarm` once did this to every queued entry, so after `HFR`, `HFROFF`, `HFR` the queued runway departures were never held again).
 - **Arming after a clearance is already in hand doesn't retroactively yank it.** The arm sweep only
-  holds pre-runway ground departures (`AtParking`/`Pushback`/`Taxiing`/`HoldingShort`); one already
+  holds pre-runway ground departures (`AtParking`/`Pushback`/`TugRelease`/`HoldingAfterPushback`/`Taxiing`/`HoldingShort`, `IsHoldableGroundDeparture`); one already
   rolling is gone.
 - **IFR only.** A VFR departure at an armed airport is never held — check `FlightPlan.IsVfr` before
   assuming the gate applies.
