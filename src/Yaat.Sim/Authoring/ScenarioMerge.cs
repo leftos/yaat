@@ -21,7 +21,7 @@ public enum MergeRowKind
 /// <summary>One field or list item where mine and theirs differ.</summary>
 /// <param name="Path">
 /// The JSON Pointer of the field, the key of its choice. A list matched by id numbers its items in mine's order, then the
-/// items only theirs holds.
+/// items only theirs holds; the order of the ids every side holds is one row at <c>&lt;list path&gt;#order</c>.
 /// </param>
 /// <param name="Section">The editor tab the field sits on (<c>General</c>, <c>Aircraft</c>) or its General-tab list section.</param>
 /// <param name="Label">The editor's label for the field; a field the editor does not show is labelled by its JSON name.</param>
@@ -101,7 +101,10 @@ public static class ScenarioMerge
     /// <param name="baseJson">The text both sides started from; null for a two-way merge.</param>
     /// <param name="mineJson">Mine: the working copy.</param>
     /// <param name="theirsJson">Theirs: the other version.</param>
-    /// <returns>The plan, one row per field or list item where mine and theirs differ.</returns>
+    /// <returns>
+    /// The plan, one row per field or list item where mine and theirs differ, and one at the <c>#order</c> path when a list
+    /// matched by id holds the ids every side has in a different order.
+    /// </returns>
     /// <exception cref="JsonException">A text is malformed or not a JSON object.</exception>
     public static ScenarioMergePlan Plan(string? baseJson, string mineJson, string theirsJson)
     {
@@ -143,12 +146,13 @@ public sealed class ScenarioMergePlan
 
     /// <summary>
     /// Writes the merged scenario: each row takes its choice, an auto row its own side when it has none; a field with no row
-    /// is the same on both sides and is kept, known to the model or not. Indented JSON.
+    /// is the same on both sides and is kept, known to the model or not. A list matched by id takes the order of its
+    /// <c>#order</c> row's chosen side, an item only one side holds keeping the place it has today. Indented JSON.
     /// </summary>
     /// <param name="choicesByPath">The author's choices keyed by row path.</param>
     /// <returns>The merged scenario JSON.</returns>
     /// <exception cref="InvalidOperationException">A clash has no choice; the message names its path.</exception>
-    /// <exception cref="ArgumentException">A choice's path is no row's.</exception>
+    /// <exception cref="ArgumentException">A choice's path is no row's, or an <c>#order</c> row has an edited value.</exception>
     public string Apply(IReadOnlyDictionary<string, MergeChoice> choicesByPath)
     {
         ArgumentNullException.ThrowIfNull(choicesByPath);
@@ -238,10 +242,13 @@ internal sealed record PlannedRow(MergeRow Row, JsonSlot Mine, JsonSlot Theirs);
 /// <summary>
 /// Walks base, mine and theirs together: where mine and theirs are both objects, or both lists of objects, it descends
 /// (members by name, list items by id when every item of mine and theirs has a distinct one, else by position); anywhere
-/// else a difference between mine and theirs is one row.
+/// else a difference between mine and theirs is one row. A list matched by id whose items every side holds in a different
+/// order is one more row, at the list's <c>#order</c> path.
 /// </summary>
 internal sealed class MergeTree
 {
+    private const string OrderSuffix = "#order";
+
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioMerge");
 
     private static readonly JsonDocumentOptions ParseOptions = new() { CommentHandling = JsonCommentHandling.Skip };
@@ -365,7 +372,53 @@ internal sealed class MergeTree
         {
             Walk(child);
         }
+
+        AddOrderRow(slots);
     }
+
+    // The list's own path is a branch, so a row there would resolve the whole list and drop its item rows: the order of the
+    // ids every side holds gets a path of its own, carrying the list's place so a nested list keeps its item's key and label.
+    private void AddOrderRow(MergeSlots slots)
+    {
+        if (
+            (slots.Mine.Value is not JsonArray mine)
+            || (slots.Theirs.Value is not JsonArray theirs)
+            || !HasDistinctIds(mine)
+            || !HasDistinctIds(theirs)
+        )
+        {
+            return;
+        }
+
+        HashSet<string> shared = SharedIds(slots, mine, theirs);
+        List<string> mineOrder = [.. mine.Select(IdOf).OfType<string>().Where(shared.Contains)];
+        List<string> theirsOrder = [.. theirs.Select(IdOf).OfType<string>().Where(shared.Contains)];
+        if (mineOrder.SequenceEqual(theirsOrder, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        JsonSlot baseOrder =
+            (slots.Base.Value is JsonArray baseItems)
+                ? JsonSlot.Of(IdArray(baseItems.Select(IdOf).OfType<string>().Where(shared.Contains)))
+                : JsonSlot.Absent;
+        var place = new FieldPlace(slots.Place.Path + OrderSuffix, null, slots.Place.Section, slots.Place.ItemKey, slots.Place.LabelPath);
+        AddRow(new MergeSlots(place, baseOrder, JsonSlot.Of(IdArray(mineOrder)), JsonSlot.Of(IdArray(theirsOrder))));
+    }
+
+    // The ids every side holds: an item only one side has, or one no side had before, is no reorder. Without a base, the ids
+    // both sides hold.
+    private static HashSet<string> SharedIds(MergeSlots slots, JsonArray mine, JsonArray theirs)
+    {
+        IEnumerable<string> every =
+            (slots.Base.Value is JsonArray baseItems) ? baseItems.Select(IdOf).OfType<string>() : mine.Select(IdOf).OfType<string>();
+        var shared = new HashSet<string>(every, StringComparer.Ordinal);
+        shared.IntersectWith(mine.Select(IdOf).OfType<string>());
+        shared.IntersectWith(theirs.Select(IdOf).OfType<string>());
+        return shared;
+    }
+
+    private static JsonArray IdArray(IEnumerable<string> ids) => new([.. ids.Select(id => (JsonNode?)JsonValue.Create(id))]);
 
     private void AddRow(MergeSlots slots)
     {
@@ -414,13 +467,66 @@ internal sealed class MergeTree
             return JsonSlot.Of(merged);
         }
 
-        return JsonSlot.Of(new JsonArray([.. children.Where(child => child.Value.Present).Select(child => child.Value.Value)]));
+        List<JsonNode?> items = [.. children.Where(child => child.Value.Present).Select(child => child.Value.Value)];
+        return JsonSlot.Of(new JsonArray([.. Ordered(slots.Place, items, choices)]));
     }
 
-    private static JsonSlot Choose(PlannedRow planned, IReadOnlyDictionary<string, MergeChoice> choices)
+    // The order row reorders the ids it holds into the chosen side's sequence; an item only one side holds stays in the
+    // place the walk gave it.
+    private List<JsonNode?> Ordered(FieldPlace place, List<JsonNode?> items, IReadOnlyDictionary<string, MergeChoice> choices)
+    {
+        if (!_rowsByPath.TryGetValue(place.Path + OrderSuffix, out PlannedRow? order))
+        {
+            return items;
+        }
+
+        MergeChoice choice = Chosen(order, choices);
+        if (choice.Kind == MergeChoiceKind.Edit)
+        {
+            throw new ArgumentException($"The order row at {order.Row.Path} takes mine or theirs; it has no edited value.", nameof(choices));
+        }
+
+        JsonSlot sequence = (choice.Kind == MergeChoiceKind.KeepTheirs) ? order.Theirs : order.Mine;
+        return Reordered(items, [.. sequence.Value!.AsArray().Select(id => id!.GetValue<string>())]);
+    }
+
+    private static List<JsonNode?> Reordered(List<JsonNode?> items, IReadOnlyList<string> sequence)
+    {
+        var byId = new Dictionary<string, JsonNode?>(StringComparer.Ordinal);
+        foreach (JsonNode? item in items)
+        {
+            if (IdOf(item) is string id)
+            {
+                byId[id] = item;
+            }
+        }
+
+        var order = new HashSet<string>(sequence, StringComparer.Ordinal);
+        int next = 0;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if ((IdOf(items[i]) is not string id) || !order.Contains(id))
+            {
+                continue;
+            }
+
+            if (!byId.TryGetValue(sequence[next], out JsonNode? moved))
+            {
+                throw new InvalidOperationException($"The merged list has no item with the id '{sequence[next]}'.");
+            }
+
+            items[i] = moved;
+            next++;
+        }
+
+        return items;
+    }
+
+    // The author's choice for a row, or the side an auto row takes on its own.
+    private static MergeChoice Chosen(PlannedRow planned, IReadOnlyDictionary<string, MergeChoice> choices)
     {
         MergeRow row = planned.Row;
-        MergeChoice choice = choices.TryGetValue(row.Path, out MergeChoice? chosen)
+        return choices.TryGetValue(row.Path, out MergeChoice? chosen)
             ? chosen
             : row.Kind switch
             {
@@ -428,6 +534,11 @@ internal sealed class MergeTree
                 MergeRowKind.AutoTheirs => MergeChoice.KeepTheirs,
                 _ => throw new InvalidOperationException($"The clash at {row.Path} ({row.Label}) has no choice: keep mine, keep theirs or edit it."),
             };
+    }
+
+    private static JsonSlot Choose(PlannedRow planned, IReadOnlyDictionary<string, MergeChoice> choices)
+    {
+        MergeChoice choice = Chosen(planned, choices);
         return choice.Kind switch
         {
             MergeChoiceKind.KeepMine => planned.Mine.Cloned(),

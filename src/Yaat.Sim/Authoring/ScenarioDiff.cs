@@ -17,7 +17,8 @@ public enum DiffKind
 
 /// <summary>One field or list item that differs between two scenarios.</summary>
 /// <param name="Path">
-/// The JSON Pointer of the field. A list matched by id numbers its items left first, then the items only the right holds.
+/// The JSON Pointer of the field. A list matched by id numbers its items left first, then the items only the right holds;
+/// the order of the ids both sides hold is one entry at <c>&lt;list path&gt;#order</c>.
 /// </param>
 /// <param name="Section">The editor tab the field sits on (<c>General</c>, <c>Aircraft</c>) or its General-tab list section.</param>
 /// <param name="Label">The editor's label for the field; a field the editor does not show is labelled by its JSON name.</param>
@@ -27,13 +28,17 @@ public sealed record ScenarioDiffEntry(string Path, string Section, string Label
 
 /// <summary>
 /// Compares two scenario JSON texts field by field on the raw JSON, so fields the model does not know are compared too. List
-/// items match by id where every item on both sides carries one, else by position; a list of plain values is one field.
+/// items match by id where every item on both sides carries one, else by position; a list of plain values is one field. A
+/// list matched by id whose items both sides hold in a different order is one entry at the list's <c>#order</c> path.
 /// </summary>
 public static class ScenarioDiff
 {
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioDiff");
 
-    /// <summary>Lists every field and list item that differs from <paramref name="leftJson"/> to <paramref name="rightJson"/>.</summary>
+    /// <summary>
+    /// Lists every field and list item that differs from <paramref name="leftJson"/> to <paramref name="rightJson"/>; a pure
+    /// reorder of a list matched by id is one <see cref="DiffKind.Changed"/> entry at its <c>#order</c> path.
+    /// </summary>
     /// <param name="leftJson">The older scenario JSON.</param>
     /// <param name="rightJson">The newer scenario JSON.</param>
     /// <returns>The differences in document order, the left side's order first.</returns>

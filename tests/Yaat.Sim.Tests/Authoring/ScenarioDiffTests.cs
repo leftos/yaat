@@ -53,4 +53,49 @@ public class ScenarioDiffTests
         ];
         Assert.Equal(expected, entries);
     }
+
+    [Fact]
+    public void Compare_PureReorder_IsOneChangedEntryAtTheOrderPath()
+    {
+        string left = File.ReadAllText(SamplePath);
+        JsonObject right = JsonNode.Parse(left)!.AsObject();
+        List<JsonNode?> reversed = [.. right["aircraft"]!.AsArray().Select(a => a!.DeepClone()).Reverse()];
+        right["aircraft"] = new JsonArray([.. reversed]);
+
+        IReadOnlyList<ScenarioDiffEntry> entries = ScenarioDiff.Compare(left, right.ToJsonString());
+
+        ScenarioDiffEntry entry = Assert.Single(entries);
+        Assert.Equal(("/aircraft#order", "Aircraft", DiffKind.Changed), (entry.Path, entry.Section, entry.Kind));
+    }
+
+    [Fact]
+    public void Compare_NestedReorder_EntryCarriesTheAircraftKeyAndLabel()
+    {
+        JsonObject left = JsonNode.Parse(File.ReadAllText(SamplePath))!.AsObject();
+        left["aircraft"]![0]!["presetCommands"] = PresetCommands("01HPRESET00000000000000001", "01HPRESET00000000000000002");
+        JsonObject right = left.DeepClone().AsObject();
+        right["aircraft"]![0]!["presetCommands"] = PresetCommands("01HPRESET00000000000000002", "01HPRESET00000000000000001");
+        string aircraftId = left["aircraft"]![0]!["id"]!.GetValue<string>();
+
+        IReadOnlyList<ScenarioDiffEntry> entries = ScenarioDiff.Compare(left.ToJsonString(), right.ToJsonString());
+
+        ScenarioDiffEntry entry = Assert.Single(entries);
+        Assert.Equal(
+            ("/aircraft/0/presetCommands#order", aircraftId, "Preset commands", DiffKind.Changed),
+            (entry.Path, entry.ItemKey!, entry.Label, entry.Kind)
+        );
+    }
+
+    private static JsonArray PresetCommands(params string[] ids) =>
+        new([
+            .. ids.Select(id =>
+                (JsonNode?)
+                    new JsonObject
+                    {
+                        ["id"] = id,
+                        ["command"] = "FH 010",
+                        ["timeOffset"] = 0,
+                    }
+            ),
+        ]);
 }

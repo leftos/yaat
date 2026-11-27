@@ -13,6 +13,13 @@ public class ScenarioMergeTests
 {
     private const string AddedId = "01HZZZZZZZZZZZZZZZZZZZZZZZ";
 
+    private static readonly (string Id, string Command)[] Presets =
+    [
+        ("01HPRESET00000000000000001", "FH 010"),
+        ("01HPRESET00000000000000002", "CM 3000"),
+        ("01HPRESET00000000000000003", "SPD 210"),
+    ];
+
     private static readonly string SamplePath = Path.Combine(
         TickRecorder.FindRepoRoot(),
         "docs",
@@ -187,19 +194,148 @@ public class ScenarioMergeTests
         AssertTriggersMatchByPosition("01HTRIGGER0000000000000001", "01HTRIGGER0000000000000001");
 
     [Fact]
-    public void Plan_OneSidedReorderOfIdList_HasNoRow()
+    public void Plan_MineOnlyReorderOfIdList_IsOneAutoRow_ResolvedToMine()
     {
-        JsonObject mine = Sample();
-        List<JsonNode> reversed = [.. mine["aircraft"]!.AsArray().Select(a => a!.DeepClone()).Reverse()];
-        mine["aircraft"] = new JsonArray([.. reversed]);
+        JsonObject mine = ReorderAircraft(Sample(), Reverse);
 
         ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(Sample()));
 
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft#order", "Aircraft", MergeRowKind.AutoMine), (row.Path, row.Section, row.Kind));
+        Assert.Equal((0, 1), (plan.ClashCount, plan.AutoMergedCount));
+        Assert.Equal(AircraftIds(mine), Ids(row.Mine!.AsArray()));
+        Assert.Equal(AircraftIds(mine), AircraftIds(Merged(plan)));
+    }
+
+    [Fact]
+    public void Plan_TheirsOnlyReorderOfIdList_IsOneAutoRow_ResolvedToTheirs()
+    {
+        JsonObject theirs = ReorderAircraft(Sample(), Reverse);
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(Sample()), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft#order", "Aircraft", MergeRowKind.AutoTheirs), (row.Path, row.Section, row.Kind));
+        Assert.Equal(AircraftIds(Sample()), Ids(row.Base!.AsArray()));
+        Assert.Equal(AircraftIds(Sample()), Ids(row.Mine!.AsArray()));
+        Assert.Equal(AircraftIds(theirs), Ids(row.Theirs!.AsArray()));
+        Assert.Equal(AircraftIds(theirs), AircraftIds(Merged(plan)));
+    }
+
+    [Fact]
+    public void Plan_BothSidesReorderDifferently_IsOneClash_AndChoosingTheirsWritesTheirsOrder()
+    {
+        JsonObject mine = ReorderAircraft(Sample(), Reverse);
+        JsonObject theirs = ReorderAircraft(Sample(), FirstToLast);
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft#order", MergeRowKind.Clash), (row.Path, row.Kind));
+        Assert.Equal(1, plan.ClashCount);
+        JsonNode merged = JsonNode.Parse(plan.Apply(plan.ChooseAll(MergeChoiceKind.KeepTheirs)))!;
+        Assert.Equal(AircraftIds(theirs), AircraftIds(merged));
+    }
+
+    [Fact]
+    public void Plan_BothSidesSameReorder_HasNoRow()
+    {
+        JsonObject mine = ReorderAircraft(Sample(), Reverse);
+        JsonObject theirs = ReorderAircraft(Sample(), Reverse);
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(theirs));
+
         Assert.Empty(plan.Rows);
+        Assert.Equal(AircraftIds(mine), AircraftIds(Merged(plan)));
+    }
+
+    [Fact]
+    public void Apply_EditChoiceOnTheOrderRow_Throws()
+    {
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(Sample()), Text(ReorderAircraft(Sample(), Reverse)));
+        var choices = new Dictionary<string, MergeChoice> { ["/aircraft#order"] = MergeChoice.Edit(JsonValue.Create("reversed")) };
+        Assert.Equal("/aircraft#order", Assert.Single(plan.Rows).Path);
+
+        ArgumentException ex = Assert.Throws<ArgumentException>(() => plan.Apply(choices));
+
+        Assert.Contains("/aircraft#order", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Plan_TheirsReorderPlusMineAddedAircraft_KeepsTheAddedOneLast()
+    {
+        JsonObject theirs = ReorderAircraft(Sample(), Reverse);
+        JsonObject mine = Sample();
+        JsonArray mineAircraft = mine["aircraft"]!.AsArray();
+        JsonObject added = mineAircraft[0]!.DeepClone().AsObject();
+        added["id"] = AddedId;
+        added["aircraftId"] = "N123AB";
+        mineAircraft.Add(added);
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(theirs));
+
         Assert.Equal(
-            reversed.Select(a => a["id"]!.GetValue<string>()),
-            Merged(plan)["aircraft"]!.AsArray().Select(a => a!["id"]!.GetValue<string>())
+            [("/aircraft/18", MergeRowKind.AutoMine), ("/aircraft#order", MergeRowKind.AutoTheirs)],
+            plan.Rows.Select(r => (r.Path, r.Kind))
         );
+        List<string> expected = [.. AircraftIds(theirs), AddedId];
+        Assert.Equal(expected, AircraftIds(Merged(plan)));
+    }
+
+    // A nested id-matched list keeps its item's key and the editor's label, so ChooseItem can resolve it for its aircraft.
+    [Fact]
+    public void Plan_TheirsReordersOneAircraftsPresetCommands_RowCarriesTheAircraftKeyAndLabel()
+    {
+        string aircraftId = Sample()["aircraft"]![0]!["id"]!.GetValue<string>();
+        JsonObject theirs = WithPresetCommands(Sample(), Enumerable.Reverse(Presets));
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(
+            Text(WithPresetCommands(Sample(), Presets)),
+            Text(WithPresetCommands(Sample(), Presets)),
+            Text(theirs)
+        );
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(
+            ("/aircraft/0/presetCommands#order", aircraftId, "Preset commands", MergeRowKind.AutoTheirs),
+            (row.Path, row.ItemKey!, row.Label, row.Kind)
+        );
+        List<string> expected = [.. Presets.Reverse().Select(p => p.Id)];
+        Assert.Equal(expected, ItemIds(Merged(plan)["aircraft"]![0]!["presetCommands"]!.AsArray()));
+    }
+
+    [Fact]
+    public void Plan_BothSidesReorderOneAircraftsPresetCommands_ChooseItemResolvesIt()
+    {
+        string aircraftId = Sample()["aircraft"]![0]!["id"]!.GetValue<string>();
+        JsonObject mine = WithPresetCommands(Sample(), Enumerable.Reverse(Presets));
+        JsonObject theirs = WithPresetCommands(Sample(), [Presets[1], Presets[2], Presets[0]]);
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(WithPresetCommands(Sample(), Presets)), Text(mine), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft/0/presetCommands#order", MergeRowKind.Clash), (row.Path, row.Kind));
+        IReadOnlyDictionary<string, MergeChoice> choices = plan.ChooseItem("Aircraft", aircraftId, MergeChoiceKind.KeepTheirs);
+        Assert.Contains("/aircraft/0/presetCommands#order", choices.Keys);
+        List<string> expected = [Presets[1].Id, Presets[2].Id, Presets[0].Id];
+        Assert.Equal(expected, ItemIds(JsonNode.Parse(plan.Apply(choices))!["aircraft"]![0]!["presetCommands"]!.AsArray()));
+    }
+
+    // An id both sides added is no reorder: the order rows cover the ids every side holds, so mine's one-sided reorder still
+    // merges by itself.
+    [Fact]
+    public void Plan_OneSidedReorderPlusTheSameIdAddedOnBothSides_IsAnAutoRow()
+    {
+        ScenarioMergePlan plan = ScenarioMerge.Plan(
+            Text(WithAircraft("A", "B")),
+            Text(WithAircraft("B", "A", "X")),
+            Text(WithAircraft("A", "B", "X"))
+        );
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft#order", MergeRowKind.AutoMine), (row.Path, row.Kind));
+        List<string> expected = ["B", "A", "X"];
+        Assert.Equal(expected, AircraftIds(Merged(plan)));
     }
 
     [Fact]
@@ -407,6 +543,47 @@ public class ScenarioMergeTests
         scenario["aircraft"]![0]!["unmodelledAircraftField"] = new JsonArray(1, "two", true);
         return scenario;
     }
+
+    // Preset commands on the first aircraft, in the given order; the list carries ids, so the walk matches it by id.
+    private static JsonObject WithPresetCommands(JsonObject scenario, IEnumerable<(string Id, string Command)> presets)
+    {
+        scenario["aircraft"]![0]!["presetCommands"] = new JsonArray([.. presets.Select(p => (JsonNode?)Preset(p))]);
+        return scenario;
+    }
+
+    private static JsonObject Preset((string Id, string Command) preset) =>
+        new()
+        {
+            ["id"] = preset.Id,
+            ["command"] = preset.Command,
+            ["timeOffset"] = 0,
+        };
+
+    // A scenario whose aircraft are these ids and nothing else: enough for the list's order and a same-id addition.
+    private static JsonObject WithAircraft(params string[] ids)
+    {
+        JsonObject scenario = Sample();
+        scenario["aircraft"] = new JsonArray([.. ids.Select(id => (JsonNode?)new JsonObject { ["id"] = id, ["aircraftId"] = id })]);
+        return scenario;
+    }
+
+    private static List<JsonNode?> Reverse(List<JsonNode?> aircraft) => [.. Enumerable.Reverse(aircraft)];
+
+    private static List<JsonNode?> FirstToLast(List<JsonNode?> aircraft) => [.. aircraft.Skip(1), aircraft[0]];
+
+    // A fresh copy of the scenario's aircraft in the given order, so each call fills a scenario of its own.
+    private static JsonObject ReorderAircraft(JsonObject scenario, Func<List<JsonNode?>, List<JsonNode?>> order)
+    {
+        List<JsonNode?> aircraft = [.. scenario["aircraft"]!.AsArray().Select(a => a!.DeepClone())];
+        scenario["aircraft"] = new JsonArray([.. order(aircraft)]);
+        return scenario;
+    }
+
+    private static List<string> Ids(JsonArray ids) => [.. ids.Select(id => id!.GetValue<string>())];
+
+    private static List<string> ItemIds(JsonArray items) => [.. items.Select(item => item!["id"]!.GetValue<string>())];
+
+    private static List<string> AircraftIds(JsonNode? scenario) => ItemIds(scenario!["aircraft"]!.AsArray());
 
     private static JsonNode Merged(ScenarioMergePlan plan) => JsonNode.Parse(plan.Apply(NoChoices))!;
 
