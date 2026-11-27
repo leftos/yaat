@@ -10,8 +10,7 @@
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (5/16 done)
-- [/] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext
+### M3 Routes, timing and metrics (6/16 done)
 - [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
@@ -33,10 +32,9 @@
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
-    - [ ] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
+    - [/] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
     - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
   - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
-  - [/] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext
   - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
   - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext
   - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
@@ -54,18 +52,17 @@
   - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392) · release vNext
   - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON · release vNext
   - [ ] YAAT-2710 Keep RNAV-only fixes and low-altitude navaid legs out of non-RNAV navdata routes · release vNext
-  - [/] YAAT-2712 Don't capture the caller's context in ScenarioDownloader's awaits · release vNext
   - [ ] YAAT-2714 Scenario Editor: word the no-ARTCC state by its cause, and re-read the ARTCC list on Refresh · release vNext
   - [ ] YAAT-2728 Fold AtomicTextFile into StoreFiles to close the Data.Vnas to Authoring.AirportMap edge · release vNext
   - [ ] YAAT-2729 Scenario Editor: open and save working copies off the UI thread · release vNext
   - [ ] YAAT-2744 YAATEdit: pan the Airport Editor's map without a middle button (touchpads) · release vNext
   - [ ] YAAT-2747 Warn when a corner fillet override asks for a radius aircraft cannot steer · release vNext
-  - [/] YAAT-2749 Reject a map feature that repeats a property key in AirportMapDocument.Read · release vNext
   - [ ] YAAT-2753 Test the remaining fillet-override force paths and split the oversized fillet functions · release vNext
   - [ ] YAAT-2763 Warn on a tight or lopsided pinned fillet corner (PINNED_TIGHT_RADIUS, pin asymmetry) · release vNext
   - [ ] YAAT-2768 Airport Editor imagery: free replaced tower-cab images; FAA ids for Alaska and Hawaii · release vNext
   - [ ] YAAT-2780 A click outside an open Scenario Editor drop-down is swallowed · release vNext
   - [ ] YAAT-2935 Use the Sim's minimum line vertex count in the Airport Editor's delete rule
+  - [ ] YAAT-2938 Map TEC class codes M, P and Q by cruise speed, not engine type
 - [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext
 
 ## YAAT Scope (feat/yaat-scope)
@@ -148,8 +145,6 @@
 
 ## Bug reports and feature requests
 
-- [ ] YAAT-2937 HFR: spawn the first held departure on time and delay or catch up the rest at HFROFF · release vNext
-- [ ] YAAT-2936 HFR stops holding departures after the first HFR and HFROFF · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
@@ -1373,10 +1368,13 @@
 
 ## Scenarios, spawning and fleets
 
-### 1 Defects (5/8 done)
+### 1 Defects (5/11 done)
 - [ ] YAAT-1591 Check the generator's fallback callsigns against the callsigns in use
 - [ ] YAAT-184 Pick an operating airline for a typed ADD from airline-fleets data
 - [ ] YAAT-2777 Hold a due runway-start spawn while the runway is occupied
+- [ ] YAAT-2940 Retry or re-issue a runway spawn's preset CTO refused because another spawn is on the runway
+- [ ] YAAT-2941 HFROFF with the FAA id fails after HFR with the ICAO id ("not armed")
+- [ ] YAAT-2942 REL with an interval records seconds where the parser reads minutes
 
 ### 2 Refinements and rulings (0/4 done)
 - [ ] YAAT-615 Park SFO GA arrivals on the side of 28R they exit toward
@@ -1542,7 +1540,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (28/40 done)
+### 1 Defects (29/40 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
@@ -1554,7 +1552,6 @@
 - [ ] YAAT-2262 Reject NaN and Infinity in SoakRunner's --sim-hours and --sim-rate-limit
 - [ ] YAAT-2677 Point Yaat.Sim.Tests at a temp app-data folder so no test writes the real %LOCALAPPDATA%/yaat
 - [ ] YAAT-2713 Ship the OpenFlights ODbL licence text in every package, as the font licences are
-- [/] YAAT-2934 Find the test case that vanished after the AIRAC 2612 repin · release vNext
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
@@ -1562,7 +1559,7 @@
 - [ ] YAAT-1967 Keep LM-Kit from raising the client and its UI test host to High priority
 - [ ] YAAT-2038 Tag the four all-layout sweeps Nightly (trim T1, owner's call)
 
-### 3 Hygiene and tests (10/70 done)
+### 3 Hygiene and tests (10/71 done)
 - [ ] YAAT-1305 Restage the jet-follower runway 33 bar test off OAK 33/C
 - [ ] YAAT-351 Replace the private BootMainWindow copies in two UI test classes with MainWindowHost
 - [ ] YAAT-290 Run the tools/tests Python suite in CI
@@ -1623,6 +1620,7 @@
 - [ ] YAAT-2755 Give UI render-PNG tests one fixed output folder and route them through the gate
 - [ ] YAAT-2773 Make LayoutCloner.DeepClone copy every serialized runway member
 - [ ] YAAT-2862 Test that the client mirrors subscribe to their hub events (RD lists, ERAM CRR)
+- [ ] YAAT-2943 Commit a KSJC ground layout with a taxi graph for tests
 
 ### No milestone
 - [ ] YAAT-1703 Refuse RestoreFromSnapshot with no scenario loaded instead of freezing the aircraft
@@ -1829,4 +1827,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2497, YAAT-2501, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2497, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
