@@ -1333,6 +1333,9 @@ A place machine-wide a gate must hold to run, of the kind its `-Slot` names, fro
 **Spawn origin**:
 What the scenario editor's spawn planner treats as one source of aircraft when it spaces spawn times: the departure airport for a ground start, the fix for an airborne start, and the destination runway for On Final starts. Two aircraft of one origin never spawn closer than the minimum separation, which also keeps clear of aircraft the run does not schedule (their delays never change) (`SpawnSchedule.OriginKey`).
 
+**Spawn plan**:
+Every input of the scenario editor's spawn planner (filter, mode, band rows or workload settings and control points, planning length, working time, minimum gap, seed, order, remedy) saved as one versioned plan file, `"version": 1` (`SpawnPlan`, `SpawnPlanFile`); a plan from another version is refused and an airport the scenario lacks matches nothing.
+
 **Speech telemetry**:
 Push-to-talk samples (audio, per-stage transcripts, scenario context) that opted-in users' clients upload to the official yaat-server, which stores them for developers to pull with `tools/speech_telemetry.py` (docs/speech-recognition-pipeline.md).
 
