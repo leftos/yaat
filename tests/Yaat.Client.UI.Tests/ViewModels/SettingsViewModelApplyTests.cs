@@ -202,18 +202,35 @@ public class SettingsViewModelApplyTests
     }
 
     [AvaloniaTheory(Timeout = 60_000)]
-    [InlineData(Key.M, "Also used by Measure tool")]
-    [InlineData(Key.F, "Also used by Strips and vTDLS find, Notes find")]
-    [InlineData(Key.H, "Also used by Notes replace")]
-    [InlineData(Key.D, "Also used by Ground view debug overlay")]
-    public void AClashWithAFixedChord_BlocksApply_AndNamesTheFixedAction(Key key, string message)
+    [InlineData(Key.M, "Also used by Measure tool", "Also used by Measure tool")]
+    [InlineData(Key.F, "Also used by Strips and vTDLS find, Notes find", "Also used by Strips and vTDLS find")]
+    [InlineData(Key.D, "Also used by Ground view debug overlay", "Also used by Ground view debug overlay")]
+    public void AClashWithAFixedChord_BlocksApply_AndNamesTheFixedAction(Key key, string message, string macMessage)
     {
         var vm = new SettingsViewModel();
 
         Capture(vm, "QuickBookmark", key, KeyModifiers.Control);
 
         Assert.True(vm.HasKeybindClash);
-        Assert.Equal(message, Row(vm, "QuickBookmark").ClashMessage);
+        Assert.Equal(OperatingSystem.IsMacOS() ? macMessage : message, Row(vm, "QuickBookmark").ClashMessage);
+    }
+
+    [AvaloniaFact(Timeout = 60_000)]
+    public void CtrlH_ClashesWithNotesReplace_OffMacOSOnly()
+    {
+        var vm = new SettingsViewModel();
+
+        Capture(vm, "QuickBookmark", Key.H, KeyModifiers.Control);
+
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.False(vm.HasKeybindClash);
+        }
+        else
+        {
+            Assert.True(vm.HasKeybindClash);
+            Assert.Equal("Also used by Notes replace", Row(vm, "QuickBookmark").ClashMessage);
+        }
     }
 
     /// <summary>The window's OK and Apply handlers call Execute directly, so Apply itself refuses while a quick command is invalid.</summary>
