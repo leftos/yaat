@@ -254,6 +254,12 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// The consolidation redirect a deferred track command dispatches with, built as live input builds it: from the
+    /// engine's consolidation overrides and attendance as they stand at the tick the command executes.
+    /// </summary>
+    private ConsolidationRedirect ConsolidationRedirectFor(SimScenarioState scenario) => new(scenario, ConsolidationState, Attendance.IsTcpAttended);
+
+    /// <summary>
     /// Routes an immediate (unconditional) preset that is purely track commands straight to the track
     /// engine. Such presets never reach <see cref="CommandDispatcher.EnqueueBlocks"/> — the leading block
     /// applies inline through <see cref="CommandDispatcher.ApplyCommand"/>, which has no track-command arm
@@ -270,7 +276,7 @@ public sealed partial class SimulationEngine
         }
 
         SimScenarioState scenario = Scenario!;
-        var track = new TrackDispatchContext(Identity: identity, scenario, Redirect: null, ConflictAlerts);
+        var track = new TrackDispatchContext(Identity: identity, scenario, Redirect: ConsolidationRedirectFor(scenario), ConflictAlerts);
         foreach (ParsedCommand command in commands)
         {
             // A verb the track table has no arm for returns null; treated as a refusal so it warns instead of
@@ -341,7 +347,7 @@ public sealed partial class SimulationEngine
             return;
         }
 
-        var track = new TrackDispatchContext(Identity: null, scenario, Redirect: null, ConflictAlerts);
+        var track = new TrackDispatchContext(Identity: null, scenario, Redirect: ConsolidationRedirectFor(scenario), ConflictAlerts);
         foreach (AircraftState aircraft in World.GetSnapshot())
         {
             List<CommandBlock> blocks = aircraft.Queue.Blocks;

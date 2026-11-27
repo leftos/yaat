@@ -102,7 +102,7 @@ public static class CoordinationCommandHandler
 
         if (channel.Items.Any(i => IsFor(i, callsign) && (i.Status is not StarsCoordinationStatus.Recalled)))
         {
-            return new CommandResult(false, $"{callsign} already has a coordination item on list {channel.ListId}");
+            return new CommandResult(false, AlreadyOnList(callsign, channel));
         }
 
         CoordinationItem? recalled = channel.Items.FirstOrDefault(i => IsFor(i, callsign));
@@ -128,6 +128,18 @@ public static class CoordinationCommandHandler
     /// </summary>
     private static string? RecallRefusal(Acting acting, CoordinationItem? recalled, string callsign) =>
         ((recalled is not null) && !acting.Authority.AnswersFor(recalled.OriginTcp)) ? $"{callsign} is recalled by {recalled.OriginTcp}" : null;
+
+    private static string AlreadyOnList(string callsign, CoordinationChannel channel) =>
+        $"{callsign} already has a coordination item on list {channel.ListId}";
+
+    /// <summary>
+    /// What refuses a hold that is not a send of the held message: an item already sent on the list (one item per
+    /// aircraft per list, the rule <c>RD</c> keeps), else a recalled item the acting position does not answer for.
+    /// </summary>
+    private static string? HoldRefusal(Acting acting, CoordinationChannel channel, CoordinationItem? recalled, string callsign) =>
+        channel.Items.Any(i => IsFor(i, callsign) && (i.Status is not (StarsCoordinationStatus.Unsent or StarsCoordinationStatus.Recalled)))
+            ? AlreadyOnList(callsign, channel)
+            : RecallRefusal(acting, recalled, callsign);
 
     /// <summary>Adds a new held item to <paramref name="channel"/> under the next id off its snapshotted counter.</summary>
     private static CoordinationItem AddNewItem(CoordinationChannel channel, string callsign, Tcp originTcp)
@@ -174,14 +186,12 @@ public static class CoordinationCommandHandler
     /// <summary>
     /// <c>RDH</c>: sends the aircraft's held message when one stands, holds its recalled item again in place when one is
     /// inside its recall linger and the position answers for its origin (as a fresh hold would set it, keeping its text
-    /// unless new text is given), and otherwise creates a held message.
+    /// unless new text is given), refuses when the aircraft's item on the list is already sent, and otherwise creates a
+    /// held message. A position that does not send on the list is refused, whether it named the list or not.
     /// </summary>
     private static CommandResult HandleHold(SimulationEngine engine, string callsign, TrackOwner identity, string? listId, string? text)
     {
-        if (
-            (ResolveActing(engine, identity, out string? error) is not { } acting)
-            || (ResolveChannelForSender(acting, listId, out error) is not { } channel)
-        )
+        if ((ResolveActing(engine, identity, out string? error) is not { } acting) || (SenderChannel(acting, listId, out error) is not { } channel))
         {
             return new CommandResult(false, error!);
         }
@@ -196,7 +206,7 @@ public static class CoordinationCommandHandler
         }
 
         CoordinationItem? recalled = channel.Items.FirstOrDefault(i => IsFor(i, callsign) && (i.Status == StarsCoordinationStatus.Recalled));
-        if (RecallRefusal(acting, recalled, callsign) is { } refusal)
+        if (HoldRefusal(acting, channel, recalled, callsign) is { } refusal)
         {
             return new CommandResult(false, refusal);
         }
@@ -222,10 +232,7 @@ public static class CoordinationCommandHandler
 
     private static CommandResult HandleRecall(SimulationEngine engine, string callsign, TrackOwner identity, string? listId)
     {
-        if (
-            (ResolveActing(engine, identity, out string? error) is not { } acting)
-            || (ResolveChannelForSender(acting, listId, out error) is not { } channel)
-        )
+        if ((ResolveActing(engine, identity, out string? error) is not { } acting) || (SenderChannel(acting, listId, out error) is not { } channel))
         {
             return new CommandResult(false, error!);
         }

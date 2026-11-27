@@ -949,4 +949,122 @@ public class CoordinationStepTests
         Assert.Equal($"{CallsignA} is recalled by 3O", held.Message);
         Assert.Equal(StarsCoordinationStatus.Recalled, Assert.Single(Channel(engine).Items).Status);
     }
+
+    /// <summary>
+    /// A named list goes through the same sender check as an inferred one: a receiver-only position naming the list on
+    /// <c>RDH</c> is refused with the sender error, and the sender's held message stays held rather than being sent.
+    /// </summary>
+    [Fact]
+    public void Rdh_NamedList_FromReceiverOnly_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RDH POAK EXPECT 28R").Success);
+
+        CommandResult held = Receive(engine, host, CallsignA, "RDH POAK");
+
+        Assert.False(held.Success);
+        Assert.Equal($"TCP 4U is not a sender on list {ListId}", held.Message);
+        Assert.Equal(StarsCoordinationStatus.Unsent, Assert.Single(Channel(engine).Items).Status);
+    }
+
+    /// <summary>
+    /// A receiver-only position naming the list on <c>RDR</c> is refused with the sender error, and the sent item is
+    /// not recalled.
+    /// </summary>
+    [Fact]
+    public void Rdr_NamedList_FromReceiverOnly_IsRefused()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD POAK").Success);
+
+        CommandResult recalled = Receive(engine, host, CallsignA, "RDR POAK");
+
+        Assert.False(recalled.Success);
+        Assert.Equal($"TCP 4U is not a sender on list {ListId}", recalled.Message);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, Assert.Single(Channel(engine).Items).Status);
+    }
+
+    /// <summary>
+    /// One item per aircraft per list holds for <c>RDH</c> as for <c>RD</c>: a hold on an aircraft whose item is already
+    /// sent and unacknowledged is refused with <c>RD</c>'s message and stacks no second, Unsent item beside it.
+    /// </summary>
+    [Fact]
+    public void Rdh_OnUnacknowledgedItem_RefusesAndKeepsOneItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD POAK").Success);
+
+        CommandResult held = Send(engine, host, CallsignA, "RDH POAK");
+
+        Assert.False(held.Success);
+        Assert.Equal($"{CallsignA} already has a coordination item on list {ListId}", held.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items, i => i.AircraftId == CallsignA);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);
+    }
+
+    /// <summary>The same refusal on an item the receiver has already acknowledged.</summary>
+    [Fact]
+    public void Rdh_OnAcknowledgedItem_RefusesAndKeepsOneItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD POAK").Success);
+        CommandResult ack = Receive(engine, host, CallsignA, "RDACK");
+        Assert.True(ack.Success, ack.Message);
+
+        CommandResult held = Send(engine, host, CallsignA, "RDH POAK");
+
+        Assert.False(held.Success);
+        Assert.Equal($"{CallsignA} already has a coordination item on list {ListId}", held.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items, i => i.AircraftId == CallsignA);
+        Assert.Equal(StarsCoordinationStatus.Acknowledged, item.Status);
+    }
+
+    /// <summary>
+    /// The refusal covers every status RD treats as sent, the timer states of a sent item included: an item voided
+    /// unacknowledged still refuses a hold and stays the one item.
+    /// </summary>
+    [Fact]
+    public void Rdh_OnVoidUnacknowledgedItem_RefusesAndKeepsOneItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RD POAK").Success);
+        Assert.Single(Channel(engine).Items).Status = StarsCoordinationStatus.VoidUnacknowledged;
+
+        CommandResult held = Send(engine, host, CallsignA, "RDH POAK");
+
+        Assert.False(held.Success);
+        Assert.Equal($"{CallsignA} already has a coordination item on list {ListId}", held.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items, i => i.AircraftId == CallsignA);
+        Assert.Equal(StarsCoordinationStatus.VoidUnacknowledged, item.Status);
+    }
 }

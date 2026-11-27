@@ -202,7 +202,7 @@ The user sees `Handoff … to <code> (redirected to <ownerSubset><ownerSector>)`
 (`IActionHost.IsPositionAttended`): the server hands in its `PositionRegistry`; a bare or replay run attends nobody, so it never
 redirects — a recording cannot yet reproduce a redirect the live session made (the C1 attendance debt of ADR 0003). The
 `ConsolidationRedirect` is built per dispatch by the router's `Track` arm (and by the server test harness's
-`TrackCommandSeam.HandleHandoff` / `HandlePointOut`); a preset or chained track block dispatches with none and never redirects.
+`TrackCommandSeam.HandleHandoff` / `HandlePointOut`); a preset (immediate or deferred) and a triggered track block build the same redirect (`SimulationEngine.ConsolidationRedirectFor`, read at the tick the command runs), so they follow consolidation as typed input does.
 
 `TrackEngine.ApplyPointOut` applies the same `TryRedirect` to the **pointout recipient**: a point-out
 addressed to a TCP consolidated under someone else has its `Pointout.Recipient` set to the attended owner. Without this, the

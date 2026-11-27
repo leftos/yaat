@@ -138,7 +138,7 @@ CoordinationCommandHandler.cs  # Static dispatch for the aircraft-scoped verbs (
                                # RDAUTO (HandleGlobal) against SimScenarioState.CoordinationChannels. InferSenderListId resolves a list-less sender verb
                                # ahead of time so the recorded canonical carries the list explicitly. Item ids are {ListId}-{SequenceNumber} off the
                                # channel's snapshotted counter, not a fresh draw, so a rebuilt list holds the same items under the same ids; every
-                               # successful mutation calls SimulationEngine.MarkCoordinationChanged; an RD / RDH for a recalled item inside its linger revives it in place
+                               # successful mutation calls SimulationEngine.MarkCoordinationChanged; an RD / RDH for a recalled item inside its linger revives it in place; RDH on an already-sent item and RDH / RDR from a non-sender (SenderChannel) are refused
 CoordinationAuthority.cs       # The TCPs a position answers for on the coordination lists (its own plus every TCP consolidated under it); AnswersFor / IsSender / IsReceiver,
                                # the one rule the verbs and yaat-server's F13 entry share
 CoordinationListProjection.cs  # Read-only projection of the channels into the lists a display draws: Build(channels, findAircraft) → CoordinationListView / CoordinationItemView (every channel and item kept, Unsent

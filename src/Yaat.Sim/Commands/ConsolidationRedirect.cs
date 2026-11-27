@@ -7,8 +7,9 @@ namespace Yaat.Sim.Commands;
 /// Where a handoff or point-out addressed to an unattended TCP actually lands: the attended position whose airspace has
 /// absorbed it, resolved through the facility's consolidation hierarchy and the manual overrides
 /// (<see cref="ArtccConfigResolver.GetConsolidationOwner"/>). Attendance is engine state every run kind carries
-/// (<see cref="SimulationEngine.Attendance"/>), so a live session, a replay and a reconstruction redirect alike; a
-/// dispatch that installs no redirect at all (a preset or chained track block) still means "never redirect".
+/// (<see cref="SimulationEngine.Attendance"/>), so a live session, a replay and a reconstruction redirect alike. Typed
+/// input, presets (immediate or deferred) and triggered chained track blocks all dispatch with one, read at the tick the
+/// command executes; a dispatch that installs none means "never redirect".
 /// </summary>
 public sealed class ConsolidationRedirect(SimScenarioState scenario, ConsolidationState overrides, Func<Tcp, bool> isAttended)
 {

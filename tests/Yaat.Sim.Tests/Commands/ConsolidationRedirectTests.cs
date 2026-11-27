@@ -154,4 +154,79 @@ public class ConsolidationRedirectTests
         Assert.Equal("4U", ac.Track.Pointout!.Recipient.ToString());
         Assert.Equal("2B", ac.Track.Pointout.Sender.ToString());
     }
+
+    /// <summary>
+    /// An immediate preset handoff to an unattended TCP follows consolidation the way typed input does: it lands on the
+    /// attended position whose airspace has absorbed the target.
+    /// </summary>
+    [Fact]
+    public void PresetHandoff_ToUnattendedTcp_FollowsConsolidation()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        CombineFourQIntoFourU(engine, fourUAttended: true);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        ac.Track.Owner = Student;
+
+        engine.DispatchPresetCommands(new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "HO 4Q", TimeOffset = 0 }] });
+
+        Assert.Empty(ac.PendingWarnings);
+        Assert.True(ac.Track.HandoffPeer!.MatchesPosition(Nct4U));
+        Assert.True(ac.Track.HandoffRedirectedBy!.MatchesPosition(Nct4Q));
+    }
+
+    /// <summary>An immediate preset point-out to an unattended TCP lands on its attended consolidation owner.</summary>
+    [Fact]
+    public void PresetPointOut_ToUnattendedTcp_FollowsConsolidation()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        CombineFourQIntoFourU(engine, fourUAttended: true);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        ac.Track.Owner = Student;
+
+        engine.DispatchPresetCommands(new LoadedAircraft { State = ac, PresetCommands = [new PresetCommand { Command = "PO 4Q", TimeOffset = 0 }] });
+
+        Assert.Empty(ac.PendingWarnings);
+        Assert.Equal("4U", ac.Track.Pointout!.Recipient.ToString());
+        Assert.Equal("2B", ac.Track.Pointout.Sender.ToString());
+    }
+
+    /// <summary>
+    /// A handoff carried by a triggered queue block (the block an <c>AT</c> condition fired) follows consolidation when
+    /// the post-physics scan dispatches it.
+    /// </summary>
+    [Fact]
+    public void TriggeredHandoff_ToUnattendedTcp_FollowsConsolidation()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        CombineFourQIntoFourU(engine, fourUAttended: true);
+        AircraftState ac = engine.FindAircraft(AiTestFixture.Callsign)!;
+        ac.Track.Owner = Student;
+        ParsedCommand handoff = CommandParser.Parse("HO 4Q").Value!;
+        ac.Queue.Blocks.Add(
+            new CommandBlock
+            {
+                IsApplied = true,
+                HasTrackCommand = true,
+                ParsedCommands = [handoff],
+            }
+        );
+
+        engine.ProcessTriggeredTrackBlocks();
+
+        Assert.Empty(ac.PendingWarnings);
+        Assert.True(ac.Track.HandoffPeer!.MatchesPosition(Nct4U));
+        Assert.True(ac.Track.HandoffRedirectedBy!.MatchesPosition(Nct4Q));
+    }
 }

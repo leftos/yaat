@@ -45,7 +45,7 @@ per room. Each wall-clock tick (`RunTickLoop`, `:92`):
      the relative +15/−15 skips. The end-of-tape branch sets the paused state first, so that final tick's broadcast
      carries `IsPaused = true`. (Issue #209: previously elapsed only reached clients on pause/unpause/rewind/end.)
 3. After the loop budget check (`TickBudgetMs = 800`, logs a warning if exceeded, `:181`).
-4. **After the all-rooms loop**: `await DetectChangesAsync(allRooms, ct)` (`:138`) then `await BroadcastUpdates(allRooms)` (`:139`), which fans out to training clients, admins, and CRC (`:242`).
+4. **After the all-rooms loop**: `await DetectChangesAsync(allRooms, ct)` (`:138`) then `await BroadcastUpdates(allRooms)` (`:139`), which fans out to training clients, admins, and CRC (`:242`), then `PushLineNumberChangesAsync`: for each room with a scenario and a STARS line-number change waiting (`StarsLineNumberAssigner.HasChangedCallsigns`) it takes the tick gate and calls `RoomEngine.PushLineNumberChanges`, which re-sends the training hub's `CoordinationListsChanged` when a changed callsign is on a coordination list, so a number the CRC pass just assigned reaches YAAT in the same tick.
 
    `DetectChangesAsync` takes each room's tick gate around that room's snapshot and diff, as a separate acquisition from `ProcessRoomSecond`'s (so the tick budget does not time it and a paused room still gets its detection pass): a hub-side `ChangeTracker.Remove`/`Clear`, which runs under the gate, can then never land mid-pass and have the pass re-add the removed aircraft (pin: `ChangeDetectionTests.DetectChangesPass_WhileTheRoomGateIsHeld_WaitsForIt`).
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `RDH` on an aircraft whose rundown item was already sent is refused with RD's message instead of adding a second item.
+- `RDH` and `RDR` naming a rundown list are refused from a position that does not send on that list.
+- Preset and triggered handoffs and point-outs to an unstaffed position follow STARS consolidation, as typed ones do.
+- The RUNDOWN list shows an entry's STARS line number as soon as the aircraft gets one, as CRC does.
+
 ## v0.20.0-beta [2026/11/26]
 
 ### Highlights

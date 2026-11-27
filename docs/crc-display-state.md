@@ -84,7 +84,7 @@ Triggered by specific state changes:
 | `BroadcastOpenPositionsAsync` | RegisterPosition / SetPositionActive / disconnect |
 | `BroadcastStarsConsolidationAsync` | position registry changes (TCP attendance); the bound room's whole coordination topic follows, since CRC builds list items only on a coordination push |
 | `BroadcastConflictAlertsAsync` | ATPA detector add/clear |
-| `BroadcastCoordinationAsync` | coordination list / tower list changes |
+| `BroadcastCoordinationAsync` | coordination list / tower list changes (a line number assigned or released for a listed aircraft re-pushes only the training hub's lists, not this topic) |
 | `BroadcastDeletesAsync` / `BroadcastStarsDeletesAsync` | aircraft departure |
 | `BroadcastEramSectorConfigurationAsync` | targeted facility update |
 | `BroadcastNexradDataAsync` | weather pull |
