@@ -47,9 +47,9 @@ Both arms hand the helicopter verbs (`ATXI`, `LAND`, `CTOPP`) the dispatch conte
 
 An `APT X` on an airborne aircraft (alone, or at the front of a `,` block) also switches its ground layout to X's, so the commands after it resolve names at X; on the ground nothing moves. An aircraft low over the field its current layout covers (within 0.3 nm of that layout, at or below 500 ft above the field) keeps that layout and only its destination changes. Scenario presets and triggered blocks (`LV 5 APT OAK, LAND @HELI1`) behave the same as typed commands. An aircraft on the ground at, or landing at, a field runs on that field's layout alone (`AircraftState.AirportId` becomes the landing field at touchdown), and on none at a field the scenario loaded no ground map for: a layout is never fetched for an airport first named mid-session.
 
-Flight-plan verbs (`DA`, `FP`, `RMK` — `CompoundPolicy.IsFlightPlanCommand`) have **no** arm in either switch and are refused at the dispatcher's
+Flight-plan verbs (`DA`, `FP`, `VP`, `REMARKS` — `CompoundPolicy.IsFlightPlanCommand`) and the global squawks (`SQALL`, `SNALL`, `SSALL`; with the flight-plan verbs, `IsScriptedArmCommand`) have **no** arm in either switch and are refused at the dispatcher's
 public entries: they are the `ActionRouter`'s flight-plan arm (`RecordedCommandKind.FlightPlan`) on every run kind — a fresh one files through
-`SimulationEngine.AmendFlightPlan` and records the `RecordedAmendFlightPlan` that carries its effect; from a record only the creator tag is applied.
+`SimulationEngine.AmendFlightPlan` and records the `RecordedAmendFlightPlan` that carries its effect; from a record only the creator tag is applied. A scenario preset or `WAIT` payload of such verbs runs the same arm body through `SimulationEngine.ApplyScriptedArm`, which records nothing.
 
 `BreakConflictCommand` (`BREAK`) and `GoCommand` (`GO`) are the inverse case: they have an arm **only** in `TryApplyTowerCommand`, never in
 `ApplyCommand`. `RES` on an aircraft that is not held but is stalled by the ground conflict detector (`Ground.SpeedLimit` at or below

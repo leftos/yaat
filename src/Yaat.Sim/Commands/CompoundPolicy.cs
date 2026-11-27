@@ -13,14 +13,13 @@ public static class CompoundPolicy
     private static readonly ILogger Log = SimLog.CreateLogger("CompoundPolicy");
 
     /// <summary>
-    /// True for a command that owns a dedicated server routing arm (sim-control, flight-plan,
+    /// True for a command whose arm in the action router's table is not the aviation arm (sim-control, flight-plan,
     /// spawn, room-wide/global ops) and has no aviation-path chain semantics — e.g. "HO 3G; PAUSE"
     /// must not pause the sim, and a queued PAUSE block would no-op at fire time. A compound
     /// containing one of these is rejected outright with an error naming the verb. Deliberately
     /// NOT in this set: <see cref="DeleteCommand"/> ("CROSS 28R; DEL", issue #311, via
     /// CommandBlock.HasDeleteCommand) and <see cref="ChangeDestinationCommand"/> ("AT 5000 APT OAK")
-    /// — both dispatch correctly through the command queue. Keep in sync with the server's
-    /// pre-HandleStandardCmd routing arms.
+    /// — both dispatch correctly through the command queue.
     /// </summary>
     public static bool IsNonCompoundable(ParsedCommand cmd) =>
         cmd
@@ -64,13 +63,21 @@ public static class CompoundPolicy
                 or CoordinationAutoAckCommand;
 
     /// <summary>
-    /// True for a command that edits only the flight plan (DA / FP / RMK). Live, the server routes these
-    /// through its flight-plan arm before the aircraft dispatcher ever sees them, so they never touch a
-    /// phase or the command queue; replay and reconstruction must treat them the same way, and the
-    /// dispatcher refuses them outright so no path can turn a flight-plan edit into a manoeuvre.
+    /// True for a command that edits only the flight plan (DA / FP / VP / REMARKS). A typed one runs through the action
+    /// router's flight-plan arm and a preset's through the engine's scripted route, both the same Sim body, so it never
+    /// touches a phase or the command queue; the dispatcher refuses it outright so no path can turn a flight-plan edit into a
+    /// manoeuvre.
     /// </summary>
     public static bool IsFlightPlanCommand(ParsedCommand cmd) =>
         cmd is CreateFlightPlanCommand or CreateAbbreviatedFlightPlanCommand or SetRemarksCommand;
+
+    /// <summary>
+    /// True for a command a scenario preset or a deferred payload runs through its action-router arm body (the engine's
+    /// scripted route): a flight-plan edit (<see cref="IsFlightPlanCommand"/>) or a room-wide squawk (SQALL / SNALL / SSALL).
+    /// None has an aircraft arm, so <see cref="CommandDispatcher.DispatchCompound"/> refuses each.
+    /// </summary>
+    public static bool IsScriptedArmCommand(ParsedCommand cmd) =>
+        IsFlightPlanCommand(cmd) || (cmd is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand);
 
     /// <summary>
     /// True for a command the pilot must hear to act on: every instruction whose registry definition produces a pilot

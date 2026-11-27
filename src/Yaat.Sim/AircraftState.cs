@@ -273,6 +273,14 @@ public class AircraftState
     public List<Commands.ParsedCommand> PendingStripDispatches { get; } = [];
 
     /// <summary>
+    /// A departure-strip reprint the scripted route's flight-plan arm queued (<c>SimulationEngine.QueueDepartureStripReprint</c>)
+    /// rather than printing inline: the engine's <c>TickStripDispatches</c> step prints it, ahead of the queued strip
+    /// commands, under an id derived from the callsign and the second, on every run kind. Snapshot-serialized only while set, so a
+    /// capture between the preset and the strip step restores it.
+    /// </summary>
+    public bool PendingDepartureStripReprint { get; set; }
+
+    /// <summary>
     /// Pilot transmissions emitted by the sim in RPO mode when the
     /// <c>RpoShowPilotSpeech</c> scenario setting is on. Drained per tick into the
     /// terminal as <c>PilotSpeech</c>-kind entries (green). Each entry keeps both forms
@@ -905,6 +913,7 @@ public class AircraftState
             Cid = dto.Cid,
             AirportId = dto.AirportId,
             Note = dto.Note,
+            PendingDepartureStripReprint = dto.PendingDepartureStripReprint == true,
             Position = dto.Position,
             TrueHeading = TrueHeading.FromSnapshot(dto.TrueHeadingDeg),
             TrueTrack = TrueHeading.FromSnapshot(dto.TrueTrackDeg),
@@ -1046,6 +1055,7 @@ public class AircraftState
             Cid = Cid,
             AirportId = AirportId,
             Note = Note,
+            PendingDepartureStripReprint = PendingDepartureStripReprint ? true : null,
             Position = Position,
             TrueHeadingDeg = TrueHeading.Degrees,
             TrueTrackDeg = TrueTrack.Degrees,

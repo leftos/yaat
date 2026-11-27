@@ -176,6 +176,59 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
+    /// How many aircraft carry <see cref="AircraftState.PendingDepartureStripReprint"/>, so the strip step scans the world only
+    /// when one does.
+    /// </summary>
+    private int _pendingDepartureStripReprints;
+
+    /// <summary>
+    /// Queues a departure-strip reprint for <paramref name="aircraft"/> on the strip-dispatch step (<see cref="TickStripDispatches"/>):
+    /// the scripted route's flight-plan arm reprints there rather than inline, so a load-time preset's strip lands after the
+    /// replay's load-time clear exactly as it does live.
+    /// </summary>
+    /// <summary>Counts the restored world's queued departure-strip reprints, which a snapshot restore carried in.</summary>
+    internal void RecountPendingDepartureStripReprints() =>
+        _pendingDepartureStripReprints = World.GetSnapshot().Count(ac => ac.PendingDepartureStripReprint);
+
+    internal void QueueDepartureStripReprint(AircraftState aircraft)
+    {
+        if (!aircraft.PendingDepartureStripReprint)
+        {
+            aircraft.PendingDepartureStripReprint = true;
+            _pendingDepartureStripReprints++;
+        }
+    }
+
+    /// <summary>
+    /// Prints every queued departure-strip reprint (<see cref="QueueDepartureStripReprint"/>) under an id derived as a creating
+    /// strip verb's is (<see cref="StripMutations.DeferredStripId"/>): the callsign, <paramref name="second"/> and its place among
+    /// the aircraft's minting dispatches this second, which it takes ahead of the queued strip commands. A run whose strips
+    /// already hold that id prints nothing.
+    /// </summary>
+    private void ReprintPendingDepartureStrips(long second, Dictionary<string, int> mintedThisSecond)
+    {
+        if (_pendingDepartureStripReprints == 0)
+        {
+            return;
+        }
+
+        _pendingDepartureStripReprints = 0;
+        foreach (AircraftState ac in World.GetSnapshot())
+        {
+            if (!ac.PendingDepartureStripReprint)
+            {
+                continue;
+            }
+
+            ac.PendingDepartureStripReprint = false;
+            int sequence = mintedThisSecond.GetValueOrDefault(ac.Callsign);
+            mintedThisSecond[ac.Callsign] = sequence + 1;
+            string stripId = StripMutations.DeferredStripId(StripMutations.DepartureStripIdPrefix, ac.Callsign, second, sequence);
+            ReprintDepartureStripAfterAmendment(ac.Callsign, stripId);
+        }
+    }
+
+    /// <summary>
     /// Applies the strip commands the queue put on <c>AircraftState.PendingStripDispatches</c> — preset, deferred or
     /// triggered AN / STRIP / SCAN / … that could not run when they were issued. A failure (e.g. no strip printed yet)
     /// surfaces as a terminal warning so it is not silently lost; success is silent, since the queue already emitted
@@ -191,13 +244,14 @@ public sealed partial class SimulationEngine
     internal void TickStripDispatches()
     {
         List<(string Callsign, ParsedCommand Command)> dispatches = World.DrainAllStripDispatches();
-        if (dispatches.Count == 0)
+        if ((dispatches.Count == 0) && (_pendingDepartureStripReprints == 0))
         {
             return;
         }
 
         long second = (long)Math.Floor(RequireScenario().ElapsedSeconds);
         var mintedThisSecond = new Dictionary<string, int>(StringComparer.Ordinal);
+        ReprintPendingDepartureStrips(second, mintedThisSecond);
         foreach ((string callsign, ParsedCommand command) in dispatches)
         {
             string? stripId = null;

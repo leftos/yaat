@@ -40,6 +40,13 @@ public sealed class ArmContext
     public AircraftState? Aircraft { get; init; }
     public TrackOwner? Identity { get; init; }
 
+    /// <summary>
+    /// True on the engine's scripted route (a preset or a deferred payload, which records nothing and runs again on replay):
+    /// an arm that would write strip state inline queues it for the strip-dispatch step instead, which every run kind
+    /// reaches after the replay's load-time clear.
+    /// </summary>
+    public bool IsScripted { get; init; }
+
     public DispatchOrigin Origin => AiConnectionId.OriginOf(Input.ConnectionId);
 
     /// <summary>True when the action comes from a recording — its draws are in <see cref="ActionInput.Baked"/>.</summary>

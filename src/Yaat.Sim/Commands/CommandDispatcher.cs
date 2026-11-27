@@ -255,12 +255,12 @@ public static class CommandDispatcher
 
         // Anywhere in the compound, not just the leading command: replay reaches this entry without the
         // server's non-compoundable pre-check, so a recorded chain could carry one in a later block.
-        // Ahead of the shadow gate: a flight-plan edit is never dispatched to an aircraft, so it must not
+        // Ahead of the shadow gate: a flight-plan or global verb is never dispatched to an aircraft, so it must not
         // be the thing that takes control of a live-traffic shadow either.
-        ParsedCommand? flightPlanCmd = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsFlightPlanCommand);
-        if (flightPlanCmd is not null)
+        ParsedCommand? scriptedVerb = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsScriptedArmCommand);
+        if (scriptedVerb is not null)
         {
-            return RejectFlightPlanCommand(flightPlanCmd);
+            return RejectScriptedArmCommand(scriptedVerb);
         }
 
         // The router refuses a chain carrying a rejection-set verb before it dispatches anything
@@ -417,12 +417,13 @@ public static class CommandDispatcher
         new(false, $"{CommandDescriber.DescribeCommand(cmd)} cannot be part of a chained command");
 
     /// <summary>
-    /// A flight-plan edit (DA / FP / RMK) is the server's flight-plan arm's to apply — it never reaches the
-    /// aircraft's phases or queue live. Refused at the public entries so no replay or reconstruction path
-    /// can push one through the phase gate, where a hold would cancel on it as a manoeuvring command.
+    /// A flight-plan edit (DA / FP / VP / REMARKS) or a global squawk (SQALL / SNALL / SSALL) runs through its arm body from a
+    /// typed line (the action router) or a preset (the engine's scripted route) — it never reaches the aircraft's phases or
+    /// queue. Refused at the public entries so no replay or reconstruction path can push one through the phase gate, where a
+    /// hold would cancel on it as a manoeuvring command.
     /// </summary>
-    private static CommandResult RejectFlightPlanCommand(ParsedCommand cmd) =>
-        new(false, $"Flight-plan edits ({cmd.GetType().Name}) are applied by the server, not dispatched to the aircraft");
+    private static CommandResult RejectScriptedArmCommand(ParsedCommand cmd) =>
+        new(false, $"{CommandDescriber.DescribeCommand(cmd)} runs from a typed line or a preset, not as an aircraft command");
 
     /// <summary>
     /// Dispatches <paramref name="compound"/> with a boundary hold standing in front of a held phase lifted out of the list

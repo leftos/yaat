@@ -39,6 +39,14 @@ public sealed class AircraftSnapshotDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public LatLon? DeclinationCachePosition { get; init; }
 
+    /// <summary>
+    /// A departure-strip reprint the scripted route queued and the strip step has not printed yet
+    /// (<c>AircraftState.PendingDepartureStripReprint</c>). Written only while true and left out of the JSON otherwise, so
+    /// earlier snapshots restore none and no SnapshotSchemaMigrator step or SchemaVersion bump is required.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? PendingDepartureStripReprint { get; init; }
+
     public required double Altitude { get; init; }
     public required double IndicatedAirspeed { get; init; }
     public required double VerticalSpeed { get; init; }

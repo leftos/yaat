@@ -249,7 +249,7 @@ derives the id from state every run kind shares instead of drawing a Guid: `{pre
 (`STRIP_SWA1234_12_0`, `HSTRIP_…`, `SEP_…`; `StripMutations.DeferredStripId`) — the elapsed second the dispatch fires in and a
 0-based count of the id-minting dispatches for that callsign in that drain. A typed id ends in a hex run with no underscore, so the
 two forms never collide. The id is passed as the baked id, so a dispatch that fires again over strips already holding it (a
-same-room rewind) prints nothing. Pin: `DeferredStripIdDeterminismTests`. The oracle cannot script the Guid verbs:
+same-room rewind) prints nothing. Pin: `DeferredStripIdDeterminismTests`. A preset's or `WAIT` payload's `DA` / `FP` / `VP` reprints the same way: the scripted flight-plan arm sets `AircraftState.PendingDepartureStripReprint` (`QueueDepartureStripReprint`) and `TickStripDispatches` prints it first, under a derived departure id, so it lands after a replay's load-time clear and bakes no id. The oracle cannot script the Guid verbs:
 its live leg is a second run compared against the first run's log, and two runs never draw the same
 Guid — `StripIdBakingTests` is their pin.
 

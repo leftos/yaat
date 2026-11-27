@@ -111,6 +111,9 @@ public sealed partial class SimulationEngine
             World.AddAircraft(ac);
         }
 
+        // A departure-strip reprint queued before the capture prints at the restored run's next strip step.
+        RecountPendingDepartureStripReprints();
+
         // The queue and gates come back after the aircraft: adding an aircraft that replaces an existing callsign calls
         // ForgetAircraft, which would drop the restored awaited read-backs before they could hold the frequency.
         World.ActiveFrequency.Restore(snapshot.Frequency);

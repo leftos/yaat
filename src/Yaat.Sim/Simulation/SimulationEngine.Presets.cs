@@ -747,11 +747,19 @@ public sealed partial class SimulationEngine
     }
 
     /// <summary>
-    /// Sends a preset of track or coordination verbs to the engine's own handlers, which the command dispatcher has no arm
-    /// for, acting as <paramref name="identity"/>; false when the preset is neither and belongs to the dispatcher.
+    /// Sends a preset of flight-plan or global verbs to the scripted route (<see cref="TryApplyScriptedPreset"/>), or one of
+    /// track or coordination verbs to the engine's own handlers, none of which the command dispatcher has an arm for,
+    /// acting as <paramref name="identity"/>; false when the preset is none of these and belongs to the dispatcher.
     /// </summary>
     private bool TryDispatchRoutedPreset(CompoundCommand compound, AircraftState aircraft, TrackOwner? identity, string command)
     {
+        if (TryApplyScriptedPreset(compound, aircraft, identity) is { } scripted)
+        {
+            EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");
+            ReportPresetOutcome(aircraft, command, scripted);
+            return true;
+        }
+
         if (TryDispatchImmediateTrackPreset(compound, aircraft, identity))
         {
             EmitTerminal("System", aircraft.Callsign, $"[Preset] {command}");

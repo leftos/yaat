@@ -2554,6 +2554,8 @@ These commands don't require an aircraft selection:
 | `ASDXALERTS` | Clear alert inhibits across all aircraft in the room |
 | `GHOST <callsign> ...` | Create a ghost track; the callsign rides in the argument |
 
+A scenario preset runs `DA`, `FP`, `VP`, `REMARKS`, `SQALL`, `SNALL` and `SSALL` as a typed line does, at once or behind `WAIT` / `WAITD`. A preset `DA`, `FP` or `VP` reprints the aircraft's departure strip a moment later, on the next strip step. `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN` and a bare `AS` cannot run from a preset: each refuses with `{command} cannot run from a preset`, and a preset block holding one refuses whole.
+
 ### Live Traffic (ASSUME)
 
 `ASSUME` takes control of a **live-traffic shadow** — a real aircraft mirrored from an external surveillance feed. Until it is

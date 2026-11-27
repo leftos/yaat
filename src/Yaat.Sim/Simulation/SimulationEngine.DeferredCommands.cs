@@ -177,8 +177,9 @@ public sealed partial class SimulationEngine
 
     /// <summary>
     /// Dispatches one ready deferral's payload acting as its <see cref="DeferredDispatch.ActingAs"/>: a pure-track payload
-    /// to the track engine and a pure-coordination one to the coordination handler, mirroring the preset path, and
-    /// everything else through <see cref="CommandDispatcher.DispatchCompound"/>. A refusal surfaces as a "could not apply"
+    /// to the track engine, a flight-plan or global one to the scripted route (<see cref="TryApplyScriptedArms"/>) and a
+    /// pure-coordination one to the coordination handler, mirroring the preset path, and everything else through
+    /// <see cref="CommandDispatcher.DispatchCompound"/>. A refusal surfaces as a "could not apply"
     /// warning.
     /// </summary>
     private void FireDeferredDispatch(DeferredDispatch d, AircraftState aircraft)
@@ -192,7 +193,8 @@ public sealed partial class SimulationEngine
         }
 
         CommandResult deferredResult =
-            TryDispatchImmediateCoordinationPreset(d.Payload, aircraft, d.ActingAs)
+            TryApplyScriptedArms(d.Payload, aircraft, d.ActingAs)
+            ?? TryDispatchImmediateCoordinationPreset(d.Payload, aircraft, d.ActingAs)
             ?? CommandDispatcher.DispatchCompound(d.Payload, aircraft, BuildDeferredContext(d, aircraft));
         if (!deferredResult.Success)
         {

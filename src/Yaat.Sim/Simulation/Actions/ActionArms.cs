@@ -237,8 +237,9 @@ internal static class ActionArms
         // so the arm never reprints again and the id baked onto the command record is never read back. It is baked
         // anyway, through the same channel every creating strip verb uses, so the id the run drew is on the command
         // as well as on the amendment it wrote.
-        ctx.StripId = ctx.Engine.ReprintDepartureStripAfterAmendment(callsign, ctx.Input.Baked?.StripId);
-        if (engine.Scenario is { } scenario)
+        ctx.StripId = ReprintOrQueueDepartureStrip(ctx, aircraft);
+        // The scripted route records nothing: the preset applies again on replay, and the record would apply it twice.
+        if (!ctx.IsScripted && (engine.Scenario is { } scenario))
         {
             engine.RecordAction(new RecordedAmendFlightPlan(scenario.ElapsedSeconds, callsign, amendment, ctx.StripId, null));
         }
@@ -256,6 +257,22 @@ internal static class ActionArms
         }
 
         return new CommandResult(true, response);
+    }
+
+    /// <summary>
+    /// The departure-strip reprint after an amendment: inline for a routed command, under the recorded id on a recording; queued
+    /// for the strip-dispatch step on the scripted route (<see cref="ArmContext.IsScripted"/>), which prints it under a derived id
+    /// on every run kind, so no id is baked.
+    /// </summary>
+    private static string? ReprintOrQueueDepartureStrip(ArmContext ctx, AircraftState aircraft)
+    {
+        if (!ctx.IsScripted)
+        {
+            return ctx.Engine.ReprintDepartureStripAfterAmendment(aircraft.Callsign, ctx.Input.Baked?.StripId);
+        }
+
+        ctx.Engine.QueueDepartureStripReprint(aircraft);
+        return null;
     }
 
     private static void TagCreator(AircraftState? aircraft, TrackOwner? identity)
