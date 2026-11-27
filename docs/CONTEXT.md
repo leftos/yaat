@@ -1431,6 +1431,9 @@ The on-disk copy of an ARTCC's scenarios exactly as vNAS last served them (`scen
 **Snap target**:
 A point on an airport map the editor's cursor can snap to (a `SnapTargetKind`: parking, spot, helipad, runway vertex or taxiway vertex) within `SnapOptions.ThresholdFt` feet; the vertex being dragged is never one.
 
+**Stamp profile**:
+A saved set of aircraft fields a route stamp writes onto scenario aircraft beside the route (flight plan, starting conditions, presets, auto-track, STAR aliases and random-value pools), one JSON file per profile under `stamp-profiles/` in the YAAT data folder (`StampProfile`, `StampProfileStore`); its preset text may hold stamp tokens such as `{CS}` (`StampTokens`).
+
 **Tile cache**:
 The Airport Editor's store of USGS imagery tiles (`UsgsImageryTileCache`): a disk copy per tile under `cache/imagery/usgs-naipplus/` and a memory cache of the tiles in view.
 
