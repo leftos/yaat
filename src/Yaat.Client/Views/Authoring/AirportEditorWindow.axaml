@@ -15,6 +15,13 @@
   CanResize="True"
 >
   <Window.Styles>
+    <Style Selector="Border.vsep">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="Background" Value="#3D3D3D" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <Style Selector="Border.toolbar Button">
       <Setter Property="Padding" Value="9,3" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -23,6 +30,11 @@
       <Setter Property="FontSize" Value="11" />
       <Setter Property="Foreground" Value="#B0B0B0" />
       <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Path.icon">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="StrokeThickness" Value="1.4" />
     </Style>
   </Window.Styles>
   <DockPanel>
@@ -36,6 +48,37 @@
           Content="Imagery"
           IsChecked="{Binding ShowImagery}"
           ToolTip.Tip="Show the airport's vNAS tower-cab image under the map"
+        />
+        <Border Classes="vsep" />
+        <Button x:Name="UndoButton" Command="{Binding UndoCommand}" ToolTip.Tip="{Binding UndoDescription}">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Viewbox Width="13" Height="13">
+              <Path
+                Classes="icon"
+                Data="M5.5,3.5 L2.5,6.5 L5.5,9.5 M2.5,6.5 H10 A3.5,3.5 0 0 1 10,13.5 H7"
+                Stroke="{Binding $parent[Button].Foreground}"
+              />
+            </Viewbox>
+            <TextBlock Text="Undo" />
+          </StackPanel>
+        </Button>
+        <Button x:Name="RedoButton" Command="{Binding RedoCommand}" ToolTip.Tip="{Binding RedoDescription}">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Viewbox Width="13" Height="13">
+              <Path
+                Classes="icon"
+                Data="M10.5,3.5 L13.5,6.5 L10.5,9.5 M13.5,6.5 H6 A3.5,3.5 0 0 0 6,13.5 H9"
+                Stroke="{Binding $parent[Button].Foreground}"
+              />
+            </Viewbox>
+            <TextBlock Text="Redo" />
+          </StackPanel>
+        </Button>
+        <Button
+          x:Name="DeleteButton"
+          Content="Delete"
+          Command="{Binding DeleteSelectedCommand}"
+          ToolTip.Tip="Delete the selected vertex, or the selected feature (Del)"
         />
       </StackPanel>
     </Border>

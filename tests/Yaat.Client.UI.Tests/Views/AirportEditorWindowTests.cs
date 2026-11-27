@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Services;
@@ -484,6 +485,81 @@ public class AirportEditorWindowTests
         AirportEditorBounds box = AirportEditorBounds.Of(feature.Coordinates)!;
         Assert.Equal((box.MinLat + box.MaxLat) / 2, viewport.CenterLat, 1e-6);
         Assert.Equal((box.MinLon + box.MaxLon) / 2, viewport.CenterLon, 1e-6);
+    }
+
+    [AvaloniaFact]
+    public async Task CtrlZ_UndoesADelete_AndCtrlY_RedoesIt()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit target, Point at) = ParkingUnderTheCursor(window, canvas);
+            int count = window.ViewModel.Document!.Features.Count;
+            Press(window, canvas, at, MouseButton.Left);
+            Assert.Equal(target.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
+
+            window.KeyPressQwerty(PhysicalKey.Delete, RawInputModifiers.None);
+            MainWindowHost.Pump();
+
+            Assert.Equal(count - 1, window.ViewModel.Document!.Features.Count);
+            Assert.Same(window.ViewModel.Document, canvas.Document);
+            Assert.True(window.FindControl<Button>("UndoButton")!.IsEnabled);
+
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+
+            Assert.Equal(count, window.ViewModel.Document!.Features.Count);
+            Assert.Same(window.ViewModel.Document, canvas.Document);
+            Assert.True(window.FindControl<Button>("RedoButton")!.IsEnabled);
+
+            window.KeyPressQwerty(PhysicalKey.Y, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+
+            Assert.Equal(count - 1, window.ViewModel.Document!.Features.Count);
+            Assert.Same(window.ViewModel.Document, canvas.Document);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // A read-only property row's TextBox marks Delete and its undo keys handled; the window still acts on them.
+    [AvaloniaFact]
+    public async Task DelAndCtrlZ_FromAFocusedPropertyRow_DeleteTheFeature_ThenRestoreIt()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit target, Point at) = ParkingUnderTheCursor(window, canvas);
+            int count = window.ViewModel.Document!.Features.Count;
+            Press(window, canvas, at, MouseButton.Left);
+            Assert.Equal(target.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
+            TextBox row = window.FindControl<ItemsControl>("PropertyRows")!.GetVisualDescendants().OfType<TextBox>().First();
+            row.Focus();
+            MainWindowHost.Pump();
+            Assert.True(row.IsFocused);
+
+            window.KeyPressQwerty(PhysicalKey.Delete, RawInputModifiers.None);
+            MainWindowHost.Pump();
+
+            Assert.Equal(count - 1, window.ViewModel.Document!.Features.Count);
+
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+
+            Assert.Equal(count, window.ViewModel.Document!.Features.Count);
+        }
+        finally
+        {
+            window.Close();
+        }
     }
 
     // The first parking point whose own pixel hits it, in canvas coordinates.

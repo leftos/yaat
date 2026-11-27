@@ -24,10 +24,15 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
 {
     private static readonly ILogger Log = AppLog.CreateLogger("AirportEditorViewModel");
 
+    // MapFeature.MinLineVertices, which is internal to Yaat.Sim: a line keeps at least two positions.
+    private const int MinLineVertices = 2;
+
     private readonly AirportMapSourceLoader _loader;
     private readonly IAirportEditorPrompts _prompts;
     private readonly IAirportImagerySource _imagery;
     private readonly string? _preferredArtccId;
+    private readonly UndoStack<AirportMapDocument> _undo = new();
+    private AirportMapDocument? _openedDocument;
     private CancellationTokenSource? _openCts;
     private CancellationTokenSource? _imageryCts;
     private string? _imageryArtccId;
@@ -98,7 +103,17 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedFeature))]
     [NotifyPropertyChangedFor(nameof(TilesActive))]
+    [NotifyPropertyChangedFor(nameof(IsDirty))]
     private AirportMapDocument? _document;
+
+    /// <summary>Gets whether the open map differs from the one last opened.</summary>
+    public bool IsDirty => (Document is not null) && (!ReferenceEquals(Document, _openedDocument));
+
+    /// <summary>Gets the Undo button's tooltip, <c>Undo {edit}</c>, or null when there is nothing to undo.</summary>
+    public string? UndoDescription => _undo.NextUndoDescription is { } edit ? $"Undo {edit}" : null;
+
+    /// <summary>Gets the Redo button's tooltip, <c>Redo {edit}</c>, or null when there is nothing to redo.</summary>
+    public string? RedoDescription => _undo.NextRedoDescription is { } edit ? $"Redo {edit}" : null;
 
     /// <summary>
     /// Gets a value indicating whether the USGS tiles are drawn and fetched: imagery on, a map open, and vNAS either cannot
@@ -161,6 +176,31 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     /// <returns>A task that completes when the open has finished.</returns>
     public Task OpenFolderPathAsync(string folder) => RunOpenAsync(ct => AirportMapSourceLoader.OpenFolderAsync(folder, ct));
 
+    /// <summary>
+    /// Applies one edit to the open map as one undo step, keeping the selection where its feature and vertex still exist.
+    /// Does nothing when no map is open or the edit returns the document it was given.
+    /// </summary>
+    /// <param name="description">The edit's name, as the Undo tooltip shows it (<c>Delete vertex</c>).</param>
+    /// <param name="edit">Builds the new document from the open one.</param>
+    public void ApplyEdit(string description, Func<AirportMapDocument, AirportMapDocument> edit)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentNullException.ThrowIfNull(edit);
+        if (Document is not { } before)
+        {
+            return;
+        }
+
+        AirportMapDocument after = edit(before);
+        if (ReferenceEquals(after, before))
+        {
+            return;
+        }
+
+        _undo.Record(description, before);
+        ReplaceDocument(after);
+    }
+
     /// <summary>Cancels an open in flight; a later open does nothing.</summary>
     public void Dispose()
     {
@@ -177,7 +217,21 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         _imageryCts = null;
     }
 
-    partial void OnDocumentChanged(AirportMapDocument? value) => RebuildSelectionRows();
+    partial void OnDocumentChanged(AirportMapDocument? value)
+    {
+        RebuildSelectionRows();
+        RefreshEditState();
+    }
+
+    // The undo and redo state follows the stack, and Delete follows the selection and the map.
+    private void RefreshEditState()
+    {
+        OnPropertyChanged(nameof(UndoDescription));
+        OnPropertyChanged(nameof(RedoDescription));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+    }
 
     // Turned on, vNAS is asked again only when it has not answered (the toggle cancelled the request); turned off, a
     // request in flight is dropped with its progress line.
@@ -200,9 +254,114 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
     {
         SelectedVertexIndex = null;
         RebuildSelectionRows();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedVertexIndexChanged(int? value) => RebuildSelectionRows();
+    partial void OnSelectedVertexIndexChanged(int? value)
+    {
+        RebuildSelectionRows();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanUndo() => _undo.CanUndo;
+
+    private bool CanRedo() => _undo.CanRedo;
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        if ((Document is { } current) && (_undo.Undo(current) is { } before))
+        {
+            ReplaceDocument(before);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        if ((Document is { } current) && (_undo.Redo(current) is { } after))
+        {
+            ReplaceDocument(after);
+        }
+    }
+
+    // A selected feature can go; a selected vertex only from a line that keeps its minimum once it has gone.
+    private bool CanDeleteSelected()
+    {
+        if (SelectedFeature is not { } feature)
+        {
+            return false;
+        }
+
+        if (SelectedVertexIndex is not int vertex)
+        {
+            return true;
+        }
+
+        return (string.Equals(feature.GeometryType, "LineString", StringComparison.Ordinal))
+            && (vertex >= 0)
+            && (vertex < feature.Coordinates.Length)
+            && (feature.Coordinates.Length > MinLineVertices);
+    }
+
+    // The selected vertex, or else the selected feature; the deleted vertex leaves its feature selected.
+    [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
+    private void DeleteSelected()
+    {
+        if ((!CanDeleteSelected()) || (SelectedFeatureIndex is not int feature))
+        {
+            return;
+        }
+
+        if (SelectedVertexIndex is int vertex)
+        {
+            ApplyEdit("Delete vertex", d => MapEdits.DeleteVertex(d, feature, vertex));
+            SelectedVertexIndex = null;
+        }
+        else
+        {
+            ApplyEdit("Delete feature", d => MapEdits.DeleteFeature(d, feature));
+        }
+    }
+
+    // An edit, an undo or a redo: the selection stays on its feature (and vertex) when they still exist, else it clears.
+    private void ReplaceDocument(AirportMapDocument next)
+    {
+        AirportMapDocument? previous = Document;
+        MapFeature? selected = SelectedFeature;
+        int? featureIndex = SelectedFeatureIndex;
+        int? vertexIndex = SelectedVertexIndex;
+        Document = next;
+        if (KeptFeatureIndex(previous, next, featureIndex) is not int kept)
+        {
+            SelectedVertexIndex = null;
+            SelectedFeatureIndex = null;
+            return;
+        }
+
+        SelectedFeatureIndex = kept;
+        MapFeature now = next.Features[kept];
+        bool sameVertices = (ReferenceEquals(now, selected)) || (now.Coordinates.Length == selected?.Coordinates.Length);
+        SelectedVertexIndex = ((sameVertices) && (vertexIndex is int v) && (v < now.Coordinates.Length)) ? v : null;
+    }
+
+    // With the feature count unchanged the edit kept every feature in place; otherwise the selected feature is looked up
+    // by reference, so a delete before it moves the index and its own delete clears it.
+    private static int? KeptFeatureIndex(AirportMapDocument? previous, AirportMapDocument next, int? featureIndex)
+    {
+        if ((previous is null) || (featureIndex is not int index) || (index < 0) || (index >= previous.Features.Count))
+        {
+            return null;
+        }
+
+        if (previous.Features.Count == next.Features.Count)
+        {
+            return index;
+        }
+
+        int found = next.Features.IndexOf(previous.Features[index], 0, next.Features.Count, ReferenceEqualityComparer.Instance);
+        return (found >= 0) ? found : null;
+    }
 
     private void RebuildSelectionRows()
     {
@@ -282,7 +441,10 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         {
             SelectedVertexIndex = null;
             SelectedFeatureIndex = null;
+            _undo.Clear();
+            _openedDocument = opened.Document;
             Document = opened.Document;
+            RefreshEditState();
             SourceLabel = opened.SourceLabel;
             SetImageryTarget(opened);
         }

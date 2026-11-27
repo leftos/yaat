@@ -1,6 +1,10 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Imagery;
 using Yaat.Client.ViewModels.Authoring;
@@ -21,6 +25,9 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
     public const string GeometryKey = "AirportEditor";
 
     private const string BaseTitle = "Airport Editor";
+
+    private static readonly KeyGesture FallbackUndo = new(Key.Z, KeyModifiers.Control);
+    private static readonly KeyGesture CtrlY = new(Key.Y, KeyModifiers.Control);
 
     // One downloader for every Airport Editor the app opens, never disposed: its HttpClient lives as long as the process,
     // so closing a window cannot dispose it under an open still in flight.
@@ -84,6 +91,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.FitRequested += OnFitRequested;
         MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
         Activated += OnActivated;
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
         Closed += OnClosed;
         MapCanvas.ShowImagery = ViewModel.ShowImagery;
         MapCanvas.ImageryBrightness = preferences.AirportEditorImageryBrightness;
@@ -195,6 +203,28 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 
     private void OnFitRequested(object? sender, EventArgs e) => MapCanvas.FitToFeatures();
 
+    // The platform's undo and redo keys (Ctrl+Z and Ctrl+Y, Cmd+Z and Cmd+Shift+Z) and Del act on the map, also when a
+    // read-only property row marked them handled; an editable text field keeps its own undo and Delete.
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Source is TextBox { IsReadOnly: false })
+        {
+            return;
+        }
+
+        IRelayCommand? command = CommandFor(e);
+        if (command is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (command.CanExecute(null))
+        {
+            command.Execute(null);
+        }
+    }
+
     // The canvas's click selected something (or nothing): the view model holds the selection the panel shows.
     private void OnCanvasSelectionChanged(object? sender, EventArgs e)
     {
@@ -203,12 +233,30 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.SelectedVertexIndex = selection?.VertexIndex;
     }
 
+    // Ctrl+Y redoes off macOS whether or not the platform lists it; without platform settings Ctrl+Z undoes.
+    private IRelayCommand? CommandFor(KeyEventArgs e)
+    {
+        PlatformHotkeyConfiguration? hotkeys = Avalonia.Application.Current?.PlatformSettings?.HotkeyConfiguration;
+        if ((hotkeys?.Undo ?? [FallbackUndo]).Exists(g => g.Matches(e)))
+        {
+            return ViewModel.UndoCommand;
+        }
+
+        if (((hotkeys?.Redo ?? []).Exists(g => g.Matches(e))) || ((!PlatformHelper.IsMacOS) && (CtrlY.Matches(e))))
+        {
+            return ViewModel.RedoCommand;
+        }
+
+        return ((e.Key == Key.Delete) && (e.KeyModifiers == KeyModifiers.None)) ? ViewModel.DeleteSelectedCommand : null;
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.FitRequested -= OnFitRequested;
         MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
         Activated -= OnActivated;
+        RemoveHandler(KeyDownEvent, OnWindowKeyDown);
 
         // The canvas first: its Dispose waits out a frame in progress, so no frame draws once the view model and the
         // cache let go of their images (which are dropped, never disposed: a published SKImage stays valid).

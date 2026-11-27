@@ -2425,7 +2425,9 @@ If the copy is open with unsaved edits, the editor asks first: **Yes** saves and
 
 ### Airport Editor
 
-**Tools > Airport Editor...** opens an airport map in its own window: from the vNAS cache by airport id, from a file, or from a folder holding one `.geojson` map. It views a map; it does not edit. The airport's imagery draws under the map (toggle it with **Imagery**); pan with the middle mouse button, zoom with the wheel, and click a feature to inspect it.
+**Tools > Airport Editor...** opens an airport map in its own window: from the vNAS cache by airport id, from a file, or from a folder holding one `.geojson` map. The airport's imagery draws under the map (toggle it with **Imagery**); pan with the middle mouse button, zoom with the wheel, and click a feature to inspect it. Drawing, dragging and property edits are not there yet, and nothing can be saved.
+
+**Deleting and undoing.** With a feature selected, **Delete** (or the Del key) removes it; with a vertex of a line selected, it removes that vertex and leaves the line selected. A line keeps at least two positions, so **Delete** is greyed out for a vertex on a line that has only two. **Undo** and **Redo** step back and forward through your edits, and their tooltips name the edit ("Undo Delete feature"). The keys are Ctrl+Z to undo and Ctrl+Y to redo (on macOS Cmd+Z and Cmd+Shift+Z), and they work while a row of the Properties panel has focus. The selection stays on its feature through an edit, undo or redo when that feature still exists (a vertex only while its line still has the same number of positions), and clears otherwise. Opening another map starts with an empty undo history.
 
 ---
 

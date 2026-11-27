@@ -128,8 +128,7 @@ tests/Yaat.AirportEditor.Tests/
 |---|---|
 | AddFeature | Feature reference → remove by Id |
 | DeleteFeature | Feature + insertion index → re-insert |
-| MovePoint | Feature Id, old lon/lat |
-| MoveVertex | Feature Id, vertex index, old lon/lat |
+| MoveVertex | Feature Id, vertex index (0 for a point feature), old lon/lat |
 | InsertVertex | Feature Id, index → remove |
 | DeleteVertex | Feature Id, index, old lon/lat → re-insert |
 | EditProperty | Feature Id, property name, old value |
@@ -153,7 +152,7 @@ tests/Yaat.AirportEditor.Tests/
 - [ ] Verify: `dotnet build` 0W 0E, round-trip test passes on OAK files
 
 ### Chunk 2 — Map canvas + basic rendering
-- [ ] `MapCanvasBase.PanButton` (the editor canvas pans on middle-mouse; `MapViewport.cs` and `MapCanvasBase.cs` are not copied)
+- [x] `MapCanvasBase.PanButton` (the editor canvas pans on middle-mouse; `MapViewport.cs` and `MapCanvasBase.cs` are not copied)
 - [ ] `EditorRenderer.cs` — runways, taxiways, points, labels with overlap culling
 - [ ] `EditorCanvas.cs` — StyledProperties (Document, Mode, SelectedFeature), CreateRenderSnapshot, FitToLayout
 - [ ] `EditorView.axaml/.cs` — UserControl wrapping canvas
@@ -162,9 +161,9 @@ tests/Yaat.AirportEditor.Tests/
 
 ### Chunk 3 — Selection, hit-testing, property panel
 - [x] `SnapEngine.cs` (in `src/Yaat.Sim/Authoring/AirportMap/`)
-- [ ] `EditorCanvas` hit-testing: point features (12px), line vertices (8px), line segments (6px)
-- [ ] Selection model: click-to-select, SelectionChanged event, highlight in renderer
-- [ ] `EditorRenderer` additions: selection highlight, vertex handles on selected line, hover highlight
+- [x] `EditorCanvas` hit-testing: point features (12px), line vertices (8px), line segments (6px)
+- [x] Selection model: click-to-select, SelectionChanged event, highlight in renderer
+- [x] `EditorRenderer` additions: selection highlight, vertex handles on selected line, hover highlight
 - [ ] `PropertyPanelViewModel.cs` — intermediary with undo-aware property changes
 - [ ] `PropertyPanel.axaml/.cs` — DataTemplate per feature type (all properties editable)
 - [ ] Context menus: Edit Properties, Delete
@@ -175,11 +174,11 @@ tests/Yaat.AirportEditor.Tests/
 ### Chunk 4 — Draw/place modes, vertex editing
 - [ ] `EditorCanvas` draw modes: DrawTaxiway (click vertices, dbl-click finish), DrawRunway (2 clicks), PlaceParking/Spot/Helipad (single click)
 - [ ] Vertex drag: left-drag on selected line vertex → MoveVertex through undo stack
-- [ ] Point drag: left-drag on parking/spot/helipad → MovePoint through undo stack
+- [ ] Point drag: left-drag on parking/spot/helipad → MoveVertex (vertex 0) through undo stack
 - [ ] Snap integration: snap indicator crosshair, snapped placement
 - [ ] `EditorRenderer` additions: ghost preview (dashed line), snap crosshair, mode HUD text
 - [ ] Full context menus: Insert Vertex, Delete Vertex, Split Taxiway, Add Here (empty space)
-- [ ] `MainViewModel` additions: AddFeature, MovePoint, MoveVertex, InsertVertex, DeleteVertex, SplitTaxiway, EnterMode, EscapeMode
+- [ ] `MainViewModel` additions: AddFeature, MoveVertex, InsertVertex, DeleteVertex, SplitTaxiway, EnterMode, EscapeMode
 - [ ] Wire Add menu + keyboard shortcuts (T/P/S/H/R, Esc)
 
 ### Chunk 5 — Save/export, validation, preferences
@@ -188,7 +187,7 @@ tests/Yaat.AirportEditor.Tests/
 - [x] `LayoutValidator` (in `src/Yaat.Sim/Data/Airport/`) and `AirportMapValidation` (in `src/Yaat.Sim/Authoring/AirportMap/`) — run `GeoJsonParser.ParseWithDiagnostics`, report disconnected parking, duplicate names, unnamed features, single-point taxiways
 - [ ] `ValidationWindow.axaml/.cs` — issue list with severity icons
 - [ ] Recent files submenu (EditorPreferences)
-- [ ] Window geometry save/restore
+- [x] Window geometry save/restore
 - [ ] Complete View menu toggles (labels, vertex IDs, snap guides)
 - [x] `AirportMapValidationTests.cs` (in `tests/Yaat.Sim.Tests/Authoring/`)
 

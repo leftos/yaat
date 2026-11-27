@@ -197,6 +197,189 @@ public sealed class AirportEditorViewModelTests : IDisposable
         Assert.Equal("", vm.StatusText);
     }
 
+    [Fact]
+    public async Task DeleteFeature_ThenUndo_RestoresTheDocument_AndRedoDeletesAgain()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        Assert.False(vm.IsDirty);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        Assert.False(vm.RedoCommand.CanExecute(null));
+        vm.SelectedFeatureIndex = 3;
+
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.Equal(AirportEditorTestFolder.OakFeatureCount - 1, vm.Document!.Features.Count);
+        Assert.True(vm.IsDirty);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+        Assert.Equal("Undo Delete feature", vm.UndoDescription);
+        Assert.Null(vm.SelectedFeatureIndex);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(vm.IsDirty);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        Assert.True(vm.RedoCommand.CanExecute(null));
+        Assert.Null(vm.UndoDescription);
+        Assert.Equal("Redo Delete feature", vm.RedoDescription);
+
+        vm.RedoCommand.Execute(null);
+
+        Assert.Equal(AirportEditorTestFolder.OakFeatureCount - 1, vm.Document!.Features.Count);
+        Assert.DoesNotContain(opened.Features[3], vm.Document!.Features);
+        Assert.True(vm.IsDirty);
+        Assert.False(vm.RedoCommand.CanExecute(null));
+        Assert.Null(vm.RedoDescription);
+    }
+
+    [Fact]
+    public async Task DeleteVertex_OnALineAtItsMinimum_IsDisabled()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        Assert.False(vm.DeleteSelectedCommand.CanExecute(null));
+        int index = FirstTaxiway(vm.Document!);
+        while (vm.Document!.Features[index].Coordinates.Length > 2)
+        {
+            vm.ApplyEdit("Delete vertex", d => MapEdits.DeleteVertex(d, index, 0));
+        }
+
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 0;
+
+        Assert.False(vm.DeleteSelectedCommand.CanExecute(null));
+        vm.DeleteSelectedCommand.Execute(null);
+        Assert.Equal(2, vm.Document!.Features[index].Coordinates.Length);
+        Assert.Equal(AirportEditorTestFolder.OakFeatureCount, vm.Document!.Features.Count);
+
+        vm.SelectedVertexIndex = null;
+
+        Assert.True(vm.DeleteSelectedCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task DeleteVertex_RemovesOnlyThatVertex_AndKeepsTheFeatureSelected()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapFeature taxiway = opened.Features[index];
+        Assert.True(taxiway.Coordinates.Length > 2);
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+        Assert.True(vm.DeleteSelectedCommand.CanExecute(null));
+
+        vm.DeleteSelectedCommand.Execute(null);
+
+        Assert.Equal(taxiway.Coordinates.RemoveAt(1), vm.Document!.Features[index].Coordinates);
+        Assert.Equal(opened.Features.Count, vm.Document!.Features.Count);
+        for (int i = 0; i < opened.Features.Count; i++)
+        {
+            if (i != index)
+            {
+                Assert.Same(opened.Features[i], vm.Document!.Features[i]);
+            }
+        }
+
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        Assert.Null(vm.SelectedVertexIndex);
+        Assert.Same(vm.Document!.Features[index], vm.SelectedFeature);
+        Assert.Equal("Undo Delete vertex", vm.UndoDescription);
+    }
+
+    [Fact]
+    public async Task Redo_OfADelete_ClearsTheSelectionOfTheDeletedFeature()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        vm.SelectedFeatureIndex = 3;
+        vm.DeleteSelectedCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        vm.SelectedFeatureIndex = 3;
+
+        vm.RedoCommand.Execute(null);
+
+        Assert.Null(vm.SelectedFeatureIndex);
+        Assert.Null(vm.SelectedFeature);
+        Assert.Empty(vm.SelectionRows);
+
+        vm.UndoCommand.Execute(null);
+        vm.SelectedFeatureIndex = 5;
+
+        vm.RedoCommand.Execute(null);
+
+        Assert.Equal(4, vm.SelectedFeatureIndex);
+        Assert.Same(opened.Features[5], vm.SelectedFeature);
+    }
+
+    [Fact]
+    public async Task Open_ClearsTheUndoStack()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(oak);
+        vm.SelectedFeatureIndex = 3;
+        vm.DeleteSelectedCommand.Execute(null);
+        vm.SelectedFeatureIndex = 3;
+        vm.DeleteSelectedCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+        Assert.True(vm.RedoCommand.CanExecute(null));
+
+        await vm.OpenFilePathAsync(oak);
+
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        Assert.False(vm.RedoCommand.CanExecute(null));
+        Assert.Null(vm.UndoDescription);
+        Assert.Null(vm.RedoDescription);
+        Assert.False(vm.IsDirty);
+        Assert.Equal(AirportEditorTestFolder.OakFeatureCount, vm.Document!.Features.Count);
+    }
+
+    [Fact]
+    public async Task ApplyEdit_ReturningTheSameDocument_RecordsNothing()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        bool documentChanged = false;
+        vm.PropertyChanged += (_, e) => documentChanged |= e.PropertyName == nameof(AirportEditorViewModel.Document);
+
+        vm.ApplyEdit("Nothing", d => d);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(documentChanged);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+        Assert.Null(vm.UndoDescription);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task Redo_OfAVertexDelete_ClearsTheVertexSelection_AndKeepsTheFeatureSelected()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        int index = FirstTaxiway(vm.Document!);
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+        vm.DeleteSelectedCommand.Execute(null);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        vm.SelectedVertexIndex = 1;
+
+        vm.RedoCommand.Execute(null);
+
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        Assert.Null(vm.SelectedVertexIndex);
+        Assert.Same(vm.Document!.Features[index], vm.SelectedFeature);
+    }
+
+    private async Task<AirportEditorViewModel> OpenOakAsync()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(oak);
+        return vm;
+    }
+
     private static int FirstTaxiway(AirportMapDocument document) =>
         document.Features.Select((f, i) => (f, i)).First(x => x.f.FeatureType == "taxiway").i;
 }
