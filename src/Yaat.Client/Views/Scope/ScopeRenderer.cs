@@ -1105,8 +1105,8 @@ public sealed partial class ScopeRenderer : IDisposable
     // Antialiased, and outside the radar line style: its width comes from the font each draw.
     private readonly SKPaint _strikethroughPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
-    // The ERAM mark strokes: the arrow under compact text (realistic text draws the strike's own glyph) and the HSF, VCI
-    // and ≠ marks, drawn as paths in their monospace cells; the arrow's width comes from the font each draw.
+    // The ERAM mark strokes under compact text: the arrow (realistic text draws the strike's own glyph) and the HSF, VCI
+    // and ≠ marks, drawn as paths in their monospace cells; the width comes from the font each draw.
     private readonly SKPaint _arrowPaint = new()
     {
         Style = SKPaintStyle.Stroke,
@@ -1114,6 +1114,10 @@ public sealed partial class ScopeRenderer : IDisposable
         StrokeCap = SKStrokeCap.Round,
         StrokeJoin = SKStrokeJoin.Round,
     };
+
+    // The same marks under realistic text, on the pixel grid: no antialiasing, so every pixel is the block colour or empty as
+    // the Terminus bitmap glyphs beside them are; the width comes from the font each draw.
+    private readonly SKPaint _pixelMarkPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = false };
 
     // The pilot lens's intent path: solid legs and diamonds, a dashed leader from
     // the symbol, dashed tails and open-ended shapes.
@@ -1443,6 +1447,7 @@ public sealed partial class ScopeRenderer : IDisposable
         _textPaint.Dispose();
         _strikethroughPaint.Dispose();
         _arrowPaint.Dispose();
+        _pixelMarkPaint.Dispose();
         _lensLinePaint.Dispose();
         _lensLeaderPaint.Dispose();
         _lensDashPaint.Dispose();
@@ -1900,7 +1905,8 @@ public sealed partial class ScopeRenderer : IDisposable
 
     /// <summary>
     /// Strokes the glyph <paramref name="buildPath"/> builds in the monospace cell <see cref="TrackPresenter.EramArrowCell"/>
-    /// holds in <paramref name="field"/>'s text (the arrow, the HSF indicator, the VCI); nothing when the text holds no cell.
+    /// holds in <paramref name="field"/>'s text (the arrow, the HSF indicator, the VCI, the ≠); nothing when the text holds no
+    /// cell. Realistic text draws it on the pixel grid in the field's colour; compact text keeps the antialiased stroke.
     /// </summary>
     private void DrawCellPath(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, Func<int, SKPath> buildPath)
     {
@@ -1911,10 +1917,36 @@ public sealed partial class ScopeRenderer : IDisposable
         }
 
         using SKPath path = buildPath(cell);
+        if (GlyphPitchOf(font) is { } pitch)
+        {
+            var origin = new SKPoint(CellOf(field, font, cell, pitch).Left, field.Rect.Bottom);
+            DrawPixelCellPath(canvas, path, font, color, origin);
+            return;
+        }
+
         _arrowPaint.Color = color;
         _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
         canvas.DrawPath(path, _arrowPaint);
     }
+
+    /// <summary>
+    /// Strokes <paramref name="path"/> as the realistic strike's own bitmaps draw beside it: no antialiasing, a whole-pixel
+    /// stroke, and its <paramref name="origin"/> snapped to whole pixels, so each pixel is the block colour or empty.
+    /// </summary>
+    private void DrawPixelCellPath(SKCanvas canvas, SKPath path, SKFont font, SKColor color, SKPoint origin)
+    {
+        _pixelMarkPaint.Color = color;
+        _pixelMarkPaint.StrokeWidth = MathF.Max(1f, SnapToPixel(font.Size / 10f));
+        int save = canvas.Save();
+        canvas.Translate(SnapToPixel(origin.X) - origin.X, SnapToPixel(origin.Y) - origin.Y);
+        canvas.DrawPath(path, _pixelMarkPaint);
+        canvas.RestoreToCount(save);
+    }
+
+    /// <summary>
+    /// <paramref name="value"/> snapped to the whole pixel Skia draws a glyph origin at: halves round away from zero.
+    /// </summary>
+    private static float SnapToPixel(float value) => MathF.Round(value, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// Draws <paramref name="field"/>'s ERAM climb or descend arrow in <paramref name="color"/>: the realistic strike's own

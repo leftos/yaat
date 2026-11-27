@@ -5,6 +5,7 @@
 ### Fixed
 
 - `RDH` with text on a release that has not been sent is refused, pointing to `RDTXT` then `RDH`, instead of sending it and dropping the text.
+- Radar: with Realistic scope text, the ERAM HSF, VCI and ≠ marks draw crisp like the rest of the datablock.
 - `RDH` on an aircraft whose rundown item was already sent is refused with RD's message instead of adding a second item.
 - `RDH` and `RDR` naming a rundown list are refused from a position that does not send on that list.
 - Preset and triggered handoffs and point-outs to an unstaffed position follow STARS consolidation, as typed ones do.

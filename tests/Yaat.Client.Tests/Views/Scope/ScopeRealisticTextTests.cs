@@ -38,6 +38,9 @@ public sealed class ScopeRealisticTextTests : IDisposable
 
     private static readonly ScopePalette NoTints = new(null, null, SKColors.White);
 
+    // A viewer whose ERAM sector is 44, for a track's VCI mark to light on.
+    private static readonly ScopeViewer Viewer44 = new(null, "ZOA", "44");
+
     private static MapViewport Viewport() =>
         new()
         {
@@ -152,6 +155,56 @@ public sealed class ScopeRealisticTextTests : IDisposable
                 + $" missing {string.Join(" ", missing.Take(4))}"
         );
     }
+
+    /// <summary>
+    /// Asserts <paramref name="slot"/>'s mark cell (the HSF indicator, the VCI or the ≠) on <paramref name="aircraft"/>'s ERAM
+    /// full block at ERAM text size <paramref name="size"/> drew on the pixel grid: the cell has lit pixels, and every one is
+    /// exactly the block colour, as no stroke of it lands at partial coverage.
+    /// </summary>
+    private static void AssertRealisticMarkAliased(int size, ScopeFieldSlot slot, AircraftModel aircraft, ScopeViewer? viewer)
+    {
+        int strikePx = ScopeTextFonts.EramStrikePx[size];
+        float pitch = ScopeTextFonts.GlyphPitch(strikePx);
+        ScopeFrameInput input = Input(ScopeTemplates.EramId, Compact(), ScopeTextFonts.EramMetrics(size), aircraft);
+        if (viewer is not null)
+        {
+            input = input with { Display = ScopeTestAircraft.AllDisplay with { Viewer = viewer } };
+        }
+        var frame = ScopeFrame.Build(input);
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        FieldRect mark = Assert.Single(track.Block.Fields, f => f.Slot == slot);
+        SKRectI box = CellBox(mark.Rect.Left, pitch, mark.Rect.Bottom, RowPitchOf(track));
+
+        using SKBitmap rendered = Render(frame, starsStrikePx: null, eramStrikePx: strikePx);
+
+        List<SKPointI> lit = PointsWhere(rendered, box, c => c != SKColors.Black);
+        Assert.NotEmpty(lit);
+        List<SKPointI> blended = [.. lit.Where(p => rendered.GetPixel(p.X, p.Y) != FdbYellow)];
+        Assert.True(blended.Count == 0, $"the {slot} mark cell {box} at ERAM size {size} is antialiased at {string.Join(" ", blended.Take(4))}");
+    }
+
+    /// <summary>
+    /// <paramref name="aircraft"/>'s ERAM template frame at ERAM text size 1, its block dragged by <paramref name="offset"/>
+    /// on the symbol when given.
+    /// </summary>
+    private static ScopeFrame MarkFrame(AircraftModel aircraft, SKPoint? offset)
+    {
+        ScopeFrameInput input = Input(ScopeTemplates.EramId, Compact(), ScopeTextFonts.EramMetrics(1), aircraft);
+        if (offset is { } placed)
+        {
+            input = input with { ManualOffsets = new Dictionary<string, SKPoint> { [aircraft.Callsign] = placed } };
+        }
+        return ScopeFrame.Build(input);
+    }
+
+    private static FieldRect SlotField(ScopeFrame frame, ScopeFieldSlot slot) =>
+        Assert.Single(Assert.Single(frame.Tracks).Block.Fields, f => f.Slot == slot);
+
+    /// <summary><paramref name="value"/> snapped the way the renderer snaps a mark's origin: to the whole pixel, halves away from zero.</summary>
+    private static float Snap(float value) => MathF.Round(value, MidpointRounding.AwayFromZero);
+
+    /// <summary>The whole pixel a tenth past <paramref name="value"/>'s floor: a position that stays fractional but rounds down.</summary>
+    private static float TenthPastTheFloor(float value) => MathF.Floor(value) + 0.1f;
 
     /// <summary>
     /// The box one field cell occupies on the frame: its columns from <paramref name="left"/> for <paramref name="width"/>, and
@@ -386,6 +439,112 @@ public sealed class ScopeRealisticTextTests : IDisposable
             altitude.Rect.Bottom,
             RowPitchOf(Assert.Single(frame.Tracks))
         );
+
+        using SKBitmap rendered = Render(frame, starsStrikePx: null, eramStrikePx: null);
+
+        // The antialiased 1.2 px stroke lands at partial coverage, so the cell holds pixels short of the block colour.
+        List<SKPointI> drawn = PointsWhere(rendered, box, c => c != SKColors.Black);
+        Assert.NotEmpty(drawn);
+        Assert.Contains(drawn, p => rendered.GetPixel(p.X, p.Y) != FdbYellow);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Realistic_HsfMark_DrawsOnlyBlockColourPixels(int size)
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        AircraftModel ac = EramOwned();
+        ac.EramAssignedHeading = "270";
+
+        AssertRealisticMarkAliased(size, ScopeFieldSlot.HsfIndicator, ac, viewer: null);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Realistic_VciMark_DrawsOnlyBlockColourPixels(int size)
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        AircraftModel ac = EramOwned();
+        ac.EramOnFrequencySectorIds = ["44"];
+
+        AssertRealisticMarkAliased(size, ScopeFieldSlot.Vci, ac, Viewer44);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Realistic_NotEqualMark_DrawsOnlyBlockColourPixels(int size)
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        AircraftModel ac = EramOwned();
+        ac.EramPlanAltitudeFeet = 24000;
+        ac.CruiseAltitude = 35000;
+
+        AssertRealisticMarkAliased(size, ScopeFieldSlot.AltitudeMismatch, ac, viewer: null);
+    }
+
+    [Fact]
+    public void Realistic_Mark_AtAFractionalPosition_SnapsToWholePixels()
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        int strikePx = ScopeTextFonts.EramStrikePx[1];
+        float pitch = ScopeTextFonts.GlyphPitch(strikePx);
+        AircraftModel ac = EramOwned();
+        ac.EramPlanAltitudeFeet = 24000;
+        ac.CruiseAltitude = 35000;
+
+        ScopeFrame natural = MarkFrame(ac, offset: null);
+        SKPoint block = Assert.Single(natural.Tracks).BlockOffset;
+        FieldRect first = SlotField(natural, ScopeFieldSlot.AltitudeMismatch);
+        var placed = new SKPoint(
+            block.X + TenthPastTheFloor(first.Rect.Left) - first.Rect.Left,
+            block.Y + TenthPastTheFloor(first.Rect.Bottom) - first.Rect.Bottom
+        );
+        ScopeFrame fractional = MarkFrame(ac, placed);
+        FieldRect mark = SlotField(fractional, ScopeFieldSlot.AltitudeMismatch);
+        float x = Snap(mark.Rect.Left);
+        float y = Snap(mark.Rect.Bottom);
+        Assert.True(MathF.Abs(x - mark.Rect.Left) > 0.05f, $"the block's ≠ cell {mark.Rect} already sits on a whole pixel");
+
+        var whole = new SKPoint(placed.X + (x - mark.Rect.Left), placed.Y + (y - mark.Rect.Bottom));
+        ScopeFrame snapped = MarkFrame(ac, whole);
+        Assert.Equal(x, SlotField(snapped, ScopeFieldSlot.AltitudeMismatch).Rect.Left, 3);
+        Assert.Equal(y, SlotField(snapped, ScopeFieldSlot.AltitudeMismatch).Rect.Bottom, 3);
+
+        using SKBitmap drawn = Render(fractional, starsStrikePx: null, eramStrikePx: strikePx);
+        using SKBitmap mask = Render(snapped, starsStrikePx: null, eramStrikePx: strikePx);
+        SKRectI box = CellBox(mark.Rect.Left, pitch, mark.Rect.Bottom, RowPitchOf(Assert.Single(fractional.Tracks)));
+        Assert.NotEmpty(PointsWhere(drawn, box, c => c != SKColors.Black));
+        for (int row = box.Top; row < box.Bottom; row++)
+        {
+            for (int column = box.Left; column < box.Right; column++)
+            {
+                Assert.Equal(mask.GetPixel(column, row), drawn.GetPixel(column, row));
+            }
+        }
+    }
+
+    [Fact]
+    public void Compact_HsfMark_StillAntialiased()
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        AircraftModel ac = EramOwned();
+        ac.EramAssignedHeading = "270";
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, Compact(), null, ac);
+        ScopeTrack track = Assert.Single(frame.Tracks);
+        FieldRect mark = Assert.Single(track.Block.Fields, f => f.Slot == ScopeFieldSlot.HsfIndicator);
+        SKRectI box = CellBox(mark.Rect.Left, CompactFont.MeasureText(TrackPresenter.EramArrowCell), mark.Rect.Bottom, RowPitchOf(track));
 
         using SKBitmap rendered = Render(frame, starsStrikePx: null, eramStrikePx: null);
 
