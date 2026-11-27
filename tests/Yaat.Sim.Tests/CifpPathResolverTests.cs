@@ -62,7 +62,7 @@ public class CifpPathResolverTests : IDisposable
 
         Assert.Equal(outPath, result);
         Assert.Equal(full.Length, new FileInfo(result).Length);
-        Assert.Contains(File.ReadLines(result), line => line.Contains("NARASHLY", StringComparison.Ordinal));
+        Assert.Contains(File.ReadLines(result), line => line.Contains("NARBULLO", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class CifpPathResolverTests : IDisposable
         Assert.NotNull(path);
         Assert.NotEqual(cachedCycleFile, path);
         Assert.Equal(ReadManifestCycle(Path.Combine(testDataDir, "cifp-manifest.json")), cycleId);
-        Assert.Contains(File.ReadLines(path), line => line.Contains("NARASHLY", StringComparison.Ordinal));
+        Assert.Contains(File.ReadLines(path), line => line.Contains("NARBULLO", StringComparison.Ordinal));
     }
 
     [Fact]
