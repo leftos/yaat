@@ -856,4 +856,374 @@ public class LocalScenarioStoreTests
                 Assert.False(copy.ServerChanged);
             }
         );
+
+    private static string BasePath(string root, string id) => Path.Combine(root, Zoa, "local", id + ".base");
+
+    [Fact]
+    public void CreateWorkingCopy_WritesTheBaseText() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                Assert.Equal(TrainingFixtures.Read(IdA), File.ReadAllText(BasePath(root, IdA)));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void ReDownload_ChangedServerScenario_KeepsTheCopysBaseText() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Changed(IdA));
+
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+                Assert.True(Assert.Single(store.Load(Zoa).WorkingCopies).ServerChanged);
+            }
+        );
+
+    [Fact]
+    public void DeleteWorkingCopy_RemovesTheBaseFile() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                Assert.True(File.Exists(BasePath(root, IdA)));
+
+                Assert.True(store.DeleteWorkingCopy(Zoa, IdA));
+
+                Assert.False(File.Exists(BasePath(root, IdA)));
+                Assert.Null(store.ReadBaseText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void ListWorkingCopies_NeverListsTheBaseFile() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                ArtccStoreListing listing = store.Load(Zoa);
+
+                Assert.True(File.Exists(BasePath(root, IdA)));
+                Assert.Equal([IdA], listing.WorkingCopies.Select(c => c.Id));
+                Assert.Empty(listing.Problems);
+            }
+        );
+
+    [Fact]
+    public void DuplicateWorkingCopy_HasNoBaseText() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                store.DuplicateWorkingCopy(Zoa, IdA, IdB);
+
+                Assert.Null(store.ReadBaseText(Zoa, IdB));
+                Assert.False(File.Exists(BasePath(root, IdB)));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void ReadBaseText_CopyMadeWithoutBase_ReturnsNull() =>
+        InRoot(
+            (root, store) =>
+            {
+                const string LocalId = "LOCAL_ONLY-1";
+                store.SaveWorkingCopy(Zoa, LocalId, TrainingFixtures.WithId(IdB, LocalId));
+
+                Assert.Null(store.ReadBaseText(Zoa, LocalId));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_SavesTextRecordsNewBaseAndClearsServerChanged() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (my edit)"));
+                string changed = TrainingFixtures.Changed(IdA);
+                store.ApplyServerBody(Zoa, IdA, changed);
+                Assert.True(Assert.Single(store.Load(Zoa).WorkingCopies).ServerChanged);
+                string merged = TrainingFixtures.WithNameSuffix(IdA, " (merged)");
+
+                store.ApplyMerge(Zoa, IdA, merged, changed, LocalScenarioStore.ComputeVersion(changed));
+
+                Assert.Equal(merged, store.ReadWorkingCopyText(Zoa, IdA));
+                Assert.Equal(changed, store.ReadBaseText(Zoa, IdA));
+                Assert.Equal(FreshBaseContentHash(changed), BaseContentHashOf(root, IdA));
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.False(copy.ServerChanged);
+                Assert.True(copy.Modified);
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_KeepsTheExportRecord() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                store.SaveWorkingCopy(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (my edit)"));
+                store.RecordExport(Zoa, IdA, ExportedAt);
+                string changed = TrainingFixtures.Changed(IdA);
+                store.ApplyServerBody(Zoa, IdA, changed);
+                JsonObject before = JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, IdA)))!.AsObject();
+                string merged = TrainingFixtures.WithNameSuffix(IdA, " (merged)");
+
+                store.ApplyMerge(Zoa, IdA, merged, changed, LocalScenarioStore.ComputeVersion(changed));
+
+                JsonObject after = JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, IdA)))!.AsObject();
+                Assert.True(JsonNode.DeepEquals(before["lastExport"], after["lastExport"]));
+                Assert.True(JsonNode.DeepEquals(before["lastExportHash"], after["lastExportHash"]));
+                WorkingCopyEntry copy = Assert.Single(store.Load(Zoa).WorkingCopies);
+                Assert.Equal(ExportedAt, copy.LastExport);
+                Assert.True(copy.UnexportedChanges);
+                Assert.False(copy.ServerChanged);
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_NoWorkingCopy_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, changed, changed, LocalScenarioStore.ComputeVersion(changed))
+                );
+
+                Assert.False(File.Exists(TrainingFixtures.LocalPath(root, IdA)));
+                Assert.False(File.Exists(TrainingFixtures.SidecarPath(root, IdA)));
+                Assert.False(File.Exists(BasePath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_UnreadableMergedJson_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, "{ not json", changed, LocalScenarioStore.ComputeVersion(changed))
+                );
+
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadWorkingCopyText(Zoa, IdA));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_UnreadableBaseText_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+                string merged = TrainingFixtures.WithNameSuffix(IdA, " (merged)");
+
+                Assert.Throws<InvalidOperationException>(() => store.ApplyMerge(Zoa, IdA, merged, "[1, 2]", "v2"));
+
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadWorkingCopyText(Zoa, IdA));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_CopyWithoutSidecar_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.Delete(TrainingFixtures.SidecarPath(root, IdA));
+                byte[] copyBefore = File.ReadAllBytes(TrainingFixtures.LocalPath(root, IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, TrainingFixtures.WithNameSuffix(IdA, " (merged)"), changed, LocalScenarioStore.ComputeVersion(changed))
+                );
+
+                Assert.Equal(copyBefore, File.ReadAllBytes(TrainingFixtures.LocalPath(root, IdA)));
+                Assert.Equal(TrainingFixtures.Read(IdA), File.ReadAllText(BasePath(root, IdA)));
+                Assert.False(File.Exists(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    private static string BaseContentHashOf(string root, string id) =>
+        JsonNode.Parse(File.ReadAllText(TrainingFixtures.SidecarPath(root, id)))!["baseContentHash"]!.GetValue<string>();
+
+    // The base content hash a working copy of this server text records when it is created fresh: the rule ApplyMerge's
+    // new base must follow.
+    private static string FreshBaseContentHash(string serverText)
+    {
+        string root = TrainingFixtures.NewRoot();
+        try
+        {
+            var store = new LocalScenarioStore(root);
+            store.ApplyServerBody(Zoa, IdA, serverText);
+            store.CreateWorkingCopy(Zoa, IdA);
+            return BaseContentHashOf(root, IdA);
+        }
+        finally
+        {
+            TrainingFixtures.DeleteDir(root);
+        }
+    }
+
+    [Fact]
+    public void ApplyMerge_LocalOnlyCopy_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                const string LocalId = "LOCAL_ONLY-1";
+                store.SaveWorkingCopy(Zoa, LocalId, TrainingFixtures.WithId(IdB, LocalId));
+                byte[] copyBefore = File.ReadAllBytes(TrainingFixtures.LocalPath(root, LocalId));
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, LocalId));
+                string baseText = TrainingFixtures.Read(IdB);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, LocalId, TrainingFixtures.WithId(IdB, LocalId), baseText, LocalScenarioStore.ComputeVersion(baseText))
+                );
+
+                Assert.Equal(copyBefore, File.ReadAllBytes(TrainingFixtures.LocalPath(root, LocalId)));
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, LocalId)));
+                Assert.False(File.Exists(BasePath(root, LocalId)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_VersionNotOfTheBaseText_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, changed, changed, LocalScenarioStore.ComputeVersion(TrainingFixtures.Read(IdA)))
+                );
+
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadWorkingCopyText(Zoa, IdA));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_CorruptWorkingCopy_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.WriteAllText(TrainingFixtures.LocalPath(root, IdA), "[1, 2]");
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, changed, changed, LocalScenarioStore.ComputeVersion(changed))
+                );
+
+                Assert.Equal("[1, 2]", File.ReadAllText(TrainingFixtures.LocalPath(root, IdA)));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ApplyMerge_CorruptSidecar_ThrowsAndWritesNothing() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.WriteAllText(TrainingFixtures.SidecarPath(root, IdA), "{ not json");
+                byte[] sidecarBefore = File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA));
+                byte[] copyBefore = File.ReadAllBytes(TrainingFixtures.LocalPath(root, IdA));
+                string changed = TrainingFixtures.Changed(IdA);
+
+                Assert.Throws<InvalidOperationException>(() =>
+                    store.ApplyMerge(Zoa, IdA, changed, changed, LocalScenarioStore.ComputeVersion(changed))
+                );
+
+                Assert.Equal(sidecarBefore, File.ReadAllBytes(TrainingFixtures.SidecarPath(root, IdA)));
+                Assert.Equal(copyBefore, File.ReadAllBytes(TrainingFixtures.LocalPath(root, IdA)));
+                Assert.Equal(TrainingFixtures.Read(IdA), File.ReadAllText(BasePath(root, IdA)));
+            }
+        );
+
+    [Fact]
+    public void ReadBaseText_BaseOutOfStepWithSidecar_ReturnsNull() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.WriteAllText(BasePath(root, IdA), TrainingFixtures.Changed(IdA));
+
+                Assert.Null(store.ReadBaseText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void LocalOnlyCopy_WrittenOverALeftoverBaseFile_HasNoBaseText() =>
+        InRoot(
+            (root, store) =>
+            {
+                const string LocalId = "LOCAL_ONLY-1";
+                Directory.CreateDirectory(Path.Combine(root, Zoa, "local"));
+                File.WriteAllText(BasePath(root, LocalId), TrainingFixtures.Read(IdA));
+
+                store.CreateLocalScenario(Zoa, TrainingFixtures.Read(IdB), LocalId);
+
+                Assert.False(File.Exists(BasePath(root, LocalId)));
+                Assert.Null(store.ReadBaseText(Zoa, LocalId));
+            }
+        );
+
+    [Fact]
+    public void ReDownload_CopyWithoutBaseText_IsNotBackfilled() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                File.Delete(BasePath(root, IdA));
+                Assert.Null(store.ReadBaseText(Zoa, IdA));
+
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Changed(IdA));
+
+                Assert.Null(store.ReadBaseText(Zoa, IdA));
+                Assert.False(File.Exists(BasePath(root, IdA)));
+                Assert.True(Assert.Single(store.Load(Zoa).WorkingCopies).ServerChanged);
+            }
+        );
 }

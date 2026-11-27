@@ -397,7 +397,8 @@ public class LocalScenarioStoreAuthoringTests
 
                 Assert.Equal(ImportOutcome.Imported, result.Outcome);
                 Assert.Equal(IdA, result.Id);
-                Assert.Equal([IdA + ".json", IdA + ".meta.json"], LocalFileNames(root));
+                Assert.Equal([IdA + ".base", IdA + ".json", IdA + ".meta.json"], LocalFileNames(root));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
                 Assert.Equal(IdA, IdIn(store.ReadWorkingCopyText(Zoa, IdA)));
                 Assert.Equal(IdA, SidecarOrigin(root, IdA));
                 Assert.False(CopyOf(store, IdA).ServerChanged);
@@ -427,7 +428,8 @@ public class LocalScenarioStoreAuthoringTests
 
                 Assert.Equal(IdA, result.Id);
                 Assert.True(result.Overwrote);
-                Assert.Equal([IdA + ".json", IdA + ".meta.json"], LocalFileNames(root));
+                Assert.Equal([IdA + ".base", IdA + ".json", IdA + ".meta.json"], LocalFileNames(root));
+                Assert.Equal(TrainingFixtures.Read(IdA), store.ReadBaseText(Zoa, IdA));
                 Assert.Equal(IdA, IdIn(store.ReadWorkingCopyText(Zoa, IdA)));
                 Assert.Equal(IdA, SidecarOrigin(root, IdA));
             }

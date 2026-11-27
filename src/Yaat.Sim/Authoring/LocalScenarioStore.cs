@@ -12,9 +12,10 @@ namespace Yaat.Sim.Authoring;
 /// <summary>
 /// Keeps an ARTCC's training scenarios on disk under <c>{root}/{artccId}/</c>: the server mirror in
 /// <c>server/{id}.json</c> (the exact text data-api sent), working copies in <c>local/{id}.json</c> each with its
-/// <c>local/{id}.meta.json</c> sidecar (origin id, base version, last export), and <c>index.json</c>, a rebuildable cache
-/// of the mirror's names, versions and gone-from-server flags. A refresh never deletes or overwrites a working copy;
-/// every corrupt or unreadable file is reported by name, never skipped silently. The root is never under <c>cache/</c>.
+/// <c>local/{id}.meta.json</c> sidecar (origin id, base version, last export) and, when it has one, its base text in
+/// <c>local/{id}.base</c>, and <c>index.json</c>, a rebuildable cache of the mirror's names, versions and
+/// gone-from-server flags. A refresh never deletes or overwrites a working copy; every corrupt or unreadable file is
+/// reported by name, never skipped silently. The root is never under <c>cache/</c>.
 /// </summary>
 /// <remarks>
 /// A mirror's version is the SHA-256 of its text. A refreshed server body replaces the mirror only when it differs from
@@ -27,6 +28,7 @@ public sealed partial class LocalScenarioStore
     private const string ServerFolder = "server";
     private const string LocalFolder = "local";
     private const string SidecarSuffix = ".meta.json";
+    private const string BaseSuffix = ".base";
 
     private static readonly ILogger Log = SimLog.CreateLogger<LocalScenarioStore>();
 
@@ -175,7 +177,10 @@ public sealed partial class LocalScenarioStore
         }
     }
 
-    /// <summary>Starts a working copy of a server scenario: the mirror's text, its version as the copy's base.</summary>
+    /// <summary>
+    /// Starts a working copy of a server scenario: the mirror's text as the copy's text and as its base text, the mirror's
+    /// version as the copy's base version.
+    /// </summary>
     /// <param name="artccId">The ARTCC.</param>
     /// <param name="serverId">The mirrored scenario's id; the copy takes the same id.</param>
     /// <exception cref="InvalidOperationException">There is no readable mirror of the scenario, or the copy exists.</exception>
@@ -207,6 +212,10 @@ public sealed partial class LocalScenarioStore
             // The sidecar goes first: a crash between the two leaves an orphan sidecar, reported and overwritten by the
             // next attempt, rather than a copy that has lost its origin.
             WriteSidecar(dir, serverId, new WorkingCopySidecar(serverId, ComputeVersion(text), ComputeContentHash(scenario!), null, null));
+
+            // The base text goes before the copy: a crash between them leaves an unlisted .base file rather than a copy
+            // that has silently lost its base and merges two-way.
+            StoreFiles.WriteAtomically(BasePath(dir, serverId), text);
             StoreFiles.WriteAtomically(localPath, text);
         }
     }
@@ -261,11 +270,83 @@ public sealed partial class LocalScenarioStore
                 throw new InvalidOperationException($"The working copy at {path} is corrupt ({reason}); no export was recorded.");
             }
 
-            WorkingCopySidecar sidecar = ReadSidecarForUpdate(dir, id);
+            WorkingCopySidecar sidecar = ReadSidecarForUpdate(dir, id, "no export was recorded.");
             WriteSidecar(dir, id, sidecar with { LastExport = at, LastExportHash = ComputeContentHash(scenario!) });
             if (Log.IsEnabled(LogLevel.Information))
             {
                 Log.LogInformation("Recorded an export of working copy {Id} of {ArtccId}", id, artccId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies a merge to a working copy: it takes <paramref name="mergedJson"/> as its text, and
+    /// <paramref name="newBaseText"/> at <paramref name="newBaseVersion"/> as the server version it was merged onto, in its
+    /// base text file and its sidecar, so the copy stops reading server-changed. The export record is left as it was, so a
+    /// merged copy whose text is not what it exported reads as having unexported changes.
+    /// </summary>
+    /// <param name="artccId">The ARTCC.</param>
+    /// <param name="id">The working copy's id.</param>
+    /// <param name="mergedJson">The merged scenario text, saved as the working copy.</param>
+    /// <param name="newBaseText">The server text the merge started from, kept as the copy's base text.</param>
+    /// <param name="newBaseVersion">The base text's version: the mirror version of that server text.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The working copy is missing or not a readable scenario, either text is not a readable scenario, its sidecar is
+    /// corrupt, the copy has no server origin, or the version given is not the new base text's; nothing is written.
+    /// </exception>
+    public void ApplyMerge(string artccId, string id, string mergedJson, string newBaseText, string newBaseVersion)
+    {
+        string dir = ArtccDirectory(artccId);
+        RequireValidId(id);
+        ArgumentNullException.ThrowIfNull(mergedJson);
+        ArgumentNullException.ThrowIfNull(newBaseText);
+        ArgumentNullException.ThrowIfNull(newBaseVersion);
+        if (CheckScenario(mergedJson, out _) is { } mergedReason)
+        {
+            throw new InvalidOperationException($"The merged scenario is not readable ({mergedReason}); nothing was written.");
+        }
+
+        if (CheckScenario(newBaseText, out JsonObject? newBase) is { } baseReason)
+        {
+            throw new InvalidOperationException($"The new base text is not readable ({baseReason}); nothing was written.");
+        }
+
+        if (!string.Equals(newBaseVersion, ComputeVersion(newBaseText), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The new base text's version is not the version given; nothing was written.");
+        }
+
+        string baseContentHash = ComputeContentHash(newBase!);
+        lock (_gate)
+        {
+            string path = LocalPath(dir, id);
+            if (!File.Exists(path))
+            {
+                throw new InvalidOperationException($"There is no working copy {id} at {path}.");
+            }
+
+            string? reason = CheckScenario(File.ReadAllText(path), out _);
+            if (reason is not null)
+            {
+                throw new InvalidOperationException($"The working copy at {path} is corrupt ({reason}); nothing was written.");
+            }
+
+            WorkingCopySidecar sidecar = ReadSidecarForUpdate(dir, id, "nothing was written.");
+            if (sidecar.OriginId is null)
+            {
+                // A merge records a server base, so it needs a copy with a server origin; a local-only copy (or one whose
+                // sidecar is missing) saves through SaveWorkingCopy instead.
+                throw new InvalidOperationException(
+                    $"Working copy {id} has no server origin, so there is no base to merge onto; nothing was written."
+                );
+            }
+
+            StoreFiles.WriteAtomically(BasePath(dir, id), newBaseText);
+            StoreFiles.WriteAtomically(path, mergedJson);
+            WriteSidecar(dir, id, sidecar with { BaseVersion = newBaseVersion, BaseContentHash = baseContentHash });
+            if (Log.IsEnabled(LogLevel.Information))
+            {
+                Log.LogInformation("Applied a merge to working copy {Id} of {ArtccId}", id, artccId);
             }
         }
     }
@@ -607,14 +688,14 @@ public sealed partial class LocalScenarioStore
     }
 
     // The sidecar a change is written over: a missing one reads as local-only, a corrupt one is refused rather than
-    // overwritten, so the file stays for the author to look at.
-    private static WorkingCopySidecar ReadSidecarForUpdate(string dir, string id)
+    // overwritten, so the file stays for the author to look at. Refusal ends the message with what was not done.
+    private static WorkingCopySidecar ReadSidecarForUpdate(string dir, string id, string refusal)
     {
         var problems = new List<StoreProblem>();
         WorkingCopySidecar sidecar = ReadSidecar(dir, id, problems);
         if ((problems.Count > 0) && File.Exists(SidecarPath(dir, id)))
         {
-            throw new InvalidOperationException($"The sidecar {problems[0].FileName} is {problems[0].Reason}; no export was recorded.");
+            throw new InvalidOperationException($"The sidecar {problems[0].FileName} is {problems[0].Reason}; {refusal}");
         }
 
         return sidecar;
@@ -856,6 +937,8 @@ public sealed partial class LocalScenarioStore
     private static string LocalPath(string dir, string id) => Path.Combine(dir, LocalFolder, id + ".json");
 
     private static string SidecarPath(string dir, string id) => Path.Combine(dir, LocalFolder, id + SidecarSuffix);
+
+    private static string BasePath(string dir, string id) => Path.Combine(dir, LocalFolder, id + BaseSuffix);
 
     private static bool IsUnder(string path, string folder)
     {

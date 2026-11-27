@@ -7,7 +7,7 @@ namespace Yaat.Sim.Authoring;
 
 /// <summary>
 /// The authoring operations: reading stored text, and creating, duplicating, deleting and importing working copies. A
-/// new, duplicated or new-id imported copy is local-only (no origin, no base); only an import that keeps a server
+/// new, duplicated or new-id imported copy is local-only (no origin, no base text); only an import that keeps a server
 /// scenario's id, with no working copy of it yet, becomes that scenario's working copy. The server mirror is never
 /// written or deleted here.
 /// </summary>
@@ -45,6 +45,44 @@ public sealed partial class LocalScenarioStore
     /// <returns>The text.</returns>
     /// <exception cref="FileNotFoundException">There is no mirror with that id.</exception>
     public string ReadMirrorText(string artccId, string id) => File.ReadAllText(GetMirrorPath(artccId, id));
+
+    /// <summary>
+    /// A working copy's base text: the server version it was started from or last merged onto. A merge is three-way when
+    /// it has one and two-way when it does not.
+    /// </summary>
+    /// <param name="artccId">The ARTCC.</param>
+    /// <param name="id">The working copy's id.</param>
+    /// <returns>
+    /// The text, or null when the copy has no usable base: no base text file (a local-only copy, or one made before copies
+    /// kept it), or one whose content is not what the sidecar's base content hash records, as a crash between the two
+    /// writes leaves it.
+    /// </returns>
+    /// <exception cref="ArgumentException"><paramref name="artccId"/> or <paramref name="id"/> is not a valid id.</exception>
+    public string? ReadBaseText(string artccId, string id)
+    {
+        string dir = ArtccDirectory(artccId);
+        RequireValidId(id);
+        string path = BasePath(dir, id);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        string text = File.ReadAllText(path);
+        if (CheckScenario(text, out JsonObject? baseScenario) is not null)
+        {
+            return null;
+        }
+
+        var problems = new List<StoreProblem>();
+        string? recordedHash = ReadSidecar(dir, id, problems).BaseContentHash;
+        if ((recordedHash is null) || !string.Equals(ComputeContentHash(baseScenario!), recordedHash, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return text;
+    }
 
     /// <summary>Whether an id is taken by a working copy, a server mirror, both or neither.</summary>
     /// <param name="artccId">The ARTCC.</param>
@@ -118,7 +156,10 @@ public sealed partial class LocalScenarioStore
         }
     }
 
-    /// <summary>Deletes a working copy's file and its sidecar, either of which may be absent; a corrupt copy is deleted too.</summary>
+    /// <summary>
+    /// Deletes a working copy's file, its sidecar and its base text file, any of which may be absent; a corrupt copy is
+    /// deleted too.
+    /// </summary>
     /// <param name="artccId">The ARTCC.</param>
     /// <param name="id">The working copy's id.</param>
     /// <returns>Whether any file was deleted.</returns>
@@ -130,6 +171,7 @@ public sealed partial class LocalScenarioStore
         {
             bool deleted = DeleteIfPresent(LocalPath(dir, id));
             deleted |= DeleteIfPresent(SidecarPath(dir, id));
+            deleted |= DeleteIfPresent(BasePath(dir, id));
             if (deleted && Log.IsEnabled(LogLevel.Information))
             {
                 Log.LogInformation("Deleted working copy {Id} of {ArtccId}", id, artccId);
@@ -236,6 +278,7 @@ public sealed partial class LocalScenarioStore
         }
 
         WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText), ComputeContentHash(mirror), null, null));
+        StoreFiles.WriteAtomically(BasePath(dir, mirrorId), mirrorText);
         StoreFiles.WriteAtomically(LocalPath(dir, mirrorId), text);
         return new ImportResult(ImportOutcome.Imported, mirrorId, false, mismatch, null);
     }
@@ -298,6 +341,8 @@ public sealed partial class LocalScenarioStore
     // The sidecar goes first, as in CreateWorkingCopy, so a crash leaves an orphan sidecar rather than a copy without one.
     private static void WriteLocalOnly(string dir, string id, string text)
     {
+        // A local-only copy has no base text: a leftover .base file at the id would otherwise make it read three-way.
+        DeleteIfPresent(BasePath(dir, id));
         WriteSidecar(dir, id, LocalOnlySidecar);
         StoreFiles.WriteAtomically(LocalPath(dir, id), text);
     }

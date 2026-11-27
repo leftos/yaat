@@ -1432,7 +1432,7 @@ A point on an airport map the editor's cursor can snap to (a `SnapTargetKind`: p
 The Airport Editor's store of USGS imagery tiles (`UsgsImageryTileCache`): a disk copy per tile under `cache/imagery/usgs-naipplus/` and a memory cache of the tiles in view.
 
 **Working copy**:
-A locally edited scenario (`scenarios/{ARTCC}/local/{id}.json` with an `{id}.meta.json` sidecar), kept apart from the server mirror and never deleted or overwritten by a download.
+A locally edited scenario (`scenarios/{ARTCC}/local/{id}.json` with an `{id}.meta.json` sidecar and, for a server-origin copy, an `{id}.base` file holding the server text it started from), kept apart from the server mirror and never deleted or overwritten by a download.
 
 ## Flight strips
 
