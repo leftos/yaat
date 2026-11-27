@@ -8,6 +8,7 @@
 - `RDH` and `RDR` naming a rundown list are refused from a position that does not send on that list.
 - Preset and triggered handoffs and point-outs to an unstaffed position follow STARS consolidation, as typed ones do.
 - The RUNDOWN list shows an entry's STARS line number as soon as the aircraft gets one, as CRC does.
+- Radar: with Realistic scope text, the ERAM climb and descend arrows draw crisp in Terminus like the rest of the datablock.
 
 ## v0.20.0-beta [2026/11/26]
 

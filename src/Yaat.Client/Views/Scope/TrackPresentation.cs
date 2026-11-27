@@ -110,10 +110,16 @@ public enum ScopeFieldStyle
     /// <summary>A line of the field colour across the text at the font's strikeout position.</summary>
     Strikethrough = 2,
 
-    /// <summary>An up arrow drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/> (ERAM climbing to its altitude).</summary>
+    /// <summary>
+    /// An up arrow in the text's <see cref="TrackPresenter.EramArrowCell"/>, the Terminus glyph under realistic text and a
+    /// stroked path under compact (ERAM climbing to its altitude).
+    /// </summary>
     ArrowUp = 4,
 
-    /// <summary>A down arrow drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/> (ERAM descending to its altitude).</summary>
+    /// <summary>
+    /// A down arrow in the text's <see cref="TrackPresenter.EramArrowCell"/>, the Terminus glyph under realistic text and a
+    /// stroked path under compact (ERAM descending to its altitude).
+    /// </summary>
     ArrowDown = 8,
 
     /// <summary>The ERAM HSF indicator ↴ drawn as a path in the text's <see cref="TrackPresenter.EramArrowCell"/>.</summary>

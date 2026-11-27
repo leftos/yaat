@@ -1105,7 +1105,8 @@ public sealed partial class ScopeRenderer : IDisposable
     // Antialiased, and outside the radar line style: its width comes from the font each draw.
     private readonly SKPaint _strikethroughPaint = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
 
-    // The ERAM climb/descend arrow, drawn as a path in its monospace cell; its width comes from the font each draw.
+    // The ERAM mark strokes: the arrow under compact text (realistic text draws the strike's own glyph) and the HSF, VCI
+    // and ≠ marks, drawn as paths in their monospace cells; the arrow's width comes from the font each draw.
     private readonly SKPaint _arrowPaint = new()
     {
         Style = SKPaintStyle.Stroke,
@@ -1836,8 +1837,7 @@ public sealed partial class ScopeRenderer : IDisposable
         float? pitch = GlyphPitchOf(font);
         if ((field.Style & (ScopeFieldStyle.ArrowUp | ScopeFieldStyle.ArrowDown)) != 0)
         {
-            bool up = field.Style.HasFlag(ScopeFieldStyle.ArrowUp);
-            DrawCellPath(canvas, field, font, color, cell => ArrowPath(field, font, cell, up, pitch));
+            DrawArrow(canvas, field, font, color, pitch);
         }
 
         if (field.Style.HasFlag(ScopeFieldStyle.HsfIndicator))
@@ -1914,6 +1914,42 @@ public sealed partial class ScopeRenderer : IDisposable
         _arrowPaint.Color = color;
         _arrowPaint.StrokeWidth = MathF.Max(1f, font.Size / 10f);
         canvas.DrawPath(path, _arrowPaint);
+    }
+
+    /// <summary>
+    /// Draws <paramref name="field"/>'s ERAM climb or descend arrow in <paramref name="color"/>: the realistic strike's own
+    /// glyph in the cell <see cref="TrackPresenter.EramArrowCell"/> holds (<paramref name="pitch"/> is the realistic glyph
+    /// pitch), or the stroked <see cref="ArrowPath"/> the compact font draws.
+    /// </summary>
+    private void DrawArrow(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, float? pitch)
+    {
+        if (pitch is { } realisticPitch)
+        {
+            DrawArrowGlyph(canvas, field, font, color, realisticPitch);
+            return;
+        }
+
+        bool up = field.Style.HasFlag(ScopeFieldStyle.ArrowUp);
+        DrawCellPath(canvas, field, font, color, cell => ArrowPath(field, font, cell, up));
+    }
+
+    /// <summary>
+    /// Draws the ERAM climb or descend arrow as the realistic strike's own glyph (U+2191 or U+2193) in the cell
+    /// <see cref="TrackPresenter.EramArrowCell"/> holds in <paramref name="field"/>'s text, at that cell's origin
+    /// (<paramref name="pitch"/> apart) in the field's own font and paint, so it is the aliased bitmap beside the block's
+    /// other glyphs; nothing when the text holds no cell.
+    /// </summary>
+    private void DrawArrowGlyph(SKCanvas canvas, FieldRect field, SKFont font, SKColor color, float pitch)
+    {
+        int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
+        if (cell < 0)
+        {
+            return;
+        }
+
+        _textPaint.Color = color;
+        string glyph = field.Style.HasFlag(ScopeFieldStyle.ArrowUp) ? "↑" : "↓";
+        DrawTextAt(canvas, glyph, new SKPoint(field.Rect.Left + (cell * pitch), field.Rect.Bottom), font, _textPaint);
     }
 
     /// <summary>
@@ -1998,9 +2034,9 @@ public sealed partial class ScopeRenderer : IDisposable
     /// The ERAM climb or descend arrow's path in cell <paramref name="cell"/> of <paramref name="field"/>: a shaft from the
     /// baseline to the cap height with a head at the pointed end.
     /// </summary>
-    internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up, float? glyphPitch)
+    internal static SKPath ArrowPath(FieldRect field, SKFont font, int cell, bool up)
     {
-        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch);
+        (float left, float width, float capHeight) = CellOf(field, font, cell, glyphPitch: null);
         float bottom = field.Rect.Bottom;
         float top = bottom - capHeight;
         float x = left + (width / 2f);

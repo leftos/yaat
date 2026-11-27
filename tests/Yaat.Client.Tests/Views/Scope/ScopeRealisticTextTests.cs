@@ -98,6 +98,110 @@ public sealed class ScopeRealisticTextTests : IDisposable
         return ac;
     }
 
+    /// <summary>An ERAM-owned track climbing to 300 at 253 on Mode C.</summary>
+    private static AircraftModel Climbing()
+    {
+        AircraftModel ac = EramOwned();
+        ac.EramPlanAltitudeFeet = 30000;
+        ac.Altitude = 25300;
+        return ac;
+    }
+
+    /// <summary>An ERAM-owned track descending to 230 from 253 on Mode C.</summary>
+    private static AircraftModel Descending()
+    {
+        AircraftModel ac = EramOwned();
+        ac.EramPlanAltitudeFeet = 23000;
+        ac.Altitude = 25300;
+        return ac;
+    }
+
+    /// <summary>The block's ERAM altitude field, the one carrying the climb or descend arrow.</summary>
+    private static FieldRect ArrowField(ScopeFrame frame) =>
+        Assert.Single(Assert.Single(frame.Tracks).Block.Fields, f => (f.Style & (ScopeFieldStyle.ArrowUp | ScopeFieldStyle.ArrowDown)) != 0);
+
+    /// <summary>The index of the blank arrow cell in the ERAM altitude field's text.</summary>
+    private static int ArrowCell(FieldRect field)
+    {
+        int cell = field.Text.IndexOf(TrackPresenter.EramArrowCell, StringComparison.Ordinal);
+        Assert.True(cell >= 0, $"field '{field.Text}' holds no arrow cell");
+        return cell;
+    }
+
+    /// <summary>
+    /// Asserts the arrow cell of <paramref name="field"/> drew as the <paramref name="strikePx"/> Terminus strike's own
+    /// <paramref name="glyph"/> at the cell's origin, aliased in the block colour: every pixel of the cell's box is lit exactly
+    /// where a direct draw of the glyph lights it, at <see cref="FdbYellow"/> and black everywhere else.
+    /// </summary>
+    private static void AssertRealisticCellDrawsGlyph(SKBitmap rendered, FieldRect field, string glyph, int strikePx, float rowPitch)
+    {
+        float pitch = ScopeTextFonts.GlyphPitch(strikePx);
+        float left = field.Rect.Left + (ArrowCell(field) * pitch);
+        using SKBitmap mask = ArrowMask(field, glyph, strikePx);
+        SKRectI box = CellBox(left, pitch, field.Rect.Bottom, rowPitch);
+
+        List<SKPointI> lit = PointsWhere(rendered, box, c => c != SKColors.Black);
+        Assert.NotEmpty(lit);
+        Assert.All(lit, p => Assert.Equal(FdbYellow, rendered.GetPixel(p.X, p.Y)));
+        List<SKPointI> want = PointsWhere(mask, box, c => c == SKColors.White);
+        List<SKPointI> extra = [.. lit.Except(want)];
+        List<SKPointI> missing = [.. want.Except(lit)];
+        Assert.True(
+            (extra.Count == 0) && (missing.Count == 0),
+            $"the arrow cell {box} is not the {strikePx} px strike's '{glyph}': extra {string.Join(" ", extra.Take(4))},"
+                + $" missing {string.Join(" ", missing.Take(4))}"
+        );
+    }
+
+    /// <summary>
+    /// The box one field cell occupies on the frame: its columns from <paramref name="left"/> for <paramref name="width"/>, and
+    /// the rows of its own line above the baseline, stopping <paramref name="rowPitch"/> up at the line above's baseline.
+    /// </summary>
+    private static SKRectI CellBox(float left, float width, float baseline, float rowPitch) =>
+        new((int)MathF.Round(left), (int)MathF.Floor(baseline - rowPitch) + 2, (int)MathF.Round(left + width), (int)MathF.Floor(baseline) + 3);
+
+    /// <summary>
+    /// What the block should draw at the <paramref name="strikePx"/> strike: the field's own text glyph by glyph at the strike's
+    /// pitch, then <paramref name="glyph"/> over its arrow cell — the aliased strike's own bitmaps, so a neighbouring glyph's
+    /// one-pixel-wider bitmap into the cell reads the same here as on the frame.
+    /// </summary>
+    private static SKBitmap ArrowMask(FieldRect field, string glyph, int strikePx)
+    {
+        float pitch = ScopeTextFonts.GlyphPitch(strikePx);
+        var mask = new SKBitmap(Width, Height);
+        using var canvas = new SKCanvas(mask);
+        canvas.Clear(SKColors.Black);
+        using SKFont font = ScopeTextFonts.MakeFont(strikePx);
+        using var paint = new SKPaint { Color = SKColors.White, IsAntialias = false };
+        for (int i = 0; i < field.Text.Length; i++)
+        {
+            canvas.DrawText(field.Text[i].ToString(), field.Rect.Left + (i * pitch), field.Rect.Bottom, SKTextAlign.Left, font, paint);
+        }
+
+        canvas.DrawText(glyph, field.Rect.Left + (ArrowCell(field) * pitch), field.Rect.Bottom, SKTextAlign.Left, font, paint);
+        return mask;
+    }
+
+    /// <summary>
+    /// The points of <paramref name="box"/> where <paramref name="bitmap"/>'s pixel satisfies <paramref name="predicate"/>,
+    /// row by row.
+    /// </summary>
+    private static List<SKPointI> PointsWhere(SKBitmap bitmap, SKRectI box, Func<SKColor, bool> predicate)
+    {
+        List<SKPointI> points = [];
+        for (int y = box.Top; y < box.Bottom; y++)
+        {
+            for (int x = box.Left; x < box.Right; x++)
+            {
+                if (predicate(bitmap.GetPixel(x, y)))
+                {
+                    points.Add(new SKPointI(x, y));
+                }
+            }
+        }
+        return points;
+    }
+
     private static ScopeTrack TrackOf(ScopeFrame frame, string callsign) => Assert.Single(frame.Tracks, t => t.Aircraft.Callsign == callsign);
 
     private static FieldRect CallsignOf(ScopeTrack track) => Assert.Single(track.Block.Fields, f => f.Slot == ScopeFieldSlot.Callsign);
@@ -227,6 +331,68 @@ public sealed class ScopeRealisticTextTests : IDisposable
 
         // STARS size 2 draws the 14 px strike at its 8 px cell; the block's colour is read off the drawn callsign.
         AssertDrawnGlyphByGlyph(rendered, callsign, 14, color: null);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Realistic_ClimbArrow_DrawsAsTheTerminusGlyph(int size) => AssertRealisticArrow(size, climbing: true);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Realistic_DescendArrow_DrawsAsTheTerminusGlyph(int size) => AssertRealisticArrow(size, climbing: false);
+
+    /// <summary>
+    /// Asserts a climbing (or descending) track's arrow cell at ERAM text size <paramref name="size"/> draws its own strike's
+    /// Terminus glyph: the strike carries U+2191 and U+2193, and the cell's pixels are exactly a direct draw of the glyph.
+    /// </summary>
+    private static void AssertRealisticArrow(int size, bool climbing)
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        int strikePx = ScopeTextFonts.EramStrikePx[size];
+        using (SKFont strikeFont = ScopeTextFonts.MakeFont(strikePx))
+        {
+            Assert.True(strikeFont.ContainsGlyphs("↑↓"), $"the {strikePx} px Terminus strike carries no arrow glyph");
+        }
+
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, Compact(), ScopeTextFonts.EramMetrics(size), climbing ? Climbing() : Descending());
+        FieldRect altitude = ArrowField(frame);
+        Assert.Equal(climbing ? ScopeFieldStyle.ArrowUp : ScopeFieldStyle.ArrowDown, altitude.Style);
+
+        using SKBitmap rendered = Render(frame, starsStrikePx: null, eramStrikePx: strikePx);
+
+        AssertRealisticCellDrawsGlyph(rendered, altitude, climbing ? "↑" : "↓", strikePx, RowPitchOf(Assert.Single(frame.Tracks)));
+    }
+
+    [Fact]
+    public void Compact_ClimbArrow_StillDrawsThePath()
+    {
+        using var pin = MapBlinkPin.Phase(true);
+        ScopeFrame frame = Frame(ScopeTemplates.EramId, Compact(), null, Climbing());
+        FieldRect altitude = ArrowField(frame);
+        Assert.Equal(ScopeFieldStyle.ArrowUp, altitude.Style);
+        int cell = ArrowCell(altitude);
+        float left = altitude.Rect.Left + CompactFont.MeasureText(altitude.Text[..cell]);
+        SKRectI box = CellBox(
+            left,
+            CompactFont.MeasureText(TrackPresenter.EramArrowCell),
+            altitude.Rect.Bottom,
+            RowPitchOf(Assert.Single(frame.Tracks))
+        );
+
+        using SKBitmap rendered = Render(frame, starsStrikePx: null, eramStrikePx: null);
+
+        // The antialiased 1.2 px stroke lands at partial coverage, so the cell holds pixels short of the block colour.
+        List<SKPointI> drawn = PointsWhere(rendered, box, c => c != SKColors.Black);
+        Assert.NotEmpty(drawn);
+        Assert.Contains(drawn, p => rendered.GetPixel(p.X, p.Y) != FdbYellow);
     }
 
     [AvaloniaFact]

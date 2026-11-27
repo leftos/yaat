@@ -181,7 +181,8 @@ public static class TrackPresenter
 {
     /// <summary>
     /// The character the ERAM altitude text holds in Field B character 4 while climbing or descending; the renderer draws the
-    /// arrow as a path in that monospace cell, so column alignment never depends on the font's glyph coverage.
+    /// arrow in that monospace cell, the realistic text's own Terminus glyph or the compact font's stroked path, so column
+    /// alignment never depends on the font's glyph coverage.
     /// </summary>
     public const string EramArrowCell = " ";
 
