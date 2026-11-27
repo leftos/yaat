@@ -22,6 +22,7 @@ public static class SettingsSearchCatalog
     private static readonly string[] QuickCommand = ["quick commands", "context menu", "right-click", "icon strip", "menu commands"];
     private static readonly string[] None = [];
     private static readonly string[] Imagery = ["imagery", "satellite", "tower cab", "airport editor"];
+    private static readonly string[] Snap = ["snap", "airport editor"];
 
     private const string AlwaysOnTop = "Always on Top";
     private const string FontSizes = "Font Sizes";
@@ -31,6 +32,7 @@ public static class SettingsSearchCatalog
     private const string MvaTint = "Tint datablock altitude by MVA (red below, amber at)";
     private const string LayerBrightness = "Layer Brightness";
     private const string AirportEditorImagery = "Airport Editor Imagery";
+    private const string AirportEditorSnapping = "Airport Editor Snapping";
     private const string TerminalChannels = "Terminal Channels";
     private const string TerminalHistory = "Terminal History";
     private const string WhisperModel = "Whisper Model (speech-to-text)";
@@ -204,6 +206,12 @@ public static class SettingsSearchCatalog
             SettingWithin(s, "GroundYaatLayoutBrightness", "YAAT Layout:", LayerBrightness, None),
             SettingWithin(s, "AirportEditorShowImagery", "Show imagery under the Airport Editor's map", AirportEditorImagery, Imagery),
             SettingWithin(s, "AirportEditorImageryBrightness", "Imagery Brightness:", AirportEditorImagery, Imagery),
+            SettingWithin(s, "AirportEditorSnapThresholdFt", "Snap distance (ft):", AirportEditorSnapping, Snap),
+            SettingWithin(s, "AirportEditorSnapTaxiwayVertices", "Snap to taxiway vertices", AirportEditorSnapping, Snap),
+            SettingWithin(s, "AirportEditorSnapRunwayVertices", "Snap to runway vertices", AirportEditorSnapping, Snap),
+            SettingWithin(s, "AirportEditorSnapParking", "Snap to parking positions", AirportEditorSnapping, Snap),
+            SettingWithin(s, "AirportEditorSnapSpot", "Snap to spots", AirportEditorSnapping, Snap),
+            SettingWithin(s, "AirportEditorSnapHelipad", "Snap to helipads", AirportEditorSnapping, Snap),
         ];
     }
 

@@ -13,6 +13,7 @@ using Yaat.Client.Services.Speech;
 using Yaat.Client.Services.Speech.Bench;
 using Yaat.Client.Views;
 using Yaat.Sim;
+using Yaat.Sim.Authoring.AirportMap;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 
@@ -514,6 +515,24 @@ public partial class SettingsViewModel : ObservableObject
     private int _airportEditorImageryBrightness = 50;
 
     [ObservableProperty]
+    private int _airportEditorSnapThresholdFt = UserPreferences.DefaultAirportEditorSnapThresholdFt;
+
+    [ObservableProperty]
+    private bool _airportEditorSnapTaxiwayVertices = true;
+
+    [ObservableProperty]
+    private bool _airportEditorSnapRunwayVertices = true;
+
+    [ObservableProperty]
+    private bool _airportEditorSnapParking = true;
+
+    [ObservableProperty]
+    private bool _airportEditorSnapSpot = true;
+
+    [ObservableProperty]
+    private bool _airportEditorSnapHelipad = true;
+
+    [ObservableProperty]
     private int _groundVideoMapOverlayBrightness = 70;
 
     [ObservableProperty]
@@ -984,6 +1003,12 @@ public partial class SettingsViewModel : ObservableObject
         _groundSatelliteImageBrightness = _preferences.GroundSatelliteImageBrightness;
         _airportEditorShowImagery = _preferences.AirportEditorShowImagery;
         _airportEditorImageryBrightness = _preferences.AirportEditorImageryBrightness;
+        _airportEditorSnapThresholdFt = _preferences.AirportEditorSnapThresholdFt;
+        _airportEditorSnapTaxiwayVertices = _preferences.AirportEditorSnapTaxiwayVertices;
+        _airportEditorSnapRunwayVertices = _preferences.AirportEditorSnapRunwayVertices;
+        _airportEditorSnapParking = _preferences.AirportEditorSnapParking;
+        _airportEditorSnapSpot = _preferences.AirportEditorSnapSpot;
+        _airportEditorSnapHelipad = _preferences.AirportEditorSnapHelipad;
         _groundVideoMapOverlayBrightness = _preferences.GroundVideoMapOverlayBrightness;
         _groundYaatLayoutBrightness = _preferences.GroundYaatLayoutBrightness;
         _selectedSignatureHelpPlacementIndex = _preferences.SignatureHelpPlacement == "Below" ? 1 : 0;
@@ -1302,6 +1327,16 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetGroundHideDataBlocksByDefault(GroundHideDataBlocksByDefault);
         _preferences.SetAirportEditorShowImagery(AirportEditorShowImagery);
         _preferences.SetAirportEditorImageryBrightness(AirportEditorImageryBrightness);
+        _preferences.SetAirportEditorSnap(
+            new SnapOptions(
+                AirportEditorSnapThresholdFt,
+                AirportEditorSnapTaxiwayVertices,
+                AirportEditorSnapRunwayVertices,
+                AirportEditorSnapParking,
+                AirportEditorSnapSpot,
+                AirportEditorSnapHelipad
+            )
+        );
         _preferences.SetGroundTaxiRouteDisplay(GroundShowTaxiRouteOnHover, GroundShowAllTaxiRoutes);
         _preferences.SetCrcAliasDirectory(CrcAliasDirectory);
     }
@@ -2126,6 +2161,12 @@ public partial class SettingsViewModel : ObservableObject
         GroundSatelliteImageBrightness = defaults.GroundSatelliteImageBrightness;
         AirportEditorShowImagery = defaults.AirportEditorShowImagery;
         AirportEditorImageryBrightness = defaults.AirportEditorImageryBrightness;
+        AirportEditorSnapThresholdFt = defaults.AirportEditorSnapThresholdFt;
+        AirportEditorSnapTaxiwayVertices = defaults.AirportEditorSnapTaxiwayVertices;
+        AirportEditorSnapRunwayVertices = defaults.AirportEditorSnapRunwayVertices;
+        AirportEditorSnapParking = defaults.AirportEditorSnapParking;
+        AirportEditorSnapSpot = defaults.AirportEditorSnapSpot;
+        AirportEditorSnapHelipad = defaults.AirportEditorSnapHelipad;
         GroundVideoMapOverlayBrightness = defaults.GroundVideoMapOverlayBrightness;
         GroundYaatLayoutBrightness = defaults.GroundYaatLayoutBrightness;
         GroundHideDataBlocksByDefault = defaults.GroundHideDataBlocksByDefault;

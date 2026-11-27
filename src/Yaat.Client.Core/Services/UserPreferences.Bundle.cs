@@ -111,6 +111,12 @@ public sealed partial class UserPreferences
         ("groundShowAllTaxiRoutes", Flag),
         ("airportEditorShowImagery", Flag),
         ("airportEditorImageryBrightness", IntRange(0, 100)),
+        ("airportEditorSnapThresholdFt", IntRange(0, AirportEditorSnapThresholdMaxFt)),
+        ("airportEditorSnapTaxiwayVertices", Flag),
+        ("airportEditorSnapRunwayVertices", Flag),
+        ("airportEditorSnapParking", Flag),
+        ("airportEditorSnapSpot", Flag),
+        ("airportEditorSnapHelipad", Flag),
         // Terminal
         ("terminalCommandColor", Color),
         ("terminalResponseColor", Color),

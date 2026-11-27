@@ -128,6 +128,7 @@
                       Grid.Column="1"
                       Text="{Binding Value, Mode=OneWay}"
                       IsReadOnly="True"
+                      IsVisible="{Binding !IsEditable}"
                       BorderThickness="0"
                       Background="Transparent"
                       TextWrapping="Wrap"
@@ -135,6 +136,23 @@
                       Padding="2"
                       MinHeight="0"
                     />
+                    <StackPanel Grid.Column="1" IsVisible="{Binding IsEditable}">
+                      <TextBox
+                        Text="{Binding Editor.Text}"
+                        ToolTip.Tip="Enter or leaving the box applies the value; Esc restores it"
+                        FontSize="11"
+                        Padding="2"
+                        MinHeight="0"
+                      />
+                      <TextBlock
+                        Text="{Binding Editor.Error}"
+                        IsVisible="{Binding Editor.Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        Foreground="#FF6B6B"
+                        FontSize="10"
+                        TextWrapping="Wrap"
+                        Margin="2,1,0,2"
+                      />
+                    </StackPanel>
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

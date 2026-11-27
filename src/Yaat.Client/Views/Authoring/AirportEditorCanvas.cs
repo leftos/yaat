@@ -205,6 +205,12 @@ public sealed partial class AirportEditorCanvas : MapCanvasBase, IDisposable
     /// </summary>
     public IAirportEditorEditTarget? EditTarget { get; set; }
 
+    /// <summary>
+    /// Gets or sets what a drag or a drawing snaps to and how close a target must be; the window sets it from the user's
+    /// preferences. Set on the UI thread.
+    /// </summary>
+    public SnapOptions SnapOptions { get; set; } = SnapOptions.Default;
+
     /// <summary>Gets what the pointer is over, or null when nothing is. Test seam.</summary>
     internal AirportEditorHit? Hover => _hover;
 
@@ -525,7 +531,7 @@ public sealed partial class AirportEditorCanvas : MapCanvasBase, IDisposable
         drag.Moving = true;
         (double lat, double lon) = Viewport.ScreenToLatLon((float)at.X, (float)at.Y);
         var cursor = new MapPosition(lon, lat);
-        SnapResult? snap = SnapEngine.Find(document, cursor, SnapOptions.Default, new SnapExclusion(drag.FeatureIndex, drag.VertexIndex), null);
+        SnapResult? snap = SnapEngine.Find(document, cursor, SnapOptions, new SnapExclusion(drag.FeatureIndex, drag.VertexIndex), null);
         drag.SnapAt = snap?.Position;
         drag.To = snap?.Position ?? cursor;
         MarkDirty();

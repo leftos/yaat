@@ -2,6 +2,8 @@ using System.IO.Compression;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Views.Settings;
+using Yaat.Sim.Authoring.AirportMap;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Tests;
@@ -136,6 +138,76 @@ public class SettingsBundlePreferencesTests
             preferences.SetAirportEditorImageryBrightness(brightness);
         }
     }
+
+    [Fact]
+    public void AirportEditorSnap_DefaultsTo10FtAndEveryKind_RoundTripsThroughTheBundle_AndIsSaved()
+    {
+        Assert.Equal(SnapOptions.Default, UserPreferences.CreateDefaults().AirportEditorSnapOptions);
+        Assert.All(SnapKeys, key => Assert.Contains(key, UserPreferences.BundledPreferenceKeys));
+        var preferences = new UserPreferences();
+        SnapOptions before = preferences.AirportEditorSnapOptions;
+
+        try
+        {
+            PreferencesImportResult result = preferences.ImportBundlePreferences(
+                new JsonObject
+                {
+                    ["airportEditorSnapThresholdFt"] = 25,
+                    ["airportEditorSnapTaxiwayVertices"] = false,
+                    ["airportEditorSnapRunwayVertices"] = false,
+                    ["airportEditorSnapParking"] = false,
+                    ["airportEditorSnapSpot"] = false,
+                    ["airportEditorSnapHelipad"] = false,
+                }
+            );
+
+            var imported = new SnapOptions(25, false, false, false, false, false);
+            Assert.Equal(SnapKeys.Order(StringComparer.Ordinal), result.AppliedKeys.Order(StringComparer.Ordinal));
+            Assert.Equal(imported, preferences.AirportEditorSnapOptions);
+            Assert.Equal(imported, new UserPreferences().AirportEditorSnapOptions);
+            Assert.Equal(25, preferences.ExportBundlePreferences()["airportEditorSnapThresholdFt"]!.GetValue<int>());
+            Assert.False(preferences.ExportBundlePreferences()["airportEditorSnapHelipad"]!.GetValue<bool>());
+            Assert.Equal(
+                ["airportEditorSnapThresholdFt"],
+                preferences.ImportBundlePreferences(new JsonObject { ["airportEditorSnapThresholdFt"] = 101 }).IgnoredKeys
+            );
+
+            SnapOptions saved = SnapOptions.Default with { ThresholdFt = 40, Spot = false };
+            preferences.SetAirportEditorSnap(saved);
+
+            Assert.Equal(saved, new UserPreferences().AirportEditorSnapOptions);
+        }
+        finally
+        {
+            preferences.SetAirportEditorSnap(before);
+        }
+    }
+
+    [Fact]
+    public void EachAirportEditorSnapSetting_HasACatalogEntry()
+    {
+        string[] keys =
+        [
+            "AirportEditorSnapThresholdFt",
+            "AirportEditorSnapTaxiwayVertices",
+            "AirportEditorSnapRunwayVertices",
+            "AirportEditorSnapParking",
+            "AirportEditorSnapSpot",
+            "AirportEditorSnapHelipad",
+        ];
+
+        Assert.All(keys, key => Assert.Single(SettingsSearchCatalog.Entries, e => e.Key == key));
+    }
+
+    private static readonly string[] SnapKeys =
+    [
+        "airportEditorSnapThresholdFt",
+        "airportEditorSnapTaxiwayVertices",
+        "airportEditorSnapRunwayVertices",
+        "airportEditorSnapParking",
+        "airportEditorSnapSpot",
+        "airportEditorSnapHelipad",
+    ];
 
     [Fact]
     public void PreferencesImport_AppliesAllowlistedKeys_AndIgnoresEverythingElse()

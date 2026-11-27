@@ -327,6 +327,12 @@ public partial class SettingsViewModel
             Field("groundShowAllTaxiRoutes", vm => vm.GroundShowAllTaxiRoutes, (vm, v) => vm.GroundShowAllTaxiRoutes = v),
             Field("airportEditorShowImagery", vm => vm.AirportEditorShowImagery, (vm, v) => vm.AirportEditorShowImagery = v),
             Field("airportEditorImageryBrightness", vm => vm.AirportEditorImageryBrightness, (vm, v) => vm.AirportEditorImageryBrightness = v),
+            Field("airportEditorSnapThresholdFt", vm => vm.AirportEditorSnapThresholdFt, (vm, v) => vm.AirportEditorSnapThresholdFt = v),
+            Field("airportEditorSnapTaxiwayVertices", vm => vm.AirportEditorSnapTaxiwayVertices, (vm, v) => vm.AirportEditorSnapTaxiwayVertices = v),
+            Field("airportEditorSnapRunwayVertices", vm => vm.AirportEditorSnapRunwayVertices, (vm, v) => vm.AirportEditorSnapRunwayVertices = v),
+            Field("airportEditorSnapParking", vm => vm.AirportEditorSnapParking, (vm, v) => vm.AirportEditorSnapParking = v),
+            Field("airportEditorSnapSpot", vm => vm.AirportEditorSnapSpot, (vm, v) => vm.AirportEditorSnapSpot = v),
+            Field("airportEditorSnapHelipad", vm => vm.AirportEditorSnapHelipad, (vm, v) => vm.AirportEditorSnapHelipad = v),
             Field(
                 "signatureHelpPlacement",
                 vm => vm.SelectedSignatureHelpPlacementIndex == 1 ? "Below" : "Above",

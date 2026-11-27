@@ -10,6 +10,7 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Logging;
 using Yaat.Client.Models;
 using Yaat.Sim;
+using Yaat.Sim.Authoring.AirportMap;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Situation;
@@ -50,6 +51,12 @@ public readonly record struct FontSizePrefs(
 
 public sealed partial class UserPreferences
 {
+    /// <summary>The largest Airport Editor snap distance in feet that Settings offers.</summary>
+    public const int AirportEditorSnapThresholdMaxFt = 100;
+
+    /// <summary>The Airport Editor's snap distance in feet before the user changes it.</summary>
+    public const int DefaultAirportEditorSnapThresholdFt = 10;
+
     private static readonly ILogger Log = AppLog.CreateLogger<UserPreferences>();
 
     private static string _currentFilePath = YaatPaths.Combine("preferences.json");
@@ -1004,6 +1011,35 @@ public sealed partial class UserPreferences
     public int GroundSatelliteImageBrightness => _data.GroundSatelliteImageBrightness;
     public bool AirportEditorShowImagery => _data.AirportEditorShowImagery;
     public int AirportEditorImageryBrightness => _data.AirportEditorImageryBrightness;
+
+    /// <summary>Gets the Airport Editor's snap distance in feet, 0 to <see cref="AirportEditorSnapThresholdMaxFt"/>; 0 turns snapping off.</summary>
+    public int AirportEditorSnapThresholdFt => _data.AirportEditorSnapThresholdFt;
+
+    /// <summary>Gets whether the Airport Editor snaps to taxiway vertices.</summary>
+    public bool AirportEditorSnapTaxiwayVertices => _data.AirportEditorSnapTaxiwayVertices;
+
+    /// <summary>Gets whether the Airport Editor snaps to runway vertices.</summary>
+    public bool AirportEditorSnapRunwayVertices => _data.AirportEditorSnapRunwayVertices;
+
+    /// <summary>Gets whether the Airport Editor snaps to parking positions.</summary>
+    public bool AirportEditorSnapParking => _data.AirportEditorSnapParking;
+
+    /// <summary>Gets whether the Airport Editor snaps to spots.</summary>
+    public bool AirportEditorSnapSpot => _data.AirportEditorSnapSpot;
+
+    /// <summary>Gets whether the Airport Editor snaps to helipads.</summary>
+    public bool AirportEditorSnapHelipad => _data.AirportEditorSnapHelipad;
+
+    /// <summary>Gets the Airport Editor's snap distance and target kinds as the snap engine takes them.</summary>
+    public SnapOptions AirportEditorSnapOptions =>
+        new(
+            _data.AirportEditorSnapThresholdFt,
+            _data.AirportEditorSnapTaxiwayVertices,
+            _data.AirportEditorSnapRunwayVertices,
+            _data.AirportEditorSnapParking,
+            _data.AirportEditorSnapSpot,
+            _data.AirportEditorSnapHelipad
+        );
     public bool GroundShowVideoMapOverlay => _data.GroundShowVideoMapOverlay;
     public int GroundVideoMapOverlayBrightness => _data.GroundVideoMapOverlayBrightness;
     public bool GroundShowYaatLayout => _data.GroundShowYaatLayout;
@@ -2126,6 +2162,26 @@ public sealed partial class UserPreferences
         Save();
     }
 
+    /// <summary>
+    /// Remembers the Airport Editor's snap distance, rounded to whole feet and clamped to 0 to
+    /// <see cref="AirportEditorSnapThresholdMaxFt"/>, and which target kinds it snaps to.
+    /// </summary>
+    /// <param name="options">The snap distance and target kinds.</param>
+    public void SetAirportEditorSnap(SnapOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _data.AirportEditorSnapThresholdFt = ClampSnapThreshold(options.ThresholdFt);
+        _data.AirportEditorSnapTaxiwayVertices = options.TaxiwayVertices;
+        _data.AirportEditorSnapRunwayVertices = options.RunwayVertices;
+        _data.AirportEditorSnapParking = options.Parking;
+        _data.AirportEditorSnapSpot = options.Spot;
+        _data.AirportEditorSnapHelipad = options.Helipad;
+        Save();
+    }
+
+    private static int ClampSnapThreshold(double feet) =>
+        (int)Math.Clamp(Math.Round(feet, MidpointRounding.AwayFromZero), 0, AirportEditorSnapThresholdMaxFt);
+
     public void SetHiddenTerminalKinds(HashSet<TerminalEntryKind> hidden)
     {
         HiddenTerminalKinds = hidden;
@@ -2778,6 +2834,16 @@ public sealed partial class UserPreferences
             GroundSatelliteImageBrightness = GetFieldOr(obj, "groundSatelliteImageBrightness", 50),
             AirportEditorShowImagery = GetFieldOr(obj, "airportEditorShowImagery", true),
             AirportEditorImageryBrightness = Math.Clamp(GetFieldOr(obj, "airportEditorImageryBrightness", 50), 0, 100),
+            AirportEditorSnapThresholdFt = Math.Clamp(
+                GetFieldOr(obj, "airportEditorSnapThresholdFt", DefaultAirportEditorSnapThresholdFt),
+                0,
+                AirportEditorSnapThresholdMaxFt
+            ),
+            AirportEditorSnapTaxiwayVertices = GetFieldOr(obj, "airportEditorSnapTaxiwayVertices", true),
+            AirportEditorSnapRunwayVertices = GetFieldOr(obj, "airportEditorSnapRunwayVertices", true),
+            AirportEditorSnapParking = GetFieldOr(obj, "airportEditorSnapParking", true),
+            AirportEditorSnapSpot = GetFieldOr(obj, "airportEditorSnapSpot", true),
+            AirportEditorSnapHelipad = GetFieldOr(obj, "airportEditorSnapHelipad", true),
             GroundShowVideoMapOverlay = GetFieldOr(obj, "groundShowVideoMapOverlay", false),
             GroundVideoMapOverlayBrightness = GetFieldOr(obj, "groundVideoMapOverlayBrightness", 70),
             GroundShowYaatLayout = GetFieldOr(obj, "groundShowYaatLayout", true),
@@ -3253,6 +3319,12 @@ public sealed partial class UserPreferences
         public int GroundSatelliteImageBrightness { get; set; } = 50;
         public bool AirportEditorShowImagery { get; set; } = true;
         public int AirportEditorImageryBrightness { get; set; } = 50;
+        public int AirportEditorSnapThresholdFt { get; set; } = DefaultAirportEditorSnapThresholdFt;
+        public bool AirportEditorSnapTaxiwayVertices { get; set; } = true;
+        public bool AirportEditorSnapRunwayVertices { get; set; } = true;
+        public bool AirportEditorSnapParking { get; set; } = true;
+        public bool AirportEditorSnapSpot { get; set; } = true;
+        public bool AirportEditorSnapHelipad { get; set; } = true;
         public bool GroundShowVideoMapOverlay { get; set; }
         public int GroundVideoMapOverlayBrightness { get; set; } = 70;
         public bool GroundShowYaatLayout { get; set; } = true;

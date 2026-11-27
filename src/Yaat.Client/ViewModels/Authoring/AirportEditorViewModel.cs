@@ -169,9 +169,10 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
             : null;
 
     /// <summary>
-    /// Gets the property panel's rows for the selection, read-only: empty when nothing is selected, else the feature's
-    /// number, type, geometry and position count, the selected vertex's number and position, then each of its properties
-    /// in ordinal key order. Rebuilt whenever the selection or the map changes.
+    /// Gets the property panel's rows for the selection: empty when nothing is selected, else the feature's number, type,
+    /// geometry and position count, the selected vertex's number and position, then each of its properties in ordinal key
+    /// order. The name, and the keys of its type (<see cref="AirportEditorPropertyValues.IsEditable"/>), carry an editor
+    /// that commits a value as one <c>Edit {key}</c> step. Rebuilt whenever the selection or the map changes.
     /// </summary>
     public IReadOnlyList<AirportEditorPropertyRow> SelectionRows { get; private set; } = [];
 
@@ -613,11 +614,37 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
 
     private void RebuildSelectionRows()
     {
-        SelectionRows =
-            (SelectedFeature is { } feature) && (SelectedFeatureIndex is int index) && (Document is { } doc)
-                ? AirportEditorPropertyRows.Build(feature, index, doc.Features.Count, SelectedVertexIndex)
-                : [];
+        if ((SelectedFeature is not { } feature) || (SelectedFeatureIndex is not int index) || (Document is not { } doc))
+        {
+            SelectionRows = [];
+            OnPropertyChanged(nameof(SelectionRows));
+            return;
+        }
+
+        AirportEditorPropertyEditor? EditorFor(string key, string text) =>
+            AirportEditorPropertyValues.IsEditable(feature.FeatureType, key)
+                ? new AirportEditorPropertyEditor(text, typed => CommitProperty(doc, index, key, typed))
+                : null;
+        SelectionRows = AirportEditorPropertyRows.Build(feature, index, doc.Features.Count, SelectedVertexIndex, EditorFor);
         OnPropertyChanged(nameof(SelectionRows));
+    }
+
+    // A text typed against a map that has since changed is dropped: its row was rebuilt with the map, so a late focus loss
+    // of its box commits nothing.
+    private string? CommitProperty(AirportMapDocument builtFor, int featureIndex, string key, string text)
+    {
+        if (!ReferenceEquals(Document, builtFor))
+        {
+            return null;
+        }
+
+        if (AirportEditorPropertyValues.Parse(key, text, out JsonNode? value) is { } error)
+        {
+            return error;
+        }
+
+        ApplyEdit($"Edit {key}", d => MapEdits.SetProperty(d, featureIndex, key, value));
+        return null;
     }
 
     [RelayCommand]
@@ -828,7 +855,26 @@ internal static class AirportEditorImageryProgress
 /// <summary>One row of the Airport Editor's property panel.</summary>
 /// <param name="Name">What the row shows: a fixed heading or a property's key.</param>
 /// <param name="Value">The row's value as text.</param>
-public sealed record AirportEditorPropertyRow(string Name, string Value);
+/// <remarks>Two rows are equal when they show the same name and value; the editor riding on a row is not compared.</remarks>
+public sealed record AirportEditorPropertyRow(string Name, string Value)
+{
+    /// <summary>Gets the row's value editor, or null for a row the panel shows read-only.</summary>
+    public AirportEditorPropertyEditor? Editor { get; init; }
+
+    /// <summary>Gets a value indicating whether the panel edits the row's value.</summary>
+    public bool IsEditable => Editor is not null;
+
+    /// <summary>Whether another row shows the same name and value.</summary>
+    /// <param name="other">The other row.</param>
+    /// <returns>True when both rows show the same name and value.</returns>
+    public bool Equals(AirportEditorPropertyRow? other) =>
+        (other is not null)
+        && (string.Equals(Name, other.Name, StringComparison.Ordinal))
+        && (string.Equals(Value, other.Value, StringComparison.Ordinal));
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Name, Value);
+}
 
 /// <summary>Builds the Airport Editor's property panel rows for a selected feature.</summary>
 internal static class AirportEditorPropertyRows
@@ -838,8 +884,17 @@ internal static class AirportEditorPropertyRows
     /// <param name="index">Its index in the map's features.</param>
     /// <param name="count">How many features the map has.</param>
     /// <param name="vertex">The selected vertex's index, or null for none; one outside the positions adds no rows.</param>
+    /// <param name="editorFor">
+    /// Gives a property row's editor from its key and text, or null when the row is read-only.
+    /// </param>
     /// <returns>The rows, in panel order.</returns>
-    public static IReadOnlyList<AirportEditorPropertyRow> Build(MapFeature feature, int index, int count, int? vertex)
+    public static IReadOnlyList<AirportEditorPropertyRow> Build(
+        MapFeature feature,
+        int index,
+        int count,
+        int? vertex,
+        Func<string, string, AirportEditorPropertyEditor?> editorFor
+    )
     {
         CultureInfo inv = CultureInfo.InvariantCulture;
         int positions = feature.Coordinates.Length;
@@ -865,7 +920,8 @@ internal static class AirportEditorPropertyRows
         {
             foreach (KeyValuePair<string, JsonNode?> property in properties.OrderBy(p => p.Key, StringComparer.Ordinal))
             {
-                rows.Add(new(property.Key, TextOf(property.Value)));
+                string text = TextOf(property.Value);
+                rows.Add(new(property.Key, text) { Editor = editorFor(property.Key, text) });
             }
         }
 

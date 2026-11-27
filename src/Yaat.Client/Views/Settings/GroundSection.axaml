@@ -232,6 +232,24 @@
               FontSize="11"
               Margin="0,4,0,0"
             />
+            <Separator Margin="0,8" />
+            <TextBlock Text="Airport Editor Snapping" FontWeight="SemiBold" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Snap distance (ft):" Foreground="{DynamicResource SubtleTextBrush}" VerticalAlignment="Center" Width="160" />
+              <NumericUpDown Value="{Binding AirportEditorSnapThresholdFt}" Minimum="0" Maximum="100" Increment="1" FormatString="0" Width="120" />
+            </StackPanel>
+            <CheckBox Content="Snap to taxiway vertices" IsChecked="{Binding AirportEditorSnapTaxiwayVertices}" Margin="0,4,0,0" />
+            <CheckBox Content="Snap to runway vertices" IsChecked="{Binding AirportEditorSnapRunwayVertices}" />
+            <CheckBox Content="Snap to parking positions" IsChecked="{Binding AirportEditorSnapParking}" />
+            <CheckBox Content="Snap to spots" IsChecked="{Binding AirportEditorSnapSpot}" />
+            <CheckBox Content="Snap to helipads" IsChecked="{Binding AirportEditorSnapHelipad}" />
+            <TextBlock
+              Text="A vertex or point drawn or dragged in the Airport Editor within this distance of a checked target lands exactly on it; 0 turns snapping off."
+              TextWrapping="Wrap"
+              Foreground="{DynamicResource SubtleTextBrush}"
+              FontSize="11"
+              Margin="0,4,0,0"
+            />
           </StackPanel>
         </StackPanel>
       </Border>

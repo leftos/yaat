@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
@@ -701,6 +702,208 @@ public sealed class AirportEditorViewModelTests : IDisposable
 
         Assert.Same(opened, vm.Document);
         Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task RenamingTwy1ToA_IsOneEditNameStep_AndUndoRestoresTwy1()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("taxiway", Line);
+        int added = vm.SelectedFeatureIndex!.Value;
+        Assert.Equal("TWY1", FeatureName(vm.Document!.Features[added]));
+        Assert.Null(vm.SelectionRows.Single(r => r.Name == "Type").Editor);
+        AirportEditorPropertyEditor name = EditorOf(vm, "name");
+
+        name.Text = "A";
+        name.Commit();
+
+        Assert.Null(name.Error);
+        Assert.Equal("A", FeatureName(vm.Document!.Features[added]));
+        Assert.Equal("Undo Edit name", vm.UndoDescription);
+        Assert.Equal("A", vm.SelectionRows.Single(r => r.Name == "name").Value);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Equal("TWY1", FeatureName(vm.Document!.Features[added]));
+    }
+
+    [Fact]
+    public async Task CancellingAnEdit_RestoresTheText_AndCommitsNothing()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("taxiway", Line);
+        AirportMapDocument before = vm.Document!;
+        AirportEditorPropertyEditor name = EditorOf(vm, "name");
+
+        name.Text = "A";
+        name.Cancel();
+        name.Commit();
+
+        Assert.Equal("TWY1", name.Text);
+        Assert.Same(before, vm.Document);
+    }
+
+    [Fact]
+    public async Task AHeading_TakesWholeDegreesFrom0To360_AndRefusesTheRest()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("parking", Point);
+        int added = vm.SelectedFeatureIndex!.Value;
+        AirportMapDocument before = vm.Document!;
+
+        foreach (string refused in new[] { "370", "361", "-1", "90.5" })
+        {
+            Assert.Equal("heading is a whole number from 0 to 360", Refusal(vm, "heading", refused));
+            Assert.Same(before, vm.Document);
+        }
+
+        foreach ((string typed, long stored) in new[] { ("0", 0L), ("360", 360L), ("090", 90L) })
+        {
+            Commit(vm, "heading", typed);
+            Assert.Equal(stored, vm.Document!.Features[added].CloneProperties()!["heading"]!.GetValue<long>());
+        }
+
+        Assert.Equal("Undo Edit heading", vm.UndoDescription);
+    }
+
+    [Fact]
+    public async Task AnEmptyName_IsRefused()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("spot", Point);
+        AirportMapDocument before = vm.Document!;
+        AirportEditorPropertyEditor name = EditorOf(vm, "name");
+
+        name.Text = "  ";
+        name.Commit();
+
+        Assert.Equal("A name cannot be empty", name.Error);
+        Assert.Same(before, vm.Document);
+    }
+
+    [Fact]
+    public async Task ARunwaysThreshold_EditsAsTwoDistances_AndAnythingElseIsRefused()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        int runway = FirstOfType(vm.Document!, "runway");
+        vm.SelectedFeatureIndex = runway;
+        AirportMapDocument before = vm.Document!;
+        AirportEditorPropertyEditor threshold = EditorOf(vm, "threshold");
+
+        foreach (string refused in new[] { "abc", "500", "1 - 2 - 3", "-5 - 3" })
+        {
+            threshold.Text = refused;
+            threshold.Commit();
+            Assert.Equal("threshold is two distances in feet, end 1 - end 2 (e.g. 0 - 957)", threshold.Error);
+            Assert.Same(before, vm.Document);
+        }
+
+        foreach ((string typed, string written) in new[] { ("0 - 500", "0 - 500"), ("0.0000001 - 0", "0 - 0"), ("957.25 - 12", "957.25 - 12") })
+        {
+            Commit(vm, "threshold", typed);
+            string stored = vm.Document!.Features[runway].CloneProperties()!["threshold"]!.GetValue<string>();
+            Assert.Equal(written, stored);
+            string[] ends = stored.Split('-', StringSplitOptions.TrimEntries);
+            Assert.Equal(2, ends.Length);
+            Assert.All(ends, end => Assert.True(double.TryParse(end, NumberStyles.Float, CultureInfo.InvariantCulture, out double ft) && (ft >= 0)));
+        }
+    }
+
+    [Fact]
+    public async Task ARunwaysOtherKeys_TakeTheirOwnForms()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        int runway = vm.Document!.Features.Select((f, i) => (f, i)).First(x => x.f.CloneProperties()?["patternAltitude"] is not null).i;
+        vm.SelectedFeatureIndex = runway;
+        AirportMapDocument before = vm.Document!;
+
+        Assert.Equal("patternAltitude must be a number", Refusal(vm, "patternAltitude", "high"));
+        Assert.Equal("turnoff is left or right", Refusal(vm, "turnoff", "north"));
+        Assert.Same(before, vm.Document);
+
+        Commit(vm, "patternAltitude", "1000");
+        Commit(vm, "turnoff", "Left");
+
+        JsonObject properties = vm.Document!.Features[runway].CloneProperties()!;
+        Assert.Equal(1000, properties["patternAltitude"]!.GetValue<long>());
+        Assert.Equal("left", properties["turnoff"]!.GetValue<string>());
+        Assert.Equal(
+            "noTurnoff is two lists of taxiway names ([[\"A\"], [\"B\"]])",
+            AirportEditorPropertyValues.Parse("noTurnoff", "[\"A\"]", out _)
+        );
+        Assert.Null(AirportEditorPropertyValues.Parse("noTurnoff", """[["A"], []]""", out JsonNode? noTurnoff));
+        Assert.Equal("""[["A"],[]]""", noTurnoff!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task AnUnchangedValue_CommitsNothing()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("taxiway", Line);
+        AirportMapDocument before = vm.Document!;
+        string? undo = vm.UndoDescription;
+        AirportEditorPropertyEditor name = EditorOf(vm, "name");
+
+        name.Text = "TWY1";
+        name.Commit();
+
+        Assert.Same(before, vm.Document);
+        Assert.Equal(undo, vm.UndoDescription);
+        Assert.Null(name.Error);
+
+        int calls = 0;
+        var editor = new AirportEditorPropertyEditor(
+            "TWY1",
+            _ =>
+            {
+                calls++;
+                return "reached";
+            }
+        )
+        {
+            Text = "TWY1",
+        };
+        editor.Commit();
+
+        Assert.Equal(0, calls);
+        Assert.Null(editor.Error);
+    }
+
+    [Fact]
+    public async Task ACommitTypedAgainstAMapThatHasSinceChanged_IsDropped()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        vm.AddFeature("taxiway", Line);
+        int added = vm.SelectedFeatureIndex!.Value;
+        AirportEditorPropertyEditor name = EditorOf(vm, "name");
+        vm.AddFeature("spot", Point);
+        AirportMapDocument changed = vm.Document!;
+
+        name.Text = "A";
+        name.Commit();
+
+        Assert.Same(changed, vm.Document);
+        Assert.Equal("TWY1", FeatureName(vm.Document!.Features[added]));
+        Assert.Null(name.Error);
+    }
+
+    private static AirportEditorPropertyEditor EditorOf(AirportEditorViewModel vm, string key) =>
+        vm.SelectionRows.Single(r => r.Name == key).Editor ?? throw new InvalidOperationException($"{key} is not editable");
+
+    private static string? Refusal(AirportEditorViewModel vm, string key, string text)
+    {
+        AirportEditorPropertyEditor editor = EditorOf(vm, key);
+        editor.Text = text;
+        editor.Commit();
+        return editor.Error;
+    }
+
+    private static void Commit(AirportEditorViewModel vm, string key, string text)
+    {
+        AirportEditorPropertyEditor editor = EditorOf(vm, key);
+        editor.Text = text;
+        editor.Commit();
+        Assert.Null(editor.Error);
     }
 
     private static MapPosition Middle(MapFeature line, int segment)

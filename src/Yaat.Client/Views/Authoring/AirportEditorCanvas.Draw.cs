@@ -179,7 +179,7 @@ public sealed partial class AirportEditorCanvas
             return (cursor, null);
         }
 
-        SnapResult? snap = SnapEngine.Find(document, cursor, SnapOptions.Default, null, DrawingTargets());
+        SnapResult? snap = SnapEngine.Find(document, cursor, SnapOptions, null, DrawingTargets());
         return (snap?.Position ?? cursor, snap?.Position);
     }
 

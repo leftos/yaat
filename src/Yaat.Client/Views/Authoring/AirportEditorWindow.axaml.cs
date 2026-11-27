@@ -112,9 +112,11 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ApplyMode();
         Activated += OnActivated;
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        PropertyRows.AddHandler(LostFocusEvent, OnPropertyBoxLostFocus, RoutingStrategies.Bubble, handledEventsToo: true);
         Closed += OnClosed;
         MapCanvas.ShowImagery = ViewModel.ShowImagery;
         MapCanvas.ImageryBrightness = preferences.AirportEditorImageryBrightness;
+        MapCanvas.SnapOptions = preferences.AirportEditorSnapOptions;
         MapCanvas.Image = ViewModel.Image;
         MapCanvas.ImageryProgressText = ViewModel.ImageryProgressText;
         ApplyTilesActive();
@@ -225,12 +227,13 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         MapCanvas.TilesActive = active;
     }
 
-    // The toggle and the brightness are Settings fields: read again whenever the window comes forward, as it does after
-    // Settings closes.
+    // The toggle, the brightness and the snap settings are Settings fields: read again whenever the window comes forward,
+    // as it does after Settings closes.
     private void OnActivated(object? sender, EventArgs e)
     {
         ViewModel.ShowImagery = _preferences.AirportEditorShowImagery;
         MapCanvas.ImageryBrightness = _preferences.AirportEditorImageryBrightness;
+        MapCanvas.SnapOptions = _preferences.AirportEditorSnapOptions;
     }
 
     private void OnFitRequested(object? sender, EventArgs e) => MapCanvas.FitToFeatures();
@@ -262,11 +265,13 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
     }
 
     // The platform's undo and redo keys (Ctrl+Z and Ctrl+Y, Cmd+Z and Cmd+Shift+Z) and Del act on the map, also when a
-    // read-only property row marked them handled; an editable text field keeps its own undo and Delete.
+    // read-only property row marked them handled; an editable text field keeps its own undo, Delete and letter keys, and
+    // in a property's value box Enter commits and Esc restores the value.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Source is TextBox { IsReadOnly: false })
+        if (e.Source is TextBox { IsReadOnly: false } box)
         {
+            HandlePropertyBoxKey(box, e);
             return;
         }
 
@@ -286,6 +291,34 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         if (command.CanExecute(null))
         {
             command.Execute(null);
+        }
+    }
+
+    private static void HandlePropertyBoxKey(TextBox box, KeyEventArgs e)
+    {
+        if ((box.DataContext is not AirportEditorPropertyRow { Editor: { } editor }) || (e.KeyModifiers != KeyModifiers.None))
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            editor.Commit();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            editor.Cancel();
+            e.Handled = true;
+        }
+    }
+
+    // Leaving a property's value box commits what it holds; a box whose row the commit rebuilt commits nothing.
+    private static void OnPropertyBoxLostFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (e.Source is TextBox { IsReadOnly: false, DataContext: AirportEditorPropertyRow { Editor: { } editor } })
+        {
+            editor.Commit();
         }
     }
 
@@ -383,6 +416,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 
         Activated -= OnActivated;
         RemoveHandler(KeyDownEvent, OnWindowKeyDown);
+        PropertyRows.RemoveHandler(LostFocusEvent, OnPropertyBoxLostFocus);
 
         // The canvas first: its Dispose waits out a frame in progress, so no frame draws once the view model and the
         // cache let go of their images (which are dropped, never disposed: a published SKImage stays valid).
