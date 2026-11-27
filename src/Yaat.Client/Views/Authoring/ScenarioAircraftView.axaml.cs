@@ -50,6 +50,15 @@ public partial class ScenarioAircraftView : UserControl
         AircraftGrid.Loaded += OnGridLoaded;
         DetailPanel.AddHandler(LostFocusEvent, OnFieldLostFocus, RoutingStrategies.Bubble, handledEventsToo: true);
         DetailPanel.AddHandler(KeyDownEvent, OnFieldKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        if (FindRouteButton.Flyout is Flyout findRoute)
+        {
+            findRoute.Opening += OnFindRouteOpening;
+            findRoute.Closed += OnFindRouteClosed;
+            if (findRoute.Content is RouteFinderView panel)
+            {
+                panel.CloseRequested += (_, _) => findRoute.Hide();
+            }
+        }
     }
 
     /// <summary>
@@ -68,6 +77,42 @@ public partial class ScenarioAircraftView : UserControl
         {
             Commit(at);
         }
+    }
+
+    // Find Route opens a search for the selected aircraft; Apply, Escape and a click outside close it.
+    private void OnFindRouteOpening(object? sender, EventArgs e)
+    {
+        if (DataContext is not ScenarioAircraftViewModel vm)
+        {
+            return;
+        }
+
+        FindRouteButton.Classes.Add("open");
+        vm.FindRouteCommand.Execute(null);
+        if (vm.RouteFinder is { } finder)
+        {
+            finder.Applied += OnRouteFinderDone;
+            finder.CloseRequested += OnRouteFinderDone;
+        }
+    }
+
+    private void OnRouteFinderDone(object? sender, EventArgs e) => FindRouteButton.Flyout?.Hide();
+
+    private void OnFindRouteClosed(object? sender, EventArgs e)
+    {
+        FindRouteButton.Classes.Remove("open");
+        if (DataContext is not ScenarioAircraftViewModel vm)
+        {
+            return;
+        }
+
+        if (vm.RouteFinder is { } finder)
+        {
+            finder.Applied -= OnRouteFinderDone;
+            finder.CloseRequested -= OnRouteFinderDone;
+        }
+
+        vm.CloseRouteFinder();
     }
 
     // Pick on map: opens the parking picker on the aircraft's airport and writes the picked stand as one parking edit;

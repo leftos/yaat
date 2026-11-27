@@ -127,16 +127,26 @@ public sealed partial class PreferredRouteSource(HttpClient? http, string? cache
         }
 
         string code = info.Altitude?.Trim().ToUpperInvariant() ?? "";
-        return TecClassCode().IsMatch(code) ? ClassCodeAdmits(code, aircraft) : PhraseAdmits(info.Aircraft, aircraft);
+        return IsTecClassCode(code) ? ClassCodeAdmits(code, aircraft) : PhraseAdmits(info.Aircraft, aircraft);
     }
 
     private static bool ClassCodeAdmits(string code, AircraftCategory aircraft) =>
-        aircraft switch
+        TecClassLetters(aircraft).Any(letter => code.Contains(letter, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The class letters an aircraft category's TEC altitude is filed under: J for jets, M or P for turboprops, P or Q
+    /// for pistons and helicopters.
+    /// </summary>
+    internal static char[] TecClassLetters(AircraftCategory category) =>
+        category switch
         {
-            AircraftCategory.Jet => code.Contains('J', StringComparison.Ordinal),
-            AircraftCategory.Turboprop => (code.Contains('M', StringComparison.Ordinal)) || (code.Contains('P', StringComparison.Ordinal)),
-            _ => (code.Contains('P', StringComparison.Ordinal)) || (code.Contains('Q', StringComparison.Ordinal)),
+            AircraftCategory.Jet => ['J'],
+            AircraftCategory.Turboprop => ['M', 'P'],
+            _ => ['P', 'Q'],
         };
+
+    /// <summary>Whether <paramref name="code"/> is an ALT_DESCRIP written as aircraft-class letter groups: "J30", "JM120PQ100", "PQ".</summary>
+    internal static bool IsTecClassCode(string code) => TecClassCode().IsMatch(code);
 
     /// <summary>A recognised AIRCRAFT phrase's classes; any other text (or none) leaves the AIM default: no jets.</summary>
     private static bool PhraseAdmits(string? aircraftText, AircraftCategory aircraft) =>

@@ -2,10 +2,24 @@
   xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
   x:Class="Yaat.Client.Views.Authoring.ScenarioAircraftView"
   x:DataType="vm:ScenarioAircraftViewModel"
 >
   <UserControl.Styles>
+    <Style Selector="Button#FindRouteButton.open">
+      <Setter Property="Background" Value="#1C2D3C" />
+      <Setter Property="BorderBrush" Value="#3F86CC" />
+      <Setter Property="Foreground" Value="#CFE3FF" />
+    </Style>
+    <Style Selector="Button#FindRouteButton.open /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1C2D3C" />
+      <Setter Property="BorderBrush" Value="#3F86CC" />
+    </Style>
+    <Style Selector="FlyoutPresenter.routeFinder">
+      <Setter Property="MaxWidth" Value="100000" />
+      <Setter Property="MaxHeight" Value="100000" />
+    </Style>
     <Style Selector="ScrollViewer#DetailPanel TextBlock.lbl">
       <Setter Property="Foreground" Value="#B0B0B0" />
       <Setter Property="Margin" Value="0,6,0,2" />
@@ -282,7 +296,28 @@
             Text="{Binding CruiseSpeedError}"
             IsVisible="{Binding CruiseSpeedError, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
-          <TextBlock Classes="lbl" Text="Route" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="lbl" VerticalAlignment="Bottom" Text="Route" />
+            <Button x:Name="FindRouteButton" Grid.Column="1" Margin="0,6,0,2" Padding="8,2">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Path
+                  Width="16"
+                  Height="16"
+                  VerticalAlignment="Center"
+                  Stroke="#DDDDDD"
+                  StrokeThickness="1.5"
+                  StrokeLineCap="Round"
+                  Data="M 11.2,7 A 4.2,4.2 0 1 1 2.8,7 A 4.2,4.2 0 1 1 11.2,7 M 10.2,10.2 L 13.8,13.8"
+                />
+                <TextBlock x:Name="FindRouteText" VerticalAlignment="Center" Text="Find Route…" />
+              </StackPanel>
+              <Button.Flyout>
+                <Flyout Placement="LeftEdgeAlignedTop" FlyoutPresenterClasses="routeFinder">
+                  <local:RouteFinderView DataContext="{Binding RouteFinder}" />
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+          </Grid>
           <TextBox x:Name="RouteBox" TextWrapping="Wrap" Text="{Binding FlightPlanRoute}" Tag="{Binding CommitFlightPlanRouteCommand}" />
           <TextBlock Classes="lbl" Text="Remarks" />
           <TextBox x:Name="RemarksBox" TextWrapping="Wrap" Text="{Binding Remarks}" Tag="{Binding CommitRemarksCommand}" />

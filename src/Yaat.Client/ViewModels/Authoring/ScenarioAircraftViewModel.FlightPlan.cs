@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Yaat.Sim.Authoring.Routes;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels.Authoring;
@@ -16,6 +18,9 @@ public sealed partial class ScenarioAircraftViewModel
 {
     /// <summary>The flight rules the rules picker offers.</summary>
     public static readonly IReadOnlyList<string> FlightRulesChoices = ["IFR", "VFR"];
+
+    // Find Route's Apply: the route, an empty cruise altitude, and optionally a real callsign and type, as one step.
+    private const string ApplyFoundRouteStep = "Apply found route";
 
     // A cruise altitude or speed: a whole number of 0 or more; blank is 0.
     private static readonly ScenarioFieldKind<int> CruiseNumber = new(
@@ -73,6 +78,9 @@ public sealed partial class ScenarioAircraftViewModel
     [ObservableProperty]
     private string _filedType = "";
 
+    [ObservableProperty]
+    private RouteFinderViewModel? _routeFinder;
+
     /// <summary>Gets the rules picker's options: IFR and VFR, plus the plan's rules when they are neither.</summary>
     public IReadOnlyList<string> FlightRulesOptions => _flightRulesOptions;
 
@@ -129,6 +137,74 @@ public sealed partial class ScenarioAircraftViewModel
     /// <summary>Writes the filed type, trimmed; it is the plan's own and never follows the aircraft's type.</summary>
     [RelayCommand]
     private void CommitFiledType() => CommitText("Edit filed type", FiledType, (a, v) => a.FlightPlan?.AircraftType = v ?? "");
+
+    /// <summary>
+    /// Opens Find Route for the selected aircraft over the services' route sources, its callsign numbers drawn from the
+    /// services' random source, and starts its search.
+    /// </summary>
+    [RelayCommand]
+    private void FindRoute() => StartRouteFinder(_services.RouteFinding.Sources(), _services.Random);
+
+    /// <summary>
+    /// Opens Find Route for the selected aircraft over the sources and starts its search, closing one already open; its
+    /// Apply writes to that aircraft as one undo step (<see cref="RouteFinderViewModel.WriteFor"/>), and to no other.
+    /// </summary>
+    /// <param name="sources">The route sources, in source order.</param>
+    /// <param name="random">The random source a real callsign's flight number is drawn from.</param>
+    /// <returns>The open Find Route, or null with no aircraft selected.</returns>
+    public RouteFinderViewModel? StartRouteFinder(IReadOnlyList<IRouteSource> sources, Random random)
+    {
+        CloseRouteFinder();
+        if (SelectedDocumentIndex("Find route") is not { } index)
+        {
+            return null;
+        }
+
+        ScenarioAircraft aircraft = _session.Document.Scenario.Aircraft[index];
+        string aircraftId = aircraft.Id;
+        var target = new RouteFinderTarget(
+            aircraft,
+            prefix => RouteFinderViewModel.FreeCallsign(_session.Document.Scenario, prefix, random),
+            _services.Clock.GetUtcNow().UtcDateTime
+        );
+        var finder = new RouteFinderViewModel(target, sources, _services.Post, choice => ApplyFoundRoute(aircraftId, choice));
+        RouteFinder = finder;
+        finder.StartSearch();
+        return finder;
+    }
+
+    /// <summary>Closes Find Route, cancelling a search still running.</summary>
+    public void CloseRouteFinder()
+    {
+        RouteFinder?.Dispose();
+        RouteFinder = null;
+    }
+
+    // Find Route's Apply, written only to the aircraft it was opened for while that aircraft is still the selected one.
+    private void ApplyFoundRoute(string aircraftId, RouteFinderChoice choice)
+    {
+        if (!string.Equals(Selected?.Id, aircraftId, StringComparison.Ordinal))
+        {
+            if (Log.IsEnabled(LogLevel.Warning))
+            {
+                Log.LogWarning("Scenario editor: Find Route's Apply skipped: aircraft {Id} is no longer the selected one", aircraftId);
+            }
+
+            return;
+        }
+
+        if (SelectedDocumentIndex(ApplyFoundRouteStep) is not { } index)
+        {
+            return;
+        }
+
+        RouteFinderWrite write = RouteFinderViewModel.WriteFor(
+            _session.Document.Scenario.Aircraft[index],
+            choice,
+            _services.Clock.GetUtcNow().UtcDateTime
+        );
+        ApplyToSelected(ApplyFoundRouteStep, write.ApplyTo);
+    }
 
     private void CommitFlightRules()
     {

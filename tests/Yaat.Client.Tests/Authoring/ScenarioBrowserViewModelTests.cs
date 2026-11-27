@@ -968,7 +968,8 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
                 return Task.CompletedTask;
             },
             () => _roomHasScenario,
-            ScenarioEditorFixture.OfflineConfigs(Path.Combine(_root, "artcc"))
+            ScenarioEditorFixture.OfflineConfigs(Path.Combine(_root, "artcc")),
+            ScenarioEditorFixture.NoRouteFinding()
         );
         var vm = new ScenarioBrowserViewModel(services);
         _viewModels.Add(vm);

@@ -1,6 +1,8 @@
 using Avalonia.Threading;
 using Yaat.Client.Services;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Authoring.Routes;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.ViewModels.Authoring;
@@ -19,6 +21,7 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <param name="LoadInRoom">Loads a scenario into the room: its JSON, display name and server origin id (null when local-only).</param>
 /// <param name="RoomHasScenario">Whether the room runs a scenario now, which Test in Room asks to replace before it loads.</param>
 /// <param name="Configs">The ARTCC configs the editor's position and airport pickers list their options from.</param>
+/// <param name="RouteFinding">What Find Route searches: the route history's HTTP client and endpoint, and the other route sources.</param>
 public sealed record ScenarioBrowserServices(
     UserPreferences Preferences,
     LocalScenarioStore Store,
@@ -31,7 +34,8 @@ public sealed record ScenarioBrowserServices(
     Func<bool> CanLoadInRoom,
     Func<string, string, string?, Task> LoadInRoom,
     Func<bool> RoomHasScenario,
-    ArtccConfigSource Configs
+    ArtccConfigSource Configs,
+    RouteFindingServices RouteFinding
 )
 {
     // One client and one config source for the app's lifetime: every editor window shares the parsed configs.
@@ -62,7 +66,8 @@ public sealed record ScenarioBrowserServices(
             () => false,
             (_, _, _) => Task.CompletedTask,
             () => false,
-            AppConfigs
+            AppConfigs,
+            RouteFindingServices.ForApp()
         );
     }
 
@@ -81,6 +86,7 @@ public sealed record ScenarioBrowserServices(
             CanLoadInRoom = () => room.CanLoadScenario,
             LoadInRoom = room.LoadTestScenarioAsync,
             RoomHasScenario = () => room.ActiveScenarioId is not null,
+            RouteFinding = RouteFinding with { HistoryEndpoint = () => RouteFindingServices.RoomEndpointAsync(room) },
         };
     }
 
@@ -95,5 +101,69 @@ public sealed record ScenarioBrowserServices(
             using var client = new VnasTrainingClient();
             return await new ScenarioDownloader(client, store).DownloadArtccAsync(artccId, progress, ct).ConfigureAwait(false);
         };
+    }
+}
+
+/// <summary>
+/// What Find Route searches: csko, navdata and the FAA preferred routes (<paramref name="OtherSources"/>), then the SWIM route
+/// history over <paramref name="HistoryHttp"/> at the endpoint <paramref name="HistoryEndpoint"/> resolves when a search
+/// starts (null: not connected, which the history reports as its failure).
+/// </summary>
+/// <param name="HistoryHttp">The HTTP client the route history is asked over.</param>
+/// <param name="HistoryEndpoint">Resolves the server and access token the route history is asked at, or null when there is none.</param>
+/// <param name="OtherSources">The route sources searched before the history, in source order.</param>
+public sealed record RouteFindingServices(
+    HttpClient HistoryHttp,
+    Func<Task<RouteHistoryEndpoint?>> HistoryEndpoint,
+    Func<IReadOnlyList<IRouteSource>> OtherSources
+)
+{
+    // One history client, csko source and preferred-route source for the app's lifetime: the sources keep their caches.
+    private static readonly HttpClient AppHistoryHttp = new();
+    private static readonly Lazy<CskoRouteSource> AppCsko = new(() => new CskoRouteSource());
+    private static readonly Lazy<PreferredRouteSource> AppPreferred = new(() => new PreferredRouteSource(NavigationDatabase.Instance));
+
+    /// <summary>The app's route sources: csko, navdata over the current navdata, preferred routes, and a history with no endpoint.</summary>
+    /// <returns>The services.</returns>
+    public static RouteFindingServices ForApp() =>
+        new(AppHistoryHttp, NoEndpoint, () => [AppCsko.Value, new NavdataRouteSource(NavigationDatabase.Instance), AppPreferred.Value]);
+
+    /// <summary>No route history endpoint: not connected to a YAAT server.</summary>
+    /// <returns>Null.</returns>
+    public static Task<RouteHistoryEndpoint?> NoEndpoint() => Task.FromResult<RouteHistoryEndpoint?>(null);
+
+    /// <summary>
+    /// The route history endpoint of the main window's server: its URL and a valid access token for it; null when it has
+    /// not connected or has no token.
+    /// </summary>
+    /// <param name="room">The main window's view model.</param>
+    /// <returns>The endpoint, or null.</returns>
+    public static async Task<RouteHistoryEndpoint?> RoomEndpointAsync(MainViewModel room)
+    {
+        ArgumentNullException.ThrowIfNull(room);
+        string url = room.ConnectedServerUrl;
+        if ((string.IsNullOrWhiteSpace(url)) || (!Uri.TryCreate(url.TrimEnd('/') + "/", UriKind.Absolute, out Uri? server)))
+        {
+            return null;
+        }
+
+        string? token = await room.Auth.GetValidAccessTokenAsync(url).ConfigureAwait(false);
+        return string.IsNullOrEmpty(token) ? null : new RouteHistoryEndpoint(server, token);
+    }
+
+    /// <summary>The sources a search runs: <see cref="OtherSources"/>, then the route history.</summary>
+    /// <returns>The sources, in source order.</returns>
+    public IReadOnlyList<IRouteSource> Sources() => [.. OtherSources(), new ResolvedHistorySource(HistoryHttp, HistoryEndpoint)];
+
+    // The route history at the endpoint resolved when its search starts.
+    private sealed class ResolvedHistorySource(HttpClient http, Func<Task<RouteHistoryEndpoint?>> endpoint) : IRouteSource
+    {
+        public string Name => RouteHistorySource.SourceName;
+
+        public async Task<RouteSourceResult> FindAsync(RouteQuery query, CancellationToken ct)
+        {
+            RouteHistoryEndpoint? resolved = await endpoint().WaitAsync(ct).ConfigureAwait(false);
+            return await new RouteHistorySource(http, () => resolved).FindAsync(query, ct).ConfigureAwait(false);
+        }
     }
 }

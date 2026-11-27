@@ -55,6 +55,10 @@ internal sealed class ScenarioEditorFixture : IDisposable
     /// <summary>A layout source with no map for any airport, so no test fetches one.</summary>
     public static Task<AirportGroundLayout?> NoLayouts(string airportId, CancellationToken ct) => Task.FromResult<AirportGroundLayout?>(null);
 
+    /// <summary>Find Route over no source but a route history with no endpoint, so no test reaches the network.</summary>
+    public static RouteFindingServices NoRouteFinding() =>
+        new(new HttpClient(new StubArtccHandler(_ => null)), RouteFindingServices.NoEndpoint, () => []);
+
     /// <summary>A config source whose data-api is never reachable, over its own folder.</summary>
     public static ArtccConfigSource OfflineConfigs(string cacheRoot) =>
         new(new HttpClient(new StubArtccHandler(_ => null)), cacheRoot, () => DateTime.UtcNow);
@@ -143,7 +147,8 @@ internal sealed class ScenarioEditorFixture : IDisposable
             () => false,
             (_, _, _) => Task.CompletedTask,
             () => false,
-            new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow)
+            new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow),
+            NoRouteFinding()
         );
 
     /// <summary>A browser and an editor over it, the browser's first load and resync done.</summary>

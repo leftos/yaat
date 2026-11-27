@@ -15,8 +15,11 @@ public sealed class NavdataRouteSource(NavigationDatabase navDb) : IRouteSource
 {
     private readonly NavigationDatabase _navDb = navDb;
 
+    /// <summary>The source's name, as the routes it offers carry it.</summary>
+    public const string SourceName = "navdata";
+
     /// <inheritdoc />
-    public string Name => "navdata";
+    public string Name => SourceName;
 
     /// <inheritdoc />
     public Task<RouteSourceResult> FindAsync(RouteQuery query, CancellationToken ct)
