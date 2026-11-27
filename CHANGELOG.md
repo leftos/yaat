@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- DA takes only the fields CRC lists and refuses a token it cannot read, such as KOAK*KAPC, instead of filing it as the aircraft type.
 - HFR holds departures again after an HFROFF and a new HFR; HFROFF releases only the held departures already due, and the rest keep their schedule.
 - On macOS, Settings › Keys no longer reports a clash with the Notes window's find and replace keys, which are Cmd chords there.
 - The Notes window puts the caret in its text when it opens or is brought forward, so find and replace work without clicking first.

@@ -3505,77 +3505,107 @@ public static class CommandParser
         return (rules, FlightPlanAltitude.FromRulesAndFeet(rules, feet));
     }
 
-    /// <summary>
-    /// Parses DA (abbreviated flight plan / Flight Data). Fields are optional and order-independent:
-    /// 4 digits = beacon code, backtick+chars = scratchpad1, +chars = scratchpad2,
-    /// letter-starting 2-4 alphanum (optionally /X) = type, 3 digits = altitude (hundreds),
-    /// .V/.P/.E = flight rules. Default flight rules = VFR.
-    /// </summary>
     private static PR ParseAbbreviatedFlightPlan(string? arg)
     {
-        uint? beaconCode = null;
-        string? scratchpad1 = null;
-        string? scratchpad2 = null;
-        string? aircraftType = null;
-        int? cruiseAltitude = null;
-        string flightRules = "VFR";
+        ParseResult<CreateAbbreviatedFlightPlanCommand> fields = ReadAbbreviatedFlightPlanFields(arg);
+        return fields.Value is { } command ? PR.Ok(command) : PR.Fail(fields.Reason!);
+    }
 
+    /// <summary>
+    /// Reads the optional fields of a DA (abbreviated flight plan, STARS Flight Data) entry, in any order, as
+    /// docs/crc/stars.md Table 12 lists them: a 4-digit octal beacon code, scratchpad 1 (a backtick or Δ followed by
+    /// up to four characters), scratchpad 2 (a plus sign followed by up to four characters), the aircraft type (2 to 4
+    /// alphanumerics starting with a letter, optionally a slash and a one-character equipment code), a 3-digit
+    /// altitude in hundreds of feet, and the flight rules (.V, .P or .E; VFR by default). Both the typed command
+    /// and the CRC keyboard path read DA through this one reader.
+    /// </summary>
+    /// <param name="arg">The fields after the verb (and, on the CRC path, after the aircraft ID), space separated.</param>
+    /// <returns>
+    /// The command, or a failure naming the first token that is none of the fields. A scratchpad is read up to four
+    /// characters; the facility's own limit is the caller's to apply.
+    /// </returns>
+    public static ParseResult<CreateAbbreviatedFlightPlanCommand> ReadAbbreviatedFlightPlanFields(string? arg)
+    {
+        var fields = new CreateAbbreviatedFlightPlanCommand(null, null, null, null, null, "VFR");
         if (string.IsNullOrWhiteSpace(arg))
         {
-            return PR.Ok(new CreateAbbreviatedFlightPlanCommand(null, null, null, null, null, flightRules));
+            return ParseResult<CreateAbbreviatedFlightPlanCommand>.Ok(fields);
         }
 
-        string[] tokens = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        foreach (string token in tokens)
+        foreach (string token in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
-            string upper = token.ToUpperInvariant();
-
-            if ((upper == ".V") || (upper == ".P") || (upper == ".E"))
+            if (ApplyAbbreviatedFlightPlanField(fields, token.ToUpperInvariant()) is not { } next)
             {
-                flightRules = upper switch
-                {
-                    ".V" => "VFR",
-                    ".P" => "OTP", // VFR-on-top: IFR rules with the OTP altitude notation
-                    ".E" => "IFR",
-                    _ => "VFR",
-                };
-                continue;
+                return ParseResult<CreateAbbreviatedFlightPlanCommand>.Fail(AbbreviatedFlightPlanRefusal(token));
             }
 
-            if (upper.StartsWith('`') && upper.Length >= 2 && upper.Length <= 5)
-            {
-                scratchpad1 = upper[1..];
-                continue;
-            }
-
-            if (upper.StartsWith('+') && upper.Length >= 2 && upper.Length <= 5)
-            {
-                scratchpad2 = upper[1..];
-                continue;
-            }
-
-            if (token.Length == 4 && token.All(char.IsDigit) && token.All(c => c >= '0' && c <= '7'))
-            {
-                beaconCode = uint.Parse(token);
-                continue;
-            }
-
-            if (token.Length == 3 && token.All(char.IsDigit))
-            {
-                cruiseAltitude = int.Parse(token) * 100;
-                continue;
-            }
-
-            if (char.IsLetter(token[0]) && token.Length >= 2)
-            {
-                aircraftType = upper;
-                continue;
-            }
-
-            return PR.Fail($"unrecognized DA field: '{token}'");
+            fields = next;
         }
 
-        return PR.Ok(new CreateAbbreviatedFlightPlanCommand(beaconCode, scratchpad1, scratchpad2, aircraftType, cruiseAltitude, flightRules));
+        return ParseResult<CreateAbbreviatedFlightPlanCommand>.Ok(fields);
+    }
+
+    private static CreateAbbreviatedFlightPlanCommand? ApplyAbbreviatedFlightPlanField(CreateAbbreviatedFlightPlanCommand fields, string upper)
+    {
+        if (DaFlightRules(upper) is { } rules)
+        {
+            return fields with { FlightRules = rules };
+        }
+
+        if ((upper[0] is '`' or '\u0394') && IsDaScratchpadText(upper[1..]))
+        {
+            return fields with { Scratchpad1 = upper[1..] };
+        }
+
+        if ((upper[0] == '+') && IsDaScratchpadText(upper[1..]))
+        {
+            return fields with { Scratchpad2 = upper[1..] };
+        }
+
+        if (IsDaBeacon(upper))
+        {
+            return fields with { BeaconCode = uint.Parse(upper, CultureInfo.InvariantCulture) };
+        }
+
+        if (IsDaAltitude(upper))
+        {
+            return fields with { CruiseAltitude = int.Parse(upper, CultureInfo.InvariantCulture) * 100 };
+        }
+
+        return IsDaAircraftType(upper) ? fields with { AircraftType = upper } : null;
+    }
+
+    private static string? DaFlightRules(string upper) =>
+        upper switch
+        {
+            ".V" => "VFR",
+            ".P" => "OTP",
+            ".E" => "IFR",
+            _ => null,
+        };
+
+    private static bool IsDaBeacon(string upper) => (upper.Length == 4) && upper.All(c => c is >= '0' and <= '7');
+
+    private static bool IsDaAltitude(string upper) => (upper.Length == 3) && upper.All(char.IsAsciiDigit);
+
+    private static bool IsDaScratchpadText(string text) =>
+        (text.Length is >= 1 and <= 4) && text.All(c => char.IsAsciiLetterOrDigit(c) || (c is '+' or '.' or '*' or '/' or '`' or '\u0394'));
+
+    private static bool IsDaAircraftType(string upper)
+    {
+        string[] parts = upper.Split('/');
+        string type = parts[0];
+        bool typeOk = (type.Length is >= 2 and <= 4) && char.IsAsciiLetter(type[0]) && type.All(char.IsAsciiLetterOrDigit);
+        return typeOk && ((parts.Length == 1) || ((parts.Length == 2) && (parts[1].Length == 1) && char.IsAsciiLetterOrDigit(parts[1][0])));
+    }
+
+    private static string AbbreviatedFlightPlanRefusal(string token)
+    {
+        string[] airports = token.Split('*');
+        bool departureDestination = (airports.Length == 2) && airports.All(a => (a.Length > 0) && a.All(char.IsAsciiLetterOrDigit));
+        return departureDestination
+            ? $"{token}: departure*destination is not a DA field"
+            : $"{token} is not a DA field (beacon, `SP1, +SP2, type, altitude, .V/.P/.E)";
     }
 
     /// <summary>
