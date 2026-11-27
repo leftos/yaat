@@ -2305,7 +2305,7 @@ Coordination commands manage departure releases between tower and approach contr
 
 The `text` of `RDH` and `RDTXT` runs to the end of the line, separators included: `RDTXT /1 HOLD, GO` sets the message `HOLD, GO` rather than chaining a `GO`. Put the message last when chaining (`HO 3G; RDTXT /1 HOLD, GO`).
 
-`RDH` on an aircraft whose item on the list is already sent (Unacknowledged or Acknowledged) is refused like `RD`: `<callsign> already has a coordination item on list <id>`. `RDH` or `RDR` naming a list from a position that does not send on it is refused: `TCP <tcp> is not a sender on list <id>`.
+`RDH` on an aircraft whose item on the list is already sent (Unacknowledged or Acknowledged) is refused like `RD`: `<callsign> already has a coordination item on list <id>`. `RDH` with text on an aircraft whose item is still Unsent is refused (`<callsign> already has an unsent item on list <id>: change its text with RDTXT, then send it with RDH`), as is the CRC hold-at-line entry with text; plain `RDH` still sends it. `RDH` or `RDR` naming a list from a position that does not send on it is refused: `TCP <tcp> is not a sender on list <id>`.
 
 When `listId` is omitted, the server auto-detects the correct coordination list from the sender/receiver TCP. `RDACK` works without a list ID even when the TCP belongs to multiple lists, as long as there is only one unacknowledged release across all lists. A position answers for its own TCP's lists and those of every TCP consolidated under it.
 

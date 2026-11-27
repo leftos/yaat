@@ -997,6 +997,54 @@ public class CoordinationStepTests
     }
 
     /// <summary>
+    /// RDH with text on an aircraft whose item is still Unsent is refused, as the STARS entries make "/ ## TEXT" only
+    /// create a held message: the text is changed by its own entry (RDTXT) and the item sent with plain RDH.
+    /// </summary>
+    [Fact]
+    public void Rdh_WithText_OnUnsentItem_IsRefusedAndKeepsTheItem()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RDH POAK EXPECT 28R").Success);
+        int beforeRefusal = host.CoordinationChanges;
+
+        CommandResult refused = Send(engine, host, CallsignA, "RDH POAK NEW TEXT");
+
+        Assert.False(refused.Success);
+        Assert.Equal($"{CallsignA} already has an unsent item on list {ListId}: change its text with RDTXT, then send it with RDH", refused.Message);
+        Assert.Equal(beforeRefusal, host.CoordinationChanges);
+        CoordinationItem item = Assert.Single(Channel(engine).Items, i => i.AircraftId == CallsignA);
+        Assert.Equal(StarsCoordinationStatus.Unsent, item.Status);
+        Assert.Equal("EXPECT 28R", item.Message);
+    }
+
+    /// <summary>Plain RDH on an aircraft whose item is still Unsent sends it, keeping its text.</summary>
+    [Fact]
+    public void Rdh_Plain_OnUnsentItem_StillSends()
+    {
+        if (Engine() is not { } engine)
+        {
+            return;
+        }
+
+        var host = new AttendanceActionHost();
+        SelectPositions(engine, host);
+        Assert.True(Send(engine, host, CallsignA, "RDH POAK EXPECT 28R").Success);
+
+        CommandResult sent = Send(engine, host, CallsignA, "RDH POAK");
+
+        Assert.True(sent.Success, sent.Message);
+        CoordinationItem item = Assert.Single(Channel(engine).Items, i => i.AircraftId == CallsignA);
+        Assert.Equal(StarsCoordinationStatus.Unacknowledged, item.Status);
+        Assert.Equal("EXPECT 28R", item.Message);
+    }
+
+    /// <summary>
     /// One item per aircraft per list holds for <c>RDH</c> as for <c>RD</c>: a hold on an aircraft whose item is already
     /// sent and unacknowledged is refused with <c>RD</c>'s message and stacks no second, Unsent item beside it.
     /// </summary>

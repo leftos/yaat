@@ -184,10 +184,11 @@ public static class CoordinationCommandHandler
     }
 
     /// <summary>
-    /// <c>RDH</c>: sends the aircraft's held message when one stands, holds its recalled item again in place when one is
-    /// inside its recall linger and the position answers for its origin (as a fresh hold would set it, keeping its text
-    /// unless new text is given), refuses when the aircraft's item on the list is already sent, and otherwise creates a
-    /// held message. A position that does not send on the list is refused, whether it named the list or not.
+    /// <c>RDH</c>: sends the aircraft's held message when one stands (refusing new text for it, which RDTXT changes),
+    /// holds its recalled item again in place when one is inside its recall linger and the position answers for its
+    /// origin (as a fresh hold would set it, keeping its text unless new text is given), refuses when the aircraft's item
+    /// on the list is already sent, and otherwise creates a held message.
+    /// A position that does not send on the list is refused, whether it named the list or not.
     /// </summary>
     private static CommandResult HandleHold(SimulationEngine engine, string callsign, TrackOwner identity, string? listId, string? text)
     {
@@ -198,11 +199,7 @@ public static class CoordinationCommandHandler
 
         if (channel.Items.FirstOrDefault(i => IsFor(i, callsign) && (i.Status == StarsCoordinationStatus.Unsent)) is { } existing)
         {
-            // Send a held message
-            existing.Status = StarsCoordinationStatus.Unacknowledged;
-            engine.MarkCoordinationChanged();
-            LogCoordination("hold-send", callsign, channel);
-            return new CommandResult(true, $"Hold sent for {callsign} on list {channel.ListId}");
+            return SendHeld(engine, callsign, channel, existing, text);
         }
 
         CoordinationItem? recalled = channel.Items.FirstOrDefault(i => IsFor(i, callsign) && (i.Status == StarsCoordinationStatus.Recalled));
@@ -220,6 +217,32 @@ public static class CoordinationCommandHandler
         (string kind, string outcome) = recalled is null ? ("hold-create", "created") : ("hold-revive", "revived");
         LogCoordination(kind, callsign, channel);
         return new CommandResult(true, $"Hold {outcome} for {callsign} on list {channel.ListId}");
+    }
+
+    /// <summary>
+    /// <c>RDH</c> on the aircraft's held message: plain RDH sends it, while RDH with text is refused, since
+    /// "/ ## TEXT" only creates a held message and its text changes through RDTXT while it is unsent.
+    /// </summary>
+    private static CommandResult SendHeld(
+        SimulationEngine engine,
+        string callsign,
+        CoordinationChannel channel,
+        CoordinationItem existing,
+        string? text
+    )
+    {
+        if (!string.IsNullOrEmpty(text))
+        {
+            return new CommandResult(
+                false,
+                $"{callsign} already has an unsent item on list {channel.ListId}: change its text with RDTXT, then send it with RDH"
+            );
+        }
+
+        existing.Status = StarsCoordinationStatus.Unacknowledged;
+        engine.MarkCoordinationChanged();
+        LogCoordination("hold-send", callsign, channel);
+        return new CommandResult(true, $"Hold sent for {callsign} on list {channel.ListId}");
     }
 
     private static void LogCoordination(string kind, string callsign, CoordinationChannel channel)
