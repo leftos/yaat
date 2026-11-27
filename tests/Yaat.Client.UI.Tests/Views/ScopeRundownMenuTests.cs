@@ -95,7 +95,7 @@ public class ScopeRundownMenuTests
         {
             List<(string Callsign, string Command)> sent = CaptureSends(view);
             RundownRow row = view.Canvas.CurrentFrame.Rundown.Lines[1].Row!;
-            TopLevel prompt = OpenHoldPrompt(window, view);
+            TopLevel prompt = OpenPrompt(window, view, RundownEntryMenu.HoldHeader);
 
             prompt.KeyTextInput("RWY 30 ONLY");
             Dispatcher.UIThread.RunJobs();
@@ -117,7 +117,7 @@ public class ScopeRundownMenuTests
         try
         {
             List<(string Callsign, string Command)> sent = CaptureSends(view);
-            TopLevel prompt = OpenHoldPrompt(window, view);
+            TopLevel prompt = OpenPrompt(window, view, RundownEntryMenu.HoldHeader);
 
             prompt.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
@@ -131,9 +131,35 @@ public class ScopeRundownMenuTests
     }
 
     [AvaloniaFact]
+    public void ModifyOnAnUnsentEntry_OpensWithTheMessageSelected_AndEnterSendsItUnchanged()
+    {
+        (ScopeView view, Window window) = ShowScopeWithRows("Unsent");
+        try
+        {
+            List<(string Callsign, string Command)> sent = CaptureSends(view);
+            RundownRow row = view.Canvas.CurrentFrame.Rundown.Lines[1].Row!;
+            TopLevel prompt = OpenPrompt(window, view, RundownEntryMenu.ModifyHeader);
+            TextBox box = Assert.IsType<TextBox>(window.FocusManager?.GetFocusedElement());
+
+            Assert.Equal("RWY 30", box.Text);
+            Assert.Equal(0, box.SelectionStart);
+            Assert.Equal(6, box.SelectionEnd);
+
+            prompt.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal([(row.Callsign, "AS 3O RDTXT /PFAT RWY 30")], sent);
+        }
+        finally
+        {
+            Close(window);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TextPrompt_OnAnAnchorInNoWindow_AnswersNull()
     {
-        Task<string?> answer = RundownTextPrompt.AskAsync(new Border(), new Point(10, 10), RundownEntryMenu.HoldHeader);
+        Task<string?> answer = RundownTextPrompt.AskAsync(new Border(), new Point(10, 10), RundownEntryMenu.HoldHeader, "");
 
         Dispatcher.UIThread.RunJobs();
 
@@ -154,15 +180,15 @@ public class ScopeRundownMenuTests
         return sent;
     }
 
-    // Right-clicks the second row, clicks Hold… with the mouse, and returns the top level of the prompt that opens, whose
-    // focused element must be the prompt's box.
-    private static TopLevel OpenHoldPrompt(Window window, ScopeView view)
+    // Right-clicks the second row, clicks the item with the given header with the mouse, and returns the top level of the
+    // prompt that opens, whose focused element must be the prompt's box.
+    private static TopLevel OpenPrompt(Window window, ScopeView view, string header)
     {
         RightClick(window, view.Canvas, CentreOfLine(view.Canvas, 1));
         ContextMenu menu = Assert.IsType<ContextMenu>(view.ActiveContextMenu);
-        MenuItem hold = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == RundownEntryMenu.HoldHeader);
-        Assert.True(hold.IsEnabled);
-        ClickOn(hold);
+        MenuItem item = Assert.Single(menu.Items.OfType<MenuItem>(), m => (m.Header as string) == header);
+        Assert.True(item.IsEnabled);
+        ClickOn(item);
         for (int i = 0; i < 3; i++)
         {
             Dispatcher.UIThread.RunJobs();

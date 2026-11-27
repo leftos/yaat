@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A RUNDOWN entry's Modify… opens with the entry's current message filled in and selected, on the Radar and in the Rundowns window.
+
 ## v0.20.1-beta [2026/11/26]
 
 ### Highlights

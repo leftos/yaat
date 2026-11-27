@@ -51,7 +51,7 @@ public partial class ScopeView
             RundownEntryMenu.Build(
                 RundownEntryMenu.Items(list, item),
                 command => _ = SendRundownCommand(vm, item.Callsign, command),
-                placeholder => RundownTextPrompt.AskAsync(Canvas, at, placeholder)
+                (placeholder, initialText) => RundownTextPrompt.AskAsync(Canvas, at, placeholder, initialText)
             )
         );
     }

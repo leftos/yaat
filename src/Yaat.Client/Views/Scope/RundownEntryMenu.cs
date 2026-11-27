@@ -15,7 +15,11 @@ namespace Yaat.Client.Views.Scope;
 /// <param name="AsksForText">Whether a click asks for text first (Hold… and Modify…).</param>
 /// <param name="SendsWithoutText">Whether an item that asks for text sends its command alone for empty text (Hold…).</param>
 /// <param name="IsEnabled">Whether the entry's status, its place in the list and the channel's positions allow the item.</param>
-public sealed record RundownMenuItem(string Header, string? Command, bool AsksForText, bool SendsWithoutText, bool IsEnabled);
+public sealed record RundownMenuItem(string Header, string? Command, bool AsksForText, bool SendsWithoutText, bool IsEnabled)
+{
+    /// <summary>The text an item that asks for text opens its box with (Modify…: the entry's current message); empty for the others.</summary>
+    public string InitialText { get; init; } = "";
+}
 
 /// <summary>
 /// The right-click menu of one RUNDOWN entry: the coordination verbs CoordinationCommandHandler takes for an item, each enabled only
@@ -39,7 +43,7 @@ public static class RundownEntryMenu
     public static IReadOnlyList<RundownMenuItem> Items(CoordinationListHubDto list, CoordinationItemHubDto item)
     {
         string? origin = string.IsNullOrWhiteSpace(item.OriginTcp) ? null : item.OriginTcp;
-        return [Acknowledge(list, item), .. StatusItems(list.ListId, item.Status, origin), .. MoveItems(list, item, origin)];
+        return [Acknowledge(list, item), .. StatusItems(list.ListId, item.Status, origin, item.Message), .. MoveItems(list, item, origin)];
     }
 
     // The receiver acknowledges; with no receiver on the channel there is no one to act as.
@@ -59,8 +63,8 @@ public static class RundownEntryMenu
         );
     }
 
-    // Release, Recall, Hold…, Modify… and Delete, sent as the item's origin TCP.
-    private static IEnumerable<RundownMenuItem> StatusItems(string id, string status, string? origin)
+    // Release, Recall, Hold…, Modify… and Delete, sent as the item's origin TCP; Modify… opens with the entry's message.
+    private static IEnumerable<RundownMenuItem> StatusItems(string id, string status, string? origin, string message)
     {
         const string Unsent = nameof(StarsCoordinationStatus.Unsent);
         const string Recalled = nameof(StarsCoordinationStatus.Recalled);
@@ -72,7 +76,10 @@ public static class RundownEntryMenu
         {
             SendsWithoutText = true,
         };
-        yield return Sender(ModifyHeader, origin, $"RDTXT /{id}", true, status == Unsent);
+        yield return Sender(ModifyHeader, origin, $"RDTXT /{id}", true, status == Unsent) with
+        {
+            InitialText = message,
+        };
         yield return Sender("Delete", origin, $"RDDEL {id}", false, true);
     }
 
@@ -113,10 +120,10 @@ public static class RundownEntryMenu
 
     /// <summary>
     /// A context menu of <paramref name="items"/>, disabled ones shown greyed. A click on an item sends its command through
-    /// <paramref name="send"/>; an item that asks for text first asks <paramref name="prompt"/> with its header, sending nothing
-    /// when the prompt answers null (dismissed) or <see cref="Compose"/> gives nothing.
+    /// <paramref name="send"/>; an item that asks for text first asks <paramref name="prompt"/> with its header and its initial text,
+    /// sending nothing when the prompt answers null (dismissed) or <see cref="Compose"/> gives nothing.
     /// </summary>
-    public static ContextMenu Build(IReadOnlyList<RundownMenuItem> items, Action<string> send, Func<string, Task<string?>> prompt)
+    public static ContextMenu Build(IReadOnlyList<RundownMenuItem> items, Action<string> send, Func<string, string, Task<string?>> prompt)
     {
         var menu = new ContextMenu();
         foreach (RundownMenuItem item in items)
@@ -133,7 +140,7 @@ public static class RundownEntryMenu
     /// What a click on <paramref name="item"/> does: sends its command, asking for text first when it asks for it. A failure of
     /// the send or the prompt is logged as an error and never escapes, since the click does not await it.
     /// </summary>
-    internal static async Task ClickAsync(RundownMenuItem item, Action<string> send, Func<string, Task<string?>> prompt)
+    internal static async Task ClickAsync(RundownMenuItem item, Action<string> send, Func<string, string, Task<string?>> prompt)
     {
         try
         {
@@ -145,7 +152,7 @@ public static class RundownEntryMenu
         }
     }
 
-    private static async Task RunAsync(RundownMenuItem item, Action<string> send, Func<string, Task<string?>> prompt)
+    private static async Task RunAsync(RundownMenuItem item, Action<string> send, Func<string, string, Task<string?>> prompt)
     {
         if (item.Command is not { } command)
         {
@@ -158,7 +165,7 @@ public static class RundownEntryMenu
             return;
         }
 
-        if ((await prompt(item.Header) is { } text) && (Compose(item, text) is { } composed))
+        if ((await prompt(item.Header, item.InitialText) is { } text) && (Compose(item, text) is { } composed))
         {
             send(composed);
         }

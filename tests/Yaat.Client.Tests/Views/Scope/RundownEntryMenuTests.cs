@@ -69,6 +69,17 @@ public class RundownEntryMenuTests
         Assert.Null(RundownEntryMenu.Compose(modify, ""));
     }
 
+    /// <summary>Modify… opens with the entry's message; every other item, Hold… among them, opens empty.</summary>
+    [Fact]
+    public void Modify_OpensWithTheEntrysMessage_OtherItemsOpenEmpty()
+    {
+        (CoordinationListHubDto list, CoordinationItemHubDto item) = Middle("Unsent");
+
+        IReadOnlyList<RundownMenuItem> items = RundownEntryMenu.Items(list, item);
+
+        Assert.Equal(["", "", "", "", "RWY 30", "", "", ""], items.Select(i => i.InitialText));
+    }
+
     [Fact]
     public void NoReceiver_DisablesAcknowledge()
     {
@@ -127,7 +138,7 @@ public class RundownEntryMenuTests
         Task click = RundownEntryMenu.ClickAsync(
             recall,
             _ => throw new InvalidOperationException("the server is gone"),
-            _ => Task.FromResult<string?>(null)
+            (_, _) => Task.FromResult<string?>(null)
         );
         await click;
 

@@ -251,7 +251,7 @@ public partial class RundownsWindow : Window, IAlwaysOnTopToggle
             RundownEntryMenu.Build(
                 RundownEntryMenu.Items(list, item),
                 command => _ = SendRundownCommand(vm, item.Callsign, command),
-                placeholder => RundownTextPrompt.AskAsync(ListsPanel, at, placeholder)
+                (placeholder, initialText) => RundownTextPrompt.AskAsync(ListsPanel, at, placeholder, initialText)
             )
         );
     }
