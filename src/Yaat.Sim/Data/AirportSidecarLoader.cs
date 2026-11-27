@@ -804,7 +804,8 @@ public static class AirportSidecarLoader
     /// The <c>parkingAreas</c> section, in file order: each area upper-cased with its whitespace removed, each stand pattern
     /// trimmed and upper-cased. An entry with a blank area, no stands, a blank stand, a <c>*</c> anywhere but at a stand's end,
     /// or a <c>{n}</c> in a stand its area does not carry is warned and skipped. A <c>maxAdg</c> that is not I to VI is warned
-    /// about and the entry loads without it.
+    /// about and the entry loads without it. An <c>airlines</c> code that is not a three-letter ICAO operator is warned about
+    /// and skipped; the area still loads.
     /// </summary>
     private static List<ParkingAreaAlias> ParseParkingAreas(AirportSidecarFile file, string filePath, AirportSidecarLoadResult result)
     {
@@ -820,10 +821,43 @@ public static class AirportSidecarLoader
                 continue;
             }
 
-            areas.Add(new ParkingAreaAlias(area, stands, entry.Notes) { MaxAdg = ParseMaxAdg(entry, i, filePath, result) });
+            areas.Add(
+                new ParkingAreaAlias(area, stands, entry.Notes)
+                {
+                    MaxAdg = ParseMaxAdg(entry, i, filePath, result),
+                    Airlines = ParseAreaAirlines(entry, i, filePath, result),
+                }
+            );
         }
 
         return areas;
+    }
+
+    /// <summary>
+    /// A parking area entry's <c>airlines</c>: trimmed, upper-cased, de-duplicated three-letter ICAO operator codes in file
+    /// order. Anything else is warned and skipped; the area itself still loads.
+    /// </summary>
+    private static List<string> ParseAreaAirlines(ParkingAreaEntry entry, int index, string filePath, AirportSidecarLoadResult result)
+    {
+        var airlines = new List<string>();
+        List<string> codes = entry.Airlines ?? [];
+        for (int j = 0; j < codes.Count; j++)
+        {
+            string code = (codes[j] ?? "").Trim().ToUpperInvariant();
+            if ((code.Length != 3) || !code.All(char.IsAsciiLetterUpper))
+            {
+                string location = $"{filePath}: parkingAreas[{index}] ({entry.Area})";
+                result.Warnings.Add($"{location}: airlines[{j}] '{codes[j]}' is not a three-letter operator, skipping");
+                continue;
+            }
+
+            if (!airlines.Contains(code))
+            {
+                airlines.Add(code);
+            }
+        }
+
+        return airlines;
     }
 
     /// <summary>A parking area entry's <c>maxAdg</c> as a design group: null when absent, and null with a warning when not I to VI.</summary>

@@ -323,7 +323,7 @@ Each is asked through an interview before the part it gates is briefed.
 - **Writing into a repo checkout.** The sidecar checkout may hold the author's own work; the writer touches only the one airport's sidecar, keeps every other key, refuses a folder that is not a yaat checkout, and never runs git.
 - **Navdata not ready.** The client initializes `NavigationDatabase` at startup; an editor opened earlier reads `InstanceOrNull` and says navdata is loading, never throws.
 - **Magnetic headings.** Scenario headings are magnetic; the loader converts them with the magnetic model date. The editor stores what the author types and never writes a true heading.
-- **Shared caches.** The airport cache and the precompute cache are shared; the editor never writes the cache, and a sidecar change the parser reads (movement-area keys) needs the precompute check before it is submitted.
+- **Shared caches.** The airport cache and the precompute cache are shared; the editor never writes the cache, and any sidecar change (`AirportSidecarHash` hashes the whole file, so gate tags included) needs the precompute check before it is submitted.
 - **Canvas threading.** Editor state read from styled properties in `RenderFromSnapshot` races the render thread; each canvas copies its state into the snapshot.
 - **Large downloads.** The FAA registry download is large; it happens only when the author first opens the N-number finder, with progress and cancel.
 - **God view model.** YAATEdit's single scenario view model mixed every concern; the editor is split into small view models from M1.3 on.

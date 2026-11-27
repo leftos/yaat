@@ -464,9 +464,10 @@ Parking areas a flight-plan remark may name instead of a stand (`/V/ PARKING SIG
 | `parkingAreas[].area` | string | Yes | The area as remarks name it; case and spaces are ignored. `{n}` stands for a number the remark gives (`Plot {n}` matches `PLOT 9`) |
 | `parkingAreas[].stands` | string[] | Yes | Layout stand names the area covers: exact names, or a prefix ending in `*`. `{n}` carries the remark's number into the pattern |
 | `parkingAreas[].maxAdg` | string | No | The largest Airplane Design Group the area's stands take, `"I"` to `"VI"`. Replaces YAAT's estimate from the layout's stand spacing for those stands, above or below it |
+| `parkingAreas[].airlines` | string[] | No | Three-letter ICAO operator codes that park in the area, trimmed, upper-cased and de-duplicated, in file order. Read and kept only; nothing consults it yet |
 | `parkingAreas[].notes` | string | No | Informational only |
 
-An entry with a blank area, no stands, a blank stand, a `*` anywhere but at a stand's end, or a `{n}` in a stand whose area has none warns and is skipped. A `maxAdg` that is not I to VI warns and is ignored: the area loads without it. The first matching area wins; an area no entry matches gives no side. `TAXI … @GATE` and `TAXIAUTO @GATE` with an area-only remark use the same match to pick a free stand in the area that fits the aircraft type (the whole area when none fits); an area no entry matches, or one whose stands are all taken, refuses the command.
+An entry with a blank area, no stands, a blank stand, a `*` anywhere but at a stand's end, or a `{n}` in a stand whose area has none warns and is skipped. A `maxAdg` that is not I to VI warns and is ignored: the area loads without it. An `airlines` code that is not three letters warns (`airlines[<j>] '<code>' is not a three-letter operator, skipping`) and is skipped: the area still loads. The first matching area wins; an area no entry matches gives no side. `TAXI … @GATE` and `TAXIAUTO @GATE` with an area-only remark use the same match to pick a free stand in the area that fits the aircraft type (the whole area when none fits); an area no entry matches, or one whose stands are all taken, refuses the command.
 
 SFO sets 28R GA and cargo arrivals to exit right. West-field cargo plots (2, 6, 9, 11, 12) lie left of 28R, so scenario authors give those flights a parking remark.
 

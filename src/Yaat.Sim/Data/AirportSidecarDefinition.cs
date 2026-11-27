@@ -214,6 +214,13 @@ public sealed class ParkingAreaEntry
     [JsonPropertyName("maxAdg")]
     public string? MaxAdg { get; set; }
 
+    /// <summary>
+    /// The three-letter ICAO operator codes of the airlines the covered stands serve, e.g. <c>["UAL", "DAL"]</c>. Optional;
+    /// absent or empty leaves the area untagged, open to any airline.
+    /// </summary>
+    [JsonPropertyName("airlines")]
+    public List<string>? Airlines { get; set; }
+
     /// <summary>Facility rationale. Informational only.</summary>
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
@@ -233,6 +240,12 @@ public sealed record ParkingAreaAlias(string Area, IReadOnlyList<string> Stands,
     /// the layout's stand spacing (<see cref="StandFit"/>); null when the entry gives none or an invalid one.
     /// </summary>
     public AirplaneDesignGroup? MaxAdg { get; init; }
+
+    /// <summary>
+    /// The upper-cased three-letter ICAO operator codes of the airlines the area's stands serve, from the entry's
+    /// <c>airlines</c>, in file order; empty when the entry gives none.
+    /// </summary>
+    public IReadOnlyList<string> Airlines { get; init; } = [];
 }
 
 /// <summary>

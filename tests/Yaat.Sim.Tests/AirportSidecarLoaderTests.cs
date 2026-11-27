@@ -781,6 +781,65 @@ public class AirportSidecarLoaderTests
         Assert.Equal(["A1", "2"], [.. chain.Path.Select(p => p.Spot!)]);
     }
 
+    [Fact]
+    public void ParkingAreas_AirlinesRead()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar(
+            """{ "airportId": "KOAK", "parkingAreas": [ { "area": "Terminal 1", "stands": ["1*"], "airlines": [" ual ", "DAL", "ual"] } ] }"""
+        );
+
+        ParkingAreaAlias area = Assert.Single(Assert.Single(result.Airports).ParkingAreas);
+        Assert.Equal(["UAL", "DAL"], [.. area.Airlines]);
+    }
+
+    [Fact]
+    public void ParkingAreas_AirlinesAbsent_IsEmpty()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar(
+            """{ "airportId": "KOAK", "parkingAreas": [ { "area": "Terminal 1", "stands": ["1*"], "maxAdg": "III" } ] }"""
+        );
+
+        ParkingAreaAlias area = Assert.Single(Assert.Single(result.Airports).ParkingAreas);
+        Assert.Empty(area.Airlines);
+        Assert.Equal(AirplaneDesignGroup.III, area.MaxAdg);
+    }
+
+    [Fact]
+    public void ParkingAreas_AirlinesBadCode_WarnsAndSkipsEntryNotArea()
+    {
+        AirportSidecarLoadResult result = LoadOakSidecar(
+            """{ "airportId": "KOAK", "parkingAreas": [ { "area": "Terminal 1", "stands": ["1*"], "airlines": ["UAL", "AA"] } ] }"""
+        );
+
+        ParkingAreaAlias area = Assert.Single(Assert.Single(result.Airports).ParkingAreas);
+        Assert.Equal(["UAL"], [.. area.Airlines]);
+
+        string warning = Assert.Single(result.Warnings);
+        Assert.EndsWith(
+            ": parkingAreas[0] (Terminal 1): airlines[1] 'AA' is not a three-letter operator, skipping",
+            warning,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
+    public void ParkingAreas_AirlinesDoNotChangeAreaMatch()
+    {
+        TestVnasData.EnsureInitialized();
+        AirportGroundLayout? layout = new TestAirportGroundData().GetLayout("SFO");
+        Assert.NotNull(layout);
+
+        AirportSidecar tagged = Assert.Single(LoadSfoParkingSidecar(""", "airlines": ["UAL", "DAL"]""").Airports);
+        AirportSidecar untagged = Assert.Single(LoadSfoParkingSidecar("").Airports);
+
+        List<string>? taggedStands = AreaStandNames(tagged, layout);
+        List<string>? untaggedStands = AreaStandNames(untagged, layout);
+        Assert.NotNull(taggedStands);
+        Assert.NotNull(untaggedStands);
+        Assert.NotEmpty(taggedStands);
+        Assert.Equal(untaggedStands, taggedStands);
+    }
+
     /// <summary>Loads one KMIA sidecar file whose <c>spotEdges</c> section holds the given entries, through <c>LoadFiles</c>.</summary>
     private static (AirportSidecarLoadResult Result, string FilePath) LoadSpotEdges(string entries)
     {
@@ -831,4 +890,29 @@ public class AirportSidecarLoaderTests
             Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    /// <summary>
+    /// Loads one KSFO sidecar whose only parking area is Terminal 1 over stands <c>"11*"</c>, with the given airlines JSON
+    /// fragment appended to the entry (empty for an untagged area).
+    /// </summary>
+    private static AirportSidecarLoadResult LoadSfoParkingSidecar(string airlinesFragment)
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), "sidecar-" + Guid.NewGuid());
+        string categoryDir = Path.Combine(tempDir, "ZTEST", "Airports");
+        Directory.CreateDirectory(categoryDir);
+        try
+        {
+            string json = $$"""{ "airportId": "KSFO", "parkingAreas": [ { "area": "Terminal 1", "stands": ["11*"]{{airlinesFragment}} } ] }""";
+            File.WriteAllText(Path.Combine(categoryDir, "sfo.json"), json);
+            return AirportSidecarLoader.LoadAll(tempDir);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>The layout stand names the sidecar's Terminal 1 area covers, or null when no area matches.</summary>
+    private static List<string>? AreaStandNames(AirportSidecar sidecar, AirportGroundLayout layout) =>
+        ArrivalExitSide.AreaStands("TERMINAL 1", layout, sidecar.ParkingAreas) is { } match ? [.. match.Stands.Select(stand => stand.Name)] : null;
 }
