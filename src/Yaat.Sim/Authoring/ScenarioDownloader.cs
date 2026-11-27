@@ -33,7 +33,7 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
             return DownloadReport.ListFailed(artccId ?? "", "invalid ARTCC id");
         }
 
-        VnasFetchResult<IReadOnlyList<TrainingScenarioSummary>> list = await _client.GetScenarioSummariesAsync(artccId, ct);
+        VnasFetchResult<IReadOnlyList<TrainingScenarioSummary>> list = await _client.GetScenarioSummariesAsync(artccId, ct).ConfigureAwait(false);
         if (!list.Succeeded)
         {
             return DownloadReport.ListFailed(artccId, list.Failure);
@@ -44,15 +44,17 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
         var tally = new Tally();
         int completed = 0;
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxInFlight, CancellationToken = ct };
-        await Parallel.ForEachAsync(
-            summaries,
-            options,
-            async (summary, token) =>
-            {
-                await DownloadOneAsync(artccId, summary, tally, token);
-                progress?.Report(new DownloadProgress(Interlocked.Increment(ref completed), summaries.Length, summary.Id));
-            }
-        );
+        await Parallel
+            .ForEachAsync(
+                summaries,
+                options,
+                async (summary, token) =>
+                {
+                    await DownloadOneAsync(artccId, summary, tally, token).ConfigureAwait(false);
+                    progress?.Report(new DownloadProgress(Interlocked.Increment(ref completed), summaries.Length, summary.Id));
+                }
+            )
+            .ConfigureAwait(false);
 
         string[] listed = [.. summaries.Select(s => s.Id).Where(StoreFiles.IsValidId)];
         MarkGoneResult gone = _store.MarkGoneFromServer(artccId, listed);
@@ -69,7 +71,7 @@ public sealed class ScenarioDownloader(VnasTrainingClient client, LocalScenarioS
             return;
         }
 
-        VnasFetchResult<string> body = await _client.GetScenarioJsonAsync(id, ct);
+        VnasFetchResult<string> body = await _client.GetScenarioJsonAsync(id, ct).ConfigureAwait(false);
         if (!body.Succeeded)
         {
             tally.Fail(id, name, body.Failure);

@@ -266,31 +266,16 @@ public sealed class AirportMapSourceLoader(AirportLayoutDownloader downloader)
 
     private static AirportMapOpenOutcome Parse(string text, string path, OpenedAs openedAs)
     {
-        // A key repeated in a JSON object surfaces as an ArgumentException when the object is first read: the root, a
-        // feature and a geometry inside the reader, a feature's properties only when ReadEveryFeaturesProperties reads them.
+        // Read rejects a repeated key in a JSON object with a JsonException, so such a map is refused at open rather than
+        // when the editor first shows the feature.
         try
         {
             var document = AirportMapDocument.Read(text);
-            ReadEveryFeaturesProperties(document);
             return new AirportMapOpenOutcome.Opened(document, openedAs.Label, openedAs.Reason, openedAs.FaaCode);
         }
-        catch (Exception ex) when (ex is JsonException or ArgumentException)
+        catch (JsonException ex)
         {
-            string message = ex is JsonException ? ex.Message : "the map repeats a key: " + ex.Message;
-            return new AirportMapOpenOutcome.Unreadable(path, message);
-        }
-    }
-
-    // The reader keeps a feature's properties unparsed; reading Count builds each one's dictionary, which throws on a
-    // repeated key, so such a map is refused at open, not when the editor shows the feature.
-    private static void ReadEveryFeaturesProperties(AirportMapDocument document)
-    {
-        foreach (MapFeature feature in document.Features)
-        {
-            if (feature.CloneProperties() is { } properties)
-            {
-                _ = properties.Count;
-            }
+            return new AirportMapOpenOutcome.Unreadable(path, ex.Message);
         }
     }
 

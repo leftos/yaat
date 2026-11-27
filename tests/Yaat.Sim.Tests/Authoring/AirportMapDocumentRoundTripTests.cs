@@ -215,6 +215,39 @@ public class AirportMapDocumentRoundTripTests
     }
 
     [Fact]
+    public void Read_AFeatureRepeatingAPropertyKey_ThrowsJsonException()
+    {
+        const string RepeatsUnderProperties = """
+            {"type": "FeatureCollection", "features": [
+              {"type": "Feature", "properties": {"type": "parking", "name": "A1", "name": "A2"},
+               "geometry": {"type": "Point", "coordinates": [-122.2, 37.7]}}
+            ]}
+            """;
+        const string RepeatsOnTheFeature = """
+            {"type": "FeatureCollection", "features": [
+              {"type": "Feature", "type": "Feature", "properties": {"type": "parking", "name": "A1"},
+               "geometry": {"type": "Point", "coordinates": [-122.2, 37.7]}}
+            ]}
+            """;
+
+        const string RepeatsInTheSecondFeature = """
+            {"type": "FeatureCollection", "features": [
+              {"type": "Feature", "properties": {"type": "parking", "name": "A1"},
+               "geometry": {"type": "Point", "coordinates": [-122.2, 37.7]}},
+              {"type": "Feature", "properties": {"type": "parking", "name": "B1", "name": "B2"},
+               "geometry": {"type": "Point", "coordinates": [-122.2, 37.7]}}
+            ]}
+            """;
+
+        JsonException underProperties = Assert.Throws<JsonException>(() => AirportMapDocument.Read(RepeatsUnderProperties));
+        Assert.Contains("'name'", underProperties.Message, StringComparison.Ordinal);
+        JsonException onTheFeature = Assert.Throws<JsonException>(() => AirportMapDocument.Read(RepeatsOnTheFeature));
+        Assert.Contains("'type'", onTheFeature.Message, StringComparison.Ordinal);
+        JsonException inTheSecondFeature = Assert.Throws<JsonException>(() => AirportMapDocument.Read(RepeatsInTheSecondFeature));
+        Assert.Contains("'name'", inTheSecondFeature.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MapFeature_InvalidGeometry_ThrowsArgumentException()
     {
         var properties = new JsonObject { ["type"] = "parking" };

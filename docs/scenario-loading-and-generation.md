@@ -960,7 +960,7 @@ Authoring/Routes/RouteHistoryResponse.cs # The wire reply of the server's route-
 Authoring/Routes/RouteHistorySource.cs # The "history" source: GET {server}api/route-history with dep, dst and optional fix, airline, type, Bearer token; not connected, an HTTP error, a 30 s timeout or an unreadable reply gives a failure message, never a throw
 Authoring/AirportMap/AirportMapDocument.cs   # Immutable airport map for the editor: raw GeoJSON features in source order plus top-level members YAAT does not model; Read(string) and Write() delegate to the reader and writer
 Authoring/AirportMap/MapFeature.cs           # One raw feature: geometry type, coordinates, properties kept as the source wrote them, and unmodelled members (ForeignMember) carried verbatim; FeatureType key matched case-insensitively
-Authoring/AirportMap/GeoJsonMapReader.cs     # Lenient reader like GeoJsonParser (comments, trailing commas, leading-zero numbers); string contents and comments are left untouched
+Authoring/AirportMap/GeoJsonMapReader.cs     # Lenient reader like GeoJsonParser (comments, trailing commas, leading-zero numbers); string contents and comments are left untouched; a repeated property name in any object throws JsonException
 Authoring/AirportMap/GeoJsonMapWriter.cs     # Indented GeoJSON with LF line endings; WriteFile goes through AtomicTextFile and refuses the vNAS airport cache path (through VnasCacheFolder)
 Authoring/AirportMap/AtomicTextFile.cs       # Whole-file write through a temp file and a replacing move, retried while another process holds the target
 Authoring/AirportMap/UndoStack.cs            # Pure undo/redo over immutable state snapshots with descriptions, bounded depth (200 by default)

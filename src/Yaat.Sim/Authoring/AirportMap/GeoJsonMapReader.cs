@@ -14,14 +14,20 @@ public static partial class GeoJsonMapReader
 {
     private static readonly ILogger Log = SimLog.CreateLogger("GeoJsonMapReader");
 
-    private static readonly JsonDocumentOptions LenientOptions = new() { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
+    private static readonly JsonDocumentOptions LenientOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowDuplicateProperties = false,
+    };
 
     /// <summary>
     /// Reads a GeoJSON FeatureCollection, keeping every feature in source order and every member it does not type verbatim.
     /// </summary>
     /// <param name="json">The FeatureCollection text.</param>
     /// <returns>The document.</returns>
-    /// <exception cref="JsonException">The text is malformed, is not a FeatureCollection, or a feature is not a Feature object.</exception>
+    /// <exception cref="JsonException">
+    /// The text is malformed, repeats a property name, is not a FeatureCollection, or a feature is not a Feature object.</exception>
     public static AirportMapDocument Read(string json)
     {
         ArgumentNullException.ThrowIfNull(json);

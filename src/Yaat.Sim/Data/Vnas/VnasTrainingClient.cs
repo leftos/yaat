@@ -41,7 +41,7 @@ public sealed class VnasTrainingClient(HttpClient? http) : IDisposable
     {
         ArgumentNullException.ThrowIfNull(artccId);
         string url = $"{BaseUrl}/scenario-summaries/by-artcc/{Uri.EscapeDataString(artccId)}";
-        VnasFetchResult<string> body = await GetTextAsync(url, ct);
+        VnasFetchResult<string> body = await GetTextAsync(url, ct).ConfigureAwait(false);
         if (!body.Succeeded)
         {
             return Fail<IReadOnlyList<TrainingScenarioSummary>>(body.Failure);
@@ -91,13 +91,13 @@ public sealed class VnasTrainingClient(HttpClient? http) : IDisposable
         timeout.CancelAfter(RequestTimeout);
         try
         {
-            using HttpResponseMessage response = await _http.GetAsync(url, timeout.Token);
+            using HttpResponseMessage response = await _http.GetAsync(url, timeout.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 return Failed(url, "data-api answered HTTP " + (int)response.StatusCode + " (" + response.ReasonPhrase + ")", null);
             }
 
-            return new VnasFetchResult<string>(await response.Content.ReadAsStringAsync(timeout.Token), null);
+            return new VnasFetchResult<string>(await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false), null);
         }
         catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
         {

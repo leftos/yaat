@@ -169,12 +169,10 @@ public sealed class AirportMapSourceLoaderTests : IDisposable
 
         AirportMapOpenOutcome outcome = await AirportMapSourceLoader.OpenFileAsync(path, Ct);
 
-        // The repeated key surfaces when the feature's properties are first read; the expected text is built from that.
-        ArgumentException repeated = Assert.ThrowsAny<ArgumentException>(() =>
-            Assert.Single(AirportMapDocument.Read(Map).Features).CloneProperties()?.ToList()
-        );
+        // Read rejects the repeated key before any feature is built; the expected text is built from that exception.
+        JsonException repeated = Assert.Throws<JsonException>(() => AirportMapDocument.Read(Map));
         AirportMapOpenOutcome.Unreadable failed = Assert.IsType<AirportMapOpenOutcome.Unreadable>(outcome);
-        Assert.Equal($"Couldn't read {path}: the map repeats a key: {repeated.Message}", failed.Message);
+        Assert.Equal($"Couldn't read {path}: {repeated.Message}", failed.Message);
     }
 
     [Fact]
@@ -191,10 +189,10 @@ public sealed class AirportMapSourceLoaderTests : IDisposable
 
         AirportMapOpenOutcome outcome = await AirportMapSourceLoader.OpenFileAsync(path, Ct);
 
-        // The reader reads the feature object itself, so the repeated key surfaces inside the read.
-        ArgumentException repeated = Assert.ThrowsAny<ArgumentException>(() => AirportMapDocument.Read(Map));
+        // The repeated key is rejected while the feature object is parsed.
+        JsonException repeated = Assert.Throws<JsonException>(() => AirportMapDocument.Read(Map));
         AirportMapOpenOutcome.Unreadable failed = Assert.IsType<AirportMapOpenOutcome.Unreadable>(outcome);
-        Assert.Equal($"Couldn't read {path}: the map repeats a key: {repeated.Message}", failed.Message);
+        Assert.Equal($"Couldn't read {path}: {repeated.Message}", failed.Message);
     }
 
     [Fact]
@@ -210,9 +208,9 @@ public sealed class AirportMapSourceLoaderTests : IDisposable
 
         AirportMapOpenOutcome outcome = await AirportMapSourceLoader.OpenFileAsync(path, Ct);
 
-        ArgumentException repeated = Assert.ThrowsAny<ArgumentException>(() => AirportMapDocument.Read(Map));
+        JsonException repeated = Assert.Throws<JsonException>(() => AirportMapDocument.Read(Map));
         AirportMapOpenOutcome.Unreadable failed = Assert.IsType<AirportMapOpenOutcome.Unreadable>(outcome);
-        Assert.Equal($"Couldn't read {path}: the map repeats a key: {repeated.Message}", failed.Message);
+        Assert.Equal($"Couldn't read {path}: {repeated.Message}", failed.Message);
     }
 
     [Theory]

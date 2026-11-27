@@ -42,7 +42,8 @@ public sealed class AirportMapDocument
     /// </summary>
     /// <param name="json">The GeoJSON FeatureCollection text.</param>
     /// <returns>The document over every feature of the map.</returns>
-    /// <exception cref="System.Text.Json.JsonException">The text is malformed or is not a FeatureCollection of Features.</exception>
+    /// <exception cref="System.Text.Json.JsonException">
+    /// The text is malformed, repeats a property name, or is not a FeatureCollection of Features.</exception>
     public static AirportMapDocument Read(string json) => GeoJsonMapReader.Read(json);
 
     /// <summary>
