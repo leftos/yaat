@@ -15,7 +15,7 @@ public class ScenarioMergeViewModelTests
     private const string PresetId = "01HPRESET00000000000000001";
 
     private static readonly string SamplePath = Path.Combine(
-        FindRepoRoot(),
+        TestRepo.Root("the scenario examples are read from the checkout."),
         "docs",
         "atctrainer-scenario-examples",
         "01H06NVK7VN8BS7MCDXHKJZ7MQ.json"
@@ -427,17 +427,4 @@ public class ScenarioMergeViewModelTests
     private static JsonObject Sample() => JsonNode.Parse(File.ReadAllText(SamplePath))!.AsObject();
 
     private static string Text(JsonObject scenario) => scenario.ToJsonString();
-
-    private static string FindRepoRoot()
-    {
-        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"No yaat.slnx above {AppContext.BaseDirectory}: the scenario examples are read from the checkout.");
-    }
 }

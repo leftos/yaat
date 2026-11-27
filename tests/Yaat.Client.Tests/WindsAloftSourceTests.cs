@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.Services;
+using Yaat.Client.Tests.Authoring;
 using Yaat.Client.ViewModels;
 using Yaat.Sim;
 
@@ -285,7 +286,10 @@ public class WindsAloftSourceTests
     private const string ZoaWeatherFile = "01HTY06CDMYXR5BS55E22SGAF2.json";
 
     /// <summary>The real ZOA weather example (a profile: <c>name</c>, <c>windLayers</c>, <c>metars</c>) from the checkout.</summary>
-    private static string ZoaWeatherJson() => File.ReadAllText(Path.Combine(FindRepoRoot(), "docs", "atctrainer-weather-examples", ZoaWeatherFile));
+    private static string ZoaWeatherJson() =>
+        File.ReadAllText(
+            Path.Combine(TestRepo.Root("the ZOA weather example is read from the checkout."), "docs", "atctrainer-weather-examples", ZoaWeatherFile)
+        );
 
     /// <summary>The same JSON with every layer above the 0 ft surface layer removed: METAR surface winds only.</summary>
     private static string WithoutFdLayers(string json)
@@ -306,20 +310,6 @@ public class WindsAloftSourceTests
     private static double AltitudeOf(JsonNode layer) =>
         layer["altitude"]?.GetValue<double>()
         ?? throw new InvalidOperationException("A ZOA weather example layer has no altitude to compare with the surface layer.");
-
-    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
-    private static string FindRepoRoot()
-    {
-        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"No yaat.slnx above {AppContext.BaseDirectory}: the ZOA weather example is read from the checkout.");
-    }
 
     private const string Metar = "METAR KOAK 161453Z 28012KT 10SM FEW010 18/11 A3000";
 

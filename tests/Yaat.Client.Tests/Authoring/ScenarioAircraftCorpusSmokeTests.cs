@@ -12,7 +12,11 @@ namespace Yaat.Client.Tests.Authoring;
 /// </summary>
 public sealed class ScenarioAircraftCorpusSmokeTests : IDisposable
 {
-    private static readonly string ExamplesDir = Path.Combine(FindRepoRoot(), "docs", "atctrainer-scenario-examples");
+    private static readonly string ExamplesDir = Path.Combine(
+        TestRepo.Root("the scenario examples are read from the checkout."),
+        "docs",
+        "atctrainer-scenario-examples"
+    );
 
     // Every field of the detail panel and the flight plan that shows an error under it.
     private static readonly (string Name, Func<ScenarioAircraftViewModel, string?> Error)[] ErrorFields =
@@ -103,19 +107,5 @@ public sealed class ScenarioAircraftCorpusSmokeTests : IDisposable
         }
 
         return null;
-    }
-
-    /// <summary>The checkout this test assembly was built in: the nearest folder above the output that holds yaat.slnx.</summary>
-    private static string FindRepoRoot()
-    {
-        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new InvalidOperationException($"No yaat.slnx above {AppContext.BaseDirectory}: the scenario examples are read from the checkout.");
     }
 }

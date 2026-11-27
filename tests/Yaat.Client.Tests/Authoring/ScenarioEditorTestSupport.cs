@@ -235,6 +235,27 @@ internal sealed class ScenarioEditorFixture : IDisposable
     }
 }
 
+/// <summary>The checkout the test assembly was built in, for the examples and fixtures read from it.</summary>
+internal static class TestRepo
+{
+    /// <summary>The nearest folder above the test output that holds yaat.slnx.</summary>
+    /// <param name="reads">What the caller reads from the checkout, ending the message when there is none.</param>
+    /// <returns>The checkout's root folder.</returns>
+    /// <exception cref="InvalidOperationException">No folder above the output holds yaat.slnx.</exception>
+    public static string Root(string reads)
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "yaat.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException($"No yaat.slnx above {AppContext.BaseDirectory}: {reads}");
+    }
+}
+
 /// <summary>Answers each data-api request with the body it is given for it, or fails it as a network down when there is none.</summary>
 /// <param name="body">The body to answer a request with; null fails the request.</param>
 internal sealed class StubArtccHandler(Func<HttpRequestMessage, string?> body) : HttpMessageHandler
