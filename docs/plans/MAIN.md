@@ -1474,7 +1474,6 @@
 - [ ] YAAT-2189 List a temporary dep freq once when it equals a facility frequency written differently
 - [ ] YAAT-2199 Scroll the vTDLS keyboard-highlighted row into view
 - [ ] YAAT-2762 Verify the student leader-direction sync on the YAAT Scope's STARS and ERAM templates
-- [/] YAAT-2915 Remove the Radar template setting; the profile alone picks the datablock look · release vNext
 
 ## Client-driver MCP and automation pipe
 
@@ -1653,7 +1652,7 @@
 - [ ] YAAT-1962 Add a geometric-consistency row to the overlay's case-table check
 - [ ] YAAT-1648 Brief rules: readback combinations, adversarial matcher probe, producer consumers' at-risk tests
 
-### 3 Hygiene and tests (59/119 done)
+### 3 Hygiene and tests (59/120 done)
 - [ ] YAAT-1878 Add the missing command-cheatsheet rows for verbs in COMMANDS.md's Quick Reference (ASDX*, STRIPD/STRIPO, RFISF/RTISF, CLBRV, STBY)
 - [ ] YAAT-116 Adopt AnalysisLevel latest-recommended rule by rule; analyzers verify in CI
   - [ ] YAAT-2344 Convert logging to LoggerMessage source-generated methods (CA1848) and raise it to warning
@@ -1714,6 +1713,7 @@
 - [ ] YAAT-2810 Add a bug_bundle.py view of a callsign's command queue over time
 - [ ] YAAT-2892 Share one send-and-check helper across GuideCapture scenes
 - [ ] YAAT-2919 Share one base for the GuideCapture Radar profile scenes
+- [ ] YAAT-2932 Table-drive UserPreferences.MigratePreferences under the complexity limit
 
 ### No milestone
 - [ ] YAAT-1735 Route Windows-only proofs and local-binary builds instead of using --local
@@ -1802,10 +1802,6 @@
 - [ ] YAAT-2850 Notepad: a stamp over a rectangular selection deletes the text between its columns
 - [ ] YAAT-2851 Re-capture the Notes window screenshot after the editor change
 - [ ] YAAT-2882 Clear the hold-for-release rundown when a scenario is cleared
-
-## No project
-
-- [ ] YAAT-2928 Decide whether CRC /
 
 ## Design files
 
