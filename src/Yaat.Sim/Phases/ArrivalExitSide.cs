@@ -249,6 +249,86 @@ public static class ArrivalExitSide
         return null;
     }
 
+    /// <summary>
+    /// Every <paramref name="areas"/> entry with the layout's parking spots its stand patterns cover, in entry order and layout
+    /// order, read without a remark: <c>{n}</c> in a pattern stands for any run of digits, and each stand carries its concrete
+    /// area, the area with the digits it matched in place of <c>{n}</c> (<c>PLOT2</c> for <c>2-1</c> under <c>Plot {n}</c>).
+    /// An entry that covers no stand has empty stands; a stand two entries cover is listed under both.
+    /// </summary>
+    /// <param name="layout">The airport's ground layout.</param>
+    /// <param name="areas">The airport's sidecar <c>parkingAreas</c>.</param>
+    /// <returns>Each entry and its stands, each with its name.</returns>
+    public static IReadOnlyList<(ParkingAreaAlias Alias, List<(GroundNode Node, string Name, string Area)> Stands)> AllAreaStands(
+        AirportGroundLayout layout,
+        IReadOnlyList<ParkingAreaAlias> areas
+    )
+    {
+        var result = new List<(ParkingAreaAlias Alias, List<(GroundNode Node, string Name, string Area)> Stands)>();
+        foreach (ParkingAreaAlias alias in areas)
+        {
+            var stands = new List<(GroundNode Node, string Name, string Area)>();
+            foreach (GroundNode node in layout.Nodes.Values)
+            {
+                if ((node is { Type: GroundNodeType.Parking, Name: { } name }) && (CoveringNumber(alias, name) is { } number))
+                {
+                    stands.Add((node, name, alias.Area.Replace(ParkingAreaAlias.NumberToken, number, StringComparison.Ordinal)));
+                }
+            }
+
+            result.Add((alias, stands));
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The digits the first of <paramref name="alias"/>'s stand patterns covering the name matched (empty for a pattern
+    /// without the token), or null when none covers it.
+    /// </summary>
+    private static string? CoveringNumber(ParkingAreaAlias alias, string name)
+    {
+        foreach (string pattern in alias.Stands)
+        {
+            if (MatchStandAnyNumber(pattern, name) is { } number)
+            {
+                return number;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A stand pattern against a layout stand name as <see cref="MatchStand"/> matches it, with the pattern's first
+    /// <see cref="ParkingAreaAlias.NumberToken"/> standing for a run of one or more digits: the digits matched, empty for a
+    /// pattern without the token, or null for no match.
+    /// </summary>
+    private static string? MatchStandAnyNumber(string pattern, string name)
+    {
+        int token = pattern.IndexOf(ParkingAreaAlias.NumberToken, StringComparison.Ordinal);
+        if (token < 0)
+        {
+            return MatchStand(pattern, name) ? "" : null;
+        }
+
+        string prefix = pattern[..token];
+        string rest = pattern[(token + ParkingAreaAlias.NumberToken.Length)..];
+        if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        for (int i = prefix.Length; (i < name.Length) && char.IsAsciiDigit(name[i]); i++)
+        {
+            if (MatchStand(rest, name[(i + 1)..]))
+            {
+                return name[prefix.Length..(i + 1)];
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>The layout's named parking spots a stand pattern covers, each with its name, in layout order.</summary>
     private static List<(GroundNode Node, string Name)> CoveredStands(AirportGroundLayout layout, List<string> patterns)
     {
