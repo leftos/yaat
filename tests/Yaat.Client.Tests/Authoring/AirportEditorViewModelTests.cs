@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using Xunit;
 using Yaat.Client.Services;
@@ -15,6 +16,139 @@ public sealed class AirportEditorViewModelTests : IDisposable
     private readonly AirportEditorTestFolder _folder = new();
 
     public void Dispose() => _folder.Dispose();
+
+    private const string EmptyMap = """{"type":"FeatureCollection","features":[]}""";
+
+    private static readonly ImmutableArray<MapPosition> Line = [new(-122.2, 37.7), new(-122.21, 37.71)];
+
+    private static readonly ImmutableArray<MapPosition> Point = [new(-122.2, 37.7)];
+
+    [Fact]
+    public async Task TheAutoName_OnAnEmptyMap_IsEachTypesPrefixAndOne()
+    {
+        string path = _folder.WriteFile("empty.geojson", EmptyMap);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(path);
+
+        vm.AddFeature("taxiway", Line);
+        vm.AddFeature("runway", Line);
+        vm.AddFeature("parking", Point);
+        vm.AddFeature("spot", Point);
+        vm.AddFeature("helipad", Point);
+
+        Assert.Equal(["TWY1", "RWY1", "PARK1", "SPOT1", "HELI1"], vm.Document!.Features.Select(FeatureName));
+    }
+
+    [Fact]
+    public async Task TheAutoName_TakesTheLowestUnusedNumber_IgnoringCase_AndANonNumericSuffixDoesNotCount()
+    {
+        string numbered = _folder.WriteFile("numbered.geojson", MapOfTaxiways("TWY1", "twy3"));
+        string lettered = _folder.WriteFile("lettered.geojson", MapOfTaxiways("TWYA"));
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(numbered);
+
+        vm.AddFeature("taxiway", Line);
+
+        Assert.Equal("TWY2", FeatureName(vm.Document!.Features[^1]));
+
+        await vm.OpenFilePathAsync(lettered);
+
+        vm.AddFeature("taxiway", Line);
+
+        Assert.Equal("TWY1", FeatureName(vm.Document!.Features[^1]));
+    }
+
+    [Fact]
+    public async Task TheAutoName_SkipsNoNumberForTwy0_AndCountsTwy01AsOne()
+    {
+        string zero = _folder.WriteFile("zero.geojson", MapOfTaxiways("TWY0"));
+        string padded = _folder.WriteFile("padded.geojson", MapOfTaxiways("TWY01"));
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(zero);
+
+        vm.AddFeature("taxiway", Line);
+
+        Assert.Equal("TWY1", FeatureName(vm.Document!.Features[^1]));
+
+        await vm.OpenFilePathAsync(padded);
+
+        vm.AddFeature("taxiway", Line);
+
+        Assert.Equal("TWY2", FeatureName(vm.Document!.Features[^1]));
+    }
+
+    [Fact]
+    public async Task CommittingATaxiway_AddsItLastSelected_AndOneUndoRemovesIt_InTheSameMode()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        await vm.OpenFilePathAsync(oak);
+        vm.PickMode(AirportEditorMode.DrawTaxiway);
+        AirportMapDocument opened = vm.Document!;
+        int count = opened.Features.Count;
+
+        vm.AddFeature("taxiway", Line);
+
+        Assert.Equal(count + 1, vm.Document!.Features.Count);
+        MapFeature added = vm.Document.Features[count];
+        Assert.Equal("taxiway", added.FeatureType);
+        Assert.Equal("LineString", added.GeometryType);
+        Assert.Equal<MapPosition>(Line, added.Coordinates);
+        Assert.Equal("TWY1", FeatureName(added));
+        Assert.Equal(count, vm.SelectedFeatureIndex);
+        Assert.Null(vm.SelectedVertexIndex);
+        Assert.Equal("Undo Draw taxiway", vm.UndoDescription);
+        Assert.Equal(AirportEditorMode.DrawTaxiway, vm.Mode);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+        Assert.Null(vm.SelectedFeatureIndex);
+        Assert.Equal(AirportEditorMode.DrawTaxiway, vm.Mode);
+    }
+
+    [Fact]
+    public async Task EscWithNoDrawing_ReturnsToSelect_AndPickingAModeOrOpeningAMap_CancelsTheDrawing()
+    {
+        string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
+        using var vm = new AirportEditorViewModel(_folder.Loader(), new FakeAirportEditorPrompts(), NoAirportImagery.Instance, null);
+        int cancels = 0;
+        vm.DrawingCancelRequested += (_, _) => cancels++;
+        Assert.Equal(AirportEditorMode.Select, vm.Mode);
+        Assert.False(vm.ReturnToSelect());
+
+        vm.PickMode(AirportEditorMode.DrawRunway);
+
+        Assert.Equal(1, cancels);
+        Assert.Equal(AirportEditorMode.DrawRunway, vm.Mode);
+
+        vm.PickMode(AirportEditorMode.DrawRunway);
+
+        Assert.Equal(2, cancels);
+        Assert.True(vm.ReturnToSelect());
+        Assert.Equal(AirportEditorMode.Select, vm.Mode);
+
+        vm.PickMode(AirportEditorMode.PlaceSpot);
+        await vm.OpenFilePathAsync(oak);
+
+        Assert.Equal(4, cancels);
+        Assert.Equal(AirportEditorMode.Select, vm.Mode);
+    }
+
+    private static string? FeatureName(MapFeature feature) => feature.CloneProperties()?["name"]?.GetValue<string>();
+
+    private static string MapOfTaxiways(params string[] names) =>
+        "{\"type\":\"FeatureCollection\",\"features\":["
+        + string.Join(
+            ",",
+            names.Select(name =>
+                "{\"type\":\"Feature\",\"properties\":{\"type\":\"taxiway\",\"name\":\""
+                + name
+                + "\"},"
+                + "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-122.2,37.7],[-122.21,37.71]]}}"
+            )
+        )
+        + "]}";
 
     [Fact]
     public async Task AFailedOpen_KeepsThePreviousDocument_AndShowsItsMessage()

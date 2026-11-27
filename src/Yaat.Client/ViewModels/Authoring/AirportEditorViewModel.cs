@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -141,6 +142,19 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
     /// </summary>
     [ObservableProperty]
     private int? _selectedVertexIndex;
+
+    /// <summary>
+    /// What a left click on the map does; the HUD shows its <see cref="AirportEditorModes.Text"/>. An open returns it to
+    /// Select, and an edit keeps it.
+    /// </summary>
+    [ObservableProperty]
+    private AirportEditorMode _mode;
+
+    /// <summary>
+    /// Raised on the UI thread when a mode is picked (the same one included) or a map is opened: the canvas drops the
+    /// drawing in progress, which only it holds.
+    /// </summary>
+    public event EventHandler? DrawingCancelRequested;
 
     /// <summary>
     /// Raised on the UI thread after each successful open, once <see cref="Document"/> holds the new map, so the view fits
@@ -319,6 +333,55 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
         }
     }
 
+    /// <summary>Picks the mode a toolbar button or its key names, dropping a drawing in progress.</summary>
+    /// <param name="mode">The mode.</param>
+    public void PickMode(AirportEditorMode mode)
+    {
+        Mode = mode;
+        DrawingCancelRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Returns a draw or place mode to Select, as Esc does once no drawing is in progress.</summary>
+    /// <returns>True when the mode was a draw or place mode; false in Select, where Esc clears the selection instead.</returns>
+    public bool ReturnToSelect()
+    {
+        if (Mode == AirportEditorMode.Select)
+        {
+            return false;
+        }
+
+        Mode = AirportEditorMode.Select;
+        return true;
+    }
+
+    /// <summary>
+    /// Adds a new feature at the end of the open map as one step (<c>Draw taxiway</c>, <c>Draw runway</c>, <c>Place parking</c>,
+    /// <c>Place spot</c> or <c>Place helipad</c>), named with its type's prefix and the lowest positive number no feature's
+    /// name carries after that prefix (<c>TWY1</c>), and selects it with no vertex. Does nothing when no map is open.
+    /// </summary>
+    /// <param name="featureType">The feature's type: taxiway, runway, parking, spot or helipad.</param>
+    /// <param name="positions">Its positions: at least two for a taxiway or a runway, one for a point.</param>
+    /// <exception cref="InvalidOperationException">The editor does not create features of that type.</exception>
+    /// <exception cref="ArgumentException">The positions do not fit the type's geometry.</exception>
+    public void AddFeature(string featureType, ImmutableArray<MapPosition> positions)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(featureType);
+        (string prefix, string description) = AirportEditorModes.NewFeatureStyle(featureType);
+        if (Document is not { } before)
+        {
+            return;
+        }
+
+        string name = NextFeatureName(before, prefix);
+        int index = before.Features.Count;
+        ApplyEdit(description, d => MapEdits.AddFeature(d, MapEdits.NewFeature(d, featureType, name, positions), null));
+        if (!ReferenceEquals(before, Document))
+        {
+            SelectedFeatureIndex = index;
+            SelectedVertexIndex = null;
+        }
+    }
+
     /// <summary>Cancels an open in flight; a later open does nothing.</summary>
     public void Dispose()
     {
@@ -467,6 +530,36 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
         }
     }
 
+    // A name counts when the prefix, matched ignoring case, is followed by digits only: TWYA counts for nothing.
+    private static string NextFeatureName(AirportMapDocument document, string prefix)
+    {
+        HashSet<int> used = [];
+        foreach (MapFeature feature in document.Features)
+        {
+            if (NumberAfter(AirportEditorScene.NameOf(feature), prefix) is int number)
+            {
+                used.Add(number);
+            }
+        }
+
+        int next = 1;
+        while (used.Contains(next))
+        {
+            next++;
+        }
+
+        return string.Create(CultureInfo.InvariantCulture, $"{prefix}{next}");
+    }
+
+    private static int? NumberAfter(string? name, string prefix) =>
+        (name is not null)
+        && (name.Length > prefix.Length)
+        && (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        && (int.TryParse(name.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int number))
+        && (number > 0)
+            ? number
+            : null;
+
     private MapFeature? FeatureAt(int featureIndex) =>
         ((Document is { } document) && (featureIndex >= 0) && (featureIndex < document.Features.Count)) ? document.Features[featureIndex] : null;
 
@@ -597,6 +690,8 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IAirportE
             SelectedVertexIndex = null;
             SelectedFeatureIndex = null;
             _undo.Clear();
+            Mode = AirportEditorMode.Select;
+            DrawingCancelRequested?.Invoke(this, EventArgs.Empty);
             _openedDocument = opened.Document;
             Document = opened.Document;
             RefreshEditState();

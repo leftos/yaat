@@ -28,7 +28,7 @@ namespace Yaat.Client.UI.Tests.Views;
 /// title, fits the view to the map, and draws its taxiways on the canvas; a fit asked before the canvas has a size is
 /// made once it has one.
 /// </summary>
-public class AirportEditorWindowTests
+public partial class AirportEditorWindowTests
 {
     private static readonly string OakPath = Path.Combine(AppContext.BaseDirectory, "TestData", "oak.geojson");
 
@@ -295,7 +295,10 @@ public class AirportEditorWindowTests
             Press(window, canvas, EmptyCorner, MouseButton.Right);
 
             Assert.Null(window.ViewModel.SelectedFeatureIndex);
-            Assert.Equal(["Copy coordinates", "-", "Fit to airport"], Labels(canvas.ActiveContextMenu!));
+            Assert.Equal(
+                ["Copy coordinates", "-", "Fit to airport", "-", "Add Parking Here", "Add Spot Here", "Add Helipad Here"],
+                Labels(canvas.ActiveContextMenu!)
+            );
             canvas.ActiveContextMenu!.Close();
             MainWindowHost.Pump();
         }

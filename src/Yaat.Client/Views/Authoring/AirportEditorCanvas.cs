@@ -9,6 +9,7 @@ using SkiaSharp;
 using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.Services.Imagery;
+using Yaat.Client.ViewModels.Authoring;
 using Yaat.Client.Views.Map;
 using Yaat.Sim.Authoring.AirportMap;
 using Yaat.Sim.Authoring.Imagery;
@@ -21,12 +22,13 @@ namespace Yaat.Client.Views.Authoring;
 /// Select mode a left press selects the feature under it (or a vertex of the selected line), Esc clears the selection,
 /// the feature under the pointer is highlighted, and a right click selects as a left press does and opens its menu. A
 /// left press on a vertex of the selected line, or on a point, that moves past the platform's tap size drags it, snapped,
-/// with a live preview; the release hands one move to <see cref="EditTarget"/>, as the menu's edit items do. The canvas
-/// never changes the map itself.
+/// with a live preview; the release hands one move to <see cref="EditTarget"/>, as the menu's edit items do. In a draw
+/// or place mode (<see cref="Mode"/>) a left press adds a snapped vertex to the drawing in progress or places a point
+/// instead, and never selects or drags. The canvas never changes the map itself.
 /// </summary>
-public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
+public sealed partial class AirportEditorCanvas : MapCanvasBase, IDisposable
 {
-    /// <summary>The mode the HUD shows.</summary>
+    /// <summary>The Select mode's HUD text.</summary>
     public const string ModeText = "Select";
 
     // A right press and release farther apart than this is a drag, which opens no menu.
@@ -330,8 +332,16 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
             CloseContextMenu();
             Focus();
             Point at = e.GetPosition(this);
-            SelectAt(at);
-            StartDrag(e, at);
+            if (_mode == AirportEditorMode.Select)
+            {
+                SelectAt(at);
+                StartDrag(e, at);
+            }
+            else
+            {
+                DrawAt(at, e.ClickCount);
+            }
+
             e.Handled = true;
         }
         else if (button == MouseButton.Right)
@@ -370,13 +380,15 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        Point at = e.GetPosition(this);
+        _pointerAt = at;
         if (e.Handled)
         {
+            // A pan step moved the map under the pointer.
+            UpdateDrawCursor(at);
             return;
         }
 
-        Point at = e.GetPosition(this);
-        _pointerAt = at;
         if (_drag is { } drag)
         {
             UpdateDrag(drag, at);
@@ -384,6 +396,7 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
             return;
         }
 
+        UpdateDrawCursor(at);
         SetHover(AirportEditorHitTest.Find(_scene, Viewport, (float)at.X, (float)at.Y, _selection?.FeatureIndex));
     }
 
@@ -404,29 +417,8 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     {
         base.OnPointerExited(e);
         _pointerAt = null;
+        ClearDrawCursor();
         SetHover(null);
-    }
-
-    /// <inheritdoc />
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        base.OnKeyDown(e);
-        if ((e.Handled) || (e.Key != Key.Escape))
-        {
-            return;
-        }
-
-        // Esc drops a drag in progress and keeps the selection; with no drag it clears the selection.
-        if (_drag is not null)
-        {
-            CancelDrag();
-        }
-        else
-        {
-            SetSelectionFromUser(null);
-        }
-
-        e.Handled = true;
     }
 
     /// <summary>Builds the frame the next render would draw, asking the tile cache as a render does. Test seam.</summary>
@@ -443,9 +435,16 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
 
         (ImmutableArray<ImageryTile> tiles, string? status) = BuildImagery();
         VertexDrag? drag = _drag is { Moving: true } ? _drag : null;
-        return new AirportEditorRenderSnapshot(PreviewScene(drag), ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
+        return new AirportEditorRenderSnapshot(
+            PreviewScene(drag),
+            AirportEditorModes.Text(_mode),
+            _selection?.FeatureIndex,
+            _selection?.VertexIndex,
+            _hover
+        )
         {
-            SnapAt = drag?.SnapAt,
+            SnapAt = drag?.SnapAt ?? DrawSnapAt,
+            Ghost = BuildGhost(),
             Image = _image,
             ShowImagery = _showImagery,
             ImageryBrightness = _imageryBrightness,
@@ -639,6 +638,10 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         if (_selection is { } selected)
         {
             AddEditItems(menu, selected, at);
+        }
+        else
+        {
+            AddPlaceItems(menu, at);
         }
 
         return menu;
@@ -913,6 +916,11 @@ public interface IAirportEditorEditTarget
     /// <summary>Deletes a feature.</summary>
     /// <param name="featureIndex">The feature's index in the map's features.</param>
     void DeleteFeature(int featureIndex);
+
+    /// <summary>Adds a new feature at the end of the map, auto-named, and selects it.</summary>
+    /// <param name="featureType">The feature's type: taxiway, runway, parking, spot or helipad.</param>
+    /// <param name="positions">Its positions: at least two for a taxiway or a runway, one for a point.</param>
+    void AddFeature(string featureType, ImmutableArray<MapPosition> positions);
 }
 
 /// <summary>The Airport Editor's imagery status line: one line saying why imagery is missing, or what is downloading.</summary>

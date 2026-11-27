@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -17,7 +18,8 @@ namespace Yaat.Client.Views.Authoring;
 /// map from the vNAS cache, a file or a folder in a toolbar, the map on an <see cref="AirportEditorCanvas"/>, and the
 /// status line along the bottom. It answers the view model's questions itself: the app's file and folder pickers and a
 /// small prompt for the airport. The toolbar's Imagery toggle shows the airport's vNAS tower-cab image under the map, or
-/// the USGS NAIPPlus tiles once vNAS has none. Closing it cancels an open, an image request and the tile fetches in flight.
+/// the USGS NAIPPlus tiles once vNAS has none. The mode buttons (and Esc, T, R, P, S and H) pick what a click on the map
+/// does. Closing it cancels an open, an image request and the tile fetches in flight.
 /// </summary>
 public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 {
@@ -40,6 +42,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
     private readonly UserPreferences _preferences;
 
     private readonly UsgsImageryTileCache _tiles;
+    private readonly (ToggleButton Button, AirportEditorMode Mode)[] _modeButtons;
 
     // Parameterless ctor for the Avalonia designer / XamlLoader.
     public AirportEditorWindow()
@@ -91,6 +94,22 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.FitRequested += OnFitRequested;
         MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
         MapCanvas.EditTarget = ViewModel;
+        ViewModel.DrawingCancelRequested += OnDrawingCancelRequested;
+        _modeButtons =
+        [
+            (SelectModeButton, AirportEditorMode.Select),
+            (TaxiwayModeButton, AirportEditorMode.DrawTaxiway),
+            (RunwayModeButton, AirportEditorMode.DrawRunway),
+            (ParkingModeButton, AirportEditorMode.PlaceParking),
+            (SpotModeButton, AirportEditorMode.PlaceSpot),
+            (HelipadModeButton, AirportEditorMode.PlaceHelipad),
+        ];
+        foreach ((ToggleButton button, _) in _modeButtons)
+        {
+            button.Click += OnModeButtonClick;
+        }
+
+        ApplyMode();
         Activated += OnActivated;
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
         Closed += OnClosed;
@@ -166,20 +185,32 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         {
             _geometry.SetBaseTitle(ViewModel.SourceLabel.Length > 0 ? $"{BaseTitle} — {ViewModel.SourceLabel}" : BaseTitle);
         }
-        else if (e.PropertyName == nameof(AirportEditorViewModel.Image))
+        else if (e.PropertyName == nameof(AirportEditorViewModel.Mode))
+        {
+            ApplyMode();
+        }
+        else
+        {
+            OnImageryPropertyChanged(e.PropertyName);
+        }
+    }
+
+    private void OnImageryPropertyChanged(string? propertyName)
+    {
+        if (propertyName == nameof(AirportEditorViewModel.Image))
         {
             MapCanvas.Image = ViewModel.Image;
         }
-        else if (e.PropertyName == nameof(AirportEditorViewModel.ShowImagery))
+        else if (propertyName == nameof(AirportEditorViewModel.ShowImagery))
         {
             MapCanvas.ShowImagery = ViewModel.ShowImagery;
             _preferences.SetAirportEditorShowImagery(ViewModel.ShowImagery);
         }
-        else if (e.PropertyName == nameof(AirportEditorViewModel.ImageryProgressText))
+        else if (propertyName == nameof(AirportEditorViewModel.ImageryProgressText))
         {
             MapCanvas.ImageryProgressText = ViewModel.ImageryProgressText;
         }
-        else if (e.PropertyName == nameof(AirportEditorViewModel.TilesActive))
+        else if (propertyName == nameof(AirportEditorViewModel.TilesActive))
         {
             ApplyTilesActive();
         }
@@ -204,12 +235,44 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
 
     private void OnFitRequested(object? sender, EventArgs e) => MapCanvas.FitToFeatures();
 
+    private void OnDrawingCancelRequested(object? sender, EventArgs e) => MapCanvas.CancelDrawing();
+
+    // The canvas follows the view model's mode, and exactly the mode's button is checked (a click on the checked one
+    // would otherwise uncheck it).
+    private void ApplyMode()
+    {
+        MapCanvas.Mode = ViewModel.Mode;
+        foreach ((ToggleButton button, AirportEditorMode mode) in _modeButtons)
+        {
+            button.IsChecked = mode == ViewModel.Mode;
+        }
+    }
+
+    private void OnModeButtonClick(object? sender, RoutedEventArgs e)
+    {
+        foreach ((ToggleButton button, AirportEditorMode mode) in _modeButtons)
+        {
+            if (ReferenceEquals(button, sender))
+            {
+                ViewModel.PickMode(mode);
+            }
+        }
+
+        ApplyMode();
+    }
+
     // The platform's undo and redo keys (Ctrl+Z and Ctrl+Y, Cmd+Z and Cmd+Shift+Z) and Del act on the map, also when a
     // read-only property row marked them handled; an editable text field keeps its own undo and Delete.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Source is TextBox { IsReadOnly: false })
         {
+            return;
+        }
+
+        if ((!e.Handled) && (HandleModeKey(e)))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -223,6 +286,61 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         if (command.CanExecute(null))
         {
             command.Execute(null);
+        }
+    }
+
+    // Esc, then with no modifier T, R, P, S and H pick a mode, and Enter finishes a taxiway drawing.
+    private bool HandleModeKey(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Escape();
+            return true;
+        }
+
+        if (e.KeyModifiers != KeyModifiers.None)
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            if (ViewModel.Mode != AirportEditorMode.DrawTaxiway)
+            {
+                return false;
+            }
+
+            MapCanvas.FinishDrawing();
+            return true;
+        }
+
+        if (ModeOfKey(e.Key) is not { } mode)
+        {
+            return false;
+        }
+
+        ViewModel.PickMode(mode);
+        return true;
+    }
+
+    private static AirportEditorMode? ModeOfKey(Key key) =>
+        key switch
+        {
+            Key.T => AirportEditorMode.DrawTaxiway,
+            Key.R => AirportEditorMode.DrawRunway,
+            Key.P => AirportEditorMode.PlaceParking,
+            Key.S => AirportEditorMode.PlaceSpot,
+            Key.H => AirportEditorMode.PlaceHelipad,
+            _ => null,
+        };
+
+    // Esc drops a drag or a drawing in progress; with neither, a draw or place mode returns to Select, and Select clears
+    // the selection.
+    private void Escape()
+    {
+        if ((!MapCanvas.CancelGesture()) && (!ViewModel.ReturnToSelect()))
+        {
+            MapCanvas.ClearSelectionFromUser();
         }
     }
 
@@ -257,6 +375,12 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.FitRequested -= OnFitRequested;
         MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
         MapCanvas.EditTarget = null;
+        ViewModel.DrawingCancelRequested -= OnDrawingCancelRequested;
+        foreach ((ToggleButton button, _) in _modeButtons)
+        {
+            button.Click -= OnModeButtonClick;
+        }
+
         Activated -= OnActivated;
         RemoveHandler(KeyDownEvent, OnWindowKeyDown);
 

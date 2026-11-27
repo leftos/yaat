@@ -94,9 +94,13 @@ public sealed record AirportEditorScene(ImmutableArray<AirportEditorShape> Shape
         return fits ? kind : null;
     }
 
-    // The name as GeoJsonParser.TryReadNameText reads it (private to Yaat.Sim, so mirrored): the key matched exactly, else
-    // case-insensitively; a string as written, a number as its JSON text, anything else none. A blank name labels nothing.
-    private static string? NameOf(MapFeature feature)
+    /// <summary>
+    /// The feature's name as GeoJsonParser.TryReadNameText reads it (private to Yaat.Sim, so mirrored): the key matched
+    /// exactly, else case-insensitively; a string as written, a number as its JSON text, anything else none.
+    /// </summary>
+    /// <param name="feature">The feature.</param>
+    /// <returns>The name, or null when it has none or a blank one.</returns>
+    internal static string? NameOf(MapFeature feature)
     {
         if (feature.CloneProperties() is not { } properties)
         {
@@ -180,15 +184,27 @@ public sealed record AirportEditorRenderSnapshot(
     /// <summary>Gets the imagery status line drawn above the mode label, or null for none.</summary>
     public string? StatusLine { get; init; }
 
-    /// <summary>Gets the snap target a drag in progress snaps to, drawn as a crosshair, or null when it snaps to none.</summary>
+    /// <summary>
+    /// Gets the snap target a drag in progress, or the cursor in a draw or place mode, snaps to, drawn as a crosshair, or
+    /// null when it snaps to none.
+    /// </summary>
     public MapPosition? SnapAt { get; init; }
+
+    /// <summary>Gets the drawing in progress, drawn with a dashed ghost line to the cursor, or null when there is none.</summary>
+    public AirportEditorDrawGhost? Ghost { get; init; }
 }
+
+/// <summary>A taxiway or runway drawing in progress, as one frame draws it.</summary>
+/// <param name="Vertices">The drawing's unsaved vertices, in click order; never empty.</param>
+/// <param name="Cursor">The snapped cursor the ghost line runs to from the last vertex, or null once the pointer has left.</param>
+public sealed record AirportEditorDrawGhost(ImmutableArray<MapPosition> Vertices, MapPosition? Cursor);
 
 /// <summary>
 /// Draws the Airport Editor's map on its dark background, over the tower-cab image when the frame has one or else its USGS
 /// tiles (with the USGS credit bottom-right): runways,
 /// taxiways, parking, spots and helipads, then the hovered feature's and the selection's highlights and the selected
-/// line's vertex handles and the snap crosshair of a drag in progress, then the taxiway and runway labels, then the HUD.
+/// line's vertex handles, the drawing in progress with its dashed ghost line, and the snap crosshair, then the taxiway and
+/// runway labels, then the HUD.
 /// Owns its paints and fonts; dispose it once the canvas is done with it.
 /// </summary>
 public sealed class AirportEditorRenderer : IDisposable
@@ -218,6 +234,8 @@ public sealed class AirportEditorRenderer : IDisposable
     private readonly SKPaint _selectedHandlePaint = FillPaint(Amber);
     private readonly SKPaint _handleOutlinePaint = LinePaint(SKColor.Parse("#1F1F1F"), 1f);
     private readonly SKPaint _snapPaint = LinePaint(SnapColour, 2f);
+    private readonly SKPaint _ghostLinePaint = LinePaint(SKColors.White, 1.4f);
+    private readonly SKPaint _ghostDashPaint = DashedPaint(SKColors.White, 1.4f);
 
     private readonly SKColor _background = SKColor.Parse(GroundColorScheme.DefaultBackground);
 
@@ -268,6 +286,7 @@ public sealed class AirportEditorRenderer : IDisposable
 
         DrawHover(canvas, viewport, snapshot);
         DrawSelection(canvas, viewport, snapshot);
+        DrawGhost(canvas, viewport, snapshot.Ghost);
         DrawSnapCrosshair(canvas, viewport, snapshot.SnapAt);
         DrawLineLabels(canvas, viewport, shapes);
         DrawHud(canvas, viewport, snapshot);
@@ -334,6 +353,9 @@ public sealed class AirportEditorRenderer : IDisposable
         _selectedHandlePaint.Dispose();
         _handleOutlinePaint.Dispose();
         _snapPaint.Dispose();
+        _ghostLinePaint.Dispose();
+        _ghostDashPaint.PathEffect?.Dispose();
+        _ghostDashPaint.Dispose();
         _labelHaloPaint.Dispose();
         _taxiwayLabelFont.Dispose();
         _runwayLabelFont.Dispose();
@@ -351,6 +373,13 @@ public sealed class AirportEditorRenderer : IDisposable
             StrokeJoin = SKStrokeJoin.Round,
             IsAntialias = true,
         };
+
+    private static SKPaint DashedPaint(SKColor color, float width)
+    {
+        SKPaint paint = LinePaint(color, width);
+        paint.PathEffect = SKPathEffect.CreateDash([6f, 4f], 0f);
+        return paint;
+    }
 
     private static SKPaint FillPaint(SKColor color) =>
         new()
@@ -472,6 +501,45 @@ public sealed class AirportEditorRenderer : IDisposable
             float radius = (isSelected || (i == hovered)) ? ActiveHandleRadius : HandleRadius;
             canvas.DrawCircle(x, y, radius, isSelected ? _selectedHandlePaint : _handlePaint);
             canvas.DrawCircle(x, y, radius, _handleOutlinePaint);
+        }
+    }
+
+    // The drawing's unsaved vertices joined in white with their handles, and a dashed white line from the last one to the
+    // cursor.
+    private void DrawGhost(SKCanvas canvas, MapViewport viewport, AirportEditorDrawGhost? ghost)
+    {
+        if ((ghost is null) || (ghost.Vertices.IsEmpty))
+        {
+            return;
+        }
+
+        using var path = new SKPath();
+        foreach (MapPosition vertex in ghost.Vertices)
+        {
+            (float x, float y) = viewport.LatLonToScreen(vertex.Lat, vertex.Lon);
+            if (path.IsEmpty)
+            {
+                path.MoveTo(x, y);
+            }
+            else
+            {
+                path.LineTo(x, y);
+            }
+        }
+
+        canvas.DrawPath(path, _ghostLinePaint);
+        if (ghost.Cursor is { } cursor)
+        {
+            (float fromX, float fromY) = viewport.LatLonToScreen(ghost.Vertices[^1].Lat, ghost.Vertices[^1].Lon);
+            (float toX, float toY) = viewport.LatLonToScreen(cursor.Lat, cursor.Lon);
+            canvas.DrawLine(fromX, fromY, toX, toY, _ghostDashPaint);
+        }
+
+        foreach (MapPosition vertex in ghost.Vertices)
+        {
+            (float x, float y) = viewport.LatLonToScreen(vertex.Lat, vertex.Lon);
+            canvas.DrawCircle(x, y, HandleRadius, _handlePaint);
+            canvas.DrawCircle(x, y, HandleRadius, _handleOutlinePaint);
         }
     }
 
