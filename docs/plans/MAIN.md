@@ -4,17 +4,16 @@
 
 ## Radar bar per Scope profile (feat/scope-dcb-per-profile)
 
-- [ ] YAAT-2894 Popping the Scope out may leave the docked DCB's submenu state on the shared view model · release vNext
-- [ ] YAAT-2897 STARS YAAT page: OTHERS and AUTO do not light while pinned · release vNext
-- [ ] YAAT-2903 Radar under the ERAM profile shows two empty boxes at the scope's left · release vNext
-- [ ] YAAT-2904 ERAM Master Toolbar clips its right columns in a Radar narrower than about 735 DIP · release vNext
-- [ ] YAAT-2905 STARS DCB scroller swallows horizontal swipes and takes PageUp/PageDown from key bindings · release vNext
+- [/] YAAT-2894 Popping the Scope out may leave the docked DCB's submenu state on the shared view model · release vNext
+- [/] YAAT-2897 STARS YAAT page: OTHERS and AUTO do not light while pinned · release vNext
+- [/] YAAT-2904 ERAM Master Toolbar clips its right columns in a Radar narrower than about 735 DIP · release vNext
+- [/] YAAT-2905 STARS DCB scroller swallows horizontal swipes and takes PageUp/PageDown from key bindings · release vNext
 
 ## YAATEdit in YAAT
 
 ### M1 Scenario editor (9/9 done)
 
-### M2 Export (1/7 done)
+### M2 Export (3/8 done)
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext+1
 - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext+1
 
@@ -41,10 +40,9 @@
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext+1
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext+1
-    - [/] YAAT-2910 YAATEdit M2.2a: keep each working copy's base text in the scenario store · release vNext+1
-    - [/] YAAT-2911 YAATEdit M2.2b: ScenarioDiff and ScenarioMerge on scenario JSON · release vNext+1
     - [ ] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext+1
     - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext+1
+    - [ ] YAAT-2921 Show a one-sided reorder of a scenario list in the merge view · release vNext+1
   - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext+1
   - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext+1
   - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext+1
@@ -161,9 +159,6 @@
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 - [/] YAAT-2715 Scope realistic text: ERAM climb arrow draws dim and soft beside Terminus · release vNext
-- [/] YAAT-2831 RDH for an aircraft with a sent RD item adds a second, Unsent item · release vNext+1
-- [/] YAAT-2832 RDH and RDR with a named list skip the sender check · release vNext+1
-- [/] YAAT-2833 Preset and triggered point-outs and handoffs ignore STARS consolidation · release vNext+1
 - [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS · release vNext+1
 - [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked · release vNext+1
 - [ ] YAAT-2881 Prefill the RUNDOWN entry menu's Modify… box with the entry's current message · release vNext+1
@@ -787,7 +782,7 @@
 
 ## Replay, snapshots and recordings
 
-### 1 Defects (3/33 done)
+### 1 Defects (3/34 done)
 - [ ] YAAT-96 Make a re-fired deferred BLANK idempotent after a rewind
 - [ ] YAAT-78 Blend or re-anchor the navigator's first sub-tick after a mid-arc restore
 - [ ] YAAT-2290 Replaying a solo server recording from t=0 loses the load-time auto-track state
@@ -818,6 +813,7 @@
 - [ ] YAAT-2368 Clear Radar and Ground per-track view state on the instructor's own rewind, as a rewind from another client does
 - [ ] YAAT-2369 Clear every view's per-track state when a recording loads, as an unload or restart does
 - [ ] YAAT-2769 Keep IGroundEdge.Origin out of serialized ground layouts
+- [ ] YAAT-2923 Clear attendance before ReplayDriver.To reloads into the same engine
 
 ### 2 Refinements and rulings (0/2 done)
 - [ ] YAAT-79 Triage replay warnings in sfo-gc-arrival-goarounds: fidelity gap or noise
@@ -866,7 +862,7 @@
 - [ ] YAAT-2808 Warn at dispatch when a JRADO or JRADI heading never intercepts the radial
 - [ ] YAAT-2812 Carry an AS acting position to a conditional block (AS 1Z AT fix TRACK)
 
-### 3 Hygiene and tests (0/7 done)
+### 3 Hygiene and tests (0/8 done)
 - [ ] YAAT-89 Declare each verb's fired dimension on CommandDefinition (FiredDimension)
 - [ ] YAAT-90 Trim applied ground blocks; cover EL/ER/ET in the dry-run ground guard
 - [ ] YAAT-966 Harden the transmission id wind-back and test its snapshot fields
@@ -874,6 +870,7 @@
 - [ ] YAAT-2193 Split CommandDispatcher.DispatchCompoundCore under the function limit
 - [ ] YAAT-2651 Split CommandDispatcher.DispatchWithPhase under the 100-line and complexity-8 limits
 - [ ] YAAT-2854 Split CommandDispatcher.DispatchCompoundBody under the 100-line limit
+- [ ] YAAT-2924 Make TrackDispatchContext.Redirect non-nullable
 
 ### No milestone
 - [ ] YAAT-1945 Judge a queued tower block's non-tower siblings at the phase gate, as a live block does
@@ -1295,8 +1292,7 @@
 
 ## Server: CRC, ERAM, vEDST and rooms
 
-### 1 Defects (3/29 done)
-- [/] YAAT-2890 Training hub: a STARS line number assigned after a coordination item is pushed never re-broadcasts — YAAT's RUNDOWN shows a stale/blank line number while CRC shows it (GetOrAssign/Release don't mark coordination changed) · release vNext+1
+### 1 Defects (4/29 done)
 - [ ] YAAT-135 Record in-facility cab positions with SelectionCodeFor when ambiguous
 - [ ] YAAT-1489 Forward the disconnect-coast clears from RoomEngine.DrainStateChangesToRoom like the engine's own drain
 - [ ] YAAT-630 Treat a transponder set to Off as not replying, like Standby
@@ -1331,7 +1327,7 @@
 - [ ] YAAT-1123 Check whether a stalled YAAT client's SignalR sends can stop the tick loop
 - [ ] YAAT-1364 Warn when the server is older than the client instead of a bare 'Failed to invoke' hub error
 
-### 3 Hygiene and tests (0/7 done)
+### 3 Hygiene and tests (0/9 done)
 - [ ] YAAT-132 Table-drive AircraftChangeTracker.DetectChanges comparisons (yaat-server)
 - [ ] YAAT-1002 Don't fail a prepare-restart on a held backup delete; log the swallowed rollback failure
 - [ ] YAAT-1011 Pin and document the Tower Cab room-attach contract: kick-then-offer, kick-only isForcible, position fallbacks
@@ -1339,6 +1335,8 @@
 - [ ] YAAT-1127 Give CrcClientState an injected TimeProvider so the forced-disconnect test does not wait on the real close timeout
 - [ ] YAAT-2352 Bring CrcMultiFuncM and DispatchQbList under the complexity limit
 - [ ] YAAT-2917 Guard the STARS line-number store against hub-thread reads · release vNext
+- [ ] YAAT-2920 Split RoomEngine.DrainStateChangesToRoom under the complexity limit
+- [ ] YAAT-2922 Prove the per-tick line-number push is wired into the tick loop
 
 ### No milestone
 - [ ] YAAT-2048 Apply the STARS consolidation rulings: HD ILL POS with no attended owner, scenario positions attended, force handoff redirects
@@ -1482,7 +1480,7 @@
 - [ ] YAAT-2189 List a temporary dep freq once when it equals a facility frequency written differently
 - [ ] YAAT-2199 Scroll the vTDLS keyboard-highlighted row into view
 - [ ] YAAT-2762 Verify the student leader-direction sync on the YAAT Scope's STARS and ERAM templates
-- [ ] YAAT-2915 Remove the Radar template setting; the profile alone picks the datablock look · release vNext
+- [/] YAAT-2915 Remove the Radar template setting; the profile alone picks the datablock look · release vNext
 
 ## Client-driver MCP and automation pipe
 
