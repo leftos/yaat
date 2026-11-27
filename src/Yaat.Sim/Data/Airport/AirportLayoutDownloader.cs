@@ -151,11 +151,17 @@ public sealed class AirportLayoutDownloader : IDisposable
     }
 
     /// <summary>
-    /// Strips a leading 'K' from a 4-letter ICAO code so it matches the FAA-code keying
-    /// used by the vNAS training-airports API.
+    /// The airport's published FAA id, the key the vNAS training-airports API serves layouts under: resolved through
+    /// the navdata's ICAO/FAA pairs ("PHNL" → "HNL", "PHOG" → "OGG", "KOAK" → "OAK"). An id the navdata does not
+    /// pair, or any id while no navdata is loaded, has a leading 'K' stripped from a 4-letter code.
     /// </summary>
     public static string ToFaaCode(string airportId)
     {
+        if (NavigationDatabase.InstanceOrNull?.TryResolveFaaId(airportId, out string faaId) == true)
+        {
+            return faaId;
+        }
+
         if (airportId.Length == 4 && char.ToUpperInvariant(airportId[0]) == 'K')
         {
             return airportId[1..].ToUpperInvariant();

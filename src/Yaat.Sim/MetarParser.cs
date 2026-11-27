@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Yaat.Sim.Data;
 
 namespace Yaat.Sim;
 
@@ -131,8 +132,17 @@ public static partial class MetarParser
         return null;
     }
 
+    /// <summary>
+    /// The airport's 4-letter ICAO id, the METAR station id: the navdata's ICAO id when it pairs one (HNL → PHNL,
+    /// OAK → KOAK), else a 3-letter FAA id gains a "K" and any other id is upper-cased as given.
+    /// </summary>
     public static string ToIcao(string airportId)
     {
+        if ((NavigationDatabase.InstanceOrNull?.TryResolveAirport(airportId, out string canonical) == true) && (canonical.Length == 4))
+        {
+            return canonical;
+        }
+
         // If already 4 chars starting with K, assume ICAO
         if (airportId.Length == 4 && airportId[0] is 'K' or 'k')
         {

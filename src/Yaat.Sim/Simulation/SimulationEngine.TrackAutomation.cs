@@ -82,7 +82,7 @@ public sealed partial class SimulationEngine
                 string? matchedAirportId = null;
                 foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
                 {
-                    if (NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
+                    if (NavigationDatabase.AirportIdsMatch(dep, airportId))
                     {
                         loaded.State.Track.Owner = atcPos.Owner;
                         spawnOwner = atcPos.Owner;
@@ -366,7 +366,7 @@ public sealed partial class SimulationEngine
 
         foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
         {
-            if (!NavigationDatabase.Instance.AirportIdsMatchResolved(dep, airportId))
+            if (!NavigationDatabase.AirportIdsMatch(dep, airportId))
             {
                 continue;
             }
@@ -532,7 +532,7 @@ public sealed partial class SimulationEngine
         {
             foreach (string airportId in atcPos.Source.AutoTrackAirportIds)
             {
-                if (NavigationDatabase.Instance.AirportIdsMatchResolved(departure, airportId))
+                if (NavigationDatabase.AirportIdsMatch(departure, airportId))
                 {
                     return (atcPos, airportId);
                 }

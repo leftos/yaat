@@ -12,7 +12,7 @@ namespace Yaat.Sim.Tests;
 /// </summary>
 public class NavigationDatabaseAirportMatchTests
 {
-    // Pins the nav database (populated by TestVnasData) before AirportIdsMatchResolved reads NavigationDatabase.Instance.
+    // Pins the nav database (populated by TestVnasData) before AirportIdsMatch reads its ICAO/FAA pairs.
     public NavigationDatabaseAirportMatchTests() => TestVnasData.EnsureInitialized();
 
     [Theory]
@@ -49,7 +49,7 @@ public class NavigationDatabaseAirportMatchTests
         Assert.Equal("KEY", NavigationDatabase.NormalizeAirport("KEY"));
     }
 
-    // AirportIdsMatchResolved resolves each id through the FAA/ICAO index so non-CONUS pairs match too
+    // AirportIdsMatch resolves each id through the FAA/ICAO index so non-CONUS pairs match too
     // (ANC/PANC, HNL/PHNL, SJU/TJSJ) — not just the CONUS K-prefix (docs/crc/eram.md:1423 autotrack equivalence).
     [Theory]
     [InlineData("OAK", "KOAK", true)] // CONUS K-prefix
@@ -60,6 +60,6 @@ public class NavigationDatabaseAirportMatchTests
     [InlineData("OAK", "SFO", false)]
     [InlineData("OAK", "", false)]
     [InlineData("", "OAK", false)]
-    public void AirportIdsMatchResolved_MatchesEitherFaaOrIcao(string a, string b, bool expected) =>
-        Assert.Equal(expected, NavigationDatabase.Instance.AirportIdsMatchResolved(a, b));
+    public void AirportIdsMatch_MatchesEitherFaaOrIcao(string a, string b, bool expected) =>
+        Assert.Equal(expected, NavigationDatabase.AirportIdsMatch(a, b));
 }

@@ -264,4 +264,27 @@ public class ApproachGateDatabaseTests
         // gate = max(~2+1, 5) = 5, min = 7
         Assert.Equal(7.0, result, precision: 0);
     }
+
+    [Fact]
+    public void GetFafDistanceNm_PacificAirport_FoundByIcaoAndFaaId()
+    {
+        // The CIFP files Honolulu as PHNL; a leading-K strip keyed it PHNL, so the FAA id HNL found no FAF.
+        NavigationDatabase? real = TestVnasData.NavigationDb;
+        if (real is null)
+        {
+            return;
+        }
+
+        var cifpData = new CifpParseResult(
+            new Dictionary<(string Airport, string Runway), string> { [("PHNL", "08L")] = "HNLFX" },
+            new Dictionary<string, (double Lat, double Lon)> { ["HNLFX"] = (21.30, -158.05) }
+        );
+        using IDisposable _ = NavigationDatabase.ScopedOverride(real);
+
+        ApproachGateDatabase.Initialize(cifpData, []);
+
+        double? byIcao = ApproachGateDatabase.GetFafDistanceNm("PHNL", "08L", thresholdDisplacementNm: 0);
+        Assert.NotNull(byIcao);
+        Assert.Equal(byIcao, ApproachGateDatabase.GetFafDistanceNm("HNL", "08L", thresholdDisplacementNm: 0));
+    }
 }

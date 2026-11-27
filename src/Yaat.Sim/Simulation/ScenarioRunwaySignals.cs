@@ -313,8 +313,7 @@ public static class ScenarioRunwaySignals
                 return;
             }
 
-            bool leavesAnotherDestination =
-                (!string.IsNullOrEmpty(_destination)) && (!NavigationDatabase.Instance.AirportIdsMatchResolved(_destination, canonical));
+            bool leavesAnotherDestination = (!string.IsNullOrEmpty(_destination)) && (!NavigationDatabase.AirportIdsMatch(_destination, canonical));
             _destination = canonical;
             _assignedRunway = null;
             _currentRunway = null;

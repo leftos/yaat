@@ -1748,8 +1748,7 @@ public partial class GroundViewModel : ObservableObject
     /// Whether an aircraft bound for <paramref name="destination"/> lands at <paramref name="airportId"/>, the two identifiers
     /// resolved through the navigation data so FAA and ICAO forms match outside CONUS too (<c>HNL</c>/<c>PHNL</c>).
     /// </summary>
-    public static bool LandsAt(string destination, string airportId) =>
-        NavigationDatabase.InstanceOrNull?.AirportIdsMatchResolved(destination, airportId) == true;
+    public static bool LandsAt(string destination, string airportId) => NavigationDatabase.AirportIdsMatch(destination, airportId);
 
     /// <summary>A hold short of a runway the aircraft can taxi to, the shortest route there and its distance from the aircraft.</summary>
     private sealed record RunwayEntry(GroundNode Bar, TaxiRoute Route, double DistanceFt);

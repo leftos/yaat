@@ -63,7 +63,7 @@ tightly coupled: `RouteExpander` reads SID/STAR/airway data straight out of a `N
 | `src/Yaat.Sim/Data/Vnas/ArtccAccessRecords.cs` | AccessibleBay, AccessibleFacility, AccessibleTdlsFacility (+ MemberFacilityIds), AsdexAirportInfo, TowerCabAirportInfo records used by the resolvers. |
 | `src/Yaat.Sim/Data/Vnas/BeaconCodePool.cs` | Discrete-code allocator. AssignNextCode(isVfr) draws from the ARTCC config's banks (Ifr→Any for IFR, Vfr→Any for VFR), falling back to sequential 0001-7777 octal when no matching bank exists or a bank is exhausted; returns 0 only when all 4096 are in use. Tracks assigned codes (MarkUsed/Release) so no two live aircraft share one. IsAssignableCode is the single reserved-code gate for every assigning path: excludes non-discrete codes (ending in 00), the whole 7500-7777 block, the monitored VFR conspicuity codes (1202/1203/1255/1276/1277), and the DoD 5000-5062 block. Callers: ScenarioLoader.AssignSpawnBeacons (post-load pass, after banks are configured), AircraftGenerator (ADD/arrival IFR spawns), SimulationEngine (FP file + amend). SimulationWorld.GenerateBeaconCode (RANDSQ) reuses only the IsAssignableCode gate. NextCandidate/BankCursors + RestoreCursors round-trip the draw cursors through snapshots. |
 | `src/Yaat.Sim/Data/Vnas/CifpDataService.cs` | FAA CIFP zip download/extract per AIRAC cycle |
-| `src/Yaat.Sim/Data/Vnas/CifpAirportIndex.cs` | Once-per-file byte-range index of each airport's SUSAP records (list of ranges — some airports are split); the airport-scoped CifpParser entry points read through it instead of streaming the whole file |
+| `src/Yaat.Sim/Data/Vnas/CifpAirportIndex.cs` | Once-per-file byte-range index of each airport's section-P records of any area (`SUSAP`, `SPACP`, `SCANP`, …; list of ranges — some airports are split); the airport-scoped CifpParser entry points read through it instead of streaming the whole file. `IsAirportRecord` / `IsNavaidRecord` / `IsUsaRecord` are the area-agnostic record tests the parser and `CustomProcedureLoader` share; `HasAirport` asks whether a file holds an ident |
 | `src/Yaat.Sim/Data/Vnas/CifpParser.cs` | ARINC 424 parser: approaches (subsection F), SIDs (D), STARs (E), airport magnetic variation (A), navaids with their station declination (D, PN: ParseNavaids -> CifpNavaid), airport runways (G) and localizers (I) in one pass (ParseRunwayEnds -> CifpRunwayEnds: per-END landing threshold elevation, the glidepath datum NavData has no per-end value for, and per-END ILS category 1-3 for the hold-short standoff rule); FAF fixes, terminal waypoints; Approach runway extracted via RunwayIdentifier.FromApproachId (shared with InterceptCoursePhase.GetRunwayHeading); ParseTerminalWaypoints: per-airport section-C waypoints for RF center fix + leg fix resolution, and command-argument fixes (NavigationDatabase.TryGetTerminalWaypoint) |
 | `src/Yaat.Sim/Data/Vnas/CifpModels.cs` | CIFP data models: CifpApproachProcedure, CifpSidProcedure, CifpStarProcedure, CifpLeg, CifpTransition; CifpLeg: ArcRadiusNm, ArcCenterLat/Lon (RF), RecommendedNavaidId, Theta, Rho (AF), FixLat/FixLon (CIFP terminal-waypoint coords); CifpLegExtensions.ResolveFixPosition: leg fix -> position, CIFP coords first then NavigationDatabase (covers CNFs absent from vNAS NavData) |
 | `src/Yaat.Sim/Data/Vnas/CrossingRestrictionLabel.cs` | Formats a CifpAltitudeRestriction/CifpSpeedRestriction into ≥/≤ FL-aware label lines (`BuildLines`) or the same lines as latency-marked tokens (`BuildTokenLines`) for the "Show nav route" overlay; server-side, fed into NavRouteFixDto.RestrictionLines/RestrictionTokens by DtoConverter |
@@ -92,7 +92,7 @@ Resolution order, in `NavigationDatabase.cs` `Instance` / `InstanceOrNull`:
 Picking the wrong accessor either crashes a best-effort lookup or silently no-ops a required one. `Instance` is the right call
 when the sim genuinely cannot proceed without nav data; `InstanceOrNull` is for UI/speech paths that degrade gracefully.
 
-**Production wiring** is in yaat-server `ServerApp.cs:177` — after `VnasDataService.InitializeAsync()` and
+**Production wiring** is in yaat-server `ServerApp.cs` — after `VnasDataService.InitializeAsync()` and
 `CifpDataService.InitializeAsync()` download/cache the data:
 
 ```
@@ -101,12 +101,12 @@ var cifpData = CifpParser.Parse(cifpService.CifpFilePath);
 ApproachGateDatabase.Initialize(cifpData);
 ```
 
-Note the order: `ApproachGateDatabase.Initialize` reads `NavigationDatabase.Instance` internally (`ApproachGateDatabase.cs:28`), so
+Note the order: `ApproachGateDatabase.Initialize` reads `NavigationDatabase.Instance` internally, so
 the nav DB must be initialized first.
 
 ### What the constructor builds
 
-`NavigationDatabase(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` (`NavigationDatabase.cs:265`) runs, in
+`NavigationDatabase(navData, cifpFilePath, artccsBaseDir?, supplementaryCifpFilePath?)` runs, in
 order: `LoadCifpRunwayEnds` (see below — it must precede `BuildIndex`, which stamps the elevations onto runway ends),
 `BuildIndex` (airports/fixes/runways/airways, eager), `BuildProcedureIndex` (SID/STAR bodies + transitions, eager),
 `LoadCifpNavaids` (supplements `_navDb` with VOR/DME/NDB from CIFP), then the per-ARTCC user-data loads (`LoadCustomFixes`,
@@ -134,20 +134,20 @@ Only an ILS localizer record counts: LOC, LDA and LPV approaches add nothing. Th
 
 `artccsBaseDir` defaults to `{AppContext.BaseDirectory}/Data/ARTCCs`; pass an empty string to skip per-ARTCC loading entirely
 (many tests do). `supplementaryCifpFilePath` is only retained if the file exists and differs from the primary CIFP path
-(`NavigationDatabase.cs:117`); otherwise it is dropped to `null` and the supplementary fallback is disabled.
+(`NavigationDatabase.Initialize`); otherwise it is dropped to `null` and the supplementary fallback is disabled.
 
 ## The xUnit singleton-race hazard
 
 The singleton is mutable static, and xUnit runs test classes in parallel by default. This produces a documented flake class.
 
-`TestVnasData.EnsureInitialized()` (`TestVnasData.cs:250`) is the safe entry point for any test that needs real nav data. It
+`TestVnasData.EnsureInitialized()` is the safe entry point for any test that needs real nav data. It
 populates six static singletons once per process (under a lock) — `AircraftCategorization`, `WakeTurbulenceData`,
 `FaaAircraftDatabase`, `AircraftProfileDatabase`, `AircraftSiblingMap`, and the `AircraftPerformance` profile-correction adapter —
 and then **always re-sets** `NavigationDatabase.SetInstance(navDb)` on every call (the re-set is outside the one-time lock block). The always-re-set is deliberate: other test
 classes (parser tests) swap in synthetic `ForTesting()` databases via `SetInstance`, so a later `EnsureInitialized()` restores
 the real one. `EnsureInitialized()` itself is idempotent and safe for parallel execution.
 
-`TestVnasData.NavigationDb` (`TestVnasData.cs:45`) uses **double-check locking** and only publishes the instance after CIFP has
+`TestVnasData.NavigationDb` uses **double-check locking** and only publishes the instance after CIFP has
 also resolved. The guard exists so a concurrent test class can't observe a partially-initialized DB that has NavData but no CIFP
 path (which would make every procedure lookup silently return empty). Both resolve pinned to the committed `TestData` NavData and CIFP (`PinToBundled`), never the user cache or the network ([test-harness.md](test-harness.md), "Data resolution").
 
@@ -168,35 +168,27 @@ for the assembly-load warm-up and [e2e-tdd-issue-debugging.md](e2e-tdd-issue-deb
 
 ## Identifier normalization: FAA ↔ ICAO
 
-CONUS airports have both an FAA id (`OAK`) and an ICAO id (`KOAK`); scenario files and vNAS data use them interchangeably. Two
-static helpers normalize:
+CONUS airports have both an FAA id (`OAK`) and an ICAO id (`KOAK`), and Hawaii, Alaska, Guam and Puerto Rico have an ICAO id that is not `K` + the FAA id (`PHNL`/`HNL`, `PHOG`/`OGG`, `PANC`/`ANC`, `TJSJ`/`SJU`); scenario files and vNAS data use the forms interchangeably. The navdata's ICAO/FAA pairs are the source of truth, and the helpers read them:
 
-- `NormalizeAirport(code)` (`NavigationDatabase.cs:2059`) — uppercases, trims, and strips a leading `K` **only when the length is
-  exactly 4** (`KOAK` → `OAK`; a 3-letter `OAK` is unchanged). Note this means a non-CONUS 4-letter ICAO that happens to start
-  with K is also stripped — acceptable for the CONUS-focused dataset.
-- `AirportIdsMatch(a, b)` (`:2101`) — true when both normalize equal; empty/null never matches.
-- `TryResolveAirport(input, out canonicalId)` (`:2077`) — looks the trimmed-uppercased input up in `_airportCanonical`, which maps
-  every recognized FAA and ICAO id to the airport's canonical form (ICAO when published, FAA fallback otherwise). Returns `false`
-  for unknown airports — callers should reject rather than store an unrecognized code.
-- `TryResolveFaaId(input, out faaId)` (`:2111`) — the inverse of the above: resolves any recognized form to the **published FAA
-  id** via `_airportFaaIds`. Unlike the `NormalizeAirport` K-strip this is correct for non-CONUS fields (`PANC` → `ANC`,
-  `PHNL` → `HNL`, `TJSJ` → `SJU`). Airports with no published FAA id (most foreign fields) are deliberately **absent** from the
-  map, so the call returns `false` and callers fall back to the identifier as filed — matching CRC's display behavior. Use this
-  wherever an FAA id is being *displayed*, e.g. `AutoScratchpadResolver` filling the STARS scratchpad slot.
+- `NormalizeAirport(code)` — static; uppercases, trims and returns the **published FAA id** through the loaded instance's pairs (`KOAK` → `OAK`, `PHNL` → `HNL`, `TJSJ` → `SJU`). An id the navdata does not pair, or any id while no navdata is loaded, falls back to stripping a leading `K` only when the length is exactly 4. It reads the already-installed instance and never runs the test loader, so it is safe while a database builds.
+- `AirportIdsMatch(a, b)` — true when both `NormalizeAirport` to the same id, so an ICAO/FAA pair is one airport whatever the non-K form; empty/null never matches. The former instance-side `AirportIdsMatchResolved` is gone: the static one does its job.
+- `AirportKey(code)` (private) — the same mapping read from *this* instance's `_airportFaaIds`. Every airport-keyed table inside `NavigationDatabase` (procedure caches, custom procedures, gate pronunciations, magnetic variation) is keyed by it, so a key written while a database builds is the key its reads use, whatever instance is installed.
+- `TryResolveAirport(input, out canonicalId)` — looks the trimmed-uppercased input up in `_airportCanonical`, which maps every recognized FAA and ICAO id to the airport's canonical form (ICAO when published, FAA fallback otherwise). Returns `false` for unknown airports — callers should reject rather than store an unrecognized code.
+- `TryResolveFaaId(input, out faaId)` — the inverse: resolves any recognized form to the **published FAA id** via `_airportFaaIds`. Airports with no published FAA id (most foreign fields) are deliberately **absent** from the map, so the call returns `false` and callers fall back to the identifier as filed — matching CRC's display behavior. Use this wherever an FAA id is being *displayed*, e.g. `AutoScratchpadResolver` filling the STARS scratchpad slot.
 
-  > `NavigationDatabase.ForTesting` seeds `_airportFaaIds` from the recognized-airport keys via `NormalizeAirport`. Tests built
-  > on `ForTesting` therefore get the K-strip approximation, not published FAA ids; tests that need the real mapping must use
-  > `TestVnasData`.
+  `NormalizeAirport` reads the same pairs but falls back to a K-strip instead of returning false.
 
-Beyond the canonical map, several lookups **reimplement** a 3↔4-letter K-prefix fallback inline: `GetAirportElevation`
-(`:470`), `GetAirportName` (`:498`), `HasRunwayAtLeast` (`:596`). The pattern is: try the key as given, then for a
-4-letter K-prefixed code try the 3-letter form, then for a 3-letter code try `"K"+code`. A new airport-keyed lookup that forgets
-this fallback will fail for whichever of `OAK`/`KOAK` the caller didn't pass. Note `GetRunway` (`:642`) does **not** carry this
-fallback — it does a single direct lookup and returns `null` on a key miss, which is why `ApproachGateDatabase.Initialize` calls
-`GetRunway(airport, …) ?? GetRunway($"K{airport}", …)` at its call site.
+  > `NavigationDatabase.ForTesting` seeds `_airportFaaIds` from the recognized-airport keys by a plain K-strip. Tests built on `ForTesting` therefore get the K-strip approximation, not published FAA ids; tests that need the real mapping must use `TestVnasData`.
 
-The CIFP loaders go the other way: `LoadSids`/`LoadStars`/`LoadApproaches` (`:1733`+) take a normalized (FAA-form) code and
-prepend `K` when it is ≤3 chars, because the CIFP file is keyed by ICAO id.
+Other FAA-keyed or ICAO-keyed consumers follow the same pairs rather than their own K-strip: `AirportLayoutDownloader.ToFaaCode` (the layout download and cache key, `HNL` for `PHNL`), `MetarParser.ToIcao` and `RoomContextFactory.ToIcao` (the METAR station and room id, `PHNL` for `HNL`), `AirportAirlines.NormalizeAirportId`, `ApproachGateDatabase` (keys through `NormalizeAirport`), `ScenarioLoader`'s primary-approach inheritance (`AirportIdsMatch`), `ConflictAlertDetector` and the server's live-traffic filter, SWIM slicer and STARS facility-prefix lookup.
+
+A new consumer that needs an FAA key calls `NormalizeAirport` / `TryResolveFaaId`, and one that needs an ICAO key `TryResolveAirport`; it never re-derives either with a `K` prefix.
+
+Beyond the canonical map, several lookups still try the id as given, then the `K`-stripped or `K`-prefixed twin inline: `GetAirportElevation`, `GetAirportName`, `HasRunwayAtLeast`. `GetRunway` does **not** carry that fallback — it does a single direct lookup and returns `null` on a key miss, so `ApproachGateDatabase.Initialize` and `ConflictAlertDetector.BuildCorridors` retry under the airport's canonical id (`HNL` → `PHNL`) and then `K` + the id.
+
+The CIFP loaders resolve the ident the file holds an airport under with one helper, `CifpIdent(path, airport)`: the navdata canonical id (`PHNL` for `HNL`, `KOAK` for `OAK`), else the id as given (a bare LID such as `12J`, which the CIFP files without a `K`), else `K` + a 3-character id; the first with records in that file wins (`CifpAirportIndex.HasAirport`).
+
+`LoadSids`/`LoadStars`/`LoadApproaches`, the magnetic-variation and terminal-waypoint loaders and the supplementary-cycle readers all go through it.
 
 ### A bare id shared by an airport and a navaid is the navaid
 
@@ -212,7 +204,7 @@ A caller that means the airport never uses `GetFixPosition`:
 ## Procedure-version resolution
 
 Published procedures carry a version digit (`BDEGA4`, `CNDEL5`) that increments each AIRAC cycle. A scenario filed against an
-older cycle must still resolve. `StripTrailingDigits(s)` (`NavigationDatabase.cs:1938`) trims trailing digits down to the base
+older cycle must still resolve. `StripTrailingDigits(s)` trims trailing digits down to the base
 name **but preserves at least 2 characters** (`end > 2` guard); it returns the input unchanged if there are no trailing digits.
 
 - `ResolveSidId(rawId)` / `ResolveStarId(rawId)` (`:729` / `:773`) — return the input if it's an exact key in the SID/STAR-body
@@ -231,7 +223,7 @@ older version.
 (`TEJAS`) globally — STARs are named after their first fix, so a global version-less resolver would mis-classify a bare fix token
 as a STAR and expand the whole procedure inside `RouteExpander`/`ScenarioLoader`/`ScenarioValidator`. For controller/pilot commands
 that should accept a short STAR name (e.g. `JARR`), resolve explicitly via `NavigationDatabase.ResolveCommandStarId(airport, rawId)`
-(`:1104`; CIFP first, then NavData bodies, returns the input unchanged on no match) before calling the strict lookups — the `JARR`
+(`ResolveApproachId`; CIFP first, then NavData bodies, returns the input unchanged on no match) before calling the strict lookups — the `JARR`
 handler (`NavigationCommandHandler`) and `AircraftGenerator` do this. `DVIA` self-resolve scans the *filed route* (already-versioned
 names) with the strict `ResolveStarId`, so it doesn't need the loose form.
 
@@ -300,16 +292,16 @@ prior-cycle file — a burst that blew the server tick budget when route tokens 
 ### Lazy per-airport CIFP cache
 
 `GetSids`/`GetStars`/`GetApproaches` parse the CIFP file for an airport on first access and cache the result in a
-`ConcurrentDictionary` keyed by normalized airport (`NavigationDatabase.cs:959`, `:983`, `:1057`). The first access per airport
+`ConcurrentDictionary` keyed by the instance's `AirportKey` (the FAA id). The first access per airport
 pays the parse cost; the cache lives for the process lifetime with no invalidation on AIRAC change mid-run.
 
 That parse no longer streams the whole ~50 MB file: the airport-scoped parsers (`ParseSids`/`ParseStars`/`ParseApproaches`/
 `ParseTerminalWaypoints`/`ParseAirportMagneticVariation`) read through `CifpAirportIndex.ReadAirportLines(path, icao)`, which
-scans each CIFP file **once per process** (keyed by path + length + mtime) into per-airport byte ranges of its `SUSAP` records and
+scans each CIFP file **once per process** (keyed by path + length + mtime) into per-airport byte ranges of its section-P records (every area: `SUSAP`, `SPACP`, `SCANP`, …, so Pacific and Alaska airports get approaches, SIDs, STARs and terminal fixes) and
 then seeks straight to them. Most airports are one contiguous block; ~180 in the FAA file are split in two, so an airport maps to a
 list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaids`) still stream the file.
 
-`ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN into `CifpNavaid` (position, name, type and the station declination from columns 75–79, `G`/`T` read as 0); the first record for an ident wins.
+`ParseNavaids` reads the VHF/NDB records of section D and the terminal NDBs of section PN, of every area, into `CifpNavaid` (position, name, type, the station declination from columns 75–79 with `G`/`T` read as 0, and `IsUsaArea`); the first record for an ident wins. A navaid of another area only fills an ident nothing holds yet, so a USA-area navaid wins an ident clash (`TRI` is Tri-Cities, not Piarco; `PNA` is Pinedale).
 
 `NavigationDatabase.GetStationDeclination(navaidId)` returns it (east positive), and `GetPublishedCourseDeclination(navaid, airport, fix)` is the one declination every published approach course converts with: station declination, then the airport's variation of record, then the modelled declination.
 
@@ -319,7 +311,7 @@ list of ranges. The whole-file parsers (`Parse`, `ParseRunwayEnds`, `ParseNavaid
 
 ## Route expansion (`RouteExpander`)
 
-`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` (`RouteExpander.cs:31`) splits the route on spaces and
+`RouteExpander.Expand(route, navDb, includeAllTransitionsOnMismatch = true)` splits the route on spaces and
 walks tokens left to right. For each token it tries, in order:
 
 1. **SID** — `navDb.ResolveSidId(rawName)` matches → emit the SID body, then resolve the transition (see RV-SID section below).
@@ -378,7 +370,7 @@ as synthetic "transitions": NIMI5 carries `[OAK, CCR]`, `[OAK, PYE]`, `[OAK, SAU
 downstream fix. These are **not** published CIFP transitions; they're routing hints, and each one starts by transiting back
 through OAK.
 
-**The failure.** When a route token after the SID doesn't name any transition, `ExpandSid` (`RouteExpander.cs:111`) decides what
+**The failure.** When a route token after the SID doesn't name any transition, `ExpandSid` decides what
 to do based on the flag:
 
 - `true` (autocomplete): emit **every** transition's fixes, so the UI can suggest any reachable exit fix.
@@ -396,7 +388,7 @@ With `false`, the SID body emits, the `[OAK,…]` hints are suppressed on the mi
 | `NavigationDatabase.ExpandRoute` | `true` (default) | Autocomplete / UI fix highlighting (`FixSuggester` client). |
 | `PilotSayBuilder` route readback | `true` (default) | Speech "say route" — wants every reachable fix named. |
 | `NavigationDatabase.ExpandRouteForNavigation` | **`false`** | Building a flying `NavigationRoute`. |
-| `DepartureClearanceHandler.BuildFallbackNavTargets` (`:849`) | **`false`** (via `ExpandRouteForNavigation`) | NavData fallback when CIFP can't supply SID legs. |
+| `DepartureClearanceHandler.BuildFallbackNavTargets` | **`false`** (via `ExpandRouteForNavigation`) | NavData fallback when CIFP can't supply SID legs. |
 | `DepartureClearanceHandler.AppendPostSidEnrouteFixes` | **`false`** | Post-SID enroute portion of a departure clearance. |
 | `RouteChainer` (`:42`) | **`false`** | Chaining a route onto the active navigation. |
 | `ArrivalRouteResolver` (`:29`) | **`false`** | Materializing a scenario aircraft's filed route. |
@@ -438,7 +430,7 @@ shapes uniformly.
 
 When CIFP can't resolve the SID at all (e.g. the procedure was retired from the current cycle and there's no supplementary CIFP),
 `DepartureClearanceHandler` still needs to know whether to hold runway heading or turn direct to the first fix.
-`NavigationDatabase.IsRadarVectorsSidWithoutLateralPath(sidName, departureAirport)` (`NavigationDatabase.cs:677`) answers this from
+`NavigationDatabase.IsRadarVectorsSidWithoutLateralPath(sidName, departureAirport)` answers this from
 the vNAS body alone: it resolves the SID id, and returns `true` if the body is empty, or if **every** body fix is within 1 nm of
 the departure airport (the colocated-navaid signature of an RV-SID). On `true`, `DepartureClearanceHandler` (`:670`) degrades to a
 radar-vectors departure (`RvSidHoldRunwayHeading: true`) and retains the expanded fixes as the post-vectors route.
@@ -447,7 +439,7 @@ radar-vectors departure (`RvSidHoldRunwayHeading: true`) and retains the expande
 
 ### FrdResolver
 
-`FrdResolver.ParseFrd(s)` (`FrdResolver.cs:31`) guesses the format purely by length and digit-suffix:
+`FrdResolver.ParseFrd(s)` guesses the format purely by length and digit-suffix:
 
 - **`{FIX}{radial:3}{distance:3}`** — only when `Length >= 8` and the last **6** characters are all digits and the fix-name
   remainder is `>= 2` chars. E.g. `OAK090010` → fix `OAK`, radial 090, distance 010.
@@ -496,7 +488,7 @@ present-position anchors (`CrcClientState.Eram.Route.cs`).
 
 ### Custom fixes
 
-`CustomFixLoader.LoadAll(artccsBaseDir)` (`CustomFixLoader.cs:19`) scans `{artccsBaseDir}/{ARTCC}/CustomFixes/*.json` across every
+`CustomFixLoader.LoadAll(artccsBaseDir)` scans `{artccsBaseDir}/{ARTCC}/CustomFixes/*.json` across every
 ARTCC subdirectory and deserializes each into `CustomFixDefinition` records. Per-definition validation (`LoadFile`, `:46`): a
 definition with **no aliases** is skipped; one with neither `lat`/`lon` nor `frd` is skipped; one with **both** keeps lat/lon and
 drops `frd` (with a warning). The loader returns warnings but does **not** dedupe aliases.
@@ -506,7 +498,7 @@ drops `frd` (with a warning). The loader returns warnings but does **not** dedup
 not in the loader** — `TryAdd` failing (alias already present) logs `"custom fix alias … conflicts with existing entry"`. Friendly
 `name` values feed `_customFixNames` (used by pilot speech to render `OAK30NUM` as "Oakland Runway 30 Numbers").
 
-`spokenPatterns` (optional, `CustomFixDefinition.cs:33`) feed the speech pipeline: each phrase is digit-normalized
+`spokenPatterns` (optional, `CustomFixDefinition`) feed the speech pipeline: each phrase is digit-normalized
 (`AtcNumberParser.NormalizeDigits`), lowercased, tokenized, and paired with the first alias as a `CustomFixSpeechPattern`. The
 patterns are sorted by **descending token count** so the speech collapse step's longest-match scan picks the most specific phrase
 first. See [speech-recognition-pipeline.md](speech-recognition-pipeline.md) for how the speech side consumes these.
@@ -551,7 +543,7 @@ The airport argument is ICAO or FAA form.
 
 ### Approach shorthand resolution
 
-`ResolveApproachId(airportCode, shorthand)` (`NavigationDatabase.cs:1063`) maps a terse approach reference to a published approach
+`ResolveApproachId(airportCode, shorthand)` maps a terse approach reference to a published approach
 id. It tries an exact id match first, then `ParseShorthand` (`:1851`) which decomposes into `(typeCode, runway, variant)`:
 
 - `TryStripTypePrefix` (`:1901`) recognizes spelled-out prefixes (`ILS`→`I`, `LOC`→`L`, `RNAV`→`H`, `GPS`→`P`, `VOR`→`V`,
@@ -570,18 +562,16 @@ connectivity. See [command-handlers.md](command-handlers.md) for how the approac
 
 `ApproachGateDatabase` (`ApproachGateDatabase.cs`) precomputes a minimum intercept distance per (airport, runway) from the FAA
 7110.65 §5-9-1 approach-gate concept: `approachGate = max(FAF→threshold distance + 1 nm, 5 nm)`, then `minIntercept = gate + 2 nm`.
-`Initialize(cifpData)` (`:26`) walks `cifpData.FafFixes`, resolves the FAF position (from `NavigationDatabase.Instance`, falling
-back to the CIFP terminal-waypoint table), measures FAF→threshold, and stores the result keyed by `(NormalizeAirport(airport),
-runway)`. `GetMinInterceptDistanceNm` (`:80`) returns the stored value or a **7.0 nm default** when uninitialized or unknown.
+`Initialize(cifpData)` walks `cifpData.FafFixes`, resolves the FAF position (from `NavigationDatabase.Instance`, falling
+back to the CIFP terminal-waypoint table), measures FAF→threshold, and stores the result keyed by `(NavigationDatabase.NormalizeAirport(airport),
+runway)`. `GetMinInterceptDistanceNm` returns the stored value or a **7.0 nm default** when uninitialized or unknown.
 
-`ApproachGateDatabase` has its **own private `NormalizeAirport`** (`:97`) that strips a leading `K` with no length check — distinct
-from `NavigationDatabase.NormalizeAirport`'s length-4 guard. Both are used to key the same airport ids; the difference is benign
-for CONUS codes but worth knowing when matching keys.
+`ApproachGateDatabase` keys and reads through `NavigationDatabase.NormalizeAirport`, so `HNL` and `PHNL` share one entry; it has no K-strip of its own. It finds a runway under the id as given, then the airport's canonical id, then `K` + the id.
 
 ## Spatial helpers
 
 Airports are indexed into a 1°×1° (~60 nm) spatial grid at build time, deduplicated under the canonical id
-(`AddAirportToSpatialIndex`, `NavigationDatabase.cs:631`). Two lookups walk it:
+(`AddAirportToSpatialIndex`). Two lookups walk it:
 
 - `FindNearestAirportElevation(position, maxRangeNm = 100)` (`:522`) — nearest airport's elevation, a terrain proxy for STARS/AGL
   gating when no precise runway reference exists.
@@ -596,8 +586,7 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
 
 ## Adding a lookup / extending
 
-1. If the lookup is keyed by airport, route the key through `NormalizeAirport` (or use `AirportIdsMatch`) **and** implement the
-   3↔4-letter K-prefix fallback — don't assume the caller passed FAA vs ICAO form.
+1. If the lookup is keyed by airport, route the key through `NormalizeAirport` (or use `AirportIdsMatch`; inside the class, `AirportKey`) — never a local K-strip, which breaks every airport whose ICAO id is not `K` + its FAA id — and for a direct-id table (as `GetRunway` is) retry the canonical id from `TryResolveAirport`; don't assume the caller passed FAA vs ICAO form.
 2. If it's a procedure lookup, go through `ResolveSidId`/`ResolveStarId`/`FindSidInList` so version drift (`CNDEL5`→`CNDEL6`)
    resolves; consider whether the ARTCC-fragment and supplementary-CIFP fallbacks apply (all three tiers, in order).
 3. Decide `Instance` (throws — required lookup) vs `InstanceOrNull` (best-effort with a fallback).
@@ -641,10 +630,10 @@ Both expand the bucket radius to cover the range cap (`ceil(maxRangeNm / 60)`).
   test both `TrueHeading1`/`TrueHeading2` and self-skip by `Id.End1`/`Id.End2`, or it is a silent no-op that synthetic-runway tests cannot
   catch — only a real-navdata KOAK test exposes it. `GoAroundHelper.InferDefaultPatternDirection` is the model both-ends loop;
   `FollowPairTrajectoryTests` (real KOAK navdata) is the harness that caught a one-end gate (#352).
-- **FAA↔ICAO K-prefix fallback is duplicated across several lookups.** `GetAirportElevation`, `GetAirportName`, and
-  `HasRunwayAtLeast` each re-implement it. A new airport-keyed lookup that forgets it fails for whichever of `OAK`/`KOAK`
+- **FAA↔ICAO pairing is the navdata's, not a K-strip.** `NormalizeAirport` returns the published FAA id through the loaded pairs (`PHNL` → `HNL`) and strips `K` at length 4 only when the navdata has no pair. `GetAirportElevation`, `GetAirportName`, and
+  `HasRunwayAtLeast` still re-implement a K-twin fallback inline; a new airport-keyed lookup that forgets both fails for whichever form
   the caller didn't pass. `GetRunway` notably does *not* carry the fallback — callers (e.g. `ApproachGateDatabase.Initialize`)
-  must try both forms themselves. `NormalizeAirport` strips `K` only at length 4.
+  must retry the canonical id and `K` + the id themselves.
 - **CIFP procedures parse lazily and cache for the process lifetime.** The first `GetSids`/`GetStars`/`GetApproaches` per airport
   pays a parse cost; there's no invalidation on AIRAC change within a run.
 - **FRD parse is ambiguous by construction.** `ParseFrd` distinguishes the three forms purely by length + trailing-digit count

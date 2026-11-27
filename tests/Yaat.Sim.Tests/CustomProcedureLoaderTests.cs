@@ -65,6 +65,19 @@ public class CustomProcedureLoaderTests
     }
 
     [Fact]
+    public void LoadAll_PacificAreaRecords_AreIndexedLikeUsaRecords()
+    {
+        // Hawaii's CIFP records carry area code PAC ("SPACP"), as CifpAirportIndex reads them.
+        using var tmp = new TempArtccs();
+        tmp.WriteFragment("ZHN", "phnl.cifp", [Record("KOAK", 'D', "NIMI5"), "SPACP" + Record("PHNL", 'D', "HNL2")[5..]]);
+
+        CustomProcedureLoadResult result = CustomProcedureLoader.LoadAll(tmp.Path);
+
+        CustomProcedureFragment fragment = Assert.Single(result.Fragments);
+        Assert.Equal(["KOAK", "PHNL"], fragment.AirportIcaos.OrderBy(i => i, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void LoadAll_FragmentWithNoRecords_WarnsAndSkips()
     {
         using var tmp = new TempArtccs();

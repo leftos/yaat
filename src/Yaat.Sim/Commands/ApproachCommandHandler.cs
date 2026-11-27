@@ -3039,7 +3039,7 @@ public static class ApproachCommandHandler
             ?? aircraft.Phases?.ActiveApproach?.AirportCode
             ?? aircraft.Approach.PendingClearance?.Clearance.AirportCode;
 
-        if (hasArrivalIntent && arrivalAirport is not null && NavigationDatabase.Instance.AirportIdsMatchResolved(arrivalAirport, newDestination))
+        if (hasArrivalIntent && arrivalAirport is not null && NavigationDatabase.AirportIdsMatch(arrivalAirport, newDestination))
         {
             return;
         }

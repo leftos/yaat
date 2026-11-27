@@ -250,7 +250,7 @@ See [phases.md](phases.md) for what each seeded phase does once the aircraft sta
   exporter writes `AircraftFlightPlan.FiledAircraftData` back, so a round trip keeps all four.
 - **Approach inheritance.** `PrimaryApproach` is only inherited when the aircraft has no `ExpectedApproach` of its own **and** its
   destination matches the primary airport (or has no destination, or there's no primary airport). The destination match
-  normalizes the K-prefix via the local `NormalizeAirportCode` (`:194`). An aircraft destined elsewhere never inherits the
+  compares them with `NavigationDatabase.AirportIdsMatch` (the navdata's ICAO/FAA pairs, so `HNL` and `PHNL` are one airport). An aircraft destined elsewhere never inherits the
   primary's approach, even if the same approach id exists at its destination.
 - **Beacon.** Assigned by `ScenarioLoader.AssignSpawnBeacons(beaconPool, result.AllAircraftStates)`, a **post-load pass** rather
   than an inline step: the pool's banks come from the ARTCC config, which can only be resolved once the load has parsed the

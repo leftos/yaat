@@ -148,9 +148,9 @@ public class NavigationDatabaseAirportResolutionTests
     [InlineData("TJSJ", "SJU")]
     public void TryResolveFaaId_NonConus_ResolvesWhereKStripFails(string icao, string expectedFaa)
     {
-        // The repo-wide NormalizeAirport K-strip only handles CONUS "K" prefixes and would
-        // return these unchanged. Resolving through the published FAA id is the difference
-        // between displaying "ANC" and displaying "PANC" in the STARS scratchpad slot.
+        // A K-strip only handles CONUS "K" prefixes and would return these unchanged. Resolving
+        // through the published FAA id is the difference between displaying "ANC" and displaying
+        // "PANC" in the STARS scratchpad slot; NormalizeAirport resolves through it too.
         NavigationDatabase? navDb = TestVnasData.NavigationDb;
         if (navDb is null)
         {
@@ -161,7 +161,7 @@ public class NavigationDatabaseAirportResolutionTests
 
         Assert.True(ok);
         Assert.Equal(expectedFaa, faaId);
-        Assert.Equal(icao, NavigationDatabase.NormalizeAirport(icao));
+        Assert.Equal(expectedFaa, NavigationDatabase.NormalizeAirport(icao));
     }
 
     [Theory]
@@ -203,5 +203,80 @@ public class NavigationDatabaseAirportResolutionTests
 
         Assert.False(ok);
         Assert.Equal(string.Empty, faaId);
+    }
+
+    [Theory]
+    [InlineData("PHNL", "I08L")]
+    [InlineData("PHOG", "I02-Y")]
+    [InlineData("PANC", "I07L")]
+    [InlineData("PGUM", "I06L")]
+    public void GetApproaches_PacificAndAlaskaAirports_FindTheirCifpApproaches(string icao, string approachId)
+    {
+        // FAACIFP18 files Hawaii and Guam under area code PAC ("SPACP") and Alaska under CAN ("SCANP"),
+        // not USA ("SUSAP"), so a USA-only record filter found no approach at any of them.
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.Contains(navDb.GetApproaches(icao), a => a.ApproachId == approachId);
+    }
+
+    [Fact]
+    public void GetSids_PacificAirport_LoadsItsCifpDepartures()
+    {
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.Contains(navDb.GetSids("PHNL"), sid => sid.ProcedureId == "HNL2");
+    }
+
+    [Fact]
+    public void GetApproaches_ByFaaId_HNL_FindsPhnlApproaches()
+    {
+        // The CIFP files Honolulu as PHNL; a K-prefix fallback asked it for "KHNL".
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.Contains(navDb.GetApproaches("HNL"), a => a.ApproachId == "I08L");
+        Assert.NotNull(navDb.GetApproach("HNL", "I08L"));
+    }
+
+    [Fact]
+    public void GetApproach_ThreeCharacterLid_FindsItsCifpApproach()
+    {
+        // YAAT-479 / YAAT-1664: the CIFP files 12J under its bare LID, so a "K12J" lookup found no approach.
+        NavigationDatabase? navDb = TestVnasData.NavigationDb;
+        if (navDb is null)
+        {
+            return;
+        }
+
+        Assert.NotNull(navDb.GetApproach("12J", "D30"));
+    }
+
+    [Theory]
+    [InlineData("PHNL", "HNL", true)]
+    [InlineData("PHOG", "OGG", true)]
+    [InlineData("PANC", "ANC", true)]
+    [InlineData("PHNL", "OGG", false)]
+    [InlineData("KOAK", "OAK", true)]
+    [InlineData("koak", "OAK", true)]
+    [InlineData("KOAK", "SFO", false)]
+    public void AirportIdsMatch_IcaoAndFaaIds_OfAPacificAirport_Match(string a, string b, bool expected)
+    {
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, NavigationDatabase.AirportIdsMatch(a, b));
     }
 }

@@ -115,7 +115,7 @@ public static class ApproachGateDatabase
             }
 
             // Get runway threshold
-            RunwayInfo? runwayInfo = navDb.GetRunway(airport, runway) ?? navDb.GetRunway($"K{airport}", runway);
+            RunwayInfo? runwayInfo = navDb.GetRunway(airport, runway) ?? PairedRunway(navDb, airport, runway);
             if (runwayInfo is null)
             {
                 skipped++;
@@ -125,7 +125,7 @@ public static class ApproachGateDatabase
             // FAF → pavement threshold. The displacement is added back at read time.
             double fafDist = GeoMath.DistanceNm(fafPos.Value.Lat, fafPos.Value.Lon, runwayInfo.ThresholdLatitude, runwayInfo.ThresholdLongitude);
 
-            result[(NormalizeAirport(airport), runway)] = fafDist;
+            result[(NavigationDatabase.NormalizeAirport(airport), runway)] = fafDist;
             computed++;
         }
 
@@ -151,7 +151,7 @@ public static class ApproachGateDatabase
             return null;
         }
 
-        string normalized = NormalizeAirport(airportId);
+        string normalized = NavigationDatabase.NormalizeAirport(airportId);
 
         if (!table.TryGetValue((normalized, runwayId), out double fafDistToPavementNm))
         {
@@ -188,5 +188,10 @@ public static class ApproachGateDatabase
         return approachGate + InterceptPaddingNm;
     }
 
-    private static string NormalizeAirport(string airportId) => airportId.StartsWith('K') ? airportId[1..] : airportId;
+    /// <summary>
+    /// The runway under the airport's navdata canonical id (OAK → KOAK, HNL → PHNL), else under "K" + the id.
+    /// </summary>
+    private static RunwayInfo? PairedRunway(NavigationDatabase navDb, string airport, string runway) =>
+        (navDb.TryResolveAirport(airport, out string canonical) ? navDb.GetRunway(canonical, runway) : null)
+        ?? navDb.GetRunway($"K{airport}", runway);
 }

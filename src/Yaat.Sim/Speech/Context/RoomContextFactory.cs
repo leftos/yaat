@@ -241,9 +241,20 @@ public static class RoomContextFactory
         }
     }
 
-    /// <summary>A navdata airport id as an ICAO id: a three-letter FAA id gains its "K".</summary>
-    /// <param name="id">The navdata airport id ("OAK", "KOAK", "O61").</param>
-    public static string ToIcao(string id) => ((id.Length == 3) && id.All(char.IsLetter)) ? "K" + id : id;
+    /// <summary>
+    /// A navdata airport id as an ICAO id: the navdata's 4-letter ICAO id when it pairs one ("OAK" → "KOAK",
+    /// "HNL" → "PHNL"), else a three-letter FAA id gains its "K".
+    /// </summary>
+    /// <param name="id">The navdata airport id ("OAK", "KOAK", "HNL", "O61").</param>
+    public static string ToIcao(string id)
+    {
+        if ((NavigationDatabase.InstanceOrNull?.TryResolveAirport(id, out string canonical) == true) && (canonical.Length == 4))
+        {
+            return canonical;
+        }
+
+        return ((id.Length == 3) && id.All(char.IsLetter)) ? "K" + id : id;
+    }
 
     /// <summary>The landmark entities of the airport's own landmark file (<see cref="NavigationDatabase.CustomFixLandmarks"/>).</summary>
     /// <param name="airportIcao">The airport's ICAO id ("KOAK").</param>

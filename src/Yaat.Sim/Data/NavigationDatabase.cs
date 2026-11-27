@@ -142,6 +142,13 @@ public sealed class NavigationDatabase
         _scopedInstance.Value ?? (_holdersInUse ? _testHolder.Value?.Db : null) ?? _default.GetOrLoad();
 
     /// <summary>
+    /// The instance already in place (scoped override, else per-test holder, else the installed process-wide default),
+    /// never running the registered test loader: what a lookup called while a database builds may read.
+    /// </summary>
+    private static NavigationDatabase? LoadedInstanceOrNull =>
+        _scopedInstance.Value ?? (_holdersInUse ? _testHolder.Value?.Db : null) ?? _default.Installed;
+
+    /// <summary>
     /// Initializes the global singleton with NavData + CIFP. Both are required.
     /// <paramref name="artccsBaseDir"/> overrides the per-ARTCC user-data root (custom fixes,
     /// fix pronunciations, taxi route presets); pass an empty string to skip loading entirely.
@@ -176,6 +183,9 @@ public sealed class NavigationDatabase
         private Lazy<NavigationDatabase>? _loaded;
 
         public void Set(NavigationDatabase db) => Volatile.Write(ref _installed, db);
+
+        /// <summary>The installed instance, without running the loader.</summary>
+        public NavigationDatabase? Installed => Volatile.Read(ref _installed);
 
         public void SetLoader(Func<NavigationDatabase> loader) =>
             Volatile.Write(ref _loaded, new Lazy<NavigationDatabase>(loader, LazyThreadSafetyMode.ExecutionAndPublication));
@@ -301,7 +311,7 @@ public sealed class NavigationDatabase
         LoadProcedurePronunciations(artccsBaseDir);
         InitialContactTransfers = LoadInitialContactTransfers(artccsBaseDir);
         WakeDirectives = LoadWakeDirectives(artccsBaseDir);
-        AirportSidecars = LoadAirportSidecars(artccsBaseDir);
+        AirportSidecars = LoadAirportSidecars(artccsBaseDir, AirportKey);
         AllFixNames = BuildSortedNames();
     }
 
@@ -427,7 +437,7 @@ public sealed class NavigationDatabase
         // failure for every airport in every test that uses ForTesting.
         foreach (string key in db._airportCanonical.Keys)
         {
-            db._airportFaaIds.TryAdd(key, NormalizeAirport(key));
+            db._airportFaaIds.TryAdd(key, StripConusK(key));
         }
 
         if (fixes is not null)
@@ -461,7 +471,7 @@ public sealed class NavigationDatabase
         {
             foreach ((string? airportCode, IReadOnlyList<CifpApproachProcedure>? procedures) in approachesByAirport)
             {
-                string normalized = NormalizeAirport(airportCode);
+                string normalized = db.AirportKey(airportCode);
                 db._approachCache[normalized] = procedures;
             }
         }
@@ -493,7 +503,7 @@ public sealed class NavigationDatabase
         {
             foreach (CifpSidProcedure sid in sids)
             {
-                string key = NormalizeAirport(sid.Airport);
+                string key = db.AirportKey(sid.Airport);
                 db._sidCache.AddOrUpdate(key, [sid], (_, existing) => [.. existing, sid]);
             }
         }
@@ -502,7 +512,7 @@ public sealed class NavigationDatabase
         {
             foreach (CifpStarProcedure star in stars)
             {
-                string key = NormalizeAirport(star.Airport);
+                string key = db.AirportKey(star.Airport);
                 db._starCache.AddOrUpdate(key, [star], (_, existing) => [.. existing, star]);
             }
         }
@@ -862,7 +872,7 @@ public sealed class NavigationDatabase
             return false;
         }
 
-        string icao = IcaoForCifp(airport.Trim().ToUpperInvariant());
+        string icao = CifpIdent(_cifpFilePath, airport);
         IReadOnlyDictionary<string, (double Lat, double Lon)> waypoints = _terminalWaypointCache.GetOrAdd(
             icao,
             key => CifpParser.ParseTerminalWaypoints(_cifpFilePath, key)
@@ -967,7 +977,7 @@ public sealed class NavigationDatabase
         _procedurePronunciations.TryGetValue(procedureBaseName.Trim(), out List<string>? list) ? list.AsReadOnly() : [];
 
     private AirportGroundPronunciations? GroundPronunciationsFor(string airport) =>
-        _groundPronunciations.TryGetValue(NormalizeAirport(airport), out AirportGroundPronunciations? ground) ? ground : null;
+        _groundPronunciations.TryGetValue(AirportKey(airport), out AirportGroundPronunciations? ground) ? ground : null;
 
     /// <summary>
     /// Returns the natural-language label for a fix used in spoken traffic advisories: the first
@@ -1555,7 +1565,7 @@ public sealed class NavigationDatabase
     // ──────────────────────────────────────────────
 
     private bool TryGetCustomProcedures(string airportCode, [MaybeNullWhen(false)] out CustomAirportProcedures custom) =>
-        _customProcedures.TryGetValue(NormalizeAirport(airportCode), out custom);
+        _customProcedures.TryGetValue(AirportKey(airportCode), out custom);
 
     /// <summary>
     /// Builds the advisory source for a fragment hit. <paramref name="resolvedId"/> is the *matched*
@@ -1680,7 +1690,7 @@ public sealed class NavigationDatabase
 
         foreach (string path in _supplementaryCifpFilePaths)
         {
-            match = FindSidInList(GetSupplementarySids(path, NormalizeAirport(airportCode)), sidId);
+            match = FindSidInList(GetSupplementarySids(path, AirportKey(airportCode)), sidId);
             if (match is not null)
             {
                 source = new ProcedureSource(ProcedureSourceKind.PriorCycle, SupplementarySourceLabel(path));
@@ -1716,7 +1726,7 @@ public sealed class NavigationDatabase
 
     public IReadOnlyList<CifpSidProcedure> GetSids(string airportCode)
     {
-        string normalized = NormalizeAirport(airportCode);
+        string normalized = AirportKey(airportCode);
         return _sidCache.GetOrAdd(normalized, LoadSids);
     }
 
@@ -1750,7 +1760,7 @@ public sealed class NavigationDatabase
 
         foreach (string path in _supplementaryCifpFilePaths)
         {
-            match = FindStarInList(GetSupplementaryStars(path, NormalizeAirport(airportCode)), starId);
+            match = FindStarInList(GetSupplementaryStars(path, AirportKey(airportCode)), starId);
             if (match is not null)
             {
                 source = new ProcedureSource(ProcedureSourceKind.PriorCycle, SupplementarySourceLabel(path));
@@ -1827,7 +1837,7 @@ public sealed class NavigationDatabase
 
     public IReadOnlyList<CifpStarProcedure> GetStars(string airportCode)
     {
-        string normalized = NormalizeAirport(airportCode);
+        string normalized = AirportKey(airportCode);
         return _starCache.GetOrAdd(normalized, LoadStars);
     }
 
@@ -1929,7 +1939,7 @@ public sealed class NavigationDatabase
 
         foreach (string path in _supplementaryCifpFilePaths)
         {
-            match = GetSupplementaryApproaches(path, NormalizeAirport(airportCode))
+            match = GetSupplementaryApproaches(path, AirportKey(airportCode))
                 .FirstOrDefault(a => a.ApproachId.Equals(approachId, StringComparison.OrdinalIgnoreCase));
             if (match is not null)
             {
@@ -1949,7 +1959,7 @@ public sealed class NavigationDatabase
 
     public IReadOnlyList<CifpApproachProcedure> GetApproaches(string airportCode)
     {
-        string normalized = NormalizeAirport(airportCode);
+        string normalized = AirportKey(airportCode);
         return _approachCache.GetOrAdd(normalized, LoadApproaches);
     }
 
@@ -2493,7 +2503,7 @@ public sealed class NavigationDatabase
 
     private void AddCustomProceduresForAirport(CustomProcedureFragment fragment, string icao)
     {
-        string normalized = NormalizeAirport(icao);
+        string normalized = AirportKey(icao);
         if (!_customProcedures.TryGetValue(normalized, out CustomAirportProcedures? bucket))
         {
             bucket = new CustomAirportProcedures();
@@ -2862,7 +2872,7 @@ public sealed class NavigationDatabase
 
         foreach (GatePronunciationFile file in loadResult.Files)
         {
-            string airport = NormalizeAirport(file.AirportId);
+            string airport = AirportKey(file.AirportId);
             if (!_groundPronunciations.TryGetValue(airport, out AirportGroundPronunciations? ground))
             {
                 ground = new AirportGroundPronunciations();
@@ -2958,7 +2968,7 @@ public sealed class NavigationDatabase
         }
     }
 
-    private static AirportSidecarCatalog LoadAirportSidecars(string baseDir)
+    private static AirportSidecarCatalog LoadAirportSidecars(string baseDir, Func<string, string> airportKey)
     {
         AirportSidecarLoadResult loadResult = AirportSidecarLoader.LoadAll(baseDir);
 
@@ -2972,7 +2982,7 @@ public sealed class NavigationDatabase
             Log.LogInformation("Airport sidecars: {Count} airport(s) loaded from {BaseDir}", loadResult.Airports.Count, baseDir);
         }
 
-        return new AirportSidecarCatalog(loadResult.Airports);
+        return new AirportSidecarCatalog(loadResult.Airports, airportKey);
     }
 
     private static InitialContactTransferCatalog LoadInitialContactTransfers(string baseDir)
@@ -3108,23 +3118,48 @@ public sealed class NavigationDatabase
             return [];
         }
 
-        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        string icao = CifpIdent(_cifpFilePath, normalizedAirport);
         return CifpParser.ParseSids(_cifpFilePath, icao);
     }
 
     private IReadOnlyList<CifpSidProcedure> GetSupplementarySids(string supplementaryPath, string normalizedAirport) =>
-        _supplementarySidCache.GetOrAdd((supplementaryPath, normalizedAirport), key => CifpParser.ParseSids(key.Path, IcaoForCifp(key.Airport)));
+        _supplementarySidCache.GetOrAdd(
+            (supplementaryPath, normalizedAirport),
+            key => CifpParser.ParseSids(key.Path, CifpIdent(key.Path, key.Airport))
+        );
 
     private IReadOnlyList<CifpStarProcedure> GetSupplementaryStars(string supplementaryPath, string normalizedAirport) =>
-        _supplementaryStarCache.GetOrAdd((supplementaryPath, normalizedAirport), key => CifpParser.ParseStars(key.Path, IcaoForCifp(key.Airport)));
+        _supplementaryStarCache.GetOrAdd(
+            (supplementaryPath, normalizedAirport),
+            key => CifpParser.ParseStars(key.Path, CifpIdent(key.Path, key.Airport))
+        );
 
     private IReadOnlyList<CifpApproachProcedure> GetSupplementaryApproaches(string supplementaryPath, string normalizedAirport) =>
         _supplementaryApproachCache.GetOrAdd(
             (supplementaryPath, normalizedAirport),
-            key => CifpParser.ParseApproaches(key.Path, IcaoForCifp(key.Airport))
+            key => CifpParser.ParseApproaches(key.Path, CifpIdent(key.Path, key.Airport))
         );
 
-    private static string IcaoForCifp(string normalizedAirport) => normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+    /// <summary>
+    /// The airport ident <paramref name="cifpFilePath"/> files <paramref name="airport"/>'s records under: the navdata
+    /// canonical id (PHNL for HNL, KOAK for OAK), else the id as given (a bare LID such as 12J, which the CIFP files
+    /// without a K), else "K" + a 3-character id. The first candidate with records in the file wins; with none, the id as given.
+    /// </summary>
+    private string CifpIdent(string cifpFilePath, string airport)
+    {
+        string id = airport.Trim().ToUpperInvariant();
+        string? canonical = TryResolveAirport(id, out string resolved) ? resolved : null;
+        string? kPrefixed = id.Length <= 3 ? "K" + id : null;
+        foreach (string? candidate in (string?[])[canonical, id, kPrefixed])
+        {
+            if ((candidate is not null) && CifpAirportIndex.HasAirport(cifpFilePath, candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return id;
+    }
 
     /// <summary>
     /// Human-readable source label for a supplementary CIFP file used in the retired-procedure advisory:
@@ -3150,7 +3185,7 @@ public sealed class NavigationDatabase
             return [];
         }
 
-        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        string icao = CifpIdent(_cifpFilePath, normalizedAirport);
         return CifpParser.ParseStars(_cifpFilePath, icao);
     }
 
@@ -3161,7 +3196,7 @@ public sealed class NavigationDatabase
             return [];
         }
 
-        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        string icao = CifpIdent(_cifpFilePath, normalizedAirport);
         return CifpParser.ParseApproaches(_cifpFilePath, icao);
     }
 
@@ -3179,7 +3214,7 @@ public sealed class NavigationDatabase
             return null;
         }
 
-        string normalized = NormalizeAirport(airportCode);
+        string normalized = AirportKey(airportCode);
         return _airportMagVarCache.GetOrAdd(normalized, LoadAirportMagneticVariation);
     }
 
@@ -3190,7 +3225,7 @@ public sealed class NavigationDatabase
             return null;
         }
 
-        string icao = normalizedAirport.Length <= 3 ? $"K{normalizedAirport}" : normalizedAirport;
+        string icao = CifpIdent(_cifpFilePath, normalizedAirport);
         return CifpParser.ParseAirportMagneticVariation(_cifpFilePath, icao);
     }
 
@@ -3365,23 +3400,9 @@ public sealed class NavigationDatabase
         var faaOnlyAirportIds = new List<string>();
         foreach ((string? ident, CifpNavaid info) in navaids)
         {
-            // A bare FAA airport id (SAC, OAK, HEY) that also names a CIFP navaid resolves to the navaid: a route
-            // token means the navaid, and airport callers use GetAirportPosition. The ICAO id (KSAC) keeps the
-            // airport; an airport published with only its FAA id gains a K-prefixed id ("KHEY") so a command can
-            // still name it. NavData fixes never displace an airport, since that set carries far-away foreign
-            // fixes sharing US airport ids.
-            if (IsNonCanonicalAirportId(ident))
+            if (!PlaceNavaid(ident, info, faaOnlyAirportIds))
             {
-                _navDb[ident] = (info.Lat, info.Lon);
-            }
-            else if (IsFaaOnlyAirportId(ident))
-            {
-                _navDb[ident] = (info.Lat, info.Lon);
-                faaOnlyAirportIds.Add(ident);
-            }
-            else
-            {
-                _navDb.TryAdd(ident, (info.Lat, info.Lon));
+                continue;
             }
 
             if (!string.IsNullOrEmpty(info.Name))
@@ -3403,6 +3424,41 @@ public sealed class NavigationDatabase
         {
             AddKPrefixedAirportId(faaId);
         }
+    }
+
+    /// <summary>
+    /// Puts a CIFP navaid's position in the fix database; false when it is left out, and its name, type and declination
+    /// with it. A navaid of a foreign ICAO region only fills an ident nothing holds yet, so it never displaces a USA fix or
+    /// airport sharing its ident (TRI is Tri-Cities, not Piarco; PNA is Pinedale). A navaid of a US region places as the
+    /// USA ones do, whichever CIFP area files it (the Honolulu VORTAC HNL, area PAC).
+    /// </summary>
+    private bool PlaceNavaid(string ident, CifpNavaid info, List<string> faaOnlyAirportIds)
+    {
+        if (!info.IsDomesticRegion)
+        {
+            return _navDb.TryAdd(ident, (info.Lat, info.Lon));
+        }
+
+        // A bare FAA airport id (SAC, OAK, HEY) that also names a CIFP navaid resolves to the navaid: a route
+        // token means the navaid, and airport callers use GetAirportPosition. The ICAO id (KSAC) keeps the
+        // airport; an airport published with only its FAA id gains a K-prefixed id ("KHEY") so a command can
+        // still name it. NavData fixes never displace an airport, since that set carries far-away foreign
+        // fixes sharing US airport ids.
+        if (IsNonCanonicalAirportId(ident))
+        {
+            _navDb[ident] = (info.Lat, info.Lon);
+        }
+        else if (IsFaaOnlyAirportId(ident))
+        {
+            _navDb[ident] = (info.Lat, info.Lon);
+            faaOnlyAirportIds.Add(ident);
+        }
+        else
+        {
+            _navDb.TryAdd(ident, (info.Lat, info.Lon));
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -3463,15 +3519,31 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
-    /// Canonicalizes an airport identifier by uppercasing and stripping the CONUS
-    /// K-prefix (e.g. "KOAK" → "OAK"). Used wherever two airport IDs must be
-    /// compared without caring whether the caller wrote ICAO or FAA form. Scenario
-    /// files and vNAS data use both interchangeably.
+    /// Canonicalizes an airport identifier to its published FAA id through the loaded navdata's ICAO/FAA pairs
+    /// ("KOAK" → "OAK", "PHNL" → "HNL", "PHOG" → "OGG"). Used wherever two airport IDs must be compared without
+    /// caring whether the caller wrote ICAO or FAA form; scenario files and vNAS data use both interchangeably. An id
+    /// the navdata does not pair with an FAA id, or any id while no navdata is loaded, is uppercased with the CONUS
+    /// K-prefix stripped from a 4-character id. It never runs the test loader, so it is safe while a database builds.
     /// </summary>
-    public static string NormalizeAirport(string code)
+    public static string NormalizeAirport(string code) => LoadedInstanceOrNull?.AirportKey(code) ?? StripConusK(code);
+
+    /// <summary>
+    /// The key this database files and reads airport-keyed data under (custom procedures, gate pronunciations, procedure
+    /// caches): the published FAA id its own ICAO/FAA pairs give ("KOAK" → "OAK", "PHNL" → "HNL"), else the id with the
+    /// CONUS K-prefix stripped. It reads this database's pairs, which BuildIndex fills before any airport-keyed load, so a
+    /// key written while the database builds is the key its reads use, whatever database is installed at the time.
+    /// </summary>
+    private string AirportKey(string code)
     {
         string upper = code.ToUpperInvariant().Trim();
-        return upper.StartsWith('K') && upper.Length == 4 ? upper[1..] : upper;
+        return _airportFaaIds.TryGetValue(upper, out string? faaId) ? faaId : StripConusK(upper);
+    }
+
+    /// <summary>The id uppercased and trimmed, with the CONUS K-prefix stripped from a 4-character id ("KOAK" → "OAK").</summary>
+    private static string StripConusK(string code)
+    {
+        string upper = code.ToUpperInvariant().Trim();
+        return (upper.StartsWith('K') && (upper.Length == 4)) ? upper[1..] : upper;
     }
 
     /// <summary>
@@ -3507,10 +3579,10 @@ public sealed class NavigationDatabase
 
     /// <summary>
     /// Resolves an airport identifier in any common form (FAA "OAK", ICAO "KOAK") to the published
-    /// FAA identifier, which is the form STARS displays. Unlike the <c>K</c>-stripping in
-    /// <see cref="NormalizeAirport"/>, this resolves non-CONUS airports correctly ("PANC" to "ANC").
-    /// Returns false when the input is unknown or the airport publishes no FAA id — callers should
-    /// then fall back to the identifier as filed rather than substituting the ICAO form.
+    /// FAA identifier, which is the form STARS displays, non-CONUS airports included ("PANC" to "ANC"). It reads
+    /// the pairs <see cref="NormalizeAirport"/> keys by, but returns false when the input is unknown or the airport
+    /// publishes no FAA id, where <see cref="NormalizeAirport"/> falls back to a K-strip — callers should then fall
+    /// back to the identifier as filed rather than substituting the ICAO form.
     /// </summary>
     /// <param name="input">Airport identifier as filed.</param>
     /// <param name="faaId">On success, the published FAA id. Empty string on failure.</param>
@@ -3535,8 +3607,8 @@ public sealed class NavigationDatabase
 
     /// <summary>
     /// Returns true when two airport identifiers refer to the same airport after
-    /// canonicalization. Handles the common ICAO-vs-FAA mismatch: "KOAK" matches
-    /// "OAK". Safe on null/empty — empty strings never match anything.
+    /// <see cref="NormalizeAirport"/>: "KOAK" matches "OAK", and "PHNL" matches "HNL" through the
+    /// navdata's ICAO/FAA pairs. Safe on null/empty — empty strings never match anything.
     /// </summary>
     public static bool AirportIdsMatch(string? a, string? b)
     {
@@ -3545,25 +3617,6 @@ public sealed class NavigationDatabase
             return false;
         }
         return NormalizeAirport(a).Equals(NormalizeAirport(b), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// True when two airport identifiers refer to the same airport, resolving each through the FAA/ICAO
-    /// index so non-CONUS pairs match too (e.g. "ANC"/"PANC", "HNL"/"PHNL", "SJU"/"TJSJ") — not just the
-    /// CONUS K-prefix. Falls back to the K-strip <see cref="AirportIdsMatch"/> when an identifier is not in
-    /// the database, so unknown airports still match on an exact/ICAO-vs-FAA basis.
-    /// </summary>
-    public bool AirportIdsMatchResolved(string? a, string? b)
-    {
-        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
-        {
-            return false;
-        }
-        if (TryResolveAirport(a, out string? canonicalA) && TryResolveAirport(b, out string? canonicalB))
-        {
-            return canonicalA.Equals(canonicalB, StringComparison.Ordinal);
-        }
-        return AirportIdsMatch(a, b);
     }
 
     /// <summary>

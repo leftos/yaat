@@ -17,8 +17,8 @@ IATA→ICAO crosswalk, keeping the airline only if that ICAO exists in `airline-
 tools/refresh-airport-airlines.ps1 -SkipDownload -Idents <meta.target_airports> -BtsSegmentFiles <the two zips>
 ```
 
-Consumed at runtime by `AirportAirlines.cs` (`src/Yaat.Sim/Data/`), which loads the Brotli fixture lazily and normalizes
-K/P-prefixed U.S. ICAOs to local IDs; `airport-airlines.meta` carries the provenance sidecar (source ZIP row counts, target
+Consumed at runtime by `AirportAirlines.cs` (`src/Yaat.Sim/Data/`), which loads the Brotli fixture lazily and resolves
+an airport id to its published FAA id through the navdata's ICAO/FAA pairs (`PHNL` → `HNL`, `PHOG` → `OGG`), K/P-stripping a 4-letter id the navdata does not pair; `airport-airlines.meta` carries the provenance sidecar (source ZIP row counts, target
 airports, unmapped BTS carriers). OpenFlights route data backfills only airports with no BTS carrier hits.
 
 ## The defunct-code-collision bug (fixed)

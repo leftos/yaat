@@ -16,6 +16,24 @@ public class AirportAirlinesTests
         Assert.Contains(oakAirlines, a => a.Icao == "SWA" && a.Arrivals > 1000 && a.Confidence == "regular");
     }
 
+    [Theory]
+    [InlineData("PHOG", "OGG")]
+    [InlineData("PHNL", "HNL")]
+    [InlineData("PANC", "ANC")]
+    [InlineData("KOAK", "OAK")]
+    [InlineData("OGG", "OGG")]
+    public void NormalizeAirportId_PacificIcaoId_ReturnsThePublishedFaaId(string input, string expected)
+    {
+        // Kahului is PHOG / OGG: dropping the leading letter gives "HOG", which is no airport.
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, AirportAirlines.NormalizeAirportId(input));
+    }
+
     [Fact]
     public void FixtureUsesRecentBtsPeriod()
     {

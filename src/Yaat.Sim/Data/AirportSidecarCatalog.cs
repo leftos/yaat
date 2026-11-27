@@ -7,8 +7,10 @@ namespace Yaat.Sim.Data;
 /// <summary>
 /// Airport-keyed lookup over the unified per-airport ground sidecars loaded from
 /// <c>Data/ARTCCs/{ARTCC}/Airports/*.json</c>. Replaces the former separate AvoidTaxiway and TaxiRoute
-/// catalogs. Keys accept either ICAO ("KOAK") or FAA short form ("OAK"); both normalize to the same
-/// key via <see cref="NavigationDatabase.NormalizeAirport"/>. Multiple files for the same airport merge.
+/// catalogs. Keys accept either ICAO ("KOAK", "PHNL") or FAA short form ("OAK", "HNL"); both normalize to the same
+/// key through the catalog's airport-key function — the owning database's own key when a
+/// <see cref="NavigationDatabase"/> builds it, else <see cref="NavigationDatabase.NormalizeAirport"/>. Multiple files for
+/// the same airport merge.
 /// All accessors are never-null.
 /// </summary>
 public sealed class AirportSidecarCatalog
@@ -47,8 +49,18 @@ public sealed class AirportSidecarCatalog
 
     private static readonly IReadOnlyDictionary<string, StandDeparture> NoStandDepartures = new Dictionary<string, StandDeparture>();
 
+    private readonly Func<string, string> _airportKey;
+
     public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports)
+        : this(airports, NavigationDatabase.NormalizeAirport) { }
+
+    /// <summary>
+    /// A catalog keying every write and read by <paramref name="airportKey"/>, so a database building it while another
+    /// is installed files each airport under the key its own reads use ("PHNL" and "HNL" alike).
+    /// </summary>
+    public AirportSidecarCatalog(IEnumerable<AirportSidecar> airports, Func<string, string> airportKey)
     {
+        _airportKey = airportKey;
         foreach (AirportSidecar airport in airports)
         {
             if (string.IsNullOrWhiteSpace(airport.AirportId))
@@ -56,7 +68,7 @@ public sealed class AirportSidecarCatalog
                 continue;
             }
 
-            string key = NavigationDatabase.NormalizeAirport(airport.AirportId);
+            string key = _airportKey(airport.AirportId);
             MergeAvoidedTaxiways(key, airport.AvoidTaxiways);
             MergeTaxiRoutes(key, airport.TaxiRoutes);
             MergeImplicitConnectors(key, airport.ImplicitConnectors);
@@ -145,7 +157,7 @@ public sealed class AirportSidecarCatalog
             return null;
         }
 
-        return _asdexLandingTaxiwaysByAirport.TryGetValue(NavigationDatabase.NormalizeAirport(airportId), out HashSet<string>? set) ? set : null;
+        return _asdexLandingTaxiwaysByAirport.TryGetValue(_airportKey(airportId), out HashSet<string>? set) ? set : null;
     }
 
     private void MergeStandLeadIns(string key, IReadOnlyList<StandLeadIn> leadIns)
@@ -181,7 +193,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _standLeadInsByAirport.TryGetValue(key, out List<StandLeadIn>? list) ? list : [];
     }
 
@@ -224,7 +236,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _spotEdgesByAirport.TryGetValue(key, out List<SpotEdgeChain>? list) ? list : [];
     }
 
@@ -256,7 +268,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _standDepartureAreasByAirport.TryGetValue(key, out List<StandDepartureArea>? list) ? list : [];
     }
 
@@ -291,7 +303,7 @@ public sealed class AirportSidecarCatalog
             return NoStandDepartures;
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _standDeparturesByAirport.TryGetValue(key, out Dictionary<string, StandDeparture>? byStand) ? byStand : NoStandDepartures;
     }
 
@@ -324,14 +336,14 @@ public sealed class AirportSidecarCatalog
     /// </summary>
     public IReadOnlySet<string> GetNonMovementTaxilanes(string airportId) => NamesFor(_nonMovementByAirport, airportId);
 
-    private static IReadOnlySet<string> NamesFor(Dictionary<string, HashSet<string>> byAirport, string airportId)
+    private IReadOnlySet<string> NamesFor(Dictionary<string, HashSet<string>> byAirport, string airportId)
     {
         if (string.IsNullOrWhiteSpace(airportId))
         {
             return EmptyTaxiwaySet;
         }
 
-        return byAirport.TryGetValue(NavigationDatabase.NormalizeAirport(airportId), out HashSet<string>? set) ? set : EmptyTaxiwaySet;
+        return byAirport.TryGetValue(_airportKey(airportId), out HashSet<string>? set) ? set : EmptyTaxiwaySet;
     }
 
     private void MergeExitDirections(string key, IReadOnlyList<ExitDirectionOverride> overrides)
@@ -415,7 +427,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _parkingAreasByAirport.TryGetValue(key, out List<ParkingAreaAlias>? list) ? list : [];
     }
 
@@ -432,7 +444,7 @@ public sealed class AirportSidecarCatalog
             return null;
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         if (!_classExitDirectionsByAirport.TryGetValue(key, out Dictionary<(string Runway, ArrivalClass Class), ExitSide>? byClass))
         {
             return null;
@@ -587,7 +599,7 @@ public sealed class AirportSidecarCatalog
             return EmptyTaxiwaySet;
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _avoidByAirport.TryGetValue(key, out HashSet<string>? set) ? set : EmptyTaxiwaySet;
     }
 
@@ -602,7 +614,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _routesByAirport.TryGetValue(key, out List<TaxiRouteDefinition>? list) ? list : [];
     }
 
@@ -618,7 +630,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _connectorsByAirport.TryGetValue(key, out List<ImplicitConnectorEntry>? list) ? list : [];
     }
 
@@ -633,7 +645,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _crossingPairsByAirport.TryGetValue(key, out List<CrossingPair>? list) ? list : [];
     }
 
@@ -649,7 +661,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _oneWayByAirport.TryGetValue(key, out List<OneWayConstraint>? list) ? list : [];
     }
 
@@ -665,7 +677,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _blockedTurnsByAirport.TryGetValue(key, out List<BlockedTurn>? list) ? list : [];
     }
 
@@ -681,7 +693,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _adwByAirport.TryGetValue(key, out List<AdwWindow>? list) ? list : [];
     }
 
@@ -697,7 +709,7 @@ public sealed class AirportSidecarCatalog
             return [];
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         return _exitCapacityByAirport.TryGetValue(key, out List<ExitCapacityRule>? list) ? list : [];
     }
 
@@ -714,7 +726,7 @@ public sealed class AirportSidecarCatalog
             return null;
         }
 
-        string key = NavigationDatabase.NormalizeAirport(airportId);
+        string key = _airportKey(airportId);
         if (!_exitDirectionsByAirport.TryGetValue(key, out Dictionary<string, ExitSide>? byRunway))
         {
             return null;

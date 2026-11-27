@@ -38,34 +38,7 @@ public static class CifpParser
         var fafByApproach = new Dictionary<string, FafCandidate>();
         var terminalWaypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
 
-        int approachRecords = 0;
-        int waypointRecords = 0;
-
-        foreach (string line in File.ReadLines(cifpFilePath))
-        {
-            if (line.Length < 50)
-            {
-                continue;
-            }
-
-            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            char subsection = line[12];
-
-            if (subsection == 'F')
-            {
-                ProcessApproachRecord(line, fafByApproach);
-                approachRecords++;
-            }
-            else if (subsection == 'C')
-            {
-                ProcessTerminalWaypoint(line, terminalWaypoints);
-                waypointRecords++;
-            }
-        }
+        (int approachRecords, int waypointRecords) = ScanAirportRecords(cifpFilePath, fafByApproach, terminalWaypoints);
 
         // Convert per-approach FAF map to per-(airport, runway) map,
         // preferring higher-priority approach types
@@ -104,6 +77,53 @@ public static class CifpParser
         }
 
         return new CifpParseResult(fafFixes, terminalWaypoints);
+    }
+
+    /// <summary>
+    /// Reads every airport-section record of every area into the FAF candidates and the terminal waypoints. A terminal
+    /// waypoint ident takes its first record, and the USA records win an ident another area also uses (the file lists
+    /// the USA area last), so the USA waypoints are the ones a USA-only read chose.
+    /// </summary>
+    private static (int Approaches, int Waypoints) ScanAirportRecords(
+        string cifpFilePath,
+        Dictionary<string, FafCandidate> fafByApproach,
+        Dictionary<string, (double Lat, double Lon)> terminalWaypoints
+    )
+    {
+        var otherAreaWaypoints = new Dictionary<string, (double Lat, double Lon)>(StringComparer.OrdinalIgnoreCase);
+        int approachRecords = 0;
+        int waypointRecords = 0;
+
+        foreach (string line in File.ReadLines(cifpFilePath))
+        {
+            if ((line.Length < 50) || !CifpAirportIndex.IsAirportRecord(line))
+            {
+                continue;
+            }
+
+            char subsection = line[12];
+            if (subsection == 'F')
+            {
+                ProcessApproachRecord(line, fafByApproach);
+                approachRecords++;
+            }
+            else if (subsection == 'C')
+            {
+                ProcessTerminalWaypoint(line, CifpAirportIndex.IsUsaRecord(line) ? terminalWaypoints : otherAreaWaypoints);
+                waypointRecords++;
+            }
+        }
+
+        AddMissing(terminalWaypoints, otherAreaWaypoints);
+        return (approachRecords, waypointRecords);
+    }
+
+    private static void AddMissing<T>(Dictionary<string, T> into, Dictionary<string, T> from)
+    {
+        foreach ((string key, T value) in from)
+        {
+            into.TryAdd(key, value);
+        }
     }
 
     // Approach type code → human-readable name
@@ -149,7 +169,7 @@ public static class CifpParser
                 continue;
             }
 
-            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
+            if (!CifpAirportIndex.IsAirportRecord(line))
             {
                 continue;
             }
@@ -191,7 +211,7 @@ public static class CifpParser
                 continue;
             }
 
-            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
+            if (!CifpAirportIndex.IsAirportRecord(line))
             {
                 continue;
             }
@@ -279,7 +299,7 @@ public static class CifpParser
                 continue;
             }
 
-            if (!line.StartsWith("SUSAP", StringComparison.Ordinal))
+            if (!CifpAirportIndex.IsAirportRecord(line))
             {
                 continue;
             }
@@ -1190,37 +1210,32 @@ public static class CifpParser
     }
 
     /// <summary>
-    /// Parses VOR/DME/NDB navaid records (section D, "SUSAD" prefix) from CIFP data.
-    /// Returns a dictionary of navaid identifier → (lat, lon, name) for supplementing
-    /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at
-    /// columns 93-123 of the primary record per ARINC 424 field 5.71.
+    /// Parses VOR/DME/NDB navaid records (section D of any area: "SUSAD", "SPACD", "SCAND", …) and terminal NDBs
+    /// (section PN) from CIFP data. Returns a dictionary of navaid identifier → (lat, lon, name) for supplementing
+    /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at columns 93-123 of the primary
+    /// record per ARINC 424 field 5.71. An ident takes its first record, and a USA record wins an ident another area
+    /// also uses (the file lists the USA area last), so the USA navaids are the ones a USA-only read chose.
     /// </summary>
     public static IReadOnlyDictionary<string, CifpNavaid> ParseNavaids(string cifpFilePath)
     {
         var navaids = new Dictionary<string, CifpNavaid>(StringComparer.OrdinalIgnoreCase);
+        var otherAreaNavaids = new Dictionary<string, CifpNavaid>(StringComparer.OrdinalIgnoreCase);
 
         foreach (string line in File.ReadLines(cifpFilePath))
         {
-            // Section D (VHF "SUSAD " and NDB "SUSADB") and terminal NDBs (section PN, "SUSAPN"), which share the
-            // enroute NDB record layout.
-            bool isTerminalNdb = line.StartsWith("SUSAPN", StringComparison.Ordinal);
-            if ((line.Length < 50) || !(isTerminalNdb || line.StartsWith("SUSAD", StringComparison.Ordinal)))
+            if (!TryClassifyNavaidLine(line, out string ident, out bool isNdb))
             {
                 continue;
             }
 
-            // Navaid identifier at positions 13-17 (0-indexed)
-            string ident = line[13..18].Trim();
-            if (ident.Length == 0 || navaids.ContainsKey(ident))
+            Dictionary<string, CifpNavaid> target = CifpAirportIndex.IsUsaRecord(line) ? navaids : otherAreaNavaids;
+            if (!target.ContainsKey(ident) && (ParseNavaidRecord(line, isNdb) is { } navaid))
             {
-                continue;
-            }
-
-            if (ParseNavaidRecord(line, isNdb: isTerminalNdb || (line[5] == 'B')) is { } navaid)
-            {
-                navaids[ident] = navaid;
+                target[ident] = navaid;
             }
         }
+
+        AddMissing(navaids, otherAreaNavaids);
 
         if (Log.IsEnabled(LogLevel.Information))
         {
@@ -1228,6 +1243,26 @@ public static class CifpParser
         }
 
         return navaids;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="line"/> is a navaid record: section D (VHF "SUSAD " and NDB "SUSADB") or a terminal NDB
+    /// (section PN, "SUSAPN"), of any area ("SPACD", "SCANPN", …), which share the enroute NDB record layout.
+    /// <paramref name="ident"/> is its identifier (columns 14-18), <paramref name="isNdb"/> whether it is an NDB.
+    /// </summary>
+    private static bool TryClassifyNavaidLine(string line, out string ident, out bool isNdb)
+    {
+        bool isTerminalNdb = CifpAirportIndex.IsAirportRecord(line) && (line.Length > 5) && (line[5] == 'N');
+        if ((line.Length < 50) || !(isTerminalNdb || CifpAirportIndex.IsNavaidRecord(line)))
+        {
+            ident = "";
+            isNdb = false;
+            return false;
+        }
+
+        ident = line[13..18].Trim();
+        isNdb = isTerminalNdb || (line[5] == 'B');
+        return ident.Length > 0;
     }
 
     private static CifpNavaid? ParseNavaidRecord(string line, bool isNdb)
@@ -1262,7 +1297,21 @@ public static class CifpParser
         string type = ClassifyNavaid(isNdb, navClass);
         // Station declination (VHF field 5.66) / NDB magnetic variation (field 5.39) at columns 75-79.
         double? stationDeclination = line.Length >= 79 ? ParseArinc424MagneticVariation(line.AsSpan(74, 5)) : null;
-        return new CifpNavaid(lat.Value, lon.Value, name, type, stationDeclination);
+        return new CifpNavaid(lat.Value, lon.Value, name, type, stationDeclination, IsDomesticRegion(line));
+    }
+
+    /// <summary>
+    /// The US ICAO regions besides the K1-K7 CONUS ones: Alaska, Hawaii, Guam and the Marianas, Midway, Wake, Puerto Rico and
+    /// the US Virgin Islands. The USA area also files a few foreign records (Bahamas MY, Bermuda TX), so the area code does
+    /// not decide this.
+    /// </summary>
+    private static readonly HashSet<string> NonConusUsRegions = new(StringComparer.Ordinal) { "PA", "PH", "PG", "PM", "PW", "TJ", "TI" };
+
+    /// <summary>Whether a navaid record's ICAO region (columns 20-21) is a US region (see <see cref="NonConusUsRegions"/>).</summary>
+    private static bool IsDomesticRegion(string line)
+    {
+        string region = line[19..21];
+        return (region[0] == 'K') || NonConusUsRegions.Contains(region);
     }
 
     /// <summary>
@@ -1314,7 +1363,7 @@ public static class CifpParser
         {
             // PA = airport reference point (subsection A). These records are shorter than the
             // ~130-char procedure records, so they don't share the approach parser's length gate.
-            if (line.Length < 56 || !line.StartsWith("SUSAP", StringComparison.Ordinal) || line[12] != 'A')
+            if (line.Length < 56 || !CifpAirportIndex.IsAirportRecord(line) || line[12] != 'A')
             {
                 continue;
             }

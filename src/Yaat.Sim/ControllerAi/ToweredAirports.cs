@@ -44,10 +44,7 @@ public sealed class ToweredAirports
     /// CONUS <c>ANC</c> or <c>PANC</c>, matched through the navigation data's FAA/ICAO index (the K-prefix rule alone with
     /// no navigation data loaded).
     /// </summary>
-    public bool IsTowered(string airportId) =>
-        NavigationDatabase.InstanceOrNull is { } navDb
-            ? Ids.Any(id => navDb.AirportIdsMatchResolved(id, airportId))
-            : Ids.Any(id => NavigationDatabase.AirportIdsMatch(id, airportId));
+    public bool IsTowered(string airportId) => Ids.Any(id => NavigationDatabase.AirportIdsMatch(id, airportId));
 
     private static string? CallsignPrefix(string callsign)
     {

@@ -809,4 +809,30 @@ public class ConflictAlertDetectorTests
         NavigationDatabase navDb = TestNavDbFactory.WithRunways(MakeKoak28RRunway());
         return NavigationDatabase.ScopedOverride(navDb);
     }
+
+    [Theory]
+    [InlineData("OAK", "KOAK")]
+    [InlineData("HNL", "PHNL")]
+    public void BuildCorridors_FaaId_FindsTheAirportsRunways(string asked, string runwayAirport)
+    {
+        // Runways filed under the ICAO id; the navdata pairs it with the FAA id asked for. "K" + HNL names no airport.
+        var navDb = NavigationDatabase.ForTesting(
+            runways:
+            [
+                TestRunwayFactory.Make(
+                    designator: "08L",
+                    airportId: runwayAirport,
+                    thresholdLat: 21.30,
+                    thresholdLon: -157.93,
+                    endLat: 21.30,
+                    endLon: -157.88,
+                    heading: 80,
+                    elevationFt: 10
+                ),
+            ],
+            airports: new Dictionary<string, string> { [asked] = runwayAirport }
+        );
+
+        Assert.NotEmpty(ConflictAlertDetector.BuildCorridors([asked], navDb));
+    }
 }

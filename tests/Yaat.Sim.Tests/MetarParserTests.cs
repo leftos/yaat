@@ -251,6 +251,24 @@ public class MetarParserTests
     [InlineData("SFO", "KSFO")]
     public void ToIcao_ConvertCorrectly(string input, string expected) => Assert.Equal(expected, MetarParser.ToIcao(input));
 
+    [Theory]
+    [InlineData("HNL", "PHNL")]
+    [InlineData("OGG", "PHOG")]
+    [InlineData("ANC", "PANC")]
+    [InlineData("PHNL", "PHNL")]
+    [InlineData("OAK", "KOAK")]
+    public void ToIcao_PacificFaaId_ReturnsItsIcaoStation(string input, string expected)
+    {
+        // A METAR station is the ICAO id: Honolulu reports as PHNL, never "KHNL".
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, MetarParser.ToIcao(input));
+    }
+
     // -------------------------------------------------------------------------
     // Parse — vertical visibility (VV / indefinite ceiling)
     // -------------------------------------------------------------------------

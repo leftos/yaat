@@ -236,7 +236,7 @@ public static class SituationClassifier
             return false;
         }
 
-        bool isLocal = navDb.AirportIdsMatchResolved(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
+        bool isLocal = NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
         return latched ? StaysIfrArrival(ac, navDb, destination, isLocal) : EntersIfrArrival(ac, navDb, destination, isLocal);
     }
 
@@ -316,7 +316,7 @@ public static class SituationClassifier
             return false;
         }
 
-        bool departedThisField = navDb.AirportIdsMatchResolved(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
+        bool departedThisField = NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Departure, ac.FlightPlan.Destination);
         if (PatternCommandHandler.HasQueuedPatternEntry(ac))
         {
             return !JustDepartedThisField(ac, departedThisField, simTimeSeconds);

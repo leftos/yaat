@@ -15,6 +15,9 @@
 - Radar: popping the Radar out while it is the only docked tab, then docking it back, leaves the STARS DCB on its Main page.
 - Radar: a sideways touchpad swipe scrolls a narrow STARS DCB, and PageUp and PageDown reach your key bindings while a bar tile has focus.
 - Radar: in a narrow Radar the ERAM Master Toolbar scrolls with the wheel or a swipe, its open menus moving with it, so YAAT and HIDE TOOLBAR stay reachable.
+- Hawaii, Alaska and Guam airports (PHNL, PHOG, PANC, PGUM) have their approaches, SIDs and STARs, by ICAO or FAA id.
+- Aircraft filed to PHNL, PHOG or PANC get the airport's ground layout, so they push back and taxi; scenarios there load the vNAS ground map.
+- Weather for Hawaii and Alaska airports reads the right station, PHNL rather than KHNL.
 
 ## v0.20.0-beta [2026/11/26]
 

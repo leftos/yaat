@@ -42,9 +42,10 @@ public static class AirportAirlines
     }
 
     /// <summary>
-    /// The FAA id this lookup keys an airport by: trimmed, upper-cased, and stripped of the leading K or P of
-    /// a 4-letter ICAO id (<c>"KSFO"</c> and <c>"SFO"</c> are the same airport, so are <c>"PHNL"</c> and
-    /// <c>"HNL"</c>). Returns null for a null or whitespace id. Callers that must compare two airport ids
+    /// The FAA id this lookup keys an airport by: the published FAA id through the navdata pairs (<c>"KSFO"</c> and
+    /// <c>"SFO"</c> are the same airport, so are <c>"PHNL"</c> and <c>"HNL"</c>, and <c>"PHOG"</c> and <c>"OGG"</c>);
+    /// an id the navdata does not pair is trimmed, upper-cased, and stripped of the leading K or P of a 4-letter
+    /// ICAO id. Returns null for a null or whitespace id. Callers that must compare two airport ids
     /// compare their normalized forms rather than stripping a prefix themselves.
     /// </summary>
     public static string? NormalizeAirportId(string? airportId)
@@ -55,6 +56,11 @@ public static class AirportAirlines
         }
 
         string normalized = airportId.Trim().ToUpperInvariant();
+        if (NavigationDatabase.InstanceOrNull?.TryResolveFaaId(normalized, out string faaId) == true)
+        {
+            return faaId;
+        }
+
         if (normalized.Length == 4 && (normalized[0] == 'K' || normalized[0] == 'P'))
         {
             return normalized[1..];

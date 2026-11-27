@@ -466,7 +466,7 @@ public static class AirTaxiFlyout
             (
                 (_verb == AirTaxiVerb.Land)
                 && (_menu.AirportId.Length > 0)
-                && (NavigationDatabase.InstanceOrNull?.AirportIdsMatchResolved(_aircraft?.Destination, _menu.AirportId) != true)
+                && !NavigationDatabase.AirportIdsMatch(_aircraft?.Destination, _menu.AirportId)
             )
                 ? _menu.AirportId
                 : null;

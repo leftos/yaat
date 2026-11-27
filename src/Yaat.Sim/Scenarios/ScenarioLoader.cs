@@ -232,9 +232,7 @@ public static class ScenarioLoader
         {
             string? dest = ac.FlightPlan?.Destination;
             bool destMatchesPrimary =
-                primaryAirportId is null
-                || string.IsNullOrEmpty(dest)
-                || NormalizeAirportCode(dest).Equals(NormalizeAirportCode(primaryAirportId), StringComparison.OrdinalIgnoreCase);
+                primaryAirportId is null || string.IsNullOrEmpty(dest) || NavigationDatabase.AirportIdsMatch(dest, primaryAirportId);
             if (destMatchesPrimary)
             {
                 effectiveApproach = primaryApproach;
@@ -335,8 +333,6 @@ public static class ScenarioLoader
             }
         }
     }
-
-    private static string NormalizeAirportCode(string code) => (code.StartsWith('K') && code.Length == 4) ? code[1..] : code;
 
     /// <summary>
     /// Every airport whose ground layout <see cref="Load"/> can ask <see cref="IAirportGroundData"/> for while

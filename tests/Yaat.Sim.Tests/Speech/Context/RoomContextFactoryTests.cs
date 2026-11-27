@@ -147,4 +147,22 @@ public class RoomContextFactoryTests
         IReadOnlyList<RoomAircraftInput> aircraft,
         IReadOnlyList<string> facilities
     ) => RoomContextFactory.Build(new RoomContextCache(), new RoomContextRequest(airport, approach, layout, aircraft, facilities), Nav, Settings);
+
+    [Theory]
+    [InlineData("OAK", "KOAK")]
+    [InlineData("KOAK", "KOAK")]
+    [InlineData("HNL", "PHNL")]
+    [InlineData("OGG", "PHOG")]
+    [InlineData("O61", "O61")]
+    public void ToIcao_NavdataAirportId_ReturnsItsIcaoId(string id, string expected)
+    {
+        // Honolulu's ICAO id is PHNL; a K-prefix made it "KHNL".
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, RoomContextFactory.ToIcao(id));
+    }
 }

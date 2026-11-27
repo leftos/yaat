@@ -4016,13 +4016,11 @@ public sealed class FollowingPhase(string targetCallsign) : Phase
 
     /// <summary>
     /// Whether <paramref name="airportId"/> names <paramref name="layout"/>'s airport, ICAO and FAA ids alike, non-CONUS ones
-    /// ("PHNL"/"HNL") included through the navigation database (<see cref="NavigationDatabase.AirportIdsMatchResolved"/>); with
-    /// no database loaded, by the K-prefix match alone (<see cref="NavigationDatabase.AirportIdsMatch"/>).
+    /// ("PHNL"/"HNL") included, through the navigation database's ICAO/FAA pairs (<see cref="NavigationDatabase.AirportIdsMatch"/>);
+    /// with no database loaded, by the K-prefix match alone.
     /// </summary>
     private static bool IsThisAirport(string airportId, AirportGroundLayout layout) =>
-        NavigationDatabase.InstanceOrNull is { } navDb
-            ? navDb.AirportIdsMatchResolved(airportId, layout.AirportId)
-            : NavigationDatabase.AirportIdsMatch(airportId, layout.AirportId);
+        NavigationDatabase.AirportIdsMatch(airportId, layout.AirportId);
 
     /// <summary>
     /// Whether the follower takes node <paramref name="nodeId"/> as its departure bar because it is the lead's

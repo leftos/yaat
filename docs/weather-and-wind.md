@@ -109,7 +109,7 @@ visibility (statute miles), and optional wind/altimeter.
 - **`VV` (vertical visibility / indefinite ceiling)** is modeled as a **synthetic `Overcast` layer** (`MetarParser.cs`) so downstream multi-layer obstruction logic (`VisualDetection`) treats it like a real OVC — it is **not** an OVC token in the source METAR.
 - **Wind** (`ParseWind`): `dddssKT` / `dddssGggKT` / `VRBssKT`. `VRB` → null direction + `WindVariable = true`. A `dddVddd` variable-direction group after the wind group parses into `WindVarFromDeg`/`WindVarToDeg` (extremes coded clockwise; `350V030` wraps through north).
 - **Altimeter** (`ParseAltimeter`): `A2992` → `29.92` inHg.
-- **`ToIcao`** (`MetarParser.cs`): 3-letter FAA id → prepend `K`; 4-char `K…` assumed already ICAO.
+- **`ToIcao`** (`MetarParser.cs`): the navdata's 4-letter ICAO id when it pairs one (`HNL` → `PHNL`, `OAK` → `KOAK`); otherwise a 3-letter FAA id gains `K` and a 4-char `K…` is taken as already ICAO. The client's live METAR fetch asks for the same id.
 
 Two interpolation helpers live here (used by the timeline, not by `Parse`):
 - `CeilingFromLayers(layers)` — lowest `BKN`/`OVC` base from a layer list (re-derives a ceiling from an interpolated layer set instead of lerping the old scalar).
@@ -348,8 +348,8 @@ The METAR *string* broadcast to clients (`WeatherChangedDto.Metars`) is reconstr
 `ArtccAirportResolver.GetAirportIdsAsync(artccId)` supplies `airportIds` first, from the vNAS data-api ARTCC config (disk-cached, 6h TTL).
 `ExtractUnderlyingAirports` **recurses the `facility` / `childFacilities` tree**, collecting
 `starsConfiguration.areas[].underlyingAirports[]` from every STARS facility and deduplicating — a STARS config belongs to a facility
-(each TRACON has its own), never to the document root. IDs are FAA-style (`OAK`); `BuildLiveWeatherAsync` prefixes three-letter IDs
-with `K` before querying (`LiveWeatherService.cs`). An empty list short-circuits the command with "No airports found for ARTCC".
+(each TRACON has its own), never to the document root. IDs are FAA-style (`OAK`); `BuildLiveWeatherAsync` asks for each ID's ICAO
+station through `MetarParser.ToIcao` (`OAK` → `KOAK`, `HNL` → `PHNL`) before querying (`LiveWeatherService.cs`). An empty list short-circuits the command with "No airports found for ARTCC".
 
 `LiveWeatherService.BuildLiveWeatherAsync(artccId, airportIds)` (`LiveWeatherService.cs`) fetches from `aviationweather.gov` and
 assembles one `WeatherProfile`:

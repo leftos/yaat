@@ -83,8 +83,8 @@ public static class ConflictAlertDetector
     /// <summary>
     /// Build the per-runway approach corridor volumes for a list of internal airports.
     /// Each physical runway emits two corridors (one per runway end) anchored at that
-    /// end's threshold and extending along its reciprocal heading. Tries the LID first,
-    /// then a "K"-prefixed ICAO fallback (mirrors <c>ApproachGateDatabase</c>).
+    /// end's threshold and extending along its reciprocal heading. Tries the id as given, then
+    /// the airport's navdata canonical id (HNL → PHNL), then "K" + the id (mirrors <c>ApproachGateDatabase</c>).
     /// </summary>
     public static IReadOnlyList<RunwayCorridor> BuildCorridors(IEnumerable<string> internalAirports, NavigationDatabase navDb)
     {
@@ -92,6 +92,11 @@ public static class ConflictAlertDetector
         foreach (string apt in internalAirports)
         {
             IReadOnlyList<RunwayInfo> runways = navDb.GetRunways(apt);
+            if ((runways.Count == 0) && navDb.TryResolveAirport(apt, out string canonical))
+            {
+                runways = navDb.GetRunways(canonical);
+            }
+
             if (runways.Count == 0)
             {
                 runways = navDb.GetRunways("K" + apt);

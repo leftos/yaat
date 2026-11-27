@@ -1084,7 +1084,7 @@ public partial class MainViewModel
             }
 
             string upper = id.Trim().ToUpperInvariant();
-            string icao = upper.Length == 3 ? "K" + upper : upper;
+            string icao = MetarParser.ToIcao(upper);
             // The same airport arrives in either form (a position's "HNL", a scenario's "PHNL"): key the
             // dedupe on the normalized id so one airport gets one default report, not two.
             if (seen.Add(AirportAirlines.NormalizeAirportId(icao) ?? icao))

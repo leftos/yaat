@@ -38,7 +38,7 @@ public sealed partial class AutomationTools
             bool activeOnly
     )
     {
-        string? wanted = string.IsNullOrWhiteSpace(airport) ? null : NormalizeAirport(airport);
+        string? wanted = string.IsNullOrWhiteSpace(airport) ? null : NavigationDatabase.NormalizeAirport(airport);
         LiveTrafficListFilter liveFilter = _viewModel.LiveTrafficListFilter;
         TrafficRow[] rows =
         [
@@ -102,7 +102,7 @@ public sealed partial class AutomationTools
         }
 
         string id = airport.Trim().ToUpperInvariant();
-        string wanted = NormalizeAirport(id);
+        string wanted = NavigationDatabase.NormalizeAirport(id);
         WeatherDisplayInfo? weather = _viewModel.GroundWeatherFor(id);
         AirportContext context = new()
         {
@@ -180,16 +180,10 @@ public sealed partial class AutomationTools
         return Task.FromResult(AppToolOutcome.Done(JsonSerializer.Serialize(framing, CoachingJsonOptions)));
     }
 
-    /// <summary>An airport id in the form two ids are compared in: upper-cased, a 4-letter id starting with K without the K.</summary>
-    private static string NormalizeAirport(string airportId)
-    {
-        string trimmed = airportId.Trim().ToUpperInvariant();
-        return ((trimmed.Length == 4) && (trimmed[0] == 'K')) ? trimmed[1..] : trimmed;
-    }
-
     /// <summary>Whether <paramref name="candidate"/> names the airport whose normalized id is <paramref name="normalized"/>.</summary>
     private static bool AirportMatches(string? candidate, string normalized) =>
-        !string.IsNullOrWhiteSpace(candidate) && string.Equals(NormalizeAirport(candidate), normalized, StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(candidate)
+        && string.Equals(NavigationDatabase.NormalizeAirport(candidate), normalized, StringComparison.OrdinalIgnoreCase);
 
     private static bool ServesAirport(AircraftModel aircraft, string normalized) =>
         AirportMatches(aircraft.GroundAirportId, normalized)

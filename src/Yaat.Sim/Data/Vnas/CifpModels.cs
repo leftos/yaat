@@ -123,8 +123,11 @@ public enum CifpPathTerminator
 /// A VOR/DME/NDB navaid primary record (ARINC 424 section D). <paramref name="StationDeclination"/> is the
 /// station declination (VHF, field 5.66) or the magnetic variation at the NDB (field 5.39), in east-positive
 /// degrees; null when the record carries none. A course referenced to the navaid is charted against it.
+/// <paramref name="IsDomesticRegion"/> is true when the record's ICAO region (columns 20-21) is a US one (K1-K7, PA, PH,
+/// PG, PM, PW, TJ, TI), whatever CIFP area files it: the Honolulu VORTAC (area PAC, region PH) is domestic, Piarco
+/// (area LAM, region TT) is not.
 /// </summary>
-public sealed record CifpNavaid(double Lat, double Lon, string Name, string Type, double? StationDeclination);
+public sealed record CifpNavaid(double Lat, double Lon, string Name, string Type, double? StationDeclination, bool IsDomesticRegion);
 
 public sealed record CifpLeg(
     string FixIdentifier,

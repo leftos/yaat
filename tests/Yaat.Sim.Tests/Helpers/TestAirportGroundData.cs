@@ -99,7 +99,21 @@ internal sealed class TestAirportGroundData(FilletMode filletMode) : IAirportGro
         return File.Exists(path) ? File.ReadAllText(path) : null;
     }
 
-    private static string NormalizeShortId(string airportId) => airportId.Length == 4 && airportId[0] == 'K' ? airportId[1..] : airportId;
+    /// <summary>
+    /// The fixture id: a K-airport's ICAO id loses its K ("KOAK" → "OAK"), any other 4-letter ICAO id takes the FAA id
+    /// the navdata pairs it with ("PHNL" → "HNL"), as the downloader keys layouts.
+    /// </summary>
+    private static string NormalizeShortId(string airportId)
+    {
+        if ((airportId.Length == 4) && (airportId[0] == 'K'))
+        {
+            return airportId[1..];
+        }
+
+        return (airportId.Length == 4) && (NavigationDatabase.InstanceOrNull?.TryResolveFaaId(airportId, out string faaId) == true)
+            ? faaId
+            : airportId;
+    }
 
     /// <summary>
     /// Resolves the GeoJSON fixture for <paramref name="shortId"/>, matching the filename without regard to case.

@@ -35,6 +35,24 @@ public class AirportLayoutDownloaderTests
 
     private static string NewCacheDir() => Path.Combine(Path.GetTempPath(), "ald-" + Guid.NewGuid());
 
+    [Theory]
+    [InlineData("PHNL", "HNL")]
+    [InlineData("PHOG", "OGG")]
+    [InlineData("PANC", "ANC")]
+    [InlineData("KOAK", "OAK")]
+    [InlineData("oak", "OAK")]
+    public void ToFaaCode_PacificIcaoId_ReturnsFaaId(string airportId, string expected)
+    {
+        // vNAS serves layouts under the FAA id (/api/training/airports/HNL/map); a K-strip asked it for PHNL.
+        TestVnasData.EnsureInitialized();
+        if (TestVnasData.NavigationDb is null)
+        {
+            return;
+        }
+
+        Assert.Equal(expected, AirportLayoutDownloader.ToFaaCode(airportId));
+    }
+
     [Fact]
     public async Task GetGeoJson_RefreshesCache_EvenWhenHeadReturns405()
     {

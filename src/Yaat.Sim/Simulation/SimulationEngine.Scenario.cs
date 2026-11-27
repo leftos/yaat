@@ -189,17 +189,19 @@ public sealed partial class SimulationEngine
         // otherwise load the destination's layout and reject every taxiway/parking lookup. An aircraft on the ground at, or
         // landing at, a field runs on that field's layout alone, and on none at a field with no layout: never another
         // airport's (an airport first named mid-session has no layout, so it runs as at an airport with no vNAS map).
+        // Each airport resolves through ResolveAirportLayout, so an aircraft filed by ICAO id (PHNL) gets the scenario's
+        // primary layout keyed by the FAA id (HNL).
         if (FieldAirport(aircraft) is { Length: > 0 } fieldAirport)
         {
-            return _groundData.GetLayout(fieldAirport);
+            return ResolveAirportLayout(fieldAirport);
         }
 
         AirportGroundLayout? depLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Departure)
             ? null
-            : _groundData.GetLayout(aircraft.FlightPlan.Departure);
+            : ResolveAirportLayout(aircraft.FlightPlan.Departure);
         AirportGroundLayout? destLayout = string.IsNullOrEmpty(aircraft.FlightPlan.Destination)
             ? null
-            : _groundData.GetLayout(aircraft.FlightPlan.Destination);
+            : ResolveAirportLayout(aircraft.FlightPlan.Destination);
 
         // Cold-call VFR aircraft (pattern work, full-stop requests) frequently file
         // neither departure nor destination. Treat the assigned arrival runway's
@@ -214,7 +216,7 @@ public sealed partial class SimulationEngine
                 implicitAirport = aircraft.AirportId;
             }
 
-            return string.IsNullOrEmpty(implicitAirport) ? null : _groundData.GetLayout(implicitAirport);
+            return string.IsNullOrEmpty(implicitAirport) ? null : ResolveAirportLayout(implicitAirport);
         }
 
         if (depLayout is null)

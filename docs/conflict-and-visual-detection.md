@@ -113,7 +113,7 @@ A track must pass all four gates to be considered (`ConflictAlertDetector.cs:116
 CA is suppressed for traffic established on final at an internal airport (where 3 nm/1000 ft is expected and would fire
 constantly). `BuildCorridors(internalAirports, navDb)` (`:84`) builds **two corridors per physical runway** (one per
 runway end), each anchored at that end's threshold and extending out along the **reciprocal** of runway heading. Airport
-lookup tries the bare LID first, then a `"K"`-prefixed ICAO fallback (mirrors `ApproachGateDatabase`). The internal-
+lookup tries the id as given, then the airport's navdata canonical id (`HNL` → `PHNL`), then a `"K"`-prefixed fallback (mirrors `ApproachGateDatabase`). The internal-
 airport list comes from `starsConfig.InternalAirports`, resolved by `SimulationEngine.ResolveInternalAirports` from
 `SimScenarioState.ArtccConfig` + the student position's facility — **not** passed in by the host. It used to be a
 `TickConflictAlerts` argument, which meant only the live server supplied one and every other run kind suppressed

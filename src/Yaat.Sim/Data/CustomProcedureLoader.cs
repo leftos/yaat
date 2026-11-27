@@ -76,7 +76,9 @@ public static class CustomProcedureLoader
 
         if (icaos.Count == 0)
         {
-            result.Warnings.Add($"{filePath}: no CIFP airport records found (expected verbatim 'SUSAP' lines), skipping");
+            result.Warnings.Add(
+                $"{filePath}: no CIFP airport records found (expected verbatim CIFP airport-section lines such as 'SUSAP' or 'SPACP'), skipping"
+            );
             return;
         }
 
@@ -93,7 +95,7 @@ public static class CustomProcedureLoader
         var icaos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string line in File.ReadLines(filePath))
         {
-            if (line.Length < MinRecordLength || !line.StartsWith("SUSAP", StringComparison.Ordinal))
+            if (line.Length < MinRecordLength || !Vnas.CifpAirportIndex.IsAirportRecord(line))
             {
                 continue;
             }

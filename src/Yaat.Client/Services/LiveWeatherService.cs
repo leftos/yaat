@@ -31,7 +31,7 @@ public sealed class LiveWeatherService
         }
 
         // Fetch METARs and FD winds in parallel
-        var icaoIds = airportIds.Select(id => id.Length == 3 ? "K" + id : id).ToList();
+        var icaoIds = airportIds.Select(MetarParser.ToIcao).ToList();
         Task<List<MetarJson>?> metarTask = FetchMetarsAsync(icaoIds);
         Task<List<StationWinds>?> fdTask = FetchWindsAloftAsync(artccId);
 
