@@ -245,7 +245,6 @@ public class ScopePrefMenuTests : IDisposable
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
-            main.RunScopeCommand(".scope template eram");
             main.RunScopeCommand(".scope pref saveas STARS");
             main.RunScopeCommand(".scope pref saveas B");
             Click(ButtonOf(window, ScopeButtonId.Pref));
@@ -256,31 +255,21 @@ public class ScopePrefMenuTests : IDisposable
             // Only the active set's name lights a set button, so a set named after the template in use stays dark.
             var templateNamedSet = new ScopeButton(
                 ScopeButtonId.PrefSet,
-                ScopeTemplates.EramId,
+                ScopeTemplates.MixedId,
                 ScopeButtonKind.Command,
                 [],
-                ScopeTemplates.EramId,
+                ScopeTemplates.MixedId,
                 null
             );
-            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
+            Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
             Assert.Equal("B", scope.ActivePrefSet);
             Assert.False(scope.IsActive(templateNamedSet));
 
-            Click(ButtonOf(window, ScopeButtonId.Template));
-
-            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
-            Assert.Contains("active", ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
-
-            // The set named STARS captures the ERAM template, so making it active leaves the STARS pick unlit.
+            // The set named STARS captures the Mixed look, so loading it keeps the Mixed template.
             main.RunScopeCommand(".scope pref load stars");
 
-            // A template pick lights by the template in use alone: with the ERAM template picked and a set named STARS
-            // active, the STARS pick stays dark.
             Assert.Equal("STARS", scope.ActivePrefSet);
-            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-            Assert.False(scope.IsActive(ScopeToolbarButtons.Find(ScopeButtonId.TemplateStars)!));
-            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
-            Assert.Contains("active", ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
+            Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
         }
         finally
         {

@@ -12,15 +12,15 @@ using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The <c>.scope</c> dot commands: <c>.scope range</c> and <c>.scope template</c> act on the open YAAT Scope and echo
+/// The <c>.scope</c> dot commands: <c>.scope range</c> and <c>.scope profile</c> act on the open YAAT Scope and echo
 /// themselves in the status line; the toolbar runs the same commands.
 /// </summary>
 public class ScopeCommandTests
 {
     private const string Usage =
-        "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        "Usage: .scope range <0.125-256> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
-        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed|euroscope>"
         + " | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto> | .scope hist <0-10|auto>"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
@@ -178,7 +178,7 @@ public class ScopeCommandTests
 
     [AvaloniaTheory]
     [InlineData(".scope profile wx", "Unknown Radar profile 'wx'")]
-    [InlineData(".scope profile", "Usage: .scope profile <stars|eram|mixed>")]
+    [InlineData(".scope profile", "Usage: .scope profile <stars|eram|mixed|euroscope>")]
     public async Task Profile_BadIdOrArity_SaysSo_AndKeepsTheProfile(string command, string expected)
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
@@ -188,7 +188,7 @@ public class ScopeCommandTests
 
             Assert.Equal(expected, main.StatusText);
             Assert.Null(main.ScopeProfile);
-            Assert.Equal(ScopeProfileKind.Mixed, scope.ProfileKind);
+            Assert.Equal(ScopeProfileKind.Stars, scope.ProfileKind);
         }
         finally
         {
@@ -300,41 +300,24 @@ public class ScopeCommandTests
     }
 
     [AvaloniaTheory]
-    [InlineData("eram", "eram")]
-    [InlineData("ERAM", "eram")]
-    [InlineData("Mixed", "mixed")]
-    [InlineData("euroscope", "euroscope")]
-    public async Task Template_PicksTheTemplate_AndEchoesTheCanonicalId(string typed, string expected)
-    {
-        (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
-        try
-        {
-            bool before = main.Preferences.EuroScopeMode;
-
-            main.RunScopeCommand($".scope template {typed}");
-
-            Assert.Equal(expected, scope.TemplateId);
-            Assert.Equal($".scope template {expected}", main.StatusText);
-            Assert.Equal(before, main.Preferences.EuroScopeMode);
-        }
-        finally
-        {
-            scope.Dispose();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task Template_Unknown_SaysSo_AndLeavesTheTemplate()
+    [InlineData(".scope template eram")]
+    [InlineData(".scope template")]
+    [InlineData(".scope template mixed extra")]
+    public async Task Template_IsRetired_AndChangesNothing(string typed)
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
         try
         {
             string before = scope.TemplateId;
+            ScopeProfileKind kind = scope.ProfileKind;
+            ScopeProfileKind? room = main.ScopeProfile;
 
-            main.RunScopeCommand(".scope template radar");
+            main.RunScopeCommand(typed);
 
-            Assert.Equal("Unknown Radar template: radar", main.StatusText);
+            Assert.Equal("retired: use .scope profile", main.StatusText);
             Assert.Equal(before, scope.TemplateId);
+            Assert.Equal(kind, scope.ProfileKind);
+            Assert.Equal(room, main.ScopeProfile);
         }
         finally
         {

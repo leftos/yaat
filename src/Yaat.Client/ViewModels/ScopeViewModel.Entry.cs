@@ -153,7 +153,7 @@ public sealed partial class ScopeViewModel
     /// <summary>The text the last entry sent through the send path; null while no entry was sent. Test seam.</summary>
     internal string? LastSentEntryText { get; private set; }
 
-    /// <summary>Whether the Scope draws ERAM's boxes (an ERAM or Mixed profile) rather than STARS's one area.</summary>
+    /// <summary>Whether the Scope draws ERAM's boxes (an ERAM, Mixed or EuroScope profile) rather than STARS's one area.</summary>
     public bool IsEramEntryLayout => ProfileKind != ScopeProfileKind.Stars;
 
     /// <summary>How the entry being typed reads.</summary>
@@ -165,17 +165,20 @@ public sealed partial class ScopeViewModel
 
     /// <summary>
     /// The owner kind of the selected track (<see cref="ScopeOwnerKind.TemplateIdFor"/>), which picks an entry's dialect on a
-    /// Mixed profile; null with no track selected.
+    /// Mixed or EuroScope profile; null with no track selected.
     /// </summary>
     private string? SelectedOwnerTemplateId => (SelectedAircraft is { } ac) ? EntryOwnerTemplateId(ac) : null;
 
     /// <summary>
     /// The owner kind an entry reads <paramref name="ac"/>'s dialect from (<see cref="ScopeOwnerKind.TemplateIdFor"/>): an
-    /// unowned track takes the zoom band's <see cref="ScopeZoomBand.Unowned"/> on the Mixed template, as it draws, and ERAM
-    /// under any other template.
+    /// unowned track takes the zoom band's <see cref="ScopeZoomBand.Unowned"/> on the Mixed and EuroScope profiles, which read
+    /// entries alike, and ERAM on any other.
     /// </summary>
     private string EntryOwnerTemplateId(AircraftModel ac) =>
-        ScopeOwnerKind.TemplateIdFor(ac, (TemplateId == ScopeTemplates.MixedId) ? EffectiveBand.Unowned : ScopeTemplates.EramId);
+        ScopeOwnerKind.TemplateIdFor(
+            ac,
+            (ProfileKind is ScopeProfileKind.Mixed or ScopeProfileKind.EuroScope) ? EffectiveBand.Unowned : ScopeTemplates.EramId
+        );
 
     /// <summary>
     /// The entry and its caret, wrapped, the last <see cref="PreviewLineCap"/> lines; empty while nothing is typed. An entry
@@ -239,7 +242,7 @@ public sealed partial class ScopeViewModel
     /// F3, F4, F5, F7 and F11 on STARS: the key starts its function's entry in place of what the preview held, and drops a
     /// pending <c>*T</c> anchor, as CRC's ResetInput does.
     /// </summary>
-    /// <returns>False on ERAM or Mixed, and for any other key.</returns>
+    /// <returns>False on ERAM, Mixed or EuroScope, and for any other key.</returns>
     internal bool StartStarsFunctionEntry(Key key)
     {
         if ((ProfileKind != ScopeProfileKind.Stars) || (StarsFunctionWord(key) is not { } word))
@@ -473,7 +476,7 @@ public sealed partial class ScopeViewModel
     /// </returns>
     public bool ExecuteEntry() => RunEntry(SelectedOwnerTemplateId);
 
-    // Runs the entry, read in the dialect the owner kind ownerTemplateId picks on Mixed.
+    // Runs the entry, read in the dialect the owner kind ownerTemplateId picks on Mixed or EuroScope.
     private bool RunEntry(string? ownerTemplateId)
     {
         string entry = EntryText.Trim();

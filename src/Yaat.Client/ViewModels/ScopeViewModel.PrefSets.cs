@@ -102,7 +102,6 @@ public sealed partial class ScopeViewModel
             RangeNm = RangeNm,
             CenterLat = CenterLat,
             CenterLon = CenterLon,
-            TemplateId = TemplateId,
             Brightness = ScopeBrightness.Groups.ToDictionary(group => group.Name, group => group.Get(Brightness)),
             Db = new ScopePrefDb(
                 DbSettings.Line4,
@@ -146,7 +145,6 @@ public sealed partial class ScopeViewModel
         ArgumentNullException.ThrowIfNull(set);
         bool hold = IsWaitingForMapSource;
         _pendingPrefSet = hold ? set : null;
-        ApplyTemplate(set.TemplateId);
         ApplyBrightness(set.Brightness);
         ApplyDb(set.Db);
         ApplyPins(set);
@@ -320,17 +318,6 @@ public sealed partial class ScopeViewModel
 
     private static ScopePrefView CaptureViewPlace(ScopeDockViewModel view) =>
         new(view.Name, view.Place is { } place ? ScopePlacement.NameOf(place.Corner) : null, view.Place?.Dx ?? 0, view.Place?.Dy ?? 0);
-
-    private void ApplyTemplate(string templateId)
-    {
-        if (!ScopeTemplates.IsSelectable(templateId))
-        {
-            Log.LogWarning("A pref set names unknown template '{TemplateId}'; keeping {Current}", templateId, TemplateId);
-            return;
-        }
-
-        PickTemplateCommand.Execute(templateId);
-    }
 
     private void ApplyBrightness(IReadOnlyDictionary<string, int> brightness)
     {

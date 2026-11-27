@@ -832,9 +832,6 @@ The one `ScopeViewModel` the main view model builds at startup (`MainViewModel.P
 **Extra Radar window**:
 Another Radar window ("YAAT Radar #2", "#3", …; View › Windows › New Radar window…) over a `ScopeViewInstance` with its own `ScopeViewModel` and state, saved in its own slot of the facility's current state; the primary Scope is the implicit #1, and extra windows are not reopened at startup.
 
-**Profile**:
-A Radar display file (STARS, ERAM or Mixed; `scope/profiles/{stars,eram,mixed}.json`) that sets the datablock template, the zoom bands, the toolbar order and the views order; picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`; a pref set is the same shape with one user's values.
-
 **Layout**:
 A saved, named window arrangement in the desktop client (View › Layout): window geometries, the pop-out windows (the Scope's included), extra Radar/Ground windows, Aircraft List columns, favorite sets and the open Strips/vTDLS tabs; never radar, ground or terminal view settings.
 _Avoid_: window profile (its old name); Profile (a Radar display file)
@@ -895,7 +892,7 @@ The words the Preview area shows before the entry to say how it will be read (`$
 ERAM's boxed text entry area at the bottom left of the display; in Radar on ERAM and Mixed, the box under the Response Area that holds the Preview area over the Feedback area.
 
 **Mixed (Radar template)**:
-The Template pick that draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an owner with no sector code the ERAM block, an unowned track the look its zoom band's `unowned` field names (STARS up to 120 NM, ERAM beyond, as shipped); a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
+The Mixed profile's datablock look, which draws each track in its owner's block: an ERAM sector's owner gets the ERAM block, a STARS position's the STARS block, an owner with no sector code the ERAM block, an unowned track the look its zoom band's `unowned` field names (STARS up to 120 NM, ERAM beyond, as shipped); a routing id resolved per track (`ScopeOwnerKind.Resolve`), not a template of its own.
 
 **Monitor cones (Radar)**:
 The DB menu's MONITOR CONES toggle (`.scope db monitorcones`): whether an ATPA pair in the Monitor state draws its cone on the Scope; on at open. The Warning and Alert states have their own toggle, **Alert cones**.
@@ -954,7 +951,7 @@ A video map vNAS flags `TdmOnly` (an airport diagram): the Radar draws it only w
 A view pulled out of the dock onto the scope as its floating card (left press on its title to move it, `▸` to dock it again), anchored to the nearest scope corner by a dx/dy distance (`ScopePlacement`) and set by `.view … tear` (`ScopeTearoffLayer`).
 
 **Template (Radar)**:
-A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and chosen by a profile or by the Template button on the Scope's toolbar.
+A C# description of a datablock's lines: which fixed named slots each line places, their separators and gaps; selected by id ("stars", "eram", "euroscope", or "mixed", which routes each track to its owner's template) and picked by the Scope profile alone (`ScopeViewModel.TemplateId` follows the profile kind); the Scope has no Template button.
 
 **Tile (Radar)**:
 One button of the Scope's toolbar or of a tray: a full-height tile on the bar, or a half tile stacked in a pair with another; a tray's tiles are half height with one line.
@@ -1090,6 +1087,13 @@ The first alias of a command in the controller's command scheme (`CommandPattern
 
 **Scope preview**:
 What a pointed or focused Give way to… / Follow… row draws on the ground views (`ScopePreview`, sent through `IMenuHost.SetScopePreview`): a ring on the row's aircraft, the commanded aircraft's route solid and the row aircraft's dashed, and, for Give way to…, the **meet point** ringed in amber. A pointed or focused Hold short of… stop draws the bar boxed and the aircraft's route solid to it, with no ring. It clears when the menu closes and is not drawn on the radar or the Scope.
+
+**Scope profile**:
+A Radar display file (STARS, ERAM, Mixed or EuroScope; `scope/profiles/{stars,eram,mixed,euroscope}.json`) that picks the bar, the datablock look (the renderer's template: stars, eram, mixed per owner, euroscope), the zoom bands, the toolbar order and the views order;
+
+picked once per room when the student position first arrives (an ERAM sector is ERAM, a TRACON or ATCT position STARS, else Mixed, or the profile last picked by hand for that position type) and changed with the PROFILE menu or `.scope profile`, and the STARS profile until the room has one;
+
+a pref set is the same shape with one user's values.
 
 **Staffed position**:
 A position in the room's controller list that has a controller signed on (a live CRC client or a scenario auto-connect position, `OnlineControllerDto.IsActive`), as against a standby one. The Initiate handoff… and Point out… flyouts list only staffed positions.

@@ -558,17 +558,14 @@ public sealed class StarsDcbBar : UserControl
 
     /// <summary>
     /// Whether the tile of <paramref name="entry"/> is lit by its Scope button's active state, as on the classic bar: a toggle,
-    /// a page opener over a button (PILOT LENS), a PROFILE or TEMPLATE pick, and OTHERS and AUTO, lit while their pins hold
+    /// a page opener over a button (PILOT LENS), a PROFILE pick, and OTHERS and AUTO, lit while their pins hold
     /// (<see cref="ScopeViewModel.IsActive"/>).
     /// </summary>
     private static bool ShowsActive(DcbTile tile, StarsDcbEntry entry) =>
         (tile.Kind == DcbTileKind.Toggle)
         || ((tile.Kind == DcbTileKind.Normal) && (entry.Opens is not null))
-        || ((entry.Button is { } id) && (ScopeToolbarButtons.IsProfilePick(id) || IsTemplatePick(id)))
+        || ((entry.Button is { } id) && ScopeToolbarButtons.IsProfilePick(id))
         || (entry.Button is ScopeButtonId.Others or ScopeButtonId.Auto);
-
-    private static bool IsTemplatePick(ScopeButtonId id) =>
-        id is ScopeButtonId.TemplateStars or ScopeButtonId.TemplateEram or ScopeButtonId.TemplateMixed or ScopeButtonId.TemplateEuroScope;
 
     /// <summary>
     /// The label <paramref name="entry"/> draws: CRC's, its <c>%value%</c> filled with the view model's value for

@@ -163,7 +163,6 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
 
             FillUnownedFromShippedBands(file, shippedProfile.Bands, path);
             KeepShippedBandsUnlessTheyBind(file, shipped, path);
-            KeepShippedTemplateWhenNull(file, shipped, path);
             reason = null;
             return file.Deserialize<ScopeProfile>(ScopeProfile.JsonOptions);
         }
@@ -236,18 +235,6 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
         file["bands"] = shipped["bands"]?.DeepClone();
     }
 
-    /// <summary>Puts the shipped template in <paramref name="file"/> when its <c>template</c> is null, with a warning.</summary>
-    private void KeepShippedTemplateWhenNull(JsonObject file, JsonObject shipped, string path)
-    {
-        if (file["template"] is not null)
-        {
-            return;
-        }
-
-        log.LogWarning("Scope profile {Path} names no template; using '{Shipped}'", path, (string?)shipped["template"]);
-        file["template"] = shipped["template"]?.DeepClone();
-    }
-
     /// <summary>
     /// Renames a corrupt file to <c>.bak</c> and writes the shipped profile in its place; a file that cannot be moved is
     /// left alone.
@@ -280,12 +267,6 @@ public sealed class ScopeProfileStore(string rootDir, ILogger log)
         {
             log.LogWarning("Scope profile {Path} names unknown kind '{Kind}'; using '{Shipped}'", path, profile.Kind, shipped.Kind);
             result = result with { Kind = shipped.Kind };
-        }
-
-        if (!ScopeTemplates.IsSelectable(profile.Template))
-        {
-            log.LogWarning("Scope profile {Path} names unknown template '{Template}'; using '{Shipped}'", path, profile.Template, shipped.Template);
-            result = result with { Template = shipped.Template };
         }
 
         if ((profile.Bands.Count == 0) || !profile.Bands.All(IsBand))

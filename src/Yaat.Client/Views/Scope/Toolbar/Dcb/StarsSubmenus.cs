@@ -32,9 +32,6 @@ public enum StarsDcbPage
     /// <summary>The YAAT page's PROFILE page.</summary>
     YaatProfile,
 
-    /// <summary>The YAAT page's TEMPLATE page.</summary>
-    YaatTemplate,
-
     /// <summary>The YAAT page's TOOLS page; while it shows, the Scope's open menu is TOOLS, so the Rings tool is armed.</summary>
     YaatTools,
 
@@ -197,14 +194,13 @@ public static class StarsSubmenus
 
     /// <summary>
     /// The YAAT page the Main page's YAAT tile shows: the classic bar's YAAT-only controls, PROFILE (its value the profile
-    /// name), TEMPLATE, OTHERS (its value the others level), AUTO, TOOLS, TDM and MVA, DISPLAY, DB, VIEWS and PILOT LENS, then
-    /// DONE back to the Main page. PROFILE, TEMPLATE, TOOLS, DISPLAY, DB, VIEWS and PILOT LENS open a page of their own; the
-    /// rest act in place.
+    /// name), OTHERS (its value the others level), AUTO, TOOLS, TDM and MVA, DISPLAY, DB, VIEWS and PILOT LENS, then DONE
+    /// back to the Main page. PROFILE, TOOLS, DISPLAY, DB, VIEWS and PILOT LENS open a page of their own; the rest act in
+    /// place.
     /// </summary>
     public static IReadOnlyList<StarsDcbEntry> Yaat { get; } =
     [
         new("PROFILE\n%value%", DcbTileShape.Full, DcbTileKind.Normal, ScopeButtonId.Profile, NoMap) { Opens = StarsDcbPage.YaatProfile },
-        YaatOpener("TEMPLATE", StarsDcbPage.YaatTemplate),
         new("OTHERS\n%value%", DcbTileShape.Full, DcbTileKind.Normal, ScopeButtonId.Others, NoMap),
         new("AUTO", DcbTileShape.Full, DcbTileKind.Normal, ScopeButtonId.Auto, NoMap),
         YaatOpener("TOOLS", StarsDcbPage.YaatTools),
@@ -218,11 +214,8 @@ public static class StarsSubmenus
         DoneTile(DcbTileShape.Full, StarsDcbPage.Main),
     ];
 
-    /// <summary>The PROFILE page: STARS, ERAM and MIXED, each switching the Scope's profile.</summary>
+    /// <summary>The PROFILE page: STARS, ERAM, MIXED and EUROSCOPE, each switching the Scope's profile.</summary>
     public static IReadOnlyList<StarsDcbEntry> YaatProfile { get; } = YaatMenu(StarsDcbPage.YaatProfile, ScopeButtonId.Profile, []);
-
-    /// <summary>The TEMPLATE page: the template choices.</summary>
-    public static IReadOnlyList<StarsDcbEntry> YaatTemplate { get; } = YaatMenu(StarsDcbPage.YaatTemplate, ScopeButtonId.Template, []);
 
     /// <summary>The TOOLS page: J-RING, CONE, DRI 5, DRI 3 and the SIZE spinner.</summary>
     public static IReadOnlyList<StarsDcbEntry> YaatTools { get; } = YaatMenu(StarsDcbPage.YaatTools, ScopeButtonId.Tools, []);
@@ -279,7 +272,6 @@ public static class StarsSubmenus
             StarsDcbPage.TpaAtpa => TpaAtpa,
             StarsDcbPage.Yaat => Yaat,
             StarsDcbPage.YaatProfile => YaatProfile,
-            StarsDcbPage.YaatTemplate => YaatTemplate,
             StarsDcbPage.YaatTools => YaatTools,
             StarsDcbPage.YaatDisplay => YaatDisplay,
             StarsDcbPage.YaatDb => YaatDb,
@@ -319,7 +311,6 @@ public static class StarsSubmenus
     private static bool IsYaatMenu(StarsDcbPage page) =>
         page
             is StarsDcbPage.YaatProfile
-                or StarsDcbPage.YaatTemplate
                 or StarsDcbPage.YaatTools
                 or StarsDcbPage.YaatDisplay
                 or StarsDcbPage.YaatDb

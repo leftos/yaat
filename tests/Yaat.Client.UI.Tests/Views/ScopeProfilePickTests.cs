@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
@@ -237,13 +238,13 @@ public class ScopeProfilePickTests : IDisposable
         using ScopeViewModel scope = OpenScope(main, Store());
         main.SetStudentPositionType("APP");
         main.SetActivePositionFromServer(Config(Tracon));
-        Store().SaveSet("NCT", scope.CapturePrefSet("ENROUTE") with { Kind = "eram", TemplateId = "stars" });
+        Store().SaveSet("NCT", scope.CapturePrefSet("ENROUTE") with { Kind = "eram" });
 
         main.RunScopeCommand(".scope pref load ENROUTE");
 
         Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
         Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
-        Assert.Equal("stars", scope.TemplateId);
+        Assert.Equal("eram", scope.TemplateId);
         // The scope has no maps yet, so the load's map note comes before the profile's.
         Assert.Equal(".scope pref load ENROUTE (its maps apply once the Radar's maps load); Radar profile ERAM", main.StatusText);
         Assert.Null(main.Preferences.GetScopeProfileOverride("APP"));
@@ -260,6 +261,50 @@ public class ScopeProfilePickTests : IDisposable
         edit(profile);
         File.WriteAllText(file, profile.ToJsonString());
         return store;
+    }
+
+    [AvaloniaFact]
+    public async Task OldProfileFile_ListingTemplateInItsToolbar_AppliesWithNoWarningForIt()
+    {
+        string token = "nobutton" + Guid.NewGuid().ToString("N");
+        ScopeProfileStore profiles = ProfileStoreWith("mixed", p => p["toolbar"] = new JsonArray("maps", "template", "TEMPLATE", token));
+        MainViewModel main = await NewMain();
+        long mark = new FileInfo(AppLog.LogPath).Length;
+        using var scope = new ScopeViewModel(main, prefStore: null, profiles, ScopePrefSetStore.PrimarySlot);
+        main.OpenScope = scope;
+
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
+
+        Assert.Equal(ScopeButtonId.Maps, scope.ToolbarButtons[0].Id);
+        // The token's warning proves the log is read; the retired name is never among the names it lists.
+        string[] warnings = [.. LogLinesSince(mark).Where(line => line.Contains(token, StringComparison.Ordinal))];
+        Assert.NotEmpty(warnings);
+        Assert.All(warnings, line => Assert.DoesNotContain("template", line, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [AvaloniaFact]
+    public async Task ProfileFile_NamingTemplateAmongItsViews_WarnsOfIt()
+    {
+        string token = "noview" + Guid.NewGuid().ToString("N");
+        ScopeProfileStore profiles = ProfileStoreWith("mixed", p => p["views"] = new JsonArray("ssa", "template", token));
+        MainViewModel main = await NewMain();
+        long mark = new FileInfo(AppLog.LogPath).Length;
+        using var scope = new ScopeViewModel(main, prefStore: null, profiles, ScopePrefSetStore.PrimarySlot);
+        main.OpenScope = scope;
+
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
+
+        // Only the toolbar's retired TEMPLATE name is skipped silently; a view named template is warned of like any other.
+        string warning = Assert.Single(LogLinesSince(mark), line => line.Contains(token, StringComparison.Ordinal));
+        Assert.Contains("template", warning, StringComparison.Ordinal);
+    }
+
+    private static string[] LogLinesSince(long mark)
+    {
+        using var stream = new FileStream(AppLog.LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        stream.Seek(mark, SeekOrigin.Begin);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Split('\n');
     }
 
     private static RewindResultDto RecordingResult(string? studentPositionType) =>
@@ -360,7 +405,7 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Unload_BringsBackMixed_AndKeepsTheTemplate()
+    public async Task Unload_BringsBackTheStarsProfile()
     {
         MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
@@ -371,9 +416,10 @@ public class ScopeProfilePickTests : IDisposable
         main.SetStudentPositionType(null);
         main.SetActivePositionFromServer(null);
 
-        Assert.Equal(ScopeProfileKind.Mixed, scope.ProfileKind);
-        Assert.Equal("MIXED", scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Profile)!));
-        Assert.Equal("eram", scope.TemplateId);
+        Assert.Equal(ScopeProfileKind.Stars, scope.ProfileKind);
+        Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
+        Assert.Equal("STARS", scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Profile)!));
+        Assert.Equal("stars", scope.TemplateId);
     }
 
     [AvaloniaFact]
@@ -434,6 +480,7 @@ public class ScopeProfilePickTests : IDisposable
             profileStore: ProfileStoreWith("mixed", p => p["views"] = new JsonArray("ca", "ssa")),
             ScopePrefSetStore.PrimarySlot
         );
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
 
         scope.SetViewOpen("ca", true);
 
@@ -441,7 +488,7 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task SavedStateRestore_KeepsTheProfile_AndItsTemplateStands()
+    public async Task SavedStateRestore_KeepsTheProfile_AndTheLookFollowsIt()
     {
         MainViewModel main = await NewMain();
         Store()
@@ -450,7 +497,7 @@ public class ScopeProfilePickTests : IDisposable
                 ScopePrefSetStore.PrimarySlot,
                 new ScopePrefSet
                 {
-                    TemplateId = "euroscope",
+                    Extra = new Dictionary<string, JsonElement> { ["templateId"] = JsonSerializer.SerializeToElement("euroscope") },
                     Db = new ScopePrefDb(false, true, false, true, true, true, 12),
                     Kind = "eram",
                     Lens = new ScopePrefLens(false, false, false, false),
@@ -464,7 +511,7 @@ public class ScopeProfilePickTests : IDisposable
 
         Assert.Equal(ScopeProfileKind.Stars, main.ScopeProfile);
         Assert.Equal(ScopeProfileKind.Stars, scope.ProfileKind);
-        Assert.Equal("euroscope", scope.TemplateId);
+        Assert.Equal("stars", scope.TemplateId);
     }
 
     [AvaloniaFact]
@@ -543,6 +590,41 @@ public class ScopeProfilePickTests : IDisposable
             Assert.Empty(host.GetVisualDescendants().OfType<StarsDcbBar>());
             Assert.False(scope.IsBarSubmenuOpen);
             Assert.Null(scope.OpenMenu);
+        }
+        finally
+        {
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task YaatProfileEuroScope_OnTheStarsBar_ShowsTheEuroScopeLookOnTheClassicToolbar()
+    {
+        MainViewModel main = await NewMain();
+        ScopeViewModel scope = OpenScope(main, store: null);
+        var host = new ScopeHost { DataContext = scope };
+        var window = new Window
+        {
+            Width = 1200,
+            Height = 800,
+            Content = host,
+        };
+        window.Closed += (_, _) => scope.Dispose();
+        window.Show();
+        main.RunScopeCommand(".scope profile stars");
+        Settle(window);
+        try
+        {
+            PressTile(window, host, e => e.Opens == StarsDcbPage.Yaat);
+            PressTile(window, host, e => e.Opens == StarsDcbPage.YaatProfile);
+            PressTile(window, host, e => e.Button == ScopeButtonId.ProfileEuroScope);
+
+            Assert.Equal(ScopeProfileKind.EuroScope, scope.ProfileKind);
+            Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
+            Assert.Equal(ScopeBarKind.Classic, scope.BarKind);
+            Assert.Single(host.GetVisualDescendants().OfType<ScopeToolbar>());
+            Assert.Empty(host.GetVisualDescendants().OfType<StarsDcbBar>());
         }
         finally
         {

@@ -258,9 +258,6 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _validateDctFixes;
 
-    [ObservableProperty]
-    private bool _euroScopeMode;
-
     /// <summary>The "ERAM field menus" choice, a <see cref="ScopeFieldMenuStyle"/> by index.</summary>
     [ObservableProperty]
     private int _selectedScopeFieldMenuStyleIndex;
@@ -870,7 +867,6 @@ public partial class SettingsViewModel : ObservableObject
         _selectedAutoDeleteIndex = AutoDeleteOverrideToIndex(_preferences.AutoDeleteOverride);
         _departureAutoDeleteDistanceNm = _preferences.DepartureAutoDeleteDistanceNm is { } distanceNm ? (decimal)distanceNm : null;
         _validateDctFixes = _preferences.ValidateDctFixes;
-        _euroScopeMode = _preferences.EuroScopeMode;
         _selectedScopeFieldMenuStyleIndex = (int)_preferences.ScopeFieldMenuStyle;
         _scopeStarsFieldMenus = _preferences.ScopeStarsFieldMenus;
         _flashNoLandingClearance = _preferences.FlashNoLandingClearance;
@@ -1142,7 +1138,6 @@ public partial class SettingsViewModel : ObservableObject
         _preferences.SetSoloAdvisorySettings((SoloAdvisoryPrefill)SelectedSoloAdvisoryPrefillIndex, SoloAdvisoryLiveCheck);
         _preferences.SetRpoPilotSpeechAudibleAlert(RpoPilotSpeechAudibleAlert);
         _preferences.SetPilotVoiceSettings(PilotVoiceEnabled, PilotVoiceVolume, PilotVoiceRadioFxEnabled, PilotVoiceSpeechRate);
-        _preferences.SetEuroScopeMode(EuroScopeMode);
         _preferences.SetScopeFieldMenuStyle((ScopeFieldMenuStyle)SelectedScopeFieldMenuStyleIndex);
         _preferences.SetScopeStarsFieldMenus(ScopeStarsFieldMenus);
         _preferences.SetFlashNoLandingClearance(FlashNoLandingClearance);
@@ -2113,7 +2108,6 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ResetRadar(UserPreferences defaults)
     {
-        EuroScopeMode = defaults.EuroScopeMode;
         SelectedScopeFieldMenuStyleIndex = (int)defaults.ScopeFieldMenuStyle;
         ScopeStarsFieldMenus = defaults.ScopeStarsFieldMenus;
         FlashNoLandingClearance = defaults.FlashNoLandingClearance;

@@ -209,10 +209,7 @@ public class ScopeRundownDragTests
     private static (MainViewModel Main, ScopeViewModel Scope, ScopeView View, Window Window) ShowScopeWithRows()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
-        {
-            TemplateId = ScopeTemplates.StarsId,
-        };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

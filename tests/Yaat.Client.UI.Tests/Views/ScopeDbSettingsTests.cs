@@ -60,7 +60,7 @@ public class ScopeDbSettingsTests
         (ScopeViewModel scope, ScopeView view, Window window) = ShowScope(main);
         try
         {
-            main.RunScopeCommand(".scope template eram");
+            main.RunScopeCommand(".scope profile eram");
             AddAt(main, view.Canvas, "UAL238", new Point(300, 300), _ => { });
             AddAt(main, view.Canvas, "DAL12", new Point(600, 400), ac => ac.EramFreeText = "WX DEV");
             Assert.Equal("B738", Line4Of(view.Canvas, "UAL238"));
@@ -175,7 +175,7 @@ public class ScopeDbSettingsTests
         (ScopeViewModel scope, ScopeView view, Window window) = ShowScope(main);
         try
         {
-            main.RunScopeCommand(".scope template eram");
+            main.RunScopeCommand(".scope profile eram");
             AddAt(main, view.Canvas, "UAL238", new Point(300, 300), _ => { });
             AddAt(main, view.Canvas, "DAL12", new Point(600, 400), _ => { });
             scope.ToggleDwellLock("DAL12");

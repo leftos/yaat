@@ -24,7 +24,7 @@ public sealed partial class ScopeViewModel
     /// range, the profile or a pin changes. The canvas draws others' tracks at its <see cref="ScopeZoomBand.OthersLevel"/>.
     /// </summary>
     [ObservableProperty]
-    private ScopeZoomBand _effectiveBand = ScopeZoomBands.Resolve(ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands, DefaultRangeNm);
+    private ScopeZoomBand _effectiveBand = ScopeZoomBands.Resolve(ScopeProfileStore.Shipped(ScopeProfileKind.Stars).Bands, DefaultRangeNm);
 
     /// <summary>
     /// The template <paramref name="ac"/> draws with: its owner's kind on Mixed, an unowned track's the band's

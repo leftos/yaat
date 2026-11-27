@@ -12,6 +12,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 
@@ -27,6 +28,7 @@ public class ScopeDockTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenAsync()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Settle(window);

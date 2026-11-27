@@ -22,7 +22,6 @@ public class ScopePrefSetTests
         Assert.Equal(set.RangeNm, loaded.RangeNm);
         Assert.Equal(set.CenterLat, loaded.CenterLat);
         Assert.Equal(set.CenterLon, loaded.CenterLon);
-        Assert.Equal(set.TemplateId, loaded.TemplateId);
         Assert.Equal(set.Brightness.Count, loaded.Brightness.Count);
         Assert.All(set.Brightness, pair => Assert.Equal(pair.Value, loaded.Brightness[pair.Key]));
         Assert.Equal(set.Db, loaded.Db);
@@ -90,7 +89,6 @@ public class ScopePrefSetTests
                 "rangeNm",
                 "centerLat",
                 "centerLon",
-                "templateId",
                 "brightness",
                 "db",
                 "maps",
@@ -141,6 +139,32 @@ public class ScopePrefSetTests
     }
 
     [Fact]
+    public void OldFileWithTemplateId_StillLoads_AndTheFieldIsKeptInExtra()
+    {
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(OldSetJson("eram", "stars"), ScopePrefSet.JsonOptions)!;
+
+        Assert.Equal("SR-DAY", loaded.Name);
+        Assert.Equal("stars", loaded.Kind);
+        Assert.Equal("eram", loaded.Extra!["templateId"].GetString());
+    }
+
+    [Theory]
+    [InlineData("euroscope", "stars", "euroscope")]
+    [InlineData("euroscope", "eram", "euroscope")]
+    [InlineData("euroscope", "mixed", "euroscope")]
+    [InlineData("EUROSCOPE", "stars", "euroscope")]
+    [InlineData("stars", "eram", "eram")]
+    [InlineData("eram", "stars", "stars")]
+    [InlineData("mixed", "eram", "eram")]
+    [InlineData(null, "mixed", "mixed")]
+    public void ProfileKindToApply_IsEuroScope_ForAnOldEuroScopeTemplate(string? templateId, string kind, string expected)
+    {
+        ScopePrefSet loaded = JsonSerializer.Deserialize<ScopePrefSet>(OldSetJson(templateId, kind), ScopePrefSet.JsonOptions)!;
+
+        Assert.Equal(expected, loaded.ProfileKindToApply());
+    }
+
+    [Fact]
     public void AnOldFilesTearoffs_LoadWithTheRestIntact_AndAResaveDropsThem()
     {
         const string json = """
@@ -168,7 +192,6 @@ public class ScopePrefSetTests
 
         Assert.Equal("SR-DAY", loaded.Name);
         Assert.Equal(37.5, loaded.RangeNm);
-        Assert.Equal("eram", loaded.TemplateId);
         Assert.Equal([3, 15], loaded.Maps);
         Assert.Equal(["ssa"], loaded.OpenViews);
         Assert.Equal(["range", "pref"], loaded.Toolbar);
@@ -382,7 +405,6 @@ public class ScopePrefSetTests
             RangeNm = 37.5,
             CenterLat = 37.6173,
             CenterLon = -122.375,
-            TemplateId = "eram",
             Brightness = new Dictionary<string, int>
             {
                 ["mapa"] = 100,
@@ -404,6 +426,23 @@ public class ScopePrefSetTests
             Tdm = true,
             BarHidden = true,
         };
+
+    /// <summary>A file's set, with the retired <c>templateId</c> key holding <paramref name="templateId"/> unless it is null.</summary>
+    private static string OldSetJson(string? templateId, string kind)
+    {
+        string template = (templateId is null) ? "" : $"\"templateId\": \"{templateId}\",";
+        return $$"""
+            {
+              "name": "SR-DAY",
+              {{template}}
+              "db": { "line4": true, "hoverDwell": false, "atpa": true, "atpaAlertCones": true, "atpaMonitorCones": true,
+                      "eramCaRing": true, "charSize": 14 },
+              "kind": "{{kind}}",
+              "lens": { "enabled": false, "path": false, "queue": false, "checkIn": false },
+              "mapTools": { "mva": false, "lock": false, "rangeRing": null, "weather": null, "fixesAndMarkers": null }
+            }
+            """;
+    }
 
     private static ScopePrefSet RoundTrip(ScopePrefSet set) =>
         JsonSerializer.Deserialize<ScopePrefSet>(JsonSerializer.Serialize(set, ScopePrefSet.JsonOptions), ScopePrefSet.JsonOptions)!;

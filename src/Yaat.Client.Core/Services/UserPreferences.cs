@@ -123,7 +123,13 @@ public sealed partial class UserPreferences
     /// migrated once when loaded and saved back at this version, so a migrated value the user changes afterwards is
     /// kept. A file written before the field existed (≤ 0.13.1) reads as 0.
     /// </summary>
-    internal const int CurrentPreferencesVersion = 5;
+    internal const int CurrentPreferencesVersion = 6;
+
+    /// <summary>The position types the v6 migration gives the EuroScope profile.</summary>
+    private static readonly string[] EuroScopeModePositionTypes = ["DEL", "GND", "TWR", "APP", "DEP", "CTR"];
+
+    /// <summary>The EuroScope profile's name, as the Scope's profile picker writes it.</summary>
+    private const string EuroScopeProfileName = "euroscope";
 
     /// <summary>The old Radar view's primary window key and extra-window key prefix, read only by the v4 migration.</summary>
     private const string RadarViewKey = "RadarView";
@@ -225,7 +231,8 @@ public sealed partial class UserPreferences
     /// (<see cref="InsertVfrAltitudeRows"/>). v3 → v4: every saved layout's Radar window rows become Scope window rows
     /// (<see cref="MigrateRadarWindows"/>), and so do the window-geometry store's (<see cref="MigrateTopLevelRadarWindows"/>).
     /// v4 → v5: every stored quick-command list of an airborne situation gains Ident after its squawk rows
-    /// (<see cref="InsertIdentRow"/>).
+    /// (<see cref="InsertIdentRow"/>). v5 → v6: the retired EuroScope-mode preference, when it was on, becomes the EuroScope
+    /// profile of each position type without a hand pick (<see cref="MigrateEuroScopeMode"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -255,15 +262,7 @@ public sealed partial class UserPreferences
 
         if (fromVersion < 4)
         {
-            int changed = 0;
-            foreach (SavedLayout layout in _data.Layouts)
-            {
-                if (MigrateRadarWindows(layout))
-                {
-                    changed++;
-                }
-            }
-
+            int changed = _data.Layouts.Count(MigrateRadarWindows);
             bool storeChanged = MigrateTopLevelRadarWindows();
             LogMigratedToV4(fromVersion, changed, storeChanged);
         }
@@ -272,6 +271,12 @@ public sealed partial class UserPreferences
         {
             int changed = InsertIdentRow();
             LogMigratedToV5(fromVersion, changed);
+        }
+
+        if (fromVersion < 6)
+        {
+            int set = MigrateEuroScopeMode();
+            LogMigratedToV6(fromVersion, set);
         }
 
         _data.PreferencesVersion = CurrentPreferencesVersion;
@@ -340,6 +345,27 @@ public sealed partial class UserPreferences
         {
             Log.LogInformation("Preferences v{From} → v5: Ident quick command added to {Count} stored list(s)", fromVersion, changed);
         }
+    }
+
+    /// <summary>Logs at Information the v6 migration and how many position types it gave the EuroScope profile.</summary>
+    private static void LogMigratedToV6(int fromVersion, int set)
+    {
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Preferences v{From} → v6: EuroScope mode made the EuroScope profile for {Count} position type(s)", fromVersion, set);
+        }
+    }
+
+    /// <summary>
+    /// The v6 step: when the retired EuroScope-mode preference was on, each of <see cref="EuroScopeModePositionTypes"/> with
+    /// no hand-picked Scope profile gets the EuroScope profile; a pick already saved stands. The preference is then dropped.
+    /// </summary>
+    /// <returns>The number of position types given the EuroScope profile.</returns>
+    private int MigrateEuroScopeMode()
+    {
+        bool wasOn = _data.LegacyEuroScopeMode == true;
+        _data.LegacyEuroScopeMode = null;
+        return wasOn ? EuroScopeModePositionTypes.Count(type => _data.ScopeProfileByPositionType.TryAdd(type, EuroScopeProfileName)) : 0;
     }
 
     /// <summary>
@@ -736,7 +762,6 @@ public sealed partial class UserPreferences
     /// </summary>
     public string? CrcAliasDirectory => _data.CrcAliasDirectory;
     public bool ValidateDctFixes => _data.ValidateDctFixes;
-    public bool EuroScopeMode => _data.EuroScopeMode;
 
     /// <summary>The surface an ERAM block's altitude, heading or speed click opens. Default <see cref="ScopeFieldMenuStyle.Tabbed"/>.</summary>
     public ScopeFieldMenuStyle ScopeFieldMenuStyle =>
@@ -1460,7 +1485,7 @@ public sealed partial class UserPreferences
     }
 
     /// <summary>
-    /// The YAAT Scope profile name (<c>stars</c>, <c>eram</c> or <c>mixed</c>) picked by hand for rooms whose student
+    /// The YAAT Scope profile name (<c>stars</c>, <c>eram</c>, <c>mixed</c> or <c>euroscope</c>) picked by hand for rooms whose student
     /// position type is <paramref name="positionType"/>, or null when none was picked or the type is unknown.
     /// </summary>
     public string? GetScopeProfileOverride(string? positionType) =>
@@ -1517,12 +1542,6 @@ public sealed partial class UserPreferences
     {
         double clamped = Math.Clamp(speechRate, PilotVoiceSpeechRateMin, PilotVoiceSpeechRateMax);
         return Math.Round(clamped * 20.0, MidpointRounding.AwayFromZero) / 20.0;
-    }
-
-    public void SetEuroScopeMode(bool enabled)
-    {
-        _data.EuroScopeMode = enabled;
-        Save();
     }
 
     public void SetScopeFieldMenuStyle(ScopeFieldMenuStyle style)
@@ -2800,7 +2819,7 @@ public sealed partial class UserPreferences
             Macros = GetFieldOr<List<SavedMacro>>(obj, "macros", []),
             CrcAliasDirectory = GetFieldOr<string?>(obj, "crcAliasDirectory", null),
             ValidateDctFixes = GetFieldOr(obj, "validateDctFixes", false),
-            EuroScopeMode = GetFieldOr(obj, "euroScopeMode", false),
+            LegacyEuroScopeMode = GetFieldOr<bool?>(obj, "euroScopeMode", null),
             ScopeFieldMenuStyle = GetFieldOr(obj, "scopeFieldMenuStyle", nameof(Services.ScopeFieldMenuStyle.Tabbed)),
             ScopeFieldMenuLastMode = GetFieldOr(obj, "scopeFieldMenuLastMode", nameof(ScopeFieldMenuMode.Eram)),
             ScopeStarsFieldMenus = GetFieldOr(obj, "scopeStarsFieldMenus", false),
@@ -3236,7 +3255,12 @@ public sealed partial class UserPreferences
         public List<SavedMacro> Macros { get; set; } = [];
         public string? CrcAliasDirectory { get; set; }
         public bool ValidateDctFixes { get; set; }
-        public bool EuroScopeMode { get; set; }
+
+        // The EuroScope-mode preference the EuroScope profile replaced, kept deserializable only so the v6 migration
+        // (MigrateEuroScopeMode) can read it; nulled (and thus dropped from the file) afterwards.
+        [JsonPropertyName("euroScopeMode")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public bool? LegacyEuroScopeMode { get; set; }
 
         // ScopeFieldMenuStyle and ScopeFieldMenuMode names, stored as strings so enum reordering can't misassign them.
         public string ScopeFieldMenuStyle { get; set; } = nameof(Services.ScopeFieldMenuStyle.Tabbed);

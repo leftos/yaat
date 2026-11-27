@@ -11,6 +11,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Client.Views.Scope.Toolbar.Dcb;
 using Yaat.Client.Views.Scope.Toolbar.Eram;
@@ -26,7 +27,8 @@ public class ScopeHostTests
     [AvaloniaFact]
     public async Task Host_InABareWindow_ShowsToolbarViewAndDock()
     {
-        (MainViewModel _, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         var host = new ScopeHost { DataContext = scope };
         var window = new Window
         {
@@ -82,30 +84,10 @@ public class ScopeHostTests
     }
 
     [AvaloniaFact]
-    public async Task BarKind_IgnoresATemplatePick()
-    {
-        (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
-        try
-        {
-            main.RunScopeCommand(".scope profile stars");
-            Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
-
-            scope.PickTemplateCommand.Execute("eram");
-
-            Assert.Equal("eram", scope.TemplateId);
-            Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
-        }
-        finally
-        {
-            scope.Dispose();
-            Dispatcher.UIThread.RunJobs();
-        }
-    }
-
-    [AvaloniaFact]
     public async Task TheHost_ShowsTheStarsDcbUnderStars_TheEramBarUnderEram_AndTodaysBarUnderMixed()
     {
         (MainViewModel main, ScopeViewModel scope) = await ScopeTestFixture.OpenScopeAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         var host = new ScopeHost { DataContext = scope };
         var window = new Window
         {

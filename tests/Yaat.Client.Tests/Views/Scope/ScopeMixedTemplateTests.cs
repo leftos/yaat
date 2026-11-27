@@ -58,13 +58,7 @@ public class ScopeMixedTemplateTests
     }
 
     [Fact]
-    public void MixedIsSelectable_ButHasNoTemplate()
-    {
-        Assert.True(ScopeTemplates.IsSelectable(ScopeTemplates.MixedId));
-        Assert.True(ScopeTemplates.IsSelectable(ScopeTemplates.EramId));
-        Assert.False(ScopeTemplates.IsSelectable("nope"));
-        Assert.Throws<ArgumentException>(() => ScopeTemplates.Get(ScopeTemplates.MixedId));
-    }
+    public void MixedHasNoTemplate() => Assert.Throws<ArgumentException>(() => ScopeTemplates.Get(ScopeTemplates.MixedId));
 
     [Fact]
     public void MixedFrame_LaysEachTrackOutAsItsOwnersTemplate() => AssertMixedFrame(ScopeTemplates.StarsId);

@@ -905,7 +905,6 @@ public class ScopePrefSetStoreTests : IDisposable
             RangeNm = rangeNm,
             CenterLat = 37.5,
             CenterLon = -122.5,
-            TemplateId = "stars",
             Db = new ScopePrefDb(true, false, true, true, true, true, 14),
             Kind = "stars",
             Lens = new ScopePrefLens(false, false, false, false),

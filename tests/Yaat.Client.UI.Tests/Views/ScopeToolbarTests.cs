@@ -16,7 +16,6 @@ using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
-using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
 using Yaat.Client.Views.Scope.Profiles;
@@ -46,6 +45,7 @@ public class ScopeToolbarTests
     )
     {
         MainViewModel main = await ScopeTestFixture.MainAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         beforeScope(main);
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
@@ -160,20 +160,17 @@ public class ScopeToolbarTests
     }
 
     [AvaloniaFact]
-    public async Task TheBar_ReplacesTheMenu_AndShowsTemplateAndRange()
+    public async Task TheBar_ReplacesTheMenu_AndShowsRange()
     {
         (_, _, ScopeWindow window) = await OpenAsync();
         try
         {
             Assert.Empty(window.GetLogicalDescendants().OfType<Menu>());
-            Button template = ButtonOf(window, ScopeButtonId.Template);
             Button range = ButtonOf(window, ScopeButtonId.Range);
-            Assert.Equal("TEMPLATE ▸", DrawnText(template));
             Assert.Equal("RANGE 40", DrawnText(range));
             Run value = ((TextBlock)range.Content!).Inlines!.OfType<Run>().Last();
             Assert.Equal("40", value.Text);
             Assert.Equal(FontWeight.Bold, value.FontWeight);
-            Assert.Equal("TEMPLATE", Label(template));
             Assert.Equal("RANGE 40", Label(range));
             Assert.Empty(TrayButtons(window));
         }
@@ -195,7 +192,7 @@ public class ScopeToolbarTests
             Assert.Equal("MIXED", scope.SpinnerValue(ScopeToolbarButtons.Find(ScopeButtonId.Profile)!));
 
             Click(profile);
-            Assert.Equal(["STARS", "ERAM", "MIXED"], TrayButtons(window).Select(DrawnText));
+            Assert.Equal(["STARS", "ERAM", "MIXED", "EUROSCOPE"], TrayButtons(window).Select(DrawnText));
             Assert.Contains("active", ButtonOf(window, ScopeButtonId.ProfileMixed).Classes);
 
             Click(ButtonOf(window, ScopeButtonId.ProfileEram));
@@ -203,6 +200,28 @@ public class ScopeToolbarTests
             Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
             Assert.Equal("Radar profile ERAM", main.StatusText);
             Assert.Single(window.GetVisualDescendants().OfType<EramBar>());
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ProfileMenu_OffersEuroScope_AndPickingItShowsTheEuroScopeLook()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
+        try
+        {
+            Click(ButtonOf(window, ScopeButtonId.Profile));
+            Click(ButtonOf(window, ScopeButtonId.ProfileEuroScope));
+
+            Assert.Equal(ScopeProfileKind.EuroScope, main.ScopeProfile);
+            Assert.Equal(ScopeProfileKind.EuroScope, scope.ProfileKind);
+            Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
+            Assert.Equal(ScopeBarKind.Classic, scope.BarKind);
+            Assert.Equal("Radar profile EUROSCOPE", main.StatusText);
+            Assert.Single(window.GetVisualDescendants().OfType<ScopeToolbar>());
         }
         finally
         {
@@ -222,6 +241,7 @@ public class ScopeToolbarTests
         File.WriteAllText(mixedFile, edited.ToJsonString());
         MainViewModel main = await ScopeTestFixture.MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: store, ScopePrefSetStore.PrimarySlot);
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         main.OpenScope = scope;
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
@@ -242,7 +262,6 @@ public class ScopeToolbarTests
                     ScopeButtonId.Maps,
                     ScopeButtonId.Range,
                     ScopeButtonId.Profile,
-                    ScopeButtonId.Template,
                     ScopeButtonId.Others,
                     ScopeButtonId.Vector,
                     ScopeButtonId.Hist,
@@ -279,7 +298,7 @@ public class ScopeToolbarTests
             Rect bounds = canvas.Bounds;
             double range = scope.RangeNm;
 
-            Click(ButtonOf(window, ScopeButtonId.Template));
+            Click(ButtonOf(window, ScopeButtonId.Profile));
             window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
 
@@ -290,45 +309,13 @@ public class ScopeToolbarTests
             Point belowTray = tray.TranslatePoint(new Point(canvas.Bounds.Width / 2, tray.Bounds.Height + 10), window)!.Value;
             Assert.True(HitsCanvas(window, canvas, belowTray), "a point below the open tray reaches the canvas");
 
-            Click(ButtonOf(window, ScopeButtonId.Template));
+            Click(ButtonOf(window, ScopeButtonId.Profile));
             window.UpdateLayout();
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal(bounds, canvas.Bounds);
             Assert.Equal(range, scope.RangeNm);
             Assert.True(HitsCanvas(window, canvas, belowTray), "a point below the closed tray's edge reaches the canvas");
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task TemplateMenu_OpensATray_PickingEramSwitchesAndClosesIt()
-    {
-        (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
-        try
-        {
-            Click(ButtonOf(window, ScopeButtonId.Template));
-
-            Assert.Equal(["STARS", "ERAM", "MIXED", "EUROSCOPE"], TrayButtons(window).Select(DrawnText));
-            Assert.Equal(["STARS", "ERAM", "MIXED", "EUROSCOPE"], TrayButtons(window).Select(Label));
-            Assert.True(ButtonOf(window, ScopeButtonId.Range).IsEffectivelyVisible);
-
-            Click(ButtonOf(window, ScopeButtonId.TemplateEram));
-
-            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-            Assert.Empty(TrayButtons(window));
-            Assert.Equal(".scope template eram", main.StatusText);
-
-            Click(ButtonOf(window, ScopeButtonId.Template));
-            Assert.Contains("active", ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
-            Assert.DoesNotContain("active", ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
-
-            // Clicking the open menu's button again closes its tray.
-            Click(ButtonOf(window, ScopeButtonId.Template));
-            Assert.Empty(TrayButtons(window));
         }
         finally
         {
@@ -904,8 +891,8 @@ public class ScopeToolbarTests
         (MainViewModel main, ScopeViewModel scope, ScopeWindow window) = await OpenAsync();
         try
         {
-            Click(ButtonOf(window, ScopeButtonId.Template));
-            Assert.Equal(ScopeButtonId.Template, scope.OpenMenu);
+            Click(ButtonOf(window, ScopeButtonId.Profile));
+            Assert.Equal(ScopeButtonId.Profile, scope.OpenMenu);
 
             main.RunScopeCommand(".scope bar hide");
             Dispatcher.UIThread.RunJobs();
@@ -948,7 +935,7 @@ public class ScopeToolbarTests
             Assert.False(Chevron(window, "ScrollRight").IsEffectivelyVisible, "the bar fits the default window, so there is no right chevron");
             Grid row = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "BarRow");
             Button[] bar = [.. MainRowOf(window).GetVisualDescendants().OfType<Button>().Where(b => b.Tag is ScopeButtonId)];
-            Assert.Equal(19, bar.Length);
+            Assert.Equal(18, bar.Length);
             Assert.All(
                 bar,
                 b => Assert.True(b.TranslatePoint(new Point(b.Bounds.Width, 0), row)!.Value.X <= row.Bounds.Width, $"{Label(b)} ends inside the bar")
@@ -973,7 +960,6 @@ public class ScopeToolbarTests
                 ScopeButtonId.Vector,
                 ScopeButtonId.Hist,
                 ScopeButtonId.Profile,
-                ScopeButtonId.Template,
                 ScopeButtonId.Lens,
                 ScopeButtonId.Brite,
                 ScopeButtonId.Pref,
@@ -1265,37 +1251,6 @@ public class ScopeToolbarTests
         finally
         {
             window.Close();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task Docked_AtTheDefaultWidth_TheRightChevronScrollsHideIntoView()
-    {
-        (MainWindow main, _) = await MainWindowHost.BootDockedScopeAsync();
-        try
-        {
-            Settle(main);
-            Button right = Chevron(main, "ScrollRight");
-            Assert.True(right.IsEffectivelyVisible, "the bar is wider than the docked tab, so the right chevron shows");
-            Assert.True(right.IsEnabled, "the bar starts at its left end, so the right chevron can scroll it");
-
-            PressUntilDisabled(right, 5);
-            Settle(main);
-
-            Assert.False(right.IsEnabled, "the right chevron disables at the bar's right end");
-            Button hide = main.GetVisualDescendants()
-                .OfType<ScopeButtonControl>()
-                .Single(c => (c.Model.Id == ScopeButtonId.BarHide) && c.IsEffectivelyVisible)
-                .Button;
-            Point centre = hide.TranslatePoint(new Point(hide.Bounds.Width / 2, hide.Bounds.Height / 2), main)!.Value;
-            Assert.True(
-                (main.InputHitTest(centre) is Visual hit) && ((hit == hide) || hit.GetVisualAncestors().Contains(hide)),
-                "a click at HIDE's centre lands on the button once the bar is scrolled to its right end"
-            );
-        }
-        finally
-        {
-            MainWindowHost.CloseAll(main);
         }
     }
 }

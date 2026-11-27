@@ -6,6 +6,5 @@
     { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" },
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" }
   ],
-  "template": "stars",
   "views": ["ssa", "ca"]
 }

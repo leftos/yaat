@@ -11,12 +11,11 @@ public class ScopeToolbarButtonsTests
     private static IEnumerable<ScopeButton> Flatten(IEnumerable<ScopeButton> buttons) => buttons.SelectMany(b => Flatten(b.Children).Prepend(b));
 
     [Fact]
-    public void TheBar_IsProfileTemplateRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefThenHide()
+    public void TheBar_IsProfileRangeOthersVectorHistToolsAutoMapsTdmDbViewsLensBritePrefThenHide()
     {
         Assert.Equal(
             [
                 ScopeButtonId.Profile,
-                ScopeButtonId.Template,
                 ScopeButtonId.Range,
                 ScopeButtonId.Others,
                 ScopeButtonId.Vector,
@@ -40,7 +39,6 @@ public class ScopeToolbarButtonsTests
         Assert.Equal(
             [
                 "PROFILE",
-                "TEMPLATE",
                 "RANGE",
                 "OTHERS",
                 "VECTOR",
@@ -91,17 +89,24 @@ public class ScopeToolbarButtonsTests
         Assert.Equal(expected, ScopeToolbarButtons.RingsCommand(tool, sizeNm, "N123AB"));
 
     [Fact]
-    public void Profile_IsAMenuOfTheThreeProfiles_EachRunningItsScopeProfileCommand()
+    public void Profile_IsAMenuOfTheFourProfiles_EachRunningItsScopeProfileCommand()
     {
         ScopeButton profile = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Profile);
 
         Assert.Equal(ScopeButtonKind.Menu, profile.Kind);
         Assert.Null(profile.Command);
-        Assert.Equal([ScopeButtonId.ProfileStars, ScopeButtonId.ProfileEram, ScopeButtonId.ProfileMixed], profile.Children.Select(c => c.Id));
-        Assert.Equal(["STARS", "ERAM", "MIXED"], profile.Children.Select(c => c.Label));
-        Assert.Equal(["stars", "eram", "mixed"], profile.Children.Select(c => c.Value));
-        Assert.Equal([".scope profile stars", ".scope profile eram", ".scope profile mixed"], profile.Children.Select(c => c.Command));
+        Assert.Equal(
+            [ScopeButtonId.ProfileStars, ScopeButtonId.ProfileEram, ScopeButtonId.ProfileMixed, ScopeButtonId.ProfileEuroScope],
+            profile.Children.Select(c => c.Id)
+        );
+        Assert.Equal(["STARS", "ERAM", "MIXED", "EUROSCOPE"], profile.Children.Select(c => c.Label));
+        Assert.Equal(["stars", "eram", "mixed", "euroscope"], profile.Children.Select(c => c.Value));
+        Assert.Equal(
+            [".scope profile stars", ".scope profile eram", ".scope profile mixed", ".scope profile euroscope"],
+            profile.Children.Select(c => c.Command)
+        );
         Assert.All(profile.Children, c => Assert.Equal(ScopeButtonKind.Command, c.Kind));
+        Assert.All(profile.Children, c => Assert.True(ScopeToolbarButtons.IsProfilePick(c.Id)));
     }
 
     [Fact]
@@ -121,7 +126,6 @@ public class ScopeToolbarButtonsTests
                 ScopeButtonId.Maps,
                 ScopeButtonId.Range,
                 ScopeButtonId.Profile,
-                ScopeButtonId.Template,
                 ScopeButtonId.Others,
                 ScopeButtonId.Vector,
                 ScopeButtonId.Hist,
@@ -280,20 +284,6 @@ public class ScopeToolbarButtonsTests
     }
 
     [Fact]
-    public void Template_IsAMenuOfTheFourTemplates_InOrder()
-    {
-        ScopeButton template = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Template);
-
-        Assert.Equal(ScopeButtonKind.Menu, template.Kind);
-        Assert.Equal(
-            [ScopeTemplates.StarsId, ScopeTemplates.EramId, ScopeTemplates.MixedId, ScopeTemplates.EuroScopeId],
-            template.Children.Select(c => c.Value)
-        );
-        Assert.Equal(["STARS", "ERAM", "MIXED", "EUROSCOPE"], template.Children.Select(c => c.Label));
-        Assert.All(template.Children, c => Assert.Equal(ScopeButtonKind.Command, c.Kind));
-    }
-
-    [Fact]
     public void Range_IsASpinner_WithNoChildren()
     {
         ScopeButton range = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Range);
@@ -318,14 +308,5 @@ public class ScopeToolbarButtonsTests
         Assert.Equal(["ssa", "ca", "rpoq", "crr"], views.Children.Select(c => c.Value));
         Assert.Equal([".view ssa", ".view ca", ".view rpoq", ".view crr"], views.Children.Select(c => c.Command));
         Assert.All(views.Children, c => Assert.Equal(ScopeButtonKind.Toggle, c.Kind));
-    }
-
-    [Fact]
-    public void EveryTemplatePick_CarriesItsScopeTemplateCommand()
-    {
-        ScopeButton template = ScopeToolbarButtons.All.Single(b => b.Id == ScopeButtonId.Template);
-
-        Assert.Null(template.Command);
-        Assert.All(template.Children, c => Assert.Equal($".scope template {c.Value}", c.Command));
     }
 }

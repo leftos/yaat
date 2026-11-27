@@ -4,6 +4,5 @@
   "bands": [
     { "maxNm": null, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "dri", "unowned": "eram" }
   ],
-  "template": "eram",
   "views": ["ssa", "ca"]
 }

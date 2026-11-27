@@ -464,9 +464,6 @@ public enum EramButtonType
     /// <summary>The YAAT menu's PROFILE, which opens the profile picks; YAAT's own.</summary>
     YaatProfileMenu,
 
-    /// <summary>The YAAT menu's TEMPLATE, which opens the template picks; YAAT's own.</summary>
-    YaatTemplateMenu,
-
     /// <summary>The YAAT menu's TOOLS, which opens the ring tools and arms the band's kind as the classic TOOLS tray does; YAAT's own.</summary>
     YaatToolsMenu,
 
@@ -500,17 +497,8 @@ public enum EramButtonType
     /// <summary>The PROFILE item MIXED, which switches the Scope to the Mixed profile and its classic bar; YAAT's own.</summary>
     YaatProfileMixed,
 
-    /// <summary>The TEMPLATE item STARS, which picks the STARS template; YAAT's own.</summary>
-    YaatTemplateStars,
-
-    /// <summary>The TEMPLATE item ERAM, which picks the ERAM template; YAAT's own.</summary>
-    YaatTemplateEram,
-
-    /// <summary>The TEMPLATE item MIXED, which picks the Mixed template; YAAT's own.</summary>
-    YaatTemplateMixed,
-
-    /// <summary>The TEMPLATE item EUROSCOPE, which picks the EuroScope template; YAAT's own.</summary>
-    YaatTemplateEuroScope,
+    /// <summary>The PROFILE item EUROSCOPE, which switches the Scope to the EuroScope profile and its classic bar; YAAT's own.</summary>
+    YaatProfileEuroScope,
 
     /// <summary>The DISPLAY item DCNF, which steps deconfliction to its next mode; YAAT's own.</summary>
     YaatDisplayDcnf,
@@ -722,7 +710,6 @@ public static class EramButtonTypeExtensions
             EramButtonType.PrefsetDelete => ("DELETE", ""),
             EramButtonType.YaatMenu => ("YAAT", ""),
             EramButtonType.YaatProfileMenu => ("PROFILE", ""),
-            EramButtonType.YaatTemplateMenu => ("TEMPLATE", ""),
             EramButtonType.YaatToolsMenu => ("TOOLS", ""),
             EramButtonType.YaatDisplayMenu => ("DISPLAY", ""),
             EramButtonType.YaatDbMenu => ("DB", ""),
@@ -734,10 +721,7 @@ public static class EramButtonTypeExtensions
             EramButtonType.YaatProfileStars => ("STARS", ""),
             EramButtonType.YaatProfileEram => ("ERAM", ""),
             EramButtonType.YaatProfileMixed => ("MIXED", ""),
-            EramButtonType.YaatTemplateStars => ("STARS", ""),
-            EramButtonType.YaatTemplateEram => ("ERAM", ""),
-            EramButtonType.YaatTemplateMixed => ("MIXED", ""),
-            EramButtonType.YaatTemplateEuroScope => ("EUROSCOPE", ""),
+            EramButtonType.YaatProfileEuroScope => ("EUROSCOPE", ""),
             EramButtonType.YaatDisplayDcnf => ("DCNF", ""),
             EramButtonType.YaatDisplayOffCntr => ("OFF", "CNTR"),
             EramButtonType.YaatToolSize => ("SIZE", ""),

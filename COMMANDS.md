@@ -121,7 +121,11 @@ Aliases are fully editable in **Settings › Command verbs**.
 
 Commands beginning with `.` are client-local — they act on your own displays and are never sent to aircraft.
 
-These are YAAT's [radar markers](USER_GUIDE.md#radar-markers) (`.ff <fix> [fix ...]`, `.marker`, `.markers` and `.nomarkers`, which pin and clear markers on the Radar that last had focus, else the main window's Radar; they echo `Radar markers updated`, `Radar markers updated; unknown fix: X` or `Radar markers cleared`), the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a line on the map surface that last took focus or a press (Radar or Ground; the Radar before any) between two named points, each a fix, an FRD, or a callsign), the Radar's [toolbar commands](USER_GUIDE.md#radar-1) (`.scope range <1-256>`, `.scope template <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>`, `.scope map <id> <on|off>`, `.scope db <item> <value>`, `.view <ssa|ca|rpoq> <on|off|dock>`, `.view <ssa|ca|rpoq> tear <corner> <dx> <dy>`), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
+These are YAAT's [radar markers](USER_GUIDE.md#radar-markers) (`.ff <fix> [fix ...]`, `.marker`, `.markers` and `.nomarkers`, which pin and clear markers on the Radar that last had focus, else the main window's Radar; they echo `Radar markers updated`, `Radar markers updated; unknown fix: X` or `Radar markers cleared`),
+
+the [distance measuring tool](USER_GUIDE.md#measuring-distance-and-bearing) (`.rbl`, `.norbl`, with `*T` accepted as the CRC STARS spelling of `.rbl` — `.rbl A B` / `*T A B` draws a line on the map surface that last took focus or a press (Radar or Ground; the Radar before any) between two named points, each a fix, an FRD, or a callsign),
+
+the Radar's [toolbar commands](USER_GUIDE.md#radar-1) (`.scope range <1-256>`, `.scope profile <stars|eram|mixed|euroscope>`, `.scope brite <group> <value>`, `.scope map <id> <on|off>`, `.scope db <item> <value>`, `.view <ssa|ca|rpoq> <on|off|dock>`, `.view <ssa|ca|rpoq> tear <corner> <dx> <dy>`), and any [CRC aliases](USER_GUIDE.md#crc-aliases) read from your CRC installation.
 
 ### Fix Arguments
 
@@ -640,8 +644,7 @@ preference: it applies to the commands *you* issue, and other controllers in the
 | J-Ring | `JRING 3` (radius nm) / `JRING` (clear) | — | — |
 | Cone | `CONE 5` (length nm) / `CONE` (clear) | — | — |
 | Radar range | `.scope range 40` (1-256 nm; client-local) | — | — |
-| Radar template | `.scope template eram` (`stars`, `eram`, `mixed`, `euroscope`; client-local) | — | — |
-| Radar profile | `.scope profile eram` (`stars`, `eram`, `mixed`; the room's profile, saved as the pick for the student position type; client-local) | — | Echoes `Radar profile ERAM`; a bad id answers `Unknown Radar profile '<id>'`, a missing one `Usage: .scope profile <stars\|eram\|mixed>` |
+| Radar profile | `.scope profile eram` (`stars`, `eram`, `mixed`, `euroscope`; the room's profile, which also picks the datablock look, saved as the pick for the student position type; client-local) | — | Echoes `Radar profile ERAM`; a bad id answers `Unknown Radar profile '<id>'`, a missing one `Usage: .scope profile <stars\|eram\|mixed\|euroscope>`; the retired `.scope template` answers `retired: use .scope profile` |
 | Radar others' level | `.scope others full` / `.scope others partial` (the level of tracks the viewer does not own, pinned over the zoom band; client-local) | — | Echoes `Radar others FULL (pinned)`; a bad word answers `Usage: .scope others <full\|partial>` |
 | Radar vector | `.scope vector 2` / `.scope vector own` (`0`, `0.5`, `1`, `1.5`, `2`, `2.5`, `3`, `4`, `8` minutes pins the vector length until `.scope auto`; `own` or `all` picks whose tracks draw a vector and never pins; client-local) | — | Echoes `Radar vector 2 MIN (pinned)` or `Radar vector OWN` / `ALL`; a bad value answers `Usage: .scope vector <0\|0.5\|1\|1.5\|2\|2.5\|3\|4\|8\|auto> \| .scope vector <own\|all>` |
 | Radar vector unpin | `.scope vector auto` (unpins the vector length alone, so it follows the zoom band again; other pins and `own`/`all` stay; client-local) | — | Echoes `Radar vector AUTO` |

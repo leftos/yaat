@@ -37,9 +37,10 @@ internal sealed record ScopeEntryReading(ScopeEntryKind Kind, string Label, stri
 /// Reads an entry typed on the Scope for its kind label. In order: a leading dot is a dot command; a leading <c>$</c> makes
 /// the rest a YAAT command, as the main command input reads it (a callsign and a <c>** </c> override included), sent without
 /// the <c>$</c>; on a STARS profile, a STARS shape or key word (<see cref="StarsEntryParser"/>) is a STARS entry, translated
-/// to its YAAT command or not supported; on ERAM and Mixed (Mixed reads as STARS for a STARS-owned track: the clicked one,
-/// else the selected one), a first word that is a verb the server dispatches (<see cref="EramEntryVerbs.All"/>, shared with
-/// it), an implied command's shape or an implied FLID entry is an ERAM entry; the rest reads as nothing and sends nothing.
+/// to its YAAT command or not supported; on ERAM, Mixed and EuroScope (Mixed and EuroScope read as STARS for a STARS-owned
+/// track: the clicked one, else the selected one), a first word that is a verb the server dispatches
+/// (<see cref="EramEntryVerbs.All"/>, shared with it), an implied command's shape or an implied FLID entry is an ERAM entry;
+/// the rest reads as nothing and sends nothing.
 /// This is the one place on the client that reads a dialect verb.
 /// </summary>
 internal static class ScopeEntryClassifier
@@ -68,7 +69,7 @@ internal static class ScopeEntryClassifier
 
     /// <summary>
     /// Reads <paramref name="text"/> as typed on a Scope showing a <paramref name="profile"/> profile, with
-    /// <paramref name="ownerTemplateId"/> the owner kind of the track the entry is for (which picks the dialect on Mixed), and a
+    /// <paramref name="ownerTemplateId"/> the owner kind of the track the entry is for (which picks the dialect on Mixed or EuroScope), and a
     /// <c>$</c> entry's command read in <paramref name="scheme"/>, the user's command scheme.
     /// </summary>
     public static ScopeEntryReading Classify(string text, ScopeProfileKind profile, string? ownerTemplateId, CommandScheme scheme)
@@ -108,13 +109,13 @@ internal static class ScopeEntryClassifier
     }
 
     /// <summary>
-    /// The dialect an entry reads in: on Mixed, the owner kind of the track the entry is for decides it, so a STARS-owned track
-    /// (<paramref name="ownerTemplateId"/> is <see cref="ScopeTemplates.StarsId"/>) reads as STARS; a <c>MIN</c> entry with no
-    /// track yet reads as STARS too, as ERAM has no MIN; else the profile's own.
+    /// The dialect an entry reads in: on Mixed and EuroScope, the owner kind of the track the entry is for decides it, so a
+    /// STARS-owned track (<paramref name="ownerTemplateId"/> is <see cref="ScopeTemplates.StarsId"/>) reads as STARS; a
+    /// <c>MIN</c> entry with no track yet reads as STARS too, as ERAM has no MIN; else the profile's own.
     /// </summary>
     private static ScopeProfileKind DialectOf(ScopeProfileKind profile, string? ownerTemplateId, string verb) =>
         (
-            (profile == ScopeProfileKind.Mixed)
+            (profile is ScopeProfileKind.Mixed or ScopeProfileKind.EuroScope)
             && (
                 (ownerTemplateId == ScopeTemplates.StarsId)
                 || ((ownerTemplateId is null) && string.Equals(verb, MinSepWord, StringComparison.OrdinalIgnoreCase))
@@ -124,10 +125,10 @@ internal static class ScopeEntryClassifier
             : profile;
 
     /// <summary>
-    /// Reads <paramref name="trimmed"/> in the profile's dialect: a STARS entry on STARS; on ERAM and Mixed, a verb the server
-    /// dispatches (<see cref="EramEntryVerbs.All"/>), an implied command's shape (<see cref="IsImpliedEramShape"/>), or a lone
-    /// FLID or a sector number then a FLID (<see cref="IsImpliedFlidEntry"/>) is an ERAM entry; anything else reads as nothing,
-    /// so <c>UAL238 FH 270</c> is no entry without its <c>$</c>.
+    /// Reads <paramref name="trimmed"/> in the profile's dialect: a STARS entry on STARS; on ERAM, Mixed and EuroScope, a verb
+    /// the server dispatches (<see cref="EramEntryVerbs.All"/>), an implied command's shape (<see cref="IsImpliedEramShape"/>),
+    /// or a lone FLID or a sector number then a FLID (<see cref="IsImpliedFlidEntry"/>) is an ERAM entry; anything else reads as
+    /// nothing, so <c>UAL238 FH 270</c> is no entry without its <c>$</c>.
     /// </summary>
     private static ScopeEntryReading ReadDialect(string trimmed, string verb, ScopeProfileKind profile)
     {

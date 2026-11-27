@@ -151,30 +151,25 @@ public static class EramMenus
     public static IReadOnlyList<EramMenuButton> Yaat { get; } =
     [
         new(0, 0, EramButtonType.YaatProfileMenu),
-        new(1, 0, EramButtonType.YaatTemplateMenu),
-        new(0, 1, EramButtonType.YaatOthers),
-        new(1, 1, EramButtonType.YaatAuto),
-        new(0, 2, EramButtonType.YaatToolsMenu),
-        new(1, 2, EramButtonType.YaatTdm),
-        new(0, 3, EramButtonType.YaatMva),
-        new(1, 3, EramButtonType.YaatDisplayMenu),
-        new(0, 4, EramButtonType.YaatDbMenu),
-        new(1, 4, EramButtonType.YaatViewsMenu),
-        new(0, 5, EramButtonType.YaatLensMenu),
-        new(1, 5, EramButtonType.YaatBriteMenu),
+        new(1, 0, EramButtonType.YaatOthers),
+        new(0, 1, EramButtonType.YaatAuto),
+        new(1, 1, EramButtonType.YaatToolsMenu),
+        new(0, 2, EramButtonType.YaatTdm),
+        new(1, 2, EramButtonType.YaatMva),
+        new(0, 3, EramButtonType.YaatDisplayMenu),
+        new(1, 3, EramButtonType.YaatDbMenu),
+        new(0, 4, EramButtonType.YaatViewsMenu),
+        new(1, 4, EramButtonType.YaatLensMenu),
+        new(0, 5, EramButtonType.YaatBriteMenu),
     ];
 
     /// <summary>The YAAT menu's PROFILE: the classic PROFILE tray's picks, two rows column by column.</summary>
     public static IReadOnlyList<EramMenuButton> YaatProfile { get; } =
-        TwoRows(EramButtonType.YaatProfileStars, EramButtonType.YaatProfileEram, EramButtonType.YaatProfileMixed);
-
-    /// <summary>The YAAT menu's TEMPLATE: the classic TEMPLATE tray's picks, two rows column by column.</summary>
-    public static IReadOnlyList<EramMenuButton> YaatTemplate { get; } =
         TwoRows(
-            EramButtonType.YaatTemplateStars,
-            EramButtonType.YaatTemplateEram,
-            EramButtonType.YaatTemplateMixed,
-            EramButtonType.YaatTemplateEuroScope
+            EramButtonType.YaatProfileStars,
+            EramButtonType.YaatProfileEram,
+            EramButtonType.YaatProfileMixed,
+            EramButtonType.YaatProfileEuroScope
         );
 
     /// <summary>The YAAT menu's TOOLS: the classic TOOLS tray, two rows column by column.</summary>
@@ -247,7 +242,6 @@ public static class EramMenus
             EramButtonType.RadarFilterMenu => RadarFilter,
             EramButtonType.YaatMenu => Yaat,
             EramButtonType.YaatProfileMenu => YaatProfile,
-            EramButtonType.YaatTemplateMenu => YaatTemplate,
             EramButtonType.YaatToolsMenu => YaatTools,
             EramButtonType.YaatDisplayMenu => YaatDisplay,
             EramButtonType.YaatDbMenu => YaatDb,

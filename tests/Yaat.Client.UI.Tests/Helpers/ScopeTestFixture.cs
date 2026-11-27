@@ -2,7 +2,9 @@ using Xunit;
 using Yaat.Client.Models;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
+using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Sim;
 
 namespace Yaat.Client.UI.Tests.Helpers;
@@ -18,13 +20,37 @@ internal static class ScopeTestFixture
         return main;
     }
 
-    /// <summary>An open Scope with no viewer and no store (the Mixed profile at 40 NM), and the main view model it was opened on.</summary>
+    /// <summary>An open Scope with no viewer and no store (the STARS profile at 40 NM), and the main view model it was opened on.</summary>
     public static async Task<(MainViewModel Main, ScopeViewModel Scope)> OpenScopeAsync()
     {
         MainViewModel main = await MainAsync();
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         main.OpenScope = scope;
         return (main, scope);
+    }
+
+    /// <summary>
+    /// Gives the room of <paramref name="main"/> the profile whose look is <paramref name="templateId"/>: none for STARS while
+    /// the room has no profile (it draws the STARS look already), else the Stars, Eram, Mixed or EuroScope profile picked by
+    /// hand.
+    /// </summary>
+    public static void PickLook(MainViewModel main, string templateId)
+    {
+        if ((templateId == ScopeTemplates.StarsId) && (main.ScopeProfile is null))
+        {
+            return;
+        }
+
+        main.PickScopeProfileByHand(
+            templateId switch
+            {
+                ScopeTemplates.StarsId => ScopeProfileKind.Stars,
+                ScopeTemplates.EramId => ScopeProfileKind.Eram,
+                ScopeTemplates.MixedId => ScopeProfileKind.Mixed,
+                ScopeTemplates.EuroScopeId => ScopeProfileKind.EuroScope,
+                _ => throw new ArgumentException($"No profile draws template '{templateId}'.", nameof(templateId)),
+            }
+        );
     }
 
     /// <summary>An airborne B738 at <paramref name="altitudeFt"/> over the Bay Area, added to the traffic the scope draws.</summary>

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Xunit;
@@ -35,8 +36,25 @@ public class ScopeProfileStoreTests : IDisposable
         Assert.True(File.Exists(FileOf("stars")));
         Assert.True(File.Exists(FileOf("eram")));
         Assert.True(File.Exists(FileOf("mixed")));
+        Assert.True(File.Exists(FileOf("euroscope")));
         JsonObject written = JsonNode.Parse(File.ReadAllText(FileOf("eram")))!.AsObject();
         Assert.Equal("eram", (string?)written["kind"]);
+    }
+
+    [Fact]
+    public void ShippedProfiles_IncludeEuroScope()
+    {
+        ScopeProfile shipped = ScopeProfileStore.Shipped(ScopeProfileKind.EuroScope);
+
+        Assert.Equal(("euroscope", "euroscope"), (shipped.Name, shipped.Kind));
+
+        _log.Warnings.Clear();
+        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.EuroScope);
+
+        Assert.Equal(shipped.Bands, loaded.Bands);
+        Assert.Equal(shipped.Toolbar, loaded.Toolbar);
+        Assert.Equal(shipped.Views, loaded.Views);
+        Assert.Empty(_log.Warnings);
     }
 
     [Fact]
@@ -49,7 +67,7 @@ public class ScopeProfileStoreTests : IDisposable
 
         ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Stars);
 
-        Assert.Equal("euroscope", loaded.Template);
+        Assert.Equal("euroscope", loaded.Extra!["template"].GetString());
         Assert.Equal("euroscope", (string?)JsonNode.Parse(File.ReadAllText(FileOf("stars")))!["template"]);
     }
 
@@ -64,7 +82,6 @@ public class ScopeProfileStoreTests : IDisposable
         ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Mixed);
 
         Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands, loaded.Bands);
-        Assert.Equal("stars", loaded.Template);
     }
 
     [Fact]
@@ -99,7 +116,7 @@ public class ScopeProfileStoreTests : IDisposable
     {
         string shipped = File.ReadAllText(WriteShippedFilesAndGetPathOf("stars"));
         int close = shipped.LastIndexOf('}');
-        string duplicated = shipped[..close] + ",\"template\":\"stars\"" + shipped[close..];
+        string duplicated = shipped[..close] + ",\"kind\":\"stars\"" + shipped[close..];
         File.WriteAllText(FileOf("stars"), duplicated);
         _log.Warnings.Clear();
 
@@ -116,30 +133,34 @@ public class ScopeProfileStoreTests : IDisposable
     {
         JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("mixed")))!.AsObject();
         edited["bands"]![0]!.AsObject().Remove("history");
-        edited["template"] = "eram";
         File.WriteAllText(FileOf("mixed"), edited.ToJsonString());
         _log.Warnings.Clear();
 
         ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Mixed);
 
         Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Mixed).Bands, loaded.Bands);
-        Assert.Equal("eram", loaded.Template);
         Assert.Single(_log.Warnings);
         Assert.False(File.Exists(FileOf("mixed") + ".bak"));
     }
 
-    [Fact]
-    public void ExplicitNullTemplate_TakesTheShippedTemplate_AndNoBak()
+    [Theory]
+    [InlineData("null")]
+    [InlineData("5")]
+    [InlineData("\"nope\"")]
+    [InlineData("\"eram\"")]
+    public void OldProfileFileWithATemplateField_Loads_AndKeepsItInExtra(string template)
     {
         JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("eram")))!.AsObject();
-        edited["template"] = null;
+        edited["template"] = JsonNode.Parse(template);
         File.WriteAllText(FileOf("eram"), edited.ToJsonString());
         _log.Warnings.Clear();
 
         ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Eram);
+        using var resaved = JsonDocument.Parse(JsonSerializer.Serialize(loaded, ScopeProfile.JsonOptions));
 
-        Assert.Equal("eram", loaded.Template);
-        Assert.Single(_log.Warnings);
+        Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Eram).Bands, loaded.Bands);
+        Assert.Equal(template, resaved.RootElement.GetProperty("template").GetRawText());
+        Assert.Empty(_log.Warnings);
         Assert.False(File.Exists(FileOf("eram") + ".bak"));
     }
 
@@ -196,19 +217,6 @@ public class ScopeProfileStoreTests : IDisposable
 
         Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Eram).Bands, loaded.Bands);
         Assert.False(File.Exists(FileOf("eram") + ".bak"));
-    }
-
-    [Fact]
-    public void TemplateANumber_MovesTheFileToBak()
-    {
-        JsonObject edited = JsonNode.Parse(File.ReadAllText(WriteShippedFilesAndGetPathOf("stars")))!.AsObject();
-        edited["template"] = 5;
-        File.WriteAllText(FileOf("stars"), edited.ToJsonString());
-
-        ScopeProfile loaded = NewStore().Get(ScopeProfileKind.Stars);
-
-        Assert.Equal(ScopeProfileStore.Shipped(ScopeProfileKind.Stars).Template, loaded.Template);
-        Assert.True(File.Exists(FileOf("stars") + ".bak"));
     }
 
     [Fact]

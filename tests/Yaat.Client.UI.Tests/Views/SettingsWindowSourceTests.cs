@@ -77,7 +77,6 @@ public partial class SettingsWindowSourceTests
         "ItemsSource={Binding SignatureHelpPlacementOptions}",
         "SelectedIndex={Binding SelectedSignatureHelpPlacementIndex}",
         "IsChecked={Binding AutoExpandSuggestionOnEnter}",
-        "IsChecked={Binding EuroScopeMode}",
         "IsChecked={Binding FlashNoLandingClearance}",
         "IsChecked={Binding ShowConflictAlerts}",
         "IsChecked={Binding ShowTypeMismatchHints}",

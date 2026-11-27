@@ -246,7 +246,6 @@ public class StarsSubmenusTests
     private static readonly StarsDcbPage[] YaatMenus =
     [
         StarsDcbPage.YaatProfile,
-        StarsDcbPage.YaatTemplate,
         StarsDcbPage.YaatTools,
         StarsDcbPage.YaatDisplay,
         StarsDcbPage.YaatDb,
@@ -257,7 +256,6 @@ public class StarsSubmenusTests
     private static readonly string[] YaatLabels =
     [
         "PROFILE\n%value%",
-        "TEMPLATE",
         "OTHERS\n%value%",
         "AUTO",
         "TOOLS",
@@ -279,12 +277,11 @@ public class StarsSubmenusTests
 
         Assert.Equal(0, StarsSubmenus.DimmedCountOf(StarsDcbPage.Yaat));
         Assert.Equal(YaatLabels, yaat.Select(e => e.Label));
-        Assert.Equal([F, F, F, F, F, H, H, F, F, F, F, F], yaat.Select(e => e.Shape));
-        Assert.Equal([N, N, N, N, N, T, T, N, N, N, N, N], yaat.Select(e => e.Kind));
+        Assert.Equal([F, F, F, F, H, H, F, F, F, F, F], yaat.Select(e => e.Shape));
+        Assert.Equal([N, N, N, N, T, T, N, N, N, N, N], yaat.Select(e => e.Kind));
         Assert.Equal(
             [
                 ScopeButtonId.Profile,
-                null,
                 ScopeButtonId.Others,
                 ScopeButtonId.Auto,
                 null,
@@ -301,7 +298,6 @@ public class StarsSubmenusTests
         Assert.Equal(
             [
                 StarsDcbPage.YaatProfile,
-                StarsDcbPage.YaatTemplate,
                 null,
                 null,
                 StarsDcbPage.YaatTools,
@@ -337,7 +333,7 @@ public class StarsSubmenusTests
     {
         StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatTools).SkipLast(1)];
 
-        AssertYaatMenuFrame(StarsDcbPage.YaatTools, 5);
+        AssertYaatMenuFrame(StarsDcbPage.YaatTools, 4);
         Assert.Equal(["J-RING", "CONE", "DRI 5", "DRI 3", "SIZE\n%value%"], own.Select(e => e.Label));
         Assert.Equal([H, H, H, H, F], own.Select(e => e.Shape));
         Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Spinner], own.Select(e => e.Kind));
@@ -354,7 +350,7 @@ public class StarsSubmenusTests
         const DcbTileKind T = DcbTileKind.Toggle;
         const DcbTileKind S = DcbTileKind.Spinner;
 
-        AssertYaatMenuFrame(StarsDcbPage.YaatDb, 9);
+        AssertYaatMenuFrame(StarsDcbPage.YaatDb, 8);
         Assert.Equal(["4TH LINE", "CA RING", "ALERTS\n%value%", "LINE 4\n%value%", "DWELL\n%value%"], own.Select(e => e.Label));
         Assert.Equal([H, H, F, F, F], own.Select(e => e.Shape));
         Assert.Equal([T, T, S, S, S], own.Select(e => e.Kind));
@@ -378,7 +374,7 @@ public class StarsSubmenusTests
     {
         StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatDisplay).SkipLast(1)];
 
-        AssertYaatMenuFrame(StarsDcbPage.YaatDisplay, 8);
+        AssertYaatMenuFrame(StarsDcbPage.YaatDisplay, 7);
         Assert.Equal(["FIX", "WX", "LOCK", "DCNF\n%value%", "RR\nSHOW"], own.Select(e => e.Label));
         Assert.Equal([H, H, H, H, H], own.Select(e => e.Shape));
         Assert.Equal([DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Toggle, DcbTileKind.Normal, DcbTileKind.Toggle], own.Select(e => e.Kind));
@@ -394,7 +390,7 @@ public class StarsSubmenusTests
     {
         StarsDcbEntry[] own = [.. Own(StarsDcbPage.YaatLens).SkipLast(1)];
 
-        AssertYaatMenuFrame(StarsDcbPage.YaatLens, 11);
+        AssertYaatMenuFrame(StarsDcbPage.YaatLens, 10);
         Assert.Equal(ScopeToolbarButtons.Find(ScopeButtonId.Lens)!.Children.Select(c => (ScopeButtonId?)c.Id), own.SkipLast(1).Select(e => e.Button));
         Assert.Equal(
             ("LENS\nBRITE\n%value%", F, DcbTileKind.Spinner, (ScopeButtonId?)ScopeButtonId.BriteLens),

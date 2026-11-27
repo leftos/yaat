@@ -18,16 +18,6 @@
         <StackPanel Spacing="12">
           <TextBlock Text="Radar Display" FontWeight="SemiBold" />
           <StackPanel Spacing="4">
-            <CheckBox Content="EuroScope-style interactive tags" IsChecked="{Binding EuroScopeMode}" />
-            <TextBlock
-              Text="Replaces the STARS/ERAM data block with a EuroScope pseudopilot-style tag layout, and makes individual fields clickable: alt/spd flyouts, scratchpad/handoff/squawk/runway pickers, and a heading-mode cursor preview that draws a turn arc to the hovered point. See docs/euroscope/pseudopilot.md."
-              TextWrapping="Wrap"
-              Foreground="{DynamicResource SubtleTextBrush}"
-              FontSize="11"
-              Margin="28,0,0,0"
-            />
-          </StackPanel>
-          <StackPanel Spacing="4">
             <TextBlock Text="ERAM field menus" />
             <ComboBox
               ItemsSource="{Binding ScopeFieldMenuStyleOptions}"

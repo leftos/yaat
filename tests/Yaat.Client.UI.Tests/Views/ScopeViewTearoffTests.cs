@@ -14,6 +14,7 @@ using Yaat.Client.ViewModels;
 using Yaat.Client.Views;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Dock;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 using static Yaat.Client.UI.Tests.Helpers.ScopeTestFixture;
@@ -180,6 +181,7 @@ public class ScopeViewTearoffTests
     private static async Task<(MainViewModel Main, ScopeViewModel Scope, ScopeWindow Window)> OpenWindowAsync()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Settle(window);

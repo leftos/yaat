@@ -161,17 +161,16 @@ public class EramMenusTests
     private static readonly (EramButtonType Type, int Row, int Column)[] Yaat =
     [
         (EramButtonType.YaatProfileMenu, 0, 0),
-        (EramButtonType.YaatTemplateMenu, 1, 0),
-        (EramButtonType.YaatOthers, 0, 1),
-        (EramButtonType.YaatAuto, 1, 1),
-        (EramButtonType.YaatToolsMenu, 0, 2),
-        (EramButtonType.YaatTdm, 1, 2),
-        (EramButtonType.YaatMva, 0, 3),
-        (EramButtonType.YaatDisplayMenu, 1, 3),
-        (EramButtonType.YaatDbMenu, 0, 4),
-        (EramButtonType.YaatViewsMenu, 1, 4),
-        (EramButtonType.YaatLensMenu, 0, 5),
-        (EramButtonType.YaatBriteMenu, 1, 5),
+        (EramButtonType.YaatOthers, 1, 0),
+        (EramButtonType.YaatAuto, 0, 1),
+        (EramButtonType.YaatToolsMenu, 1, 1),
+        (EramButtonType.YaatTdm, 0, 2),
+        (EramButtonType.YaatMva, 1, 2),
+        (EramButtonType.YaatDisplayMenu, 0, 3),
+        (EramButtonType.YaatDbMenu, 1, 3),
+        (EramButtonType.YaatViewsMenu, 0, 4),
+        (EramButtonType.YaatLensMenu, 1, 4),
+        (EramButtonType.YaatBriteMenu, 0, 5),
     ];
 
     [Fact]
@@ -209,7 +208,6 @@ public class EramMenusTests
     [InlineData(EramButtonType.RadarFilterMenu)]
     [InlineData(EramButtonType.YaatMenu)]
     [InlineData(EramButtonType.YaatProfileMenu)]
-    [InlineData(EramButtonType.YaatTemplateMenu)]
     [InlineData(EramButtonType.YaatToolsMenu)]
     [InlineData(EramButtonType.YaatDisplayMenu)]
     [InlineData(EramButtonType.YaatDbMenu)]
@@ -308,7 +306,6 @@ public class EramMenusTests
     [InlineData(EramButtonType.PrefsetSet, EramButtonKind.Command)]
     [InlineData(EramButtonType.PrefsetDelete, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatProfileMenu, EramButtonKind.Menu)]
-    [InlineData(EramButtonType.YaatTemplateMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.YaatToolsMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.YaatDisplayMenu, EramButtonKind.Menu)]
     [InlineData(EramButtonType.YaatDbMenu, EramButtonKind.Menu)]
@@ -324,7 +321,6 @@ public class EramMenusTests
     [InlineData(EramButtonType.YaatLensCheckIn, EramButtonKind.Toggle)]
     [InlineData(EramButtonType.HideToolbar, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatProfileMixed, EramButtonKind.Command)]
-    [InlineData(EramButtonType.YaatTemplateEuroScope, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatDisplayDcnf, EramButtonKind.Command)]
     [InlineData(EramButtonType.YaatDisplayOffCntr, EramButtonKind.Command)]
     public void SubmenuButtons_HaveCrcsKind(EramButtonType type, EramButtonKind kind) => Assert.Equal(kind, type.Kind());
@@ -342,7 +338,6 @@ public class EramMenusTests
     {
         [EramButtonType.YaatMenu] = EramButtonKind.Menu,
         [EramButtonType.YaatProfileMenu] = EramButtonKind.Menu,
-        [EramButtonType.YaatTemplateMenu] = EramButtonKind.Menu,
         [EramButtonType.YaatToolsMenu] = EramButtonKind.Menu,
         [EramButtonType.YaatDisplayMenu] = EramButtonKind.Menu,
         [EramButtonType.YaatDbMenu] = EramButtonKind.Menu,
@@ -354,10 +349,7 @@ public class EramMenusTests
         [EramButtonType.YaatProfileStars] = EramButtonKind.Command,
         [EramButtonType.YaatProfileEram] = EramButtonKind.Command,
         [EramButtonType.YaatProfileMixed] = EramButtonKind.Command,
-        [EramButtonType.YaatTemplateStars] = EramButtonKind.Command,
-        [EramButtonType.YaatTemplateEram] = EramButtonKind.Command,
-        [EramButtonType.YaatTemplateMixed] = EramButtonKind.Command,
-        [EramButtonType.YaatTemplateEuroScope] = EramButtonKind.Command,
+        [EramButtonType.YaatProfileEuroScope] = EramButtonKind.Command,
         [EramButtonType.YaatDisplayDcnf] = EramButtonKind.Command,
         [EramButtonType.YaatDisplayOffCntr] = EramButtonKind.Command,
         [EramButtonType.YaatToolSize] = EramButtonKind.IncDec,
@@ -456,7 +448,7 @@ public class EramMenusTests
     public void BriteAndRrButtons_HaveTheirLines(EramButtonType type, string line1, string line2) => Assert.Equal((line1, line2), type.Lines());
 
     [Fact]
-    public void YaatToolsLensProfileAndTemplate_HoldTheClassicTraysInOrder()
+    public void YaatToolsLensAndProfile_HoldTheClassicTraysInOrder()
     {
         Assert.Equal(
             [
@@ -478,17 +470,13 @@ public class EramMenusTests
             Cells(EramMenus.YaatLens)
         );
         Assert.Equal(
-            [(EramButtonType.YaatProfileStars, 0, 0), (EramButtonType.YaatProfileEram, 1, 0), (EramButtonType.YaatProfileMixed, 0, 1)],
-            Cells(EramMenus.YaatProfile)
-        );
-        Assert.Equal(
             [
-                (EramButtonType.YaatTemplateStars, 0, 0),
-                (EramButtonType.YaatTemplateEram, 1, 0),
-                (EramButtonType.YaatTemplateMixed, 0, 1),
-                (EramButtonType.YaatTemplateEuroScope, 1, 1),
+                (EramButtonType.YaatProfileStars, 0, 0),
+                (EramButtonType.YaatProfileEram, 1, 0),
+                (EramButtonType.YaatProfileMixed, 0, 1),
+                (EramButtonType.YaatProfileEuroScope, 1, 1),
             ],
-            Cells(EramMenus.YaatTemplate)
+            Cells(EramMenus.YaatProfile)
         );
     }
 
@@ -499,7 +487,6 @@ public class EramMenusTests
         [
             EramMenus.Yaat,
             EramMenus.YaatProfile,
-            EramMenus.YaatTemplate,
             EramMenus.YaatTools,
             EramMenus.YaatDisplay,
             EramMenus.YaatDb,

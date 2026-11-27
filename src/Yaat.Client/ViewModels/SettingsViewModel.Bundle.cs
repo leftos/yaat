@@ -221,7 +221,6 @@ public partial class SettingsViewModel
                 (vm, v) => vm.DepartureAutoDeleteDistanceNm = v is { } distanceNm ? (decimal)distanceNm : null
             ),
             Field("validateDctFixes", vm => vm.ValidateDctFixes, (vm, v) => vm.ValidateDctFixes = v),
-            Field("euroScopeMode", vm => vm.EuroScopeMode, (vm, v) => vm.EuroScopeMode = v),
             Field(
                 "scopeFieldMenuStyle",
                 vm => ((ScopeFieldMenuStyle)vm.SelectedScopeFieldMenuStyleIndex).ToString(),

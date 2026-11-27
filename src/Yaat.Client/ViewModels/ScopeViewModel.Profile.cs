@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
-using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
@@ -8,26 +7,28 @@ namespace Yaat.Client.ViewModels;
 
 /// <summary>
 /// The Scope's profile: the room's profile (<see cref="MainViewModel.ScopeProfile"/>), applied to this scope whenever it
-/// changes. Applying one orders the toolbar's buttons and the views by the profile's lists, and picks its template unless
-/// the viewer's facility has a saved state, whose template stands. Until the room has a profile the scope shows Mixed's
-/// order and keeps the template it opened with.
+/// changes. Applying one orders the toolbar's buttons and the views by the profile's lists; the profile alone picks the
+/// datablock look (<see cref="TemplateId"/>). Until the room has a profile the scope runs the STARS profile.
 /// </summary>
 public sealed partial class ScopeViewModel
 {
+    // The toolbar name of the TEMPLATE button the profile replaced; a profile's toolbar list naming it is not warned about.
+    private const string RetiredTemplateButton = "template";
+
     /// <summary>The kind of the profile the scope shows; the toolbar's PROFILE button names it.</summary>
     [ObservableProperty]
-    private ScopeProfileKind _profileKind = ScopeProfileKind.Mixed;
+    private ScopeProfileKind _profileKind = ScopeProfileKind.Stars;
 
-    /// <summary>The bar the scope shows, picked from <see cref="ProfileKind"/>; a template pick never changes it.</summary>
+    /// <summary>The bar the scope shows, picked from <see cref="ProfileKind"/>.</summary>
     [ObservableProperty]
-    private ScopeBarKind _barKind = ScopeBarKind.Classic;
+    private ScopeBarKind _barKind = ScopeBarKind.Stars;
 
     /// <summary>The bar's top-level buttons, left to right, in the order the profile gives them; every button is on it.</summary>
     [ObservableProperty]
     private IReadOnlyList<ScopeButton> _toolbarButtons = ScopeToolbarButtons.All;
 
     /// <summary>The profile the scope shows, as its file holds it.</summary>
-    internal ScopeProfile Profile { get; private set; } = ScopeProfileStore.Shipped(ScopeProfileKind.Mixed);
+    internal ScopeProfile Profile { get; private set; } = ScopeProfileStore.Shipped(ScopeProfileKind.Stars);
 
     /// <summary>The store the scope reads the profile files from, or null to use the shipped profiles.</summary>
     internal ScopeProfileStore? ProfileStore { get; }
@@ -54,53 +55,29 @@ public sealed partial class ScopeViewModel
         return $"; {MainViewModel.ScopeProfileEcho(parsed)}";
     }
 
-    /// <summary>The constructor's last step: the room's profile when it has one, else Mixed's order with the opening template kept.</summary>
+    /// <summary>
+    /// The constructor's last step: the room's profile when it has one, else the STARS profile (its order, bands and bar)
+    /// without writing it to the room; either way <see cref="TemplateId"/> is announced.
+    /// </summary>
     private void InitProfile()
     {
-        if (Main.ScopeProfile is { } kind)
-        {
-            ApplyProfile(kind);
-            return;
-        }
-
-        ApplyProfileOrder(ProfileFor(ScopeProfileKind.Mixed), ScopeProfileKind.Mixed);
+        ScopeProfileKind kind = Main.ScopeProfile ?? ScopeProfileKind.Stars;
+        ApplyProfileOrder(ProfileFor(kind), kind);
+        OnPropertyChanged(nameof(TemplateId));
     }
 
-    /// <summary>Follows the room's profile; a cleared one brings back Mixed's order, with the template kept.</summary>
+    /// <summary>Follows the room's profile; a cleared one brings back the STARS profile.</summary>
     private void OnMainScopeProfileChanged() => InitProfile();
 
-    /// <summary>
-    /// Applies the profile of <paramref name="kind"/>: its toolbar and views order, and its template unless the viewer's
-    /// facility has a saved state.
-    /// </summary>
-    private void ApplyProfile(ScopeProfileKind kind)
-    {
-        ScopeProfile profile = ProfileFor(kind);
-        ApplyProfileOrder(profile, kind);
-        if (HasSavedState())
-        {
-            return;
-        }
-
-        if (!ScopeTemplates.IsSelectable(profile.Template))
-        {
-            Log.LogWarning(
-                "Scope profile '{Profile}' names unknown template '{TemplateId}'; keeping {Current}",
-                profile.Name,
-                profile.Template,
-                TemplateId
-            );
-            return;
-        }
-
-        PickTemplateCommand.Execute(profile.Template);
-    }
+    // The single-argument OnProfileKindChanged is ScopeViewModel.Measure's; this overload announces the derived look.
+    partial void OnProfileKindChanged(ScopeProfileKind oldValue, ScopeProfileKind newValue) => OnPropertyChanged(nameof(TemplateId));
 
     private ScopeProfile ProfileFor(ScopeProfileKind kind) => ProfileStore?.Get(kind) ?? ScopeProfileStore.Shipped(kind);
 
     /// <summary>
     /// Makes <paramref name="profile"/> the shown one and orders the bar and the views by it, with one warning for the names
-    /// it gives that are none.
+    /// it gives that are none. The retired TEMPLATE button's name, which an old copy of a profile file's toolbar list may
+    /// still hold, is skipped there without a warning; a view of that name is warned of like any other.
     /// </summary>
     private void ApplyProfileOrder(ScopeProfile profile, ScopeProfileKind kind)
     {
@@ -118,6 +95,7 @@ public sealed partial class ScopeViewModel
         RecomputeBand();
         List<string> unknown = [];
         IReadOnlyList<ScopeButton> buttons = ScopeProfilePicker.Order(ScopeToolbarButtons.All, profile.Toolbar, ScopeToolbarButtons.NameOf, unknown);
+        unknown.RemoveAll(name => string.Equals(name, RetiredTemplateButton, StringComparison.OrdinalIgnoreCase));
         if (!buttons.SequenceEqual(ToolbarButtons))
         {
             ToolbarButtons = buttons;
@@ -146,8 +124,4 @@ public sealed partial class ScopeViewModel
         _openViews.Sort((a, b) => Array.IndexOf(_allViews, a).CompareTo(Array.IndexOf(_allViews, b)));
         SyncViewCollections();
     }
-
-    /// <summary>Whether the viewer's facility has a saved state, whose template a profile leaves alone.</summary>
-    private bool HasSavedState() =>
-        (PrefStore is { } store) && (SafeFacility(Viewer.EramFacilityId) is { } facility) && (store.LoadCurrent(facility, Ordinal) is not null);
 }

@@ -168,7 +168,7 @@ public class ScopeBandPinTests : IDisposable
         try
         {
             var unowned = new AircraftModel { Callsign = "SKW5410" };
-            main.RunScopeCommand(".scope template mixed");
+            main.RunScopeCommand(".scope profile mixed");
             Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
 
             main.RunScopeCommand(".scope range 100");
@@ -195,7 +195,7 @@ public class ScopeBandPinTests : IDisposable
         (ScopeView view, Window window) = ShowScope(scope);
         try
         {
-            main.RunScopeCommand(".scope template eram");
+            main.RunScopeCommand(".scope profile eram");
 
             // No one owns this track, so it draws at the band's others' level.
             AddAt(main, view.Canvas, "SKW5410", 300, 300);
@@ -223,7 +223,6 @@ public class ScopeBandPinTests : IDisposable
         try
         {
             main.RunScopeCommand(".scope profile mixed");
-            main.RunScopeCommand(".scope template mixed");
             main.RunScopeCommand(".scope range 200");
 
             // No one owns this track: beyond 120 NM the Mixed profile's band draws it in the ERAM look.

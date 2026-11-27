@@ -20,10 +20,8 @@ public class ScopeCrrTests
     private static async Task<(MainViewModel Main, ScopeView View, Window Window)> ShowEramScope()
     {
         MainViewModel main = await MainAsync();
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot)
-        {
-            TemplateId = ScopeTemplates.EramId,
-        };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        Helpers.ScopeTestFixture.PickLook(main, ScopeTemplates.EramId);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

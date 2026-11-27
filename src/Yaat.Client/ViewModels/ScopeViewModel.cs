@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Yaat.Client.Models;
 using Yaat.Client.Services;
 using Yaat.Client.Views.Scope;
@@ -69,13 +68,11 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     private bool _showMvaHints;
 
     /// <summary>
-    /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>): seeded once from the EuroScope-mode
-    /// preference when the scope opens, then changed by <c>.scope template</c> (the toolbar's TEMPLATE menu runs it), by a
-    /// pref-set load or saved-state restore, and by a profile applied while the facility has no saved state; never written
-    /// to the preferences.
+    /// Id of the datablock template the scope draws (<see cref="ScopeTemplates"/>), derived from the profile alone
+    /// (<see cref="ScopeProfilePicker.TemplateIdFor"/>), so the STARS template until the room has a profile, since the scope
+    /// runs the STARS profile then. It raises PropertyChanged whenever the profile changes.
     /// </summary>
-    [ObservableProperty]
-    private string _templateId;
+    public string TemplateId => ScopeProfilePicker.TemplateIdFor(ProfileKind);
 
     /// <summary>
     /// The position the scope is viewed from: the main view model's active position, rebuilt whenever its TCP, position or
@@ -101,7 +98,6 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         PrefStore = prefStore;
         ProfileStore = profileStore;
         _selectedAircraft = main.SelectedAircraft;
-        _templateId = main.Preferences.EuroScopeMode ? ScopeTemplates.EuroScopeId : ScopeTemplates.StarsId;
         _dbSettings = ScopeDbSettings.FromPreferences(main.Preferences);
         _deconflictMode = main.Preferences.RadarDeconflictMode;
         _viewer = BuildViewer(main);
@@ -141,7 +137,7 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
     /// <summary>The traffic the scope draws.</summary>
     public ObservableCollection<AircraftModel> Aircraft => Main.Aircraft;
 
-    /// <summary>The user's preferences; the scope seeds <see cref="TemplateId"/> and <see cref="DbSettings"/> from them once.</summary>
+    /// <summary>The user's preferences; the scope seeds <see cref="DbSettings"/> from them once.</summary>
     public UserPreferences Preferences => Main.Preferences;
 
     /// <summary>The scope's own per-callsign datablock state; the scope places each block from it.</summary>
@@ -199,14 +195,6 @@ public sealed partial class ScopeViewModel : ObservableObject, IDisposable
         Main.ScopeMaps.PropertyChanged -= OnMapSourcePropertyChanged;
         StopViews();
     }
-
-    /// <summary>Picks the datablock template (or Mixed) with <paramref name="templateId"/>, as <c>.scope template</c> does.</summary>
-    /// <exception cref="ArgumentException">The id is no selectable pick (<see cref="ScopeTemplates.IsSelectable"/>).</exception>
-    [RelayCommand]
-    private void PickTemplate(string templateId) =>
-        TemplateId = ScopeTemplates.IsSelectable(templateId)
-            ? templateId
-            : throw new ArgumentException($"Unknown scope template id '{templateId}'.", nameof(templateId));
 
     partial void OnSelectedAircraftChanged(AircraftModel? value)
     {

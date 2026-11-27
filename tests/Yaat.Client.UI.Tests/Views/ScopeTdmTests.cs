@@ -11,6 +11,7 @@ using Yaat.Client.UI.Tests.Helpers;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 using Yaat.Sim;
 using Yaat.Sim.Data;
@@ -293,6 +294,7 @@ public class ScopeTdmTests : IDisposable
     public async Task CtrlShiftT_TogglesTdm_InTheScopeWindow()
     {
         (MainViewModel main, ScopeViewModel scope) = await OpenScopeAsync();
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         var window = new ScopeWindow(main.Preferences, scope);
         window.Show();
         Dispatcher.UIThread.RunJobs();

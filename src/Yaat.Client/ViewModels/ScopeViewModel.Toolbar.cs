@@ -423,7 +423,6 @@ public sealed partial class ScopeViewModel
         {
             ScopeButtonKind.Menu => OpenMenu == button.Id,
             ScopeButtonKind.Toggle => IsToggleOn(button),
-            ScopeButtonKind.Command => (button.Value is { } value) && (value == TemplateId),
             _ => false,
         };
 

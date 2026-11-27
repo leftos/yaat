@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -196,7 +197,6 @@ public class ScopePrefCommandTests : IDisposable
             main.RunScopeCommand(".scope range 25");
             main.RunScopeCommand(".scope brite fdb 80");
             main.RunScopeCommand(".scope db char 16");
-            main.RunScopeCommand(".scope template eram");
             main.RunScopeCommand(".scope map 2 on");
             main.RunViewCommand(".view ca tear br 10 20");
 
@@ -207,7 +207,6 @@ public class ScopePrefCommandTests : IDisposable
             main.RunScopeCommand(".scope range 100");
             main.RunScopeCommand(".scope brite fdb 30");
             main.RunScopeCommand(".scope db char 10");
-            main.RunScopeCommand(".scope template stars");
             main.RunScopeCommand(".scope map 2 off");
             main.RunViewCommand(".view ca dock");
 
@@ -218,7 +217,6 @@ public class ScopePrefCommandTests : IDisposable
             Assert.Equal(25, scope.RangeNm);
             Assert.Equal(80, scope.Brightness.Fdb);
             Assert.Equal(16, scope.DbSettings.CharSize);
-            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
             Assert.True(scope.MapToggles.Single(t => t.StarsId == 2).IsOn);
             Assert.Equal(new ScopePlacement(ScopeCorner.BottomRight, 10, 20), scope.FloatingViews.Single(v => v.Name == "ca").Place);
         }
@@ -535,25 +533,20 @@ public class ScopePrefCommandTests : IDisposable
             UserPreferences prefs = main.Preferences;
             prefs.SetShowAtpa(true);
             int charSize = prefs.RadarDatablockFontSize == 16 ? 20 : 16;
-            main.RunScopeCommand($".scope template {ScopeTemplates.EuroScopeId}");
             main.RunScopeCommand($".scope db atpa {(prefs.ShowAtpa ? "off" : "on")}");
             main.RunScopeCommand($".scope db char {charSize}");
             main.RunScopeCommand(".scope pref saveas EURO-SET");
 
-            main.RunScopeCommand($".scope template {ScopeTemplates.StarsId}");
             main.RunScopeCommand(".scope db atpa on");
             main.RunScopeCommand(".scope db char 10");
-            bool euroScopeMode = prefs.EuroScopeMode;
             bool showAtpa = prefs.ShowAtpa;
             int fontSize = prefs.RadarDatablockFontSize;
             byte[] before = File.ReadAllBytes(UserPreferences.FilePath);
 
             main.RunScopeCommand(".scope pref load EURO-SET");
 
-            Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
             Assert.False(scope.DbSettings.Atpa);
             Assert.Equal(charSize, scope.DbSettings.CharSize);
-            Assert.Equal(euroScopeMode, prefs.EuroScopeMode);
             Assert.Equal(showAtpa, prefs.ShowAtpa);
             Assert.Equal(fontSize, prefs.RadarDatablockFontSize);
             Assert.Equal(before, File.ReadAllBytes(UserPreferences.FilePath));
@@ -586,17 +579,60 @@ public class ScopePrefCommandTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Load_AnUnknownTemplate_KeepsTheCurrentTemplate()
+    public async Task Load_ASetsTemplateId_IsIgnored()
     {
         (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
         try
         {
-            SaveBroken(main, set => set with { TemplateId = "nope" });
-            main.RunScopeCommand($".scope template {ScopeTemplates.EramId}");
+            SaveBroken(main, set => set with { Extra = RetiredTemplateId("nope") });
 
             main.RunScopeCommand(".scope pref load BAD");
 
+            // The seeded scope runs the ERAM profile (an ERAM sector), and the set was saved from it.
+            Assert.Equal(ScopeProfileKind.Eram, scope.ProfileKind);
             Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Load_OfAnOldSetWithTemplateEuroScope_SwitchesToTheEuroScopeProfile()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            SaveBroken(main, set => set with { Kind = "stars", Extra = RetiredTemplateId("euroscope") });
+
+            main.RunScopeCommand(".scope pref load BAD");
+
+            Assert.Equal(ScopeProfileKind.EuroScope, main.ScopeProfile);
+            Assert.Equal(ScopeProfileKind.EuroScope, scope.ProfileKind);
+            Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
+            Assert.EndsWith("; Radar profile EUROSCOPE", main.StatusText);
+        }
+        finally
+        {
+            scope.Dispose();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SaveAgain_DropsTheRetiredTemplateId()
+    {
+        (MainViewModel main, ScopeViewModel scope) = await SeededScopeAsync();
+        try
+        {
+            SaveBroken(main, set => set with { Extra = RetiredTemplateId("euroscope") });
+            main.RunScopeCommand(".scope pref load BAD");
+
+            main.RunScopeCommand(".scope pref save");
+
+            Assert.Equal(".scope pref save", main.StatusText);
+            Assert.Null(Store().FindSet("ZOA", "BAD")!.Extra?.GetValueOrDefault("templateId"));
+            Assert.DoesNotContain("templateId", File.ReadAllText(Path.Combine(_root, "prefsets", "ZOA.json")), StringComparison.Ordinal);
         }
         finally
         {
@@ -902,6 +938,9 @@ public class ScopePrefCommandTests : IDisposable
         ScopePrefSetStore store = Store();
         store.SaveSet("ZOA", change(store.FindSet("ZOA", "BAD")!));
     }
+
+    /// <summary>A set's unknown fields holding the retired <c>templateId</c> key with <paramref name="id"/>.</summary>
+    private static Dictionary<string, JsonElement> RetiredTemplateId(string id) => new() { ["templateId"] = JsonSerializer.SerializeToElement(id) };
 
     private static PositionDisplayConfigDto EramConfig() => new([], [], [], "C44", Sector44, 3, NoStarsDisplay: true);
 

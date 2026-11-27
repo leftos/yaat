@@ -1,125 +1,52 @@
-using Avalonia.Controls;
+using System.ComponentModel;
 using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using Xunit;
 using Yaat.Client.UI.Tests.Fakes;
 using Yaat.Client.ViewModels;
 using Yaat.Client.Views.Scope;
 using Yaat.Client.Views.Scope.Prefs;
+using Yaat.Client.Views.Scope.Profiles;
 using Yaat.Client.Views.Scope.Toolbar;
 
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The scope's datablock template: seeded once from the EuroScope-mode preference when the scope opens, then switched only
-/// by a pick (the toolbar's TEMPLATE tray: STARS, ERAM, MIXED, EUROSCOPE), never written back to the preferences.
+/// The scope's datablock template follows the room's profile alone: the STARS template until the room has a profile, then
+/// the profile's own (STARS, ERAM, MIXED or EUROSCOPE).
 /// </summary>
 public class ScopeViewModelTemplateTests
 {
-    [AvaloniaFact]
-    public void Template_SeedsFromEuroScopeModeOnce()
+    [AvaloniaTheory]
+    [InlineData(ScopeProfileKind.Stars, ScopeTemplates.StarsId)]
+    [InlineData(ScopeProfileKind.Eram, ScopeTemplates.EramId)]
+    [InlineData(ScopeProfileKind.Mixed, ScopeTemplates.MixedId)]
+    [InlineData(ScopeProfileKind.EuroScope, ScopeTemplates.EuroScopeId)]
+    public void TemplateId_FollowsTheProfile(ScopeProfileKind kind, string expected)
     {
-        // The assembly's [PreferencesFilePerTest] gives this test its own preferences file.
         var main = new MainViewModel(new FakeFilePickerService());
-        main.Preferences.SetEuroScopeMode(false);
-        using (var stars = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot))
-        {
-            Assert.Equal(ScopeTemplates.StarsId, stars.TemplateId);
-        }
+        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        // Start from another profile, so the pick is a switch.
+        main.PickScopeProfileByHand(kind == ScopeProfileKind.Eram ? ScopeProfileKind.Stars : ScopeProfileKind.Eram);
+        List<string?> changed = [];
+        void record(object? _, PropertyChangedEventArgs e) => changed.Add(e.PropertyName);
+        scope.PropertyChanged += record;
 
-        main.Preferences.SetEuroScopeMode(true);
-        using var euroScope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-        Assert.Equal(ScopeTemplates.EuroScopeId, euroScope.TemplateId);
+        main.PickScopeProfileByHand(kind);
 
-        // A later preference change leaves the open scope's template alone.
-        main.Preferences.SetEuroScopeMode(false);
-        Assert.Equal(ScopeTemplates.EuroScopeId, euroScope.TemplateId);
+        scope.PropertyChanged -= record;
+        Assert.Equal(expected, scope.TemplateId);
+        Assert.Contains(nameof(ScopeViewModel.TemplateId), changed);
     }
 
     [AvaloniaFact]
-    public void TemplatePicks_SwitchTheTemplate_AndNeverTouchThePreference()
+    public void BeforeTheRoomHasAProfile_TheScopeRunsTheStarsProfile()
     {
         var main = new MainViewModel(new FakeFilePickerService());
-        bool before = main.Preferences.EuroScopeMode;
         using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
 
-        scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
-        Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-
-        scope.PickTemplateCommand.Execute(ScopeTemplates.EuroScopeId);
-        Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
-        scope.PickTemplateCommand.Execute(ScopeTemplates.StarsId);
+        Assert.Null(main.ScopeProfile);
+        Assert.Equal(ScopeProfileKind.Stars, scope.ProfileKind);
+        Assert.Equal(ScopeBarKind.Stars, scope.BarKind);
         Assert.Equal(ScopeTemplates.StarsId, scope.TemplateId);
-        Assert.Equal(before, main.Preferences.EuroScopeMode);
-        Assert.Throws<ArgumentException>(() => scope.PickTemplateCommand.Execute("nope"));
-        Assert.Equal(ScopeTemplates.StarsId, scope.TemplateId);
-    }
-
-    [AvaloniaFact]
-    public void MixedPick_SwitchesTheTemplate_AndNeverTouchesThePreference()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        bool before = main.Preferences.EuroScopeMode;
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-
-        scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
-
-        Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
-        Assert.Equal(before, main.Preferences.EuroScopeMode);
-        scope.PickTemplateCommand.Execute(ScopeTemplates.EramId);
-        Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-    }
-
-    [AvaloniaFact]
-    public void ScopeWindow_TemplateMenu_ClickingMixedSwitchesTheScope()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-        main.OpenScope = scope;
-        var window = new ScopeWindow(main.Preferences, scope);
-        try
-        {
-            window.Show();
-            Dispatcher.UIThread.RunJobs();
-            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
-
-            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateMixed));
-
-            Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
-            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
-            Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateMixed).Classes);
-            Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
-        }
-        finally
-        {
-            window.Close();
-        }
-    }
-
-    [AvaloniaFact]
-    public void ScopeWindow_TemplateMenu_ClickingEramSwitchesTheScope()
-    {
-        var main = new MainViewModel(new FakeFilePickerService());
-        using var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
-        main.OpenScope = scope;
-        var window = new ScopeWindow(main.Preferences, scope);
-        try
-        {
-            window.Show();
-            Dispatcher.UIThread.RunJobs();
-            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
-            Button eram = ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateEram);
-
-            ScopeToolbarTests.Click(eram);
-
-            Assert.Equal(ScopeTemplates.EramId, scope.TemplateId);
-            ScopeToolbarTests.Click(ScopeToolbarTests.ButtonOf(window, ScopeButtonId.Template));
-            Assert.Contains("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateEram).Classes);
-            Assert.DoesNotContain("active", ScopeToolbarTests.ButtonOf(window, ScopeButtonId.TemplateStars).Classes);
-        }
-        finally
-        {
-            window.Close();
-        }
     }
 }

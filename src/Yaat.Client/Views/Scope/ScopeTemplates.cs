@@ -249,9 +249,6 @@ public static class ScopeTemplates
             _ => throw new ArgumentException($"Unknown scope template id '{id}'.", nameof(id)),
         };
 
-    /// <summary>Whether <paramref name="id"/> is a pick the scope's Template menu offers: a template id or <see cref="MixedId"/>.</summary>
-    public static bool IsSelectable(string id) => id is StarsId or EramId or EuroScopeId or MixedId;
-
     // The template with its Dwell lines: its Full lines with the other-altitude line inserted under line 2.
     private static ScopeTemplate WithDwellLine(ScopeTemplate template) =>
         template with

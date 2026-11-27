@@ -19,20 +19,8 @@ public enum ScopeButtonId
     /// <summary>The PROFILE menu's MIXED pick.</summary>
     ProfileMixed,
 
-    /// <summary>The Template menu.</summary>
-    Template,
-
-    /// <summary>The Template menu's STARS pick.</summary>
-    TemplateStars,
-
-    /// <summary>The Template menu's ERAM pick.</summary>
-    TemplateEram,
-
-    /// <summary>The Template menu's Mixed pick.</summary>
-    TemplateMixed,
-
-    /// <summary>The Template menu's EuroScope pick.</summary>
-    TemplateEuroScope,
+    /// <summary>The PROFILE menu's EUROSCOPE pick.</summary>
+    ProfileEuroScope,
 
     /// <summary>The range spinner.</summary>
     Range,
@@ -290,19 +278,7 @@ public static class ScopeToolbarButtons
                 ProfilePick(ScopeButtonId.ProfileStars, "STARS", ScopeProfileKind.Stars),
                 ProfilePick(ScopeButtonId.ProfileEram, "ERAM", ScopeProfileKind.Eram),
                 ProfilePick(ScopeButtonId.ProfileMixed, "MIXED", ScopeProfileKind.Mixed),
-            ],
-            null,
-            null
-        ),
-        new(
-            ScopeButtonId.Template,
-            "TEMPLATE",
-            ScopeButtonKind.Menu,
-            [
-                TemplatePick(ScopeButtonId.TemplateStars, "STARS", ScopeTemplates.StarsId),
-                TemplatePick(ScopeButtonId.TemplateEram, "ERAM", ScopeTemplates.EramId),
-                TemplatePick(ScopeButtonId.TemplateMixed, "MIXED", ScopeTemplates.MixedId),
-                TemplatePick(ScopeButtonId.TemplateEuroScope, "EUROSCOPE", ScopeTemplates.EuroScopeId),
+                ProfilePick(ScopeButtonId.ProfileEuroScope, "EUROSCOPE", ScopeProfileKind.EuroScope),
             ],
             null,
             null
@@ -552,10 +528,8 @@ public static class ScopeToolbarButtons
     public static string ProfileCommand(ScopeProfileKind kind) => $".scope profile {ScopeProfilePicker.NameOf(kind)}";
 
     /// <summary>Whether the button with <paramref name="id"/> is a PROFILE menu pick.</summary>
-    public static bool IsProfilePick(ScopeButtonId id) => id is ScopeButtonId.ProfileStars or ScopeButtonId.ProfileEram or ScopeButtonId.ProfileMixed;
-
-    /// <summary>The command that picks the template (or Mixed) with <paramref name="templateId"/>.</summary>
-    public static string TemplateCommand(string templateId) => $".scope template {templateId}";
+    public static bool IsProfilePick(ScopeButtonId id) =>
+        id is ScopeButtonId.ProfileStars or ScopeButtonId.ProfileEram or ScopeButtonId.ProfileMixed or ScopeButtonId.ProfileEuroScope;
 
     /// <summary>The command that clears every pinned band value (AUTO).</summary>
     public const string AutoCommand = ".scope auto";
@@ -680,9 +654,6 @@ public static class ScopeToolbarButtons
 
     private static ScopeButton ProfilePick(ScopeButtonId id, string label, ScopeProfileKind kind) =>
         new(id, label, ScopeButtonKind.Command, [], ScopeProfilePicker.NameOf(kind), ProfileCommand(kind));
-
-    private static ScopeButton TemplatePick(ScopeButtonId id, string label, string templateId) =>
-        new(id, label, ScopeButtonKind.Command, [], templateId, TemplateCommand(templateId));
 
     private static ScopeButton ViewToggle(ScopeButtonId id, string label, string viewName) =>
         new(id, label, ScopeButtonKind.Toggle, [], viewName, ViewCommandStem(viewName));

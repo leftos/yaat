@@ -152,7 +152,6 @@ public static class SettingsSearchCatalog
         return
         [
             .. ViewLinks(s, "Font sizes → Appearance"),
-            Setting(s, "EuroScopeMode", "EuroScope-style interactive tags", None),
             Setting(s, "SelectedScopeFieldMenuStyleIndex", "ERAM field menus", None),
             Setting(s, "ScopeStarsFieldMenus", "STARS field menus", None),
             Setting(s, "FlashNoLandingClearance", "Flash 'NoLndgClnc' on datablock when approaching final without landing clearance", None),

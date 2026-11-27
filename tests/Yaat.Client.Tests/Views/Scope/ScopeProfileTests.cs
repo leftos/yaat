@@ -15,7 +15,6 @@ public class ScopeProfileTests
     private static readonly string[] ShippedToolbar =
     [
         "profile",
-        "template",
         "range",
         "others",
         "vector",
@@ -66,7 +65,6 @@ public class ScopeProfileTests
 
         Assert.Equal("mixed", mixed.Name);
         Assert.Equal("mixed", mixed.Kind);
-        Assert.Equal("mixed", mixed.Template);
         Assert.Equal(
             [
                 new ScopeZoomBand(30, "full", 0, 5, "jring", ScopeTemplates.StarsId),
@@ -84,7 +82,7 @@ public class ScopeProfileTests
     {
         ScopeProfile stars = ScopeProfileStore.Shipped(ScopeProfileKind.Stars);
 
-        Assert.Equal(("stars", "stars", "stars"), (stars.Name, stars.Kind, stars.Template));
+        Assert.Equal(("stars", "stars"), (stars.Name, stars.Kind));
         Assert.Equal(
             [
                 new ScopeZoomBand(30, "full", 0, 5, "jring", ScopeTemplates.StarsId),
@@ -102,7 +100,7 @@ public class ScopeProfileTests
     {
         ScopeProfile eram = ScopeProfileStore.Shipped(ScopeProfileKind.Eram);
 
-        Assert.Equal(("eram", "eram", "eram"), (eram.Name, eram.Kind, eram.Template));
+        Assert.Equal(("eram", "eram"), (eram.Name, eram.Kind));
         Assert.Equal([new ScopeZoomBand(null, "partial", 1, 5, "dri", ScopeTemplates.EramId)], eram.Bands);
         Assert.Empty(eram.Toolbar);
         Assert.Equal(["ssa", "ca"], eram.Views);

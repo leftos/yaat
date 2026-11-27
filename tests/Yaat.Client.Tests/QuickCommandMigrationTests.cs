@@ -11,8 +11,9 @@ namespace Yaat.Client.Tests;
 /// Pins the preferences migrations of the stored quick-command lists: Accept handoff, Cancel handoff and Acknowledge
 /// pointout are inserted once into every stored list but Live traffic's, after Squawk assigned code (else Squawk normal,
 /// else first), and never twice; Altitude… follows at version 3; Ident follows the squawk rows in an airborne list at
-/// version 5. Tests share the per-process preferences.json as <see cref="QuickCommandStorageTests"/> does, writing a file
-/// at a version below the current one, and each test resets every stored list when it ends.
+/// version 5; at version 6 the retired EuroScope-mode preference becomes the EuroScope profile of each position type
+/// without a hand pick. Tests share the per-process preferences.json as <see cref="QuickCommandStorageTests"/> does,
+/// writing a file at a version below the current one, and each test resets every stored list when it ends.
 /// </summary>
 public class QuickCommandMigrationTests : IDisposable
 {
@@ -231,6 +232,77 @@ public class QuickCommandMigrationTests : IDisposable
         );
     }
 
+    // --- v5 → v6: the EuroScope-mode preference becomes the EuroScope profile ---------------------------
+
+    /// <summary>An old file with EuroScope mode on gets the EuroScope profile for each position type without a hand pick.</summary>
+    [Fact]
+    public void V5EuroScopeModeOn_PicksTheEuroScopeProfile_ForEveryTypeWithoutAPick()
+    {
+        InjectEuroScopeMode(5, true, new JsonObject { ["APP"] = "eram" });
+        try
+        {
+            var prefs = new UserPreferences();
+
+            Assert.Equal(
+                ["euroscope", "euroscope", "euroscope", "eram", "euroscope", "euroscope"],
+                ScopeProfileTypes.Select(prefs.GetScopeProfileOverride)
+            );
+            JsonObject saved = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
+            Assert.False(saved.ContainsKey("euroScopeMode"));
+            Assert.Equal(6, StoredVersion());
+            Assert.Equal(UserPreferences.CurrentPreferencesVersion, StoredVersion());
+        }
+        finally
+        {
+            ClearScopeProfileOverrides();
+        }
+    }
+
+    /// <summary>A second v6 run keeps a hand pick made after the first, and the picks the first one gave.</summary>
+    [Fact]
+    public void V6MigrationRunTwice_KeepsAHandPickMadeAfterTheFirst()
+    {
+        InjectEuroScopeMode(5, true, []);
+        try
+        {
+            new UserPreferences().SetScopeProfileOverride("TWR", "stars");
+            JsonObject root = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
+            root["euroScopeMode"] = true;
+            root["preferencesVersion"] = 5;
+            File.WriteAllText(PreferencesPath, root.ToJsonString());
+
+            var prefs = new UserPreferences();
+
+            Assert.Equal(
+                ["euroscope", "euroscope", "stars", "euroscope", "euroscope", "euroscope"],
+                ScopeProfileTypes.Select(prefs.GetScopeProfileOverride)
+            );
+            Assert.False(JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject().ContainsKey("euroScopeMode"));
+        }
+        finally
+        {
+            ClearScopeProfileOverrides();
+        }
+    }
+
+    [Fact]
+    public void V5EuroScopeModeOff_AddsNoProfilePick()
+    {
+        InjectEuroScopeMode(5, false, []);
+        try
+        {
+            var prefs = new UserPreferences();
+
+            Assert.All(ScopeProfileTypes, type => Assert.Null(prefs.GetScopeProfileOverride(type)));
+            Assert.False(JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject().ContainsKey("euroScopeMode"));
+            Assert.Equal(6, StoredVersion());
+        }
+        finally
+        {
+            ClearScopeProfileOverrides();
+        }
+    }
+
     [Fact]
     public void V1File_RunsBothMigrations()
     {
@@ -329,6 +401,33 @@ public class QuickCommandMigrationTests : IDisposable
         var reloaded = new UserPreferences();
 
         Assert.Equal([SquawkAssigned, Accept, HoldPosition], reloaded.GetQuickCommandList(AircraftSituation.Taxiing));
+    }
+
+    /// <summary>The position types the v6 migration gives the EuroScope profile.</summary>
+    private static readonly string[] ScopeProfileTypes = ["DEL", "GND", "TWR", "APP", "DEP", "CTR"];
+
+    /// <summary>
+    /// Writes the retired <c>euroScopeMode</c> as <paramref name="on"/> and <paramref name="picks"/> as the hand-picked Scope
+    /// profiles at preferences version <paramref name="version"/>.
+    /// </summary>
+    private static void InjectEuroScopeMode(int version, bool on, JsonObject picks)
+    {
+        JsonObject root = File.Exists(PreferencesPath) ? JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject() : [];
+        root["euroScopeMode"] = on;
+        root["scopeProfileByPositionType"] = picks;
+        root["preferencesVersion"] = version;
+        Directory.CreateDirectory(YaatPaths.AppDataRoot);
+        File.WriteAllText(PreferencesPath, root.ToJsonString());
+    }
+
+    /// <summary>Drops every hand-picked Scope profile from the shared preferences.json.</summary>
+    private static void ClearScopeProfileOverrides()
+    {
+        var prefs = new UserPreferences();
+        foreach (string type in ScopeProfileTypes)
+        {
+            prefs.ClearScopeProfileOverride(type);
+        }
     }
 
     private static CatalogQuickCommandEntry Catalog(string id) => new(id, null);

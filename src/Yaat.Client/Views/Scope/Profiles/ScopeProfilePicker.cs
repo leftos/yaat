@@ -30,7 +30,7 @@ public static class ScopeProfilePicker
         return stars ? ScopeProfileKind.Stars : ScopeProfileKind.Mixed;
     }
 
-    /// <summary>The text name of <paramref name="kind"/>: <c>stars</c>, <c>eram</c> or <c>mixed</c>.</summary>
+    /// <summary>The text name of <paramref name="kind"/>: <c>stars</c>, <c>eram</c>, <c>mixed</c> or <c>euroscope</c>.</summary>
     public static string NameOf(ScopeProfileKind kind) => kind.ToString().ToLowerInvariant();
 
     /// <summary>Parses a kind's text name (<see cref="NameOf"/>), case-insensitive.</summary>
@@ -49,6 +49,21 @@ public static class ScopeProfilePicker
         kind = ScopeProfileKind.Mixed;
         return false;
     }
+
+    /// <summary>
+    /// The datablock template id the profile of <paramref name="kind"/> draws with: <c>stars</c>, <c>eram</c>, <c>mixed</c>
+    /// (the routing id) or <c>euroscope</c> (<see cref="ScopeTemplates"/>).
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> names no profile kind.</exception>
+    public static string TemplateIdFor(ScopeProfileKind kind) =>
+        kind switch
+        {
+            ScopeProfileKind.Stars => ScopeTemplates.StarsId,
+            ScopeProfileKind.Eram => ScopeTemplates.EramId,
+            ScopeProfileKind.Mixed => ScopeTemplates.MixedId,
+            ScopeProfileKind.EuroScope => ScopeTemplates.EuroScopeId,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope profile kind"),
+        };
 
     /// <summary>
     /// <paramref name="items"/> in the order <paramref name="names"/> gives: the items it names, in its order, then every

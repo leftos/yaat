@@ -18,13 +18,14 @@ public enum ScopeBarKind
 /// <summary>Picks the bar a Scope shows from the room's Scope profile kind.</summary>
 public static class ScopeBarPicker
 {
-    /// <summary>STARS profile → Stars, ERAM profile → Eram, Mixed → Classic (today's bar).</summary>
+    /// <summary>STARS profile → Stars, ERAM profile → Eram, Mixed and EuroScope → Classic (today's bar).</summary>
     public static ScopeBarKind KindFor(ScopeProfileKind kind) =>
         kind switch
         {
             ScopeProfileKind.Stars => ScopeBarKind.Stars,
             ScopeProfileKind.Eram => ScopeBarKind.Eram,
             ScopeProfileKind.Mixed => ScopeBarKind.Classic,
+            ScopeProfileKind.EuroScope => ScopeBarKind.Classic,
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown Scope profile kind"),
         };
 }

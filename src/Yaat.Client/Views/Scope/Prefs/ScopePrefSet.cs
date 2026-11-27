@@ -1,11 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Yaat.Client.Views.Scope.Profiles;
 
 namespace Yaat.Client.Views.Scope.Prefs;
 
 /// <summary>
-/// One YAAT Scope display state as the pref-set files store it: range and centre, template, the BRITE groups, the DB
+/// One YAAT Scope display state as the pref-set files store it: range and centre, the BRITE groups, the DB
 /// settings, the maps that are on, the open views with their places, the classic bar's button names
 /// (empty when the Scope showed the STARS or ERAM bar) and the views array, the pinned band values, the vector lines' OWN
 /// or ALL, top-down mode, whether the bar is hidden and the pilot lens's switches. Every field holds text names rather
@@ -15,6 +16,12 @@ public sealed record ScopePrefSet : IJsonOnDeserialized
 {
     /// <summary>The key of the button tear-offs older files hold; dropped on load, so a resave does not write it.</summary>
     private const string RetiredTearoffsKey = "tearoffs";
+
+    /// <summary>
+    /// The key of the template id older files hold, read only by <see cref="ProfileKindToApply"/>: it lands in
+    /// <see cref="Extra"/>, and a set saved again from the Scope carries none.
+    /// </summary>
+    private const string RetiredTemplateIdKey = "templateId";
 
     /// <summary>
     /// The serializer options every pref-set file is written and read with: camelCase names, indented, enums as text, an
@@ -34,9 +41,6 @@ public sealed record ScopePrefSet : IJsonOnDeserialized
 
     /// <summary>The centre longitude in degrees.</summary>
     public double CenterLon { get; init; }
-
-    /// <summary>The template id the Scope draws with.</summary>
-    public required string TemplateId { get; init; }
 
     /// <summary>
     /// The BRITE groups, keyed by group name: <c>mapa</c>, <c>mapb</c>, <c>targets</c>, <c>fdb</c>, <c>line4</c>,
@@ -70,8 +74,8 @@ public sealed record ScopePrefSet : IJsonOnDeserialized
     public IReadOnlyList<string> Views { get; init; } = [];
 
     /// <summary>
-    /// The name of the profile the Scope showed (<c>stars</c>, <c>eram</c> or <c>mixed</c>). <c>.scope pref load</c> switches
-    /// to it; the saved-state restore leaves the profile alone.
+    /// The name of the profile the Scope showed (<c>stars</c>, <c>eram</c>, <c>mixed</c> or <c>euroscope</c>).
+    /// <c>.scope pref load</c> switches to <see cref="ProfileKindToApply"/>; the saved-state restore leaves the profile alone.
     /// </summary>
     public required string Kind { get; init; }
 
@@ -111,6 +115,20 @@ public sealed record ScopePrefSet : IJsonOnDeserialized
 
     /// <inheritdoc/>
     void IJsonOnDeserialized.OnDeserialized() => Extra?.Remove(RetiredTearoffsKey);
+
+    /// <summary>
+    /// The profile name <c>.scope pref load</c> applies: <c>euroscope</c> when an older file's retired template id is
+    /// <c>euroscope</c> (any case), since that look is now the EuroScope profile, else <see cref="Kind"/>.
+    /// </summary>
+    public string ProfileKindToApply()
+    {
+        bool euroScopeTemplate =
+            (Extra is { } extra)
+            && extra.TryGetValue(RetiredTemplateIdKey, out JsonElement templateId)
+            && (templateId.ValueKind == JsonValueKind.String)
+            && string.Equals(templateId.GetString(), ScopeTemplates.EuroScopeId, StringComparison.OrdinalIgnoreCase);
+        return euroScopeTemplate ? ScopeProfilePicker.NameOf(ScopeProfileKind.EuroScope) : Kind;
+    }
 
     private static JsonSerializerOptions CreateJsonOptions()
     {

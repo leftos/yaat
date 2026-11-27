@@ -648,6 +648,22 @@ public class EramBarTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task YaatProfileEuroScope_ShowsTheEuroScopeLookOnTheClassicToolbar()
+    {
+        await using Opened scope = await OpenAsync();
+        scope.Click(EramButtonType.YaatMenu);
+        scope.Click(EramButtonType.YaatProfileMenu);
+
+        scope.Click(EramButtonType.YaatProfileEuroScope);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(ScopeProfileKind.EuroScope, scope.Scope.ProfileKind);
+        Assert.Equal(ScopeTemplates.EuroScopeId, scope.Scope.TemplateId);
+        Assert.Single(scope.Host.GetVisualDescendants().OfType<ScopeToolbar>());
+        Assert.Empty(scope.Host.GetVisualDescendants().OfType<EramBar>());
+    }
+
+    [AvaloniaFact]
     public async Task YaatBriteRings_StepsTheValueTheClassicRingsSpinnerSteps()
     {
         await using Opened scope = await OpenAsync();

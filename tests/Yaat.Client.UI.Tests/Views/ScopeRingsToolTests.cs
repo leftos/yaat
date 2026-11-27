@@ -37,7 +37,7 @@ public class ScopeRingsToolTests
         var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
         if (templateId is not null)
         {
-            scope.TemplateId = templateId;
+            Helpers.ScopeTestFixture.PickLook(main, templateId);
         }
 
         main.OpenScope = scope;

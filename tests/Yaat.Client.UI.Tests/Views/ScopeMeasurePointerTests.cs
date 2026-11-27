@@ -661,7 +661,7 @@ public class ScopeMeasurePointerTests
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
         try
         {
-            scope.TemplateId = ScopeTemplates.EramId;
+            Helpers.ScopeTestFixture.PickLook(main, ScopeTemplates.EramId);
             Dispatcher.UIThread.RunJobs();
             AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
             main.Measure.Arm();
@@ -686,7 +686,7 @@ public class ScopeMeasurePointerTests
         try
         {
             await main.NavDataInitialization.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
-            scope.TemplateId = ScopeTemplates.StarsId;
+            Helpers.ScopeTestFixture.PickLook(main, ScopeTemplates.StarsId);
             Dispatcher.UIThread.RunJobs();
             AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
             main.Measure.Arm();
@@ -757,7 +757,7 @@ public class ScopeMeasurePointerTests
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync();
         try
         {
-            scope.TemplateId = ScopeTemplates.StarsId;
+            Helpers.ScopeTestFixture.PickLook(main, ScopeTemplates.StarsId);
             Dispatcher.UIThread.RunJobs();
             AircraftModel ac = AddAt300(main, view.Canvas, "UAL1");
             main.Measure.Arm();

@@ -681,15 +681,50 @@ public class ScopeEntryTests
     }
 
     [AvaloniaFact]
-    public async Task OnTheMixedTemplate_AnUnownedTracksPreview_FollowsASwitchToTheStarsTemplate()
+    public async Task AnUnownedTracksPreview_FollowsASwitchFromEramToTheEuroScopeProfile()
+    {
+        (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Eram);
+        try
+        {
+            scope.RangeNm = 40;
+            AircraftModel unowned = AddAircraft(main, "SKW5410", 5000);
+            FocusCanvas(window, view);
+            main.SelectedAircraft = unowned;
+            Type(window, "QQ 250");
+            Assert.Equal(ScopeEntryKind.Eram, scope.EntryReading.Kind);
+            Assert.StartsWith("ERAM QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
+
+            // The EuroScope profile reads entries as Mixed does: inside 120 NM an unowned track reads in the STARS dialect.
+            main.PickScopeProfileByHand(ScopeProfileKind.EuroScope);
+            Settle(window);
+            Assert.Equal(ScopeEntryKind.None, scope.EntryReading.Kind);
+            Assert.Equal("QQ 250_", Lines(view.EntryLayer.EramPreview)[0]);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OnTheEuroScopeProfile_AnUnownedTrack_ReadsStarsAt40Nm_AndEramAt200Nm()
     {
         (MainViewModel main, ScopeViewModel scope, ScopeView view, Window window) = await ShowScopeAsync(ScopeProfileKind.Mixed);
         try
         {
-            TypeOnAnUnownedTrackOnTheMixedTemplateAt40Nm(main, scope, view, window);
+            // The band's unowned template picks an unowned track's dialect, as on Mixed: STARS inside 120 NM, where QQ is no
+            // entry and reads as nothing, and ERAM beyond it.
+            scope.RangeNm = 40;
+            main.PickScopeProfileByHand(ScopeProfileKind.EuroScope);
+            Assert.Equal(ScopeTemplates.EuroScopeId, scope.TemplateId);
+            AircraftModel unowned = AddAircraft(main, "SKW5410", 5000);
+            FocusCanvas(window, view);
+            main.SelectedAircraft = unowned;
+            Type(window, "QQ 250");
+            Assert.Equal(ScopeEntryKind.None, scope.EntryReading.Kind);
+            Assert.Equal("QQ 250_", Lines(view.EntryLayer.EramPreview)[0]);
 
-            // Off the Mixed template an unowned track reads in the ERAM dialect, as it always has.
-            scope.PickTemplateCommand.Execute(ScopeTemplates.StarsId);
+            scope.RangeNm = 200;
             Settle(window);
             Assert.Equal(ScopeEntryKind.Eram, scope.EntryReading.Kind);
             Assert.StartsWith("ERAM QQ", Lines(view.EntryLayer.EramPreview)[0], StringComparison.Ordinal);
@@ -704,7 +739,7 @@ public class ScopeEntryTests
     private static void TypeOnAnUnownedTrackOnTheMixedTemplateAt40Nm(MainViewModel main, ScopeViewModel scope, ScopeView view, Window window)
     {
         scope.RangeNm = 40;
-        scope.PickTemplateCommand.Execute(ScopeTemplates.MixedId);
+        main.PickScopeProfileByHand(ScopeProfileKind.Mixed);
         Assert.Equal(ScopeTemplates.MixedId, scope.TemplateId);
         AircraftModel unowned = AddAircraft(main, "SKW5410", 5000);
         FocusCanvas(window, view);

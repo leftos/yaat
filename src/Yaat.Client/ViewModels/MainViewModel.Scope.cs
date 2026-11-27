@@ -23,9 +23,9 @@ public partial class MainViewModel
     private const string ScopeUnpinWord = "auto";
 
     private static readonly string ScopeUsage =
-        "Usage: .scope range <0.125-256> | .scope template <stars|eram|mixed|euroscope> | .scope brite <group> <value>"
+        "Usage: .scope range <0.125-256> | .scope brite <group> <value>"
         + " | .scope map <id> <on|off> | .scope db <item> <value>"
-        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed>"
+        + " | .scope pref <save|saveas|load|rename|delete> | .scope profile <stars|eram|mixed|euroscope>"
         + $" | .scope others <full|partial> | .scope auto | .scope vector <0|0.5|1|1.5|2|2.5|3|4|8|own|all|auto> | .scope hist {ScopeHistRange}"
         + " | .scope rings <jring|cone> <size> <callsign> | .scope rings <dri5|dri3> <callsign> | .scope rings clear [callsign]"
         + " | .scope tdm <on|off> | .scope ptl <callsign> | .scope ptl clear [callsign]"
@@ -69,7 +69,7 @@ public partial class MainViewModel
 
     private const string ScopeDbUsage = "Usage: .scope db <4thline|dwell|atpa|alertcones|monitorcones|caring> <on|off> | .scope db char <8-24>";
 
-    private const string ScopeProfileUsage = "Usage: .scope profile <stars|eram|mixed>";
+    private const string ScopeProfileUsage = "Usage: .scope profile <stars|eram|mixed|euroscope>";
 
     private ScopeProfileKind? _scopeProfile;
 
@@ -211,7 +211,7 @@ public partial class MainViewModel
         Func<ScopeViewModel, string[], string>? handler = verb switch
         {
             "RANGE" => SetScopeRange,
-            "TEMPLATE" => PickScopeTemplate,
+            "TEMPLATE" => static (_, _) => ScopeTemplateRetired,
             "BRITE" => SetScopeBrightness,
             "MAP" => SetScopeMap,
             "DB" => SetScopeDb,
@@ -394,24 +394,13 @@ public partial class MainViewModel
         return ScopeToolbarButtons.RangeCommand(rangeNm);
     }
 
-    private static string PickScopeTemplate(ScopeViewModel scope, string[] parts)
-    {
-        if (parts.Length != 3)
-        {
-            return ScopeUsage;
-        }
+    /// <summary>What <c>.scope template</c>, with any arguments, answers: the profile alone picks the look now.</summary>
+    internal const string ScopeTemplateRetired = "retired: use .scope profile";
 
-        string id = parts[2].ToLowerInvariant();
-        if (!ScopeTemplates.IsSelectable(id))
-        {
-            return $"Unknown Radar template: {parts[2]}";
-        }
-
-        scope.PickTemplateCommand.Execute(id);
-        return ScopeToolbarButtons.TemplateCommand(id);
-    }
-
-    /// <summary><c>.scope profile stars|eram|mixed</c>: the room's profile, picked by hand and saved for its student position type.</summary>
+    /// <summary>
+    /// <c>.scope profile stars|eram|mixed|euroscope</c>: the room's profile, picked by hand and saved for its student position
+    /// type.
+    /// </summary>
     private static string PickScopeProfile(ScopeViewModel scope, string[] parts)
     {
         if (parts.Length != 3)
@@ -818,8 +807,8 @@ public partial class MainViewModel
             return $"Unknown pref set: {typed}";
         }
 
-        // The set's profile goes first, so the set's own template wins over the profile's.
-        string profileNote = scope.ApplyPrefSetProfile(set.Kind);
+        // The set's profile goes first, so the set's own values win over the profile's.
+        string profileNote = scope.ApplyPrefSetProfile(set.ProfileKindToApply());
         int missing = scope.ApplyPrefSet(set);
         scope.ActivePrefSet = name;
         return $".scope pref load {name}{PrefLoadNote(scope, missing)}{profileNote}";

@@ -169,7 +169,7 @@ public class ScopeVectorHistTests : IDisposable
             main.RunScopeCommand(".scope vector 4");
             main.RunScopeCommand(".scope range 200");
             Assert.Equal(4, scope.EffectiveBand.VectorMin);
-            Assert.Equal(3, scope.EffectiveBand.History);
+            Assert.Equal(5, scope.EffectiveBand.History);
 
             main.RunScopeCommand(".scope hist 2");
             main.RunScopeCommand(".scope range 20");

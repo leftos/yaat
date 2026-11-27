@@ -110,7 +110,6 @@ public class ScopeRadarSettingsMigrationTests
             Assert.Equal(seededState.CenterLat, kept.CenterLat);
             Assert.Equal(seededState.CenterLon, kept.CenterLon);
             Assert.Equal(seededState.Maps, kept.Maps);
-            Assert.Equal(seededState.TemplateId, kept.TemplateId);
             Assert.Equal(25, vm.PrimaryScope.CapturePrefSet(null).RangeNm);
             Assert.Null(RadarSettings()["S1"]);
         }

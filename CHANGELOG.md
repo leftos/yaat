@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- Radar: the profile alone picks the datablock look; the TEMPLATE control and `.scope template` are gone, and PROFILE gains EUROSCOPE for EuroScope-style tags.
+- Radar: until the room's profile arrives, the Radar runs the STARS profile, with the STARS DCB instead of the classic bar.
+- Settings › Radar's EuroScope-style tags option is gone; if it was on, the EuroScope profile becomes your pick for every position type, once.
+
 ### Fixed
 
 - `RDH` with text on a release that has not been sent is refused, pointing to `RDTXT` then `RDH`, instead of sending it and dropping the text.

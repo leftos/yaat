@@ -1,0 +1,14 @@
+{
+  "name": "euroscope",
+  "kind": "euroscope",
+  "bands": [
+    { "maxNm": 30, "othersLevel": "full", "vectorMin": 0, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": 120, "othersLevel": "partial", "vectorMin": 1, "history": 5, "rings": "jring", "unowned": "stars" },
+    { "maxNm": null, "othersLevel": "partial", "vectorMin": 4, "history": 3, "rings": "dri", "unowned": "eram" }
+  ],
+  "toolbar": [
+    "profile", "range", "others", "vector", "hist", "tools", "auto", "maps",
+    "tdm", "mva", "display", "rr", "db", "views", "brite", "pref"
+  ],
+  "views": ["ssa", "ca"]
+}

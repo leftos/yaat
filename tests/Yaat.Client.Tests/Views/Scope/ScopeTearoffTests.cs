@@ -77,7 +77,7 @@ public class ScopeTearoffTests
     [InlineData(ScopeButtonId.Brite, "brite")]
     [InlineData(ScopeButtonId.BriteMapA, "britemapa")]
     [InlineData(ScopeButtonId.Db4thLine, "db4thline")]
-    [InlineData(ScopeButtonId.TemplateStars, "templatestars")]
+    [InlineData(ScopeButtonId.ProfileStars, "profilestars")]
     public void NameOf_IsTheIdLowercased(ScopeButtonId id, string expected) =>
         Assert.Equal(expected, ScopeToolbarButtons.NameOf(ScopeToolbarButtons.Find(id)!));
 }

@@ -44,7 +44,8 @@ public class ScopeDrawRouteTests
     {
         MainViewModel main = await MainAsync();
         await main.CrcAliasLoad;
-        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot) { TemplateId = templateId };
+        var scope = new ScopeViewModel(main, prefStore: null, profileStore: null, ScopePrefSetStore.PrimarySlot);
+        Helpers.ScopeTestFixture.PickLook(main, templateId);
         main.OpenScope = scope;
         var view = new ScopeView { DataContext = scope };
         var window = new Window

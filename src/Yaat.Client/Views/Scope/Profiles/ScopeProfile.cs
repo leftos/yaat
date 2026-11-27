@@ -4,7 +4,7 @@ using Yaat.Client.Views.Scope.Prefs;
 
 namespace Yaat.Client.Views.Scope.Profiles;
 
-/// <summary>The three Scope profiles: how the scope behaves for a STARS, an ERAM or a mixed position.</summary>
+/// <summary>The four Scope profiles: how the scope behaves for a STARS, an ERAM, a mixed or a EuroScope position.</summary>
 public enum ScopeProfileKind
 {
     /// <summary>The STARS profile, for a TRACON or tower position.</summary>
@@ -15,6 +15,11 @@ public enum ScopeProfileKind
 
     /// <summary>The Mixed profile, for any other position and for no position.</summary>
     Mixed,
+
+    /// <summary>
+    /// The EuroScope profile: EuroScope-style tags over the classic bar, reading typed entries as Mixed does.
+    /// </summary>
+    EuroScope,
 }
 
 /// <summary>One zoom band of a profile: the values the scope takes while its range is at most <see cref="MaxNm"/>.</summary>
@@ -30,14 +35,13 @@ public enum ScopeProfileKind
 public sealed record ScopeZoomBand(double? MaxNm, string OthersLevel, double VectorMin, int History, string Rings, string Unowned);
 
 /// <summary>
-/// One Scope profile as its file stores it: its name and kind, its zoom bands, the datablock template it opens with, and the
-/// order of the toolbar's buttons and of the views. Every field holds text names, so a rename in code leaves the file
+/// One Scope profile as its file stores it: its name and kind, its zoom bands, and the order of the toolbar's buttons and of
+/// the views; the kind alone picks the datablock look. Every field holds text names, so a rename in code leaves the file
 /// readable.
 /// </summary>
 /// <param name="Name">The profile's name, such as <c>mixed</c>.</param>
-/// <param name="Kind">The profile's kind: <c>stars</c>, <c>eram</c> or <c>mixed</c>.</param>
+/// <param name="Kind">The profile's kind: <c>stars</c>, <c>eram</c>, <c>mixed</c> or <c>euroscope</c>.</param>
 /// <param name="Bands">The zoom bands, inner first.</param>
-/// <param name="Template">The template id the profile opens with (<see cref="ScopeTemplates.IsSelectable"/>).</param>
 /// <param name="Views">The view names, in the order they come first in the dock.</param>
 /// <param name="Toolbar">
 /// The classic bar's button names, in the order they come first on the bar; an absent list reads as empty.
@@ -46,7 +50,6 @@ public sealed record ScopeProfile(
     string Name,
     string Kind,
     IReadOnlyList<ScopeZoomBand> Bands,
-    string Template,
     IReadOnlyList<string> Views,
     IReadOnlyList<string>? Toolbar = null
 )
@@ -69,7 +72,9 @@ public sealed record ScopeProfile(
     /// <summary>The serializer options profile files are written and read with: the pref-set files' options.</summary>
     public static JsonSerializerOptions JsonOptions => ScopePrefSet.JsonOptions;
 
-    /// <summary>Fields this build does not know, kept so a resave does not lose them.</summary>
+    /// <summary>
+    /// Fields this build does not know, kept so a resave does not lose them; an older file's <c>template</c> lands here.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
 }

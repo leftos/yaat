@@ -204,6 +204,16 @@ public class ScopeEntryClassifierTests
     public void Qq_OnEram_WithAStarsOwnedTrackSelected_StillReadsAsEram() =>
         AssertReads(ReadWithSelected("QQ 250", ScopeProfileKind.Eram, ScopeTemplates.StarsId), ScopeEntryKind.Eram, "ERAM QQ");
 
+    // The EuroScope profile reads entries as Mixed does: per owner, and MIN as STARS without a track.
+
+    [Fact]
+    public void DialectOf_EuroScopeProfile_ReadsLikeMixed()
+    {
+        AssertReads(Read("QQ 250 UAL238", ScopeProfileKind.EuroScope), ScopeEntryKind.Eram, "ERAM QQ");
+        AssertNothing(ReadWithSelected("QQ 250", ScopeProfileKind.EuroScope, ScopeTemplates.StarsId));
+        AssertReads(Read("MIN UAL1 DAL2", ScopeProfileKind.EuroScope), ScopeEntryKind.Stars, "STARS MIN");
+    }
+
     // The shared ERAM verbs are ERAM on ERAM and Mixed; only a leading $ reaches the pilot command.
 
     [Theory]
