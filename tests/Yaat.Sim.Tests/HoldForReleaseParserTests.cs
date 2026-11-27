@@ -34,6 +34,38 @@ public class HoldForReleaseParserTests
         ParseResult<ParsedCommand> cmd = CommandParser.Parse("HFROFF SJC");
         DisarmHoldForReleaseCommand off = Assert.IsType<DisarmHoldForReleaseCommand>(cmd.Value);
         Assert.Equal("SJC", off.Airport);
+        Assert.Null(off.IntervalSeconds);
+    }
+
+    [Fact]
+    public void Hfroff_WithMinutes_ConvertedToSeconds()
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse("HFROFF SJC 2");
+        DisarmHoldForReleaseCommand off = Assert.IsType<DisarmHoldForReleaseCommand>(cmd.Value);
+        Assert.Equal("SJC", off.Airport);
+        Assert.Equal(120, off.IntervalSeconds);
+    }
+
+    [Theory]
+    [InlineData("HFROFF SJC")]
+    [InlineData("HFROFF SJC 2")]
+    public void Hfroff_CanonicalText_RoundTrips(string text)
+    {
+        ParsedCommand parsed = CommandParser.Parse(text).Value!;
+        string canonical = CommandDescriber.DescribeCommand(parsed);
+        Assert.Equal(text, canonical);
+        Assert.Equal(parsed, CommandParser.Parse(canonical).Value);
+    }
+
+    [Theory]
+    [InlineData("HFROFF SJC 0")]
+    [InlineData("HFROFF SJC 31")]
+    [InlineData("HFROFF SJC X")]
+    public void Hfroff_BadMinutes_FailsNamingTheForm(string text)
+    {
+        ParseResult<ParsedCommand> cmd = CommandParser.Parse(text);
+        Assert.False(cmd.IsSuccess);
+        Assert.Contains("HFROFF syntax", cmd.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

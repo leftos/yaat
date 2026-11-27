@@ -24,13 +24,17 @@ public sealed partial class SimulationEngine
     private void ProcessDelayedSpawns(List<AircraftState> spawned)
     {
         SimScenarioState scenario = Scenario!;
+        // Hold-for-release: per armed field, the earliest due held runway departure spawns at its runway's bar, held, while
+        // the field has no held departure waiting at a bar; chosen before the loop, which walks the queue backwards.
+        HashSet<DelayedSpawn> heldRunwaySpawns = HeldReleaseService.SelectHeldRunwaySpawns(scenario, World);
         for (int i = scenario.DelayedQueue.Count - 1; i >= 0; i--)
         {
             DelayedSpawn entry = scenario.DelayedQueue[i];
+            bool spawnsHeld = heldRunwaySpawns.Contains(entry);
 
-            // Hold-for-release spawn gate: a held runway/airborne departure does not appear on the
+            // Hold-for-release spawn gate: any other held runway/airborne departure does not appear on the
             // scope while its airport is armed — it spawns only when released (REL clears the flag).
-            if (HeldReleaseService.IsSpawnHeld(scenario, entry))
+            if ((!spawnsHeld) && (HeldReleaseService.IsSpawnHeld(scenario, entry)))
             {
                 continue;
             }
@@ -39,6 +43,11 @@ public sealed partial class SimulationEngine
             {
                 scenario.DelayedQueue.RemoveAt(i);
                 entry.Aircraft.State.SpawnedAtSeconds = scenario.ElapsedSeconds;
+                if (spawnsHeld)
+                {
+                    HeldRunwaySpawnBuilder.PlaceHeld(entry.Aircraft.State);
+                }
+
                 // A ground (parking/taxiway) departure spawning under an armed airport holds short
                 // until released — mark it now so the runway-entry gate withholds LUAW/CTO.
                 HeldReleaseService.MarkHeldOnSpawnIfArmed(scenario, entry.Aircraft.State);

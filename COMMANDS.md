@@ -771,7 +771,7 @@ These mutate ASDE-X display state only; they never change the underlying scenari
 | Spawn now | `SPAWN` | — | — |
 | Spawn delay | `DELAY 120` | — | — |
 | Hold for release | `HFR SJC` | — | Arms hold-for-release for an airport's IFR departures (global) |
-| Disarm hold for release | `HFROFF SJC` | — | Auto-releases the held departures and the queued spawns already due (global) |
+| Disarm hold for release | `HFROFF SJC` | — | Releases the held departures and the queued spawns already due, keeping their spacing; `HFROFF SJC 2` releases one every 2 min until back on schedule (global) |
 | Release departure | `REL SJC` | `CTOA` | `REL N123` releases a specific aircraft; `REL SJC 2` releases the field's queue 2 min apart (global) |
 | Call for release | `CFR 1830` | — | Marks the selected departure released with a −2/+1 min CFR window; alerts the instructor if it departs outside it. `CFR` = immediate release; `CFR OFF` clears; `CFR CHECK` prints the window status |
 | Active runways | `ARWY OAK 28L 28R` | — | Replaces an airport's active runways (`28L,28R` too); airport omitted = the primary airport. `D28L` departures only, `A28R` arrivals only, `30` both. `ARWY OAK` shows the list; `ARWY OAK NONE` clears it (global) |
@@ -2355,8 +2355,9 @@ or callsign rides in the argument, no aircraft selection is needed.
 
 | Command | Effect |
 |---------|--------|
-| `HFR <airport>` | Arm hold-for-release for an airport. Its **IFR** departures are then held until released — those that spawn airborne/on-the-runway don't appear until released; those at parking/taxiway taxi out and **hold short** of the runway (they never take the runway while held). VFR departures are unaffected. |
-| `HFROFF <airport>` | Disarm the airport. Held departures there and queued spawns already due are auto-released; a queued spawn not yet due keeps its schedule and is held again by a later `HFR`. |
+| `HFR <airport>` | Arm hold-for-release for an airport. Its **IFR** departures are then held until released — an airborne start doesn't appear until released; a start on the runway spawns on time **held** at its runway's lineup hold-short bar ("Holding short (held)"), or lined up where there is no bar ("Lined up (held)"), one at a time per airport; those at parking/taxiway taxi out and **hold short** of the runway (they never take the runway while held). VFR departures are unaffected. |
+| `HFROFF <airport>` | Disarm the airport. Held departures there and queued spawns already due are released, keeping their spacing: the departures the hold delayed move later by the hold's length, at least 2 minutes apart, none before the `HFROFF`. A queued spawn not yet due is held again by a later `HFR`. |
+| `HFROFF <airport> <minutes>` | As `HFROFF`, but releases one departure every `<minutes>` (1-30) until back on schedule (e.g. `HFROFF SJC 2`). |
 | `REL <airport>` (alias `CTOA <airport>`) | Release the **next pending** departure at that field (earliest-scheduled first). |
 | `REL <callsign>` | Release a specific held departure. |
 | `REL <airport> <minutes>` | Release the field's **whole** held queue, auto-spaced by the given interval in minutes (e.g. `REL SJC 2` = one every two minutes). |
@@ -2365,9 +2366,9 @@ Released departures don't pop airborne instantly — a held runway/airborne depa
 
 In any room, a timed `CTO`, `CTOPP` or `LUAW` preset that comes due while the departure is held waits, and fires on the tick after `REL` or `HFROFF`. A takeoff or line-up clearance queued in a chain (e.g. `TAXIAUTO 28R; CTO`) or behind a trigger waits for the release the same way.
 
-The **Releases** flyout on the command bar shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** icon, the first in the icon strip of its right-click menu (radar / ground / list).
+The **Hold for release** section of the Rundowns window (View › Bars › Rundowns…) shows the live rundown of what's held at each armed field with click-to-release buttons; a held departure also gets a one-click **Release (HFR)** icon, the first in the icon strip of its right-click menu (radar / ground / list).
 
-In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the **Releases** flyout as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
+In solo training with a radar (approach or center) student, an IFR departure that starts lined up at an untowered field asks for its release ("ready for departure, request release") without any `HFR`: it shows in the Rundowns window as "Lined up (held)", and `REL <callsign>`, `REL <airport>` or `HFROFF` (at an armed field) answers the request and auto-clears it for takeoff after the same short delay.
 
 ### Active Runways (ARWY)
 
@@ -2548,7 +2549,7 @@ These commands don't require an aircraft selection:
 | `RDTXT [/listId] <text>` | Set a held release's message text |
 | `CON` / `CON+` / `DECON` | Consolidation commands (see [Consolidation](#consolidation)) |
 | `TAXIALL 30` | Taxi every parked aircraft to runway 30, each auto-routed |
-| `HFR <airport>` / `HFROFF <airport>` / `REL <airport>` | Arm, disarm and release hold-for-release (see [Hold for Release](#hold-for-release-hfr--rel)); a malformed one answers its usage error, e.g. `HFR requires an airport` |
+| `HFR <airport>` / `HFROFF <airport>` / `REL <airport>` | Arm, disarm and release hold-for-release (see [Hold for Release](#hold-for-release-hfr--rel)); a malformed one answers its usage error, e.g. `HFR requires an airport` or `HFROFF syntax: HFROFF {airport} [minutes 1-30]` |
 | `ARWY [airport] <runways>` | Set or show the room's active runways (see [Active Runways](#active-runways-arwy)) |
 | `ASDXALERTS` | Clear alert inhibits across all aircraft in the room |
 | `GHOST <callsign> ...` | Create a ghost track; the callsign rides in the argument |

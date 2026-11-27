@@ -1,12 +1,14 @@
 using Xunit;
 using Yaat.Sim.Data.Airport.Precompute;
+using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Simulation;
 
 namespace Yaat.Sim.Tests.Simulation;
 
 /// <summary>
 /// Hold for release disarmed at a field releases only the queued runway spawns already due there: a spawn not yet due keeps
-/// its candidacy, so a later arm at the same field still holds it and it never appears on its scheduled time.
+/// its candidacy, so a later arm at the same field still holds it: it spawns on its scheduled time held (lined up, since the
+/// committed SJC layout has no taxi graph and so no hold-short bar).
 /// </summary>
 [Collection("NavDbMutator")]
 public class HoldForReleaseRearmE2ETests
@@ -28,16 +30,20 @@ public class HoldForReleaseRearmE2ETests
         engine.TickOneSecond();
         Assert.True(HeldReleaseService.Arm(scenario, engine.World, "SJC").Success);
         Tick(engine, 100); // SWA1 (due 50) held; SWA2 (due 300) not yet due
-        Assert.True(HeldReleaseService.Disarm(scenario, engine.World, "SJC").Success);
+        Assert.True(HeldReleaseService.Disarm(scenario, engine.World, "SJC", null).Success);
         Tick(engine, 2);
-        Assert.NotNull(engine.FindAircraft("SWA1")); // the due departure is released, as today
+        AircraftState swa1 = engine.FindAircraft("SWA1") ?? throw new InvalidOperationException("SWA1 left the world");
+        Assert.False(swa1.Ground.HeldForRelease); // SWA1, held on the runway, is released at the HFROFF
+        Assert.True(engine.SendCommand("SWA1", "CTO").Success); // an RPO room waits for the CTO; it clears the runway
         Tick(engine, 20);
         Assert.True(HeldReleaseService.Arm(scenario, engine.World, "SJC").Success);
 
         Tick(engine, 220); // t ~ 343, past SWA2's scheduled 300
 
-        Assert.Null(engine.FindAircraft("SWA2"));
-        Assert.True(HeldReleaseService.IsSpawnHeld(scenario, Assert.Single(scenario.DelayedQueue)));
+        AircraftState swa2 = engine.FindAircraft("SWA2") ?? throw new InvalidOperationException("SWA2 did not spawn at its time");
+        Assert.IsType<LinedUpAndWaitingPhase>(swa2.Phases!.CurrentPhase);
+        Assert.True(swa2.Ground.HeldForRelease);
+        Assert.Empty(scenario.DelayedQueue);
         Assert.Contains(HeldReleaseService.BuildRundown(scenario, engine.World), h => h.Callsign == "SWA2");
     }
 

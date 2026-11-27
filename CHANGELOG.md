@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- `HFROFF <airport> <minutes>` releases the held departures one every N minutes until they are back on schedule.
+
 ### Changed
 
+- Under HFR, the first due runway departure spawns on time, held at its hold-short, and HFROFF keeps the scenario's spacing instead of bunching them.
 - A RUNDOWN entry's Modify… opens with the entry's current message filled in and selected, on the Radar and in the Rundowns window.
 
 ### Fixed

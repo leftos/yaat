@@ -993,7 +993,7 @@ public static class CommandDescriber
             SpawnNowCommand => "SPAWN",
             SpawnDelayCommand cmd => $"SPAWNDELAY {cmd.Seconds}",
             HoldForReleaseCommand cmd => $"HFR {cmd.Airport}",
-            DisarmHoldForReleaseCommand cmd => $"HFROFF {cmd.Airport}",
+            DisarmHoldForReleaseCommand cmd => cmd.IntervalSeconds is int every ? $"HFROFF {cmd.Airport} {every / 60}" : $"HFROFF {cmd.Airport}",
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is int iv ? $"REL {cmd.Target} {iv}" : $"REL {cmd.Target}",
             ActiveRunwaysCommand cmd => FormatActiveRunwaysCanonical(cmd),
             CfrDepartureCommand cfr => cfr.Action switch
@@ -1517,7 +1517,9 @@ public static class CommandDescriber
             SpawnNowCommand => "Spawn now",
             SpawnDelayCommand cmd => $"Set spawn delay to {cmd.Seconds} s",
             HoldForReleaseCommand cmd => $"Hold for release: {cmd.Airport}",
-            DisarmHoldForReleaseCommand cmd => $"Disarm hold for release: {cmd.Airport}",
+            DisarmHoldForReleaseCommand cmd => cmd.IntervalSeconds is int every
+                ? $"Disarm hold for release: {cmd.Airport}, one every {every / 60} min"
+                : $"Disarm hold for release: {cmd.Airport}",
             ActiveRunwaysCommand cmd => DescribeActiveRunways(cmd),
             ReleaseDepartureCommand cmd => cmd.IntervalSeconds is not null
                 ? $"Release {cmd.Target} departures, spaced"

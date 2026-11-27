@@ -7,7 +7,7 @@
 > answer "how did this aircraft reach this state at t=0".
 
 > **Related:** [`hold-for-release.md`](hold-for-release.md) covers how hold-for-release gates the spawn/queue path — a held
-> runway/airborne departure is skipped in `ProcessDelayedSpawns`, and a held ground departure is marked at spawn.
+> airborne departure is skipped in `ProcessDelayedSpawns`, the earliest due held runway departure per field spawns held at its runway's bar (`HeldRunwaySpawnBuilder`), and a held ground departure is marked at spawn.
 
 A spawn-state bug almost always traces back to *how* the aircraft was constructed at spawn, and that answer is split across two
 pipelines that share almost no code:
@@ -911,6 +911,7 @@ ScenarioValidator.cs           # Offline scenario checks (preset parse, SID/STAR
                                # Detects outdated procedure versions (VersionChanged) and missing procedures (NotFound)
 AircraftInitializer.cs         # InitializeOnRunway/AtParking/OnFinal → PhaseInitResult; FinalApproachPoint = the on-final position + glide-path altitude InitializeOnFinal and the generator spawn-clear check share
 DepartureSpawnClassifier.cs    # IsHeldSpawnCandidate(loaded) — classifies a departure for hold-for-release spawn-gating
+HeldRunwaySpawnBuilder.cs      # PlaceHeld(state): rebuilds a held runway departure holding short at its runway's lineup bar (lined up, held, with no bar); FindDepartureBar
 AircraftGenerator.cs           # SpawnRequest → AircraftState (runtime spawn generator); CategoryFor(EngineKind) = the category every pool type for an engine kind must categorize as
 GeneratorActivation.cs         # IsActive(config, elapsed) = Enabled ?? time window; the single per-tick activation gate
 HemisphericAltitude.cs         # 14 CFR 91.159(a) VFR cruising altitudes: snap a level overflight to odd/even+500 by course

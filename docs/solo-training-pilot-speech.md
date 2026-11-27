@@ -312,7 +312,7 @@ In an RPO room nothing below departs on its own: a towered or VFR spawn holds li
 
   It holds for release (`Ground.HeldForRelease`, so it shows in the release rundown and `REL` finds it) and records a `Release` pending request.
 
-  `REL` or `HFROFF` answers it, and the departure then takes off on the line-up-and-wait auto-clearance after the 5–20 s release jitter ([hold-for-release.md](hold-for-release.md)). The request is not the pilot's initial contact (it does not call `MarkInitialContact`), so the airborne check-in still follows the takeoff. With no ARTCC config loaded the field counts as untowered.
+  Under `HFR` the spawn is held at its runway's lineup hold-short bar instead of lined up (a `SAY`-only one makes no ready call there), and asks from the bar the same way ([hold-for-release.md](hold-for-release.md)). `REL` or `HFROFF` answers it, and the departure then takes off on the line-up-and-wait auto-clearance after the 5–20 s release jitter ([hold-for-release.md](hold-for-release.md)). The request is not the pilot's initial contact (it does not call `MarkInitialContact`), so the airborne check-in still follows the takeoff. With no ARTCC config loaded the field counts as untowered.
 
   Under a student working neither a radar position nor the tower there (GND or DEL), the spawn makes no call and waits lined up, silent, for its release as a `CTO` from whoever works the overlying approach or center (the student working it, or the RPO).
 - A spawn released through the hold-for-release spawn gate (`Ground.ReleasedAtSpawnGate`) already has its release and never asks for one: at an untowered field an IFR one starts the released departure's clock as soon as it is lined up and departs after the release jitter; a towered or VFR one departs as above.

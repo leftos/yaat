@@ -155,12 +155,94 @@ public class HeldReleaseServiceTests
         world.AddAircraft(ac);
         HeldReleaseService.Arm(scenario, world, "SJC");
 
-        HeldReleaseResult result = HeldReleaseService.Disarm(scenario, world, "SJC");
+        HeldReleaseResult result = HeldReleaseService.Disarm(scenario, world, "SJC", null);
 
         Assert.True(result.Success);
         Assert.False(HeldReleaseService.IsAirportArmed(scenario, "SJC"));
         Assert.False(ac.Ground.HeldForRelease);
         Assert.True(ac.Ground.ReleasedForDeparture);
+    }
+
+    /// <summary>A held departure that taxied to its bar, began holding at 480 s (spawned at 0) and is released at 730 s.</summary>
+    private static AircraftState HoldingAtTheBarSince480(SimulationWorld world)
+    {
+        var holding = new HoldingShortPhase(
+            new HoldShortPoint
+            {
+                NodeId = 1,
+                Reason = HoldShortReason.DestinationRunway,
+                TargetName = "30R",
+            },
+            HoldShortArrival.HeldShort
+        )
+        {
+            ElapsedSeconds = 250,
+        };
+        AircraftState ac = GroundDeparture("N1", "KSJC", holding, vfr: false, spawnedAt: 0);
+        world.AddAircraft(ac);
+        return ac;
+    }
+
+    [Fact]
+    public void Disarm_KeepSpacing_AnchorsOnWhenTheBarAircraftBeganHolding()
+    {
+        SimScenarioState scenario = NewScenario(elapsed: 730);
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
+        HoldingAtTheBarSince480(world);
+        scenario.DelayedQueue.Add(
+            new DelayedSpawn
+            {
+                Aircraft = RunwaySpawn("N5", "KSJC"),
+                SpawnAtSeconds = 600,
+                HeldForRelease = true,
+            }
+        );
+        HeldReleaseService.Arm(scenario, world, "SJC");
+
+        Assert.True(HeldReleaseService.Disarm(scenario, world, "SJC", null).Success);
+
+        // D = 730 - 480 = 250: the hold began when it reached the bar, not when it spawned at its gate.
+        Assert.Equal(850, scenario.DelayedQueue.Single().SpawnAtSeconds);
+    }
+
+    [Fact]
+    public void Disarm_KeepSpacing_NeverSchedulesAReleasedSpawnBeforeTheHfroff()
+    {
+        SimScenarioState scenario = NewScenario(elapsed: 730);
+        var world = new SimulationWorld(PushPlanStore.CreateShipped());
+        HoldingAtTheBarSince480(world);
+        var phases = new PhaseList();
+        phases.Add(new InitialClimbPhase());
+        var airborne = new LoadedAircraft
+        {
+            State = new AircraftState
+            {
+                Callsign = "N6",
+                AircraftType = "B738",
+                IsOnGround = false,
+                FlightPlan = new AircraftFlightPlan
+                {
+                    Departure = "KSJC",
+                    Destination = "KLAX",
+                    FlightRules = "IFR",
+                },
+                Phases = phases,
+            },
+        };
+        scenario.DelayedQueue.Add(
+            new DelayedSpawn
+            {
+                Aircraft = airborne,
+                SpawnAtSeconds = 300,
+                HeldForRelease = true,
+            }
+        );
+        HeldReleaseService.Arm(scenario, world, "SJC");
+
+        Assert.True(HeldReleaseService.Disarm(scenario, world, "SJC", null).Success);
+
+        // 300 + 250 = 550 would be in the past: a released spawn is never scheduled before the HFROFF.
+        Assert.Equal(730, scenario.DelayedQueue.Single().SpawnAtSeconds);
     }
 
     [Fact]
@@ -240,6 +322,23 @@ public class HeldReleaseServiceTests
 
         return HeldReleaseService.BuildRundown(scenario, world).Single().Status;
     }
+
+    [Fact]
+    public void Rundown_HoldingShort_ReadsHoldingShortHeld() =>
+        Assert.Equal(
+            "Holding short (held)",
+            RundownStatusFor(
+                new HoldingShortPhase(
+                    new HoldShortPoint
+                    {
+                        NodeId = 1,
+                        Reason = HoldShortReason.DestinationRunway,
+                        TargetName = "30R",
+                    },
+                    HoldShortArrival.HeldShort
+                )
+            )
+        );
 
     [Fact]
     public void Rundown_AtParking_ReadsAtGate() => Assert.Equal("At gate (held)", RundownStatusFor(new AtParkingPhase()));

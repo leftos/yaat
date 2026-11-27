@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Simulation;
 
@@ -93,18 +95,27 @@ public static class HeldReleaseService
         return new HeldReleaseResult(true, $"Hold for release armed at {normalized}{suffix}");
     }
 
+    /// <summary>Gap (s) the keep-spacing <c>HFROFF</c> never squeezes successive departures under.</summary>
+    public const int MinimumSpacingSeconds = 120;
+
     /// <summary>
-    /// Disarm an airport; auto-releases the held ground departures there and the queued spawns already due. A queued spawn
-    /// not yet due keeps its hold candidacy, so it spawns on schedule while the field is disarmed, and a later arm at the
-    /// field holds it again. "(N released)" counts only the departures this call released.
+    /// Disarm an airport (<c>HFROFF</c>); releases the held ground departures there at once and reschedules its queued held
+    /// spawns. The held departure at the bar (or lined up) is released now, and the queued spawns already due are released
+    /// through the spawn gate with new times: with no <paramref name="intervalSeconds"/> each moves later by the hold's length
+    /// (keep spacing), with one they follow one every interval (catch up). A queued spawn not yet due keeps its hold candidacy
+    /// and moves only as far as the gap before it requires (<see cref="MinimumSpacingSeconds"/>, or the interval). No RNG.
+    /// "(N released)" counts only the departures this call released.
     /// </summary>
-    public static HeldReleaseResult Disarm(SimScenarioState scenario, SimulationWorld world, string airport)
+    public static HeldReleaseResult Disarm(SimScenarioState scenario, SimulationWorld world, string airport, int? intervalSeconds)
     {
         string normalized = airport.Trim().ToUpperInvariant();
         if (!scenario.HeldDepartureAirports.Remove(normalized))
         {
             return new HeldReleaseResult(false, $"{normalized} is not armed for hold for release");
         }
+
+        // The held departure waiting at the bar anchors the schedule: its hold began when it started holding there.
+        double? atTheBarSince = HeldAtTheRunway(world, normalized) is { } atTheBar ? HoldBegan(atTheBar, scenario.ElapsedSeconds) : null;
 
         // Released ground departures: clear the flag and authorize roll.
         int released = 0;
@@ -117,29 +128,77 @@ public static class HeldReleaseService
             }
         }
 
-        // Queued held spawns at this airport that are already due become spawn-eligible immediately (the armed-set check in
-        // ProcessDelayedSpawns now returns false). Release each through the spawn gate as REL would, so a runway spawn
-        // already has its release and never asks the student for one once it lines up (ReleaseOneCore does the same). A
-        // spawn not yet due keeps its candidacy: it spawns on schedule while the field is disarmed, and a later arm holds it.
-        foreach (DelayedSpawn entry in scenario.DelayedQueue)
-        {
-            if (
-                (entry.HeldForRelease)
-                && (entry.SpawnAtSeconds <= scenario.ElapsedSeconds)
-                && (AirportMatches(DepartureAirportOf(entry.Aircraft.State), normalized))
-            )
-            {
-                entry.HeldForRelease = false;
-                entry.Aircraft.State.Ground.ReleasedAtSpawnGate = true;
-                released++;
-            }
-        }
+        released += RescheduleHeldSpawns(scenario, normalized, atTheBarSince, intervalSeconds);
 
         // Drop any pending scheduled releases for the field.
         scenario.ReleaseQueue.RemoveAll(r => AirportMatches(r.Airport, normalized));
 
         string suffix = released > 0 ? $" ({released} released)" : "";
         return new HeldReleaseResult(true, $"Hold for release disarmed at {normalized}{suffix}");
+    }
+
+    /// <summary>
+    /// When <paramref name="ac"/>, held at the bar or lined up, began holding there: now minus the time its current phase has
+    /// run, and never before it spawned (the phase clock starts counting a tick off the spawn).
+    /// </summary>
+    private static double HoldBegan(AircraftState ac, double now) =>
+        Math.Max(ac.SpawnedAtSeconds, now - (ac.Phases?.CurrentPhase?.ElapsedSeconds ?? 0));
+
+    /// <summary>
+    /// Rewrites the spawn times of <paramref name="airport"/>'s queued held spawns at an <c>HFROFF</c> at R (the elapsed time).
+    /// The released set is the held departure at the bar (original time <paramref name="atTheBarSince"/>, released at R) then
+    /// the queued ones already due; the later set is the queued ones not yet due; each in (scheduled time, queue order). Keep
+    /// spacing shifts each due one by D = R minus when the hold began (the bar aircraft began holding, else the first due one's
+    /// time), never to before R; catch up gives the k-th released one R + k * interval. Each later one gets max(its time, the previous new time + gap). The due ones are released through
+    /// the spawn gate as REL would (a runway spawn then never asks for its release); the later ones keep their candidacy.
+    /// Returns the number released.
+    /// </summary>
+    private static int RescheduleHeldSpawns(SimScenarioState scenario, string airport, double? atTheBarSince, int? intervalSeconds)
+    {
+        double now = scenario.ElapsedSeconds;
+        List<DelayedSpawn> candidates = HeldCandidatesInOrder(scenario, airport);
+        List<DelayedSpawn> due = candidates.FindAll(e => e.SpawnAtSeconds <= now);
+        List<DelayedSpawn> later = candidates.FindAll(e => e.SpawnAtSeconds > now);
+        double? previous = ReleaseDueSpawns(due, now, atTheBarSince, intervalSeconds);
+        if (previous is not { } prior)
+        {
+            return due.Count;
+        }
+
+        int gap = intervalSeconds ?? MinimumSpacingSeconds;
+        int last = (int)Math.Round(prior);
+        foreach (DelayedSpawn entry in later)
+        {
+            entry.SpawnAtSeconds = Math.Max(entry.SpawnAtSeconds, last + gap);
+            last = entry.SpawnAtSeconds;
+        }
+
+        return due.Count;
+    }
+
+    /// <summary>
+    /// Gives each due spawn its new time and releases it through the spawn gate; returns the last new time of the released set
+    /// (R itself when only the departure at the bar was released), or null when nothing was released.
+    /// </summary>
+    private static double? ReleaseDueSpawns(List<DelayedSpawn> due, double now, double? atTheBarSince, int? intervalSeconds)
+    {
+        double? previous = atTheBarSince is null ? null : now;
+        double? firstQueuedOriginal = due.Count > 0 ? due[0].SpawnAtSeconds : null;
+        double holdBegan = atTheBarSince ?? firstQueuedOriginal ?? now;
+        double shift = now - holdBegan;
+        int k = atTheBarSince is null ? 0 : 1;
+        foreach (DelayedSpawn entry in due)
+        {
+            double newTime = intervalSeconds is { } interval ? now + (k * interval) : entry.SpawnAtSeconds + shift;
+            // Never before the HFROFF itself: an entry due before the hold began would otherwise land in the past.
+            entry.SpawnAtSeconds = (int)Math.Round(Math.Max(newTime, now));
+            entry.HeldForRelease = false;
+            entry.Aircraft.State.Ground.ReleasedAtSpawnGate = true;
+            previous = entry.SpawnAtSeconds;
+            k++;
+        }
+
+        return previous;
     }
 
     /// <summary>
@@ -285,6 +344,13 @@ public static class HeldReleaseService
         aircraft.Ground.HeldForRelease = false;
         aircraft.Ground.ReleasedForDeparture = true;
         aircraft.Ground.ReleasedAtSeconds = elapsedSeconds;
+        // A lined-up runway spawn with no preset held at spawn (its runway has no bar) leaves as one released through the
+        // spawn gate: it never asks for the release it now has, and departs as such a spawn does.
+        if ((aircraft.Phases?.CurrentPhase is LinedUpAndWaitingPhase) && (aircraft.Ground.InitialCallup == InitialCallupPlan.RunwayNoPreset))
+        {
+            aircraft.Ground.ReleasedAtSpawnGate = true;
+        }
+
         if (!PilotRequestTracker.SatisfyOpenRequest(aircraft, PilotPendingRequestKind.Release, elapsedSeconds))
         {
             return;
@@ -380,7 +446,7 @@ public static class HeldReleaseService
     private static string GroundHoldStatus(AircraftState ac) =>
         ac.Phases?.CurrentPhase switch
         {
-            HoldingShortPhase => "Holding short",
+            HoldingShortPhase => "Holding short (held)",
             TaxiingPhase => "Taxiing (held)",
             AtParkingPhase => "At gate (held)",
             PushbackPhase or TugReleasePhase => "Pushing back (held)",
@@ -395,6 +461,92 @@ public static class HeldReleaseService
     /// </summary>
     public static bool IsSpawnHeld(SimScenarioState scenario, DelayedSpawn entry) =>
         entry.HeldForRelease && IsAirportArmed(scenario, DepartureAirportOf(entry.Aircraft.State));
+
+    /// <summary>
+    /// The held runway departures that spawn this tick held at their runway's bar (or lined up, held, where the runway has no
+    /// bar): per armed field, the earliest due held runway candidate, by scheduled time then queue order, while no held
+    /// departure of that field waits at a bar or on the runway and the place it would take is clear. Airborne-start candidates
+    /// are never chosen: they stay gated until released. Derived from the queue and the world only, so a replay chooses alike.
+    /// </summary>
+    public static HashSet<DelayedSpawn> SelectHeldRunwaySpawns(SimScenarioState scenario, SimulationWorld world)
+    {
+        var chosen = new HashSet<DelayedSpawn>();
+        if (scenario.HeldDepartureAirports.Count == 0)
+        {
+            return chosen;
+        }
+
+        var decided = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DelayedSpawn entry in HeldCandidatesInOrder(scenario, airport: null))
+        {
+            AircraftState state = entry.Aircraft.State;
+            if ((entry.SpawnAtSeconds > scenario.ElapsedSeconds) || (!IsSpawnHeld(scenario, entry)) || (!IsRunwayStart(state)))
+            {
+                continue;
+            }
+
+            if ((decided.Add(StripIcaoK(DepartureAirportOf(state)))) && (IsSpawnPlaceFree(world, state)))
+            {
+                chosen.Add(entry);
+            }
+        }
+
+        return chosen;
+    }
+
+    /// <summary>The queued hold candidates, at <paramref name="airport"/> when given, by scheduled time then queue order.</summary>
+    private static List<DelayedSpawn> HeldCandidatesInOrder(SimScenarioState scenario, string? airport) =>
+        [
+            .. scenario
+                .DelayedQueue.Select((entry, index) => (entry, index))
+                .Where(p => (p.entry.HeldForRelease) && ((airport is null) || AirportMatches(DepartureAirportOf(p.entry.Aircraft.State), airport)))
+                .OrderBy(p => p.entry.SpawnAtSeconds)
+                .ThenBy(p => p.index)
+                .Select(p => p.entry),
+        ];
+
+    private static bool IsRunwayStart(AircraftState state) => state.Phases?.CurrentPhase is LinedUpAndWaitingPhase;
+
+    /// <summary>
+    /// True when <paramref name="state"/> may spawn held now: no held departure of its field waits at a bar or on the runway, and
+    /// no aircraft holds short at the bar it would take (or, with no bar, is lined up on its runway).
+    /// </summary>
+    private static bool IsSpawnPlaceFree(SimulationWorld world, AircraftState state)
+    {
+        string airport = DepartureAirportOf(state);
+        GroundNode? bar = HeldRunwaySpawnBuilder.FindDepartureBar(state);
+        foreach (AircraftState ac in world.GetSnapshot())
+        {
+            if ((ac.IsOnGround) && ((IsHeldAtTheRunway(ac, airport)) || (OccupiesSpawnPlace(ac, state, bar))))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>The held departure of <paramref name="airport"/> waiting at a bar or lined up, if any; the earliest spawned first.</summary>
+    private static AircraftState? HeldAtTheRunway(SimulationWorld world, string airport) =>
+        world.GetSnapshot().Where(ac => (ac.IsOnGround) && IsHeldAtTheRunway(ac, airport)).OrderBy(ac => ac.SpawnedAtSeconds).FirstOrDefault();
+
+    private static bool IsHeldAtTheRunway(AircraftState ac, string airport) =>
+        (ac.Ground.HeldForRelease)
+        && (ac.Phases?.CurrentPhase is HoldingShortPhase or LinedUpAndWaitingPhase)
+        && AirportMatches(DepartureAirportOf(ac), airport);
+
+    private static bool OccupiesSpawnPlace(AircraftState ac, AircraftState spawning, GroundNode? bar) =>
+        ac.Phases?.CurrentPhase switch
+        {
+            HoldingShortPhase holding => (bar is not null)
+                && (holding.HoldShort.NodeId == bar.Id)
+                && AirportMatches(DepartureAirportOf(ac), DepartureAirportOf(spawning)),
+            LinedUpAndWaitingPhase => (bar is null)
+                && (ac.Phases.AssignedRunway?.Designator is { } runway)
+                && (runway == spawning.Phases?.AssignedRunway?.Designator)
+                && AirportMatches(DepartureAirportOf(ac), DepartureAirportOf(spawning)),
+            _ => false,
+        };
 
     /// <summary>
     /// If <paramref name="ac"/> is a holdable IFR ground departure whose airport is armed, mark it

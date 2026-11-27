@@ -121,7 +121,7 @@ public class ReleasedDepartureLineUpE2ETests
         Assert.Single(scenario.PresetQueue, p => p.Command == "CTO");
 
         HeldReleaseResult released = releaseByHfrOff
-            ? HeldReleaseService.Disarm(scenario, run.Engine.World, "KOAK")
+            ? HeldReleaseService.Disarm(scenario, run.Engine.World, "KOAK", null)
             : HeldReleaseService.Release(scenario, run.Engine.World, run.Engine.World.Rng, "SWA1234", null);
         Assert.True(released.Success, released.Message);
 
@@ -150,7 +150,7 @@ public class ReleasedDepartureLineUpE2ETests
 
         SimScenarioState scenario = run.Engine.Scenario!;
         HeldReleaseResult released = releaseByHfrOff
-            ? HeldReleaseService.Disarm(scenario, run.Engine.World, "KOAK")
+            ? HeldReleaseService.Disarm(scenario, run.Engine.World, "KOAK", null)
             : HeldReleaseService.Release(scenario, run.Engine.World, run.Engine.World.Rng, "SWA1234", null);
         Assert.True(released.Success, released.Message);
 

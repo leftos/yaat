@@ -1506,8 +1506,12 @@ public record SpawnDelayCommand(int Seconds) : ParsedCommand;
 /// <summary>Arm hold-for-release for an airport's IFR departures (<c>HFR &lt;airport&gt;</c>).</summary>
 public record HoldForReleaseCommand(string Airport) : ParsedCommand;
 
-/// <summary>Disarm hold-for-release for an airport (<c>HFROFF &lt;airport&gt;</c>); auto-releases anything still held.</summary>
-public record DisarmHoldForReleaseCommand(string Airport) : ParsedCommand;
+/// <summary>
+/// Disarm hold-for-release for an airport (<c>HFROFF &lt;airport&gt; [minutes]</c>); releases anything still held and reschedules the
+/// queued held departures: keeping their spacing, or, with <paramref name="IntervalSeconds"/>, one every interval until back on
+/// schedule.
+/// </summary>
+public record DisarmHoldForReleaseCommand(string Airport, int? IntervalSeconds) : ParsedCommand;
 
 /// <summary>
 /// Set, clear or show an airport's active runways (<c>ARWY [airport] {runway}…</c>). <paramref name="AirportId"/> is

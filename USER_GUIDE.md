@@ -2190,14 +2190,15 @@ This is not the same as **Jump to start** (⏮) on the timeline, which rewinds t
 
 ### Hold for Release
 
-Model the departure-release coordination a TRACON provides to satellite towered airports: an IFR departure can't take off until you release it. Type `HFR <airport>` (e.g. `HFR SJC`) to arm a field — its IFR departures are then **held**. A departure that would appear airborne or lined up on the runway stays off-scope until released; a departure taxiing out **holds short** of the runway rather than taking it. VFR departures are never held.
+Model the departure-release coordination a TRACON provides to satellite towered airports: an IFR departure can't take off until you release it. Type `HFR <airport>` (e.g. `HFR SJC`) to arm a field — its IFR departures are then **held**. A departure that would appear airborne stays off-scope until released; one that would appear lined up on the runway appears on time, held at its runway's hold-short bar (or lined up where there is none), one at a time per field; a departure taxiing out **holds short** of the runway rather than taking it. VFR departures are never held.
 
 Release them in any of these ways:
 
 - `REL <airport>` (or `CTOA <airport>`) — release the next pending departure at that field.
 - `REL <callsign>` — release a specific aircraft (also available as the first icon of the aircraft's right-click menu strip, on the radar, ground view and aircraft list).
 - `REL <airport> <minutes>` — release the field's whole held queue, auto-spaced by that many minutes (e.g. `REL SJC 2`).
-- `HFROFF <airport>` — disarm the field; the held departures and the queued spawns already due are auto-released, and one not yet due keeps its schedule and is held again by a later `HFR`.
+- `HFROFF <airport>` — disarm the field; the held departures and the queued spawns already due are released, keeping their spacing (the delayed ones move later by the hold's length, at least 2 minutes apart), and one not yet due is held again by a later `HFR`.
+- `HFROFF <airport> <minutes>` (1-30) — the same, releasing one every that many minutes until back on schedule (e.g. `HFROFF SJC 2`).
 
 **View > Bars > Rundowns…** (right after **Notes…**) opens the **Rundowns** window, or brings it forward when it is already open; its geometry is saved, and the preferences reopen it at the next launch. The window shows one section per STARS coordination (RD) list that has items, headed by the list's title (or its id), each row one monospace line in CRC's green or yellow with countdowns updating every second. Right-click a row for the same coordination menu as the Radar view's RUNDOWN list. Below, a **Hold for release** section (shown while a field is armed) lists each armed field with **Release next** and each held departure with **Release**. With nothing to show the window reads **No active rundowns**. Released aircraft don't appear instantly — they take off after a short, realistic delay.
 

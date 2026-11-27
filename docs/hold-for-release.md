@@ -1,6 +1,6 @@
 # Hold for Release (HFR / REL)
 
-**Read before touching** `HeldReleaseService`, `DepartureSpawnClassifier`, the hold-for-release gates in `CommandDispatcher` / `TaxiingPhase` / `SimulationEngine`, the `RundownDto` broadcast, `RunwaySpawnCall`'s release request, or any `HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSpawnGate` field.
+**Read before touching** `HeldReleaseService`, `HeldRunwaySpawnBuilder`, `DepartureSpawnClassifier`, the hold-for-release gates in `CommandDispatcher` / `TaxiingPhase` / `SimulationEngine`, the `RundownDto` broadcast, `RunwaySpawnCall`'s release request, or any `HeldForRelease` / `ReleasedForDeparture` / `ReleasedAtSpawnGate` field.
 
 Companion to [`scenario-loading-and-generation.md`](scenario-loading-and-generation.md) (spawn pipelines), [`phases.md`](phases.md) (HoldingShortPhase), [`command-pipeline.md`](command-pipeline.md) (group-command routing), [`training-hub-contract.md`](training-hub-contract.md) (the broadcast), and [`solo-training-pilot-speech.md`](solo-training-pilot-speech.md) (the runway spawns' release request).
 
@@ -20,8 +20,8 @@ airborne._** Everything below is bookkeeping around that one idea.
 
 **Spawn-state-aware hold.** HFR gates the *moment of becoming airborne*, never ground movement:
 
-- A departure that spawns **airborne or lined up on the runway** has its **spawn** gated — it appears
-  on the scope only when released (then climbs out / rolls).
+- A departure that spawns **airborne** has its **spawn** gated — it appears on the scope only when released (then climbs out).
+- A departure that spawns **lined up on the runway** spawns on time, **held**: at its runway's lineup hold-short bar (`HeldRunwaySpawnBuilder`), or lined up where the runway has no bar or the field no layout. One at a time per airport: the earliest due one spawns, the next once the bar is clear.
 - A departure that spawns at **parking / taxiway** spawns and taxis normally to the runway, then
   **holds short** of it (the existing `HoldingShortPhase`) — it never takes the runway while held, so
   it doesn't block arrivals/crossings. Only runway *entry* (LUAW / takeoff) is withheld.
@@ -48,14 +48,14 @@ and broadcasts). `HeldReleaseService` is the only writer.
 `DepartureSpawnClassifier.IsHeldSpawnCandidate(loaded)`
 (`Yaat.Sim/Scenarios/DepartureSpawnClassifier.cs`) returns true for an IFR departure whose
 `CurrentPhase` is `LinedUpAndWaitingPhase` (on the runway) or `InitialClimbPhase` while airborne
-(climbing out) — those are the spawn-gated cases. Parking/taxiway departures return false and are
+(climbing out) — those are the candidates. Of them only the airborne ones stay spawn-gated until released; a lined-up one spawns held at the bar when its turn comes (below). Parking/taxiway departures return false and are
 handled by the per-aircraft ground flag instead.
 
 ## The two gates
 
 ### Spawn gate — `SimulationEngine.ProcessDelayedSpawns`
-A held runway/airborne departure is skipped while its airport is armed
-(`HeldReleaseService.IsSpawnHeld(scenario, entry)`), so it never enters the world. When a ground
+A held airborne departure is skipped while its airport is armed
+(`HeldReleaseService.IsSpawnHeld(scenario, entry)`), so it never enters the world. A held runway departure is skipped too, except the one `HeldReleaseService.SelectHeldRunwaySpawns` picks per armed airport each tick: the earliest due (scheduled time, then queue order) while no held departure of that field waits at a bar or on the runway and the bar it would take is clear. `ProcessDelayedSpawns` spawns that one on time and `HeldRunwaySpawnBuilder.PlaceHeld` rebuilds it holding short at the bar of its assigned runway (the bar `GroundCommandHandler.ResolveRunwayHoldShortNode` picks), stopped and facing the runway, with `Ground.HeldForRelease` set; the rundown status is "Holding short (held)". With no layout, no taxi graph or no bar for the runway it stays lined up, held ("Lined up (held)"). A `SAY`-only spawn at the bar makes no ready call (`HoldingShortPhase.SuppressReadyCall`): its `SAY` is its one transmission. When a ground
 departure spawns under an armed airport, `HeldReleaseService.MarkHeldOnSpawnIfArmed` sets its
 `Ground.HeldForRelease` so it will hold short. (The same load-time `HeldForRelease` marking is applied
 on the server in `ScenarioLifecycleService` and on the manual `SPAWN` path via `HandleSpawnNow`.)
@@ -95,7 +95,7 @@ So withholding runway-entry clearance keeps a held departure off the runway with
 
 `ReleaseOne` acts by spawn state:
 
-- **Held runway/airborne spawn** — clear `DelayedSpawn.HeldForRelease`, set `Ground.ReleasedAtSpawnGate`, and set `SpawnAtSeconds = Elapsed + Rng(20..60)` so `ProcessDelayedSpawns` spawns it shortly after (it appears climbing, or lined up on its runway — never on the release tick).
+- **Held airborne spawn** (or a queued runway spawn not yet spawned) — clear `DelayedSpawn.HeldForRelease`, set `Ground.ReleasedAtSpawnGate`, and set `SpawnAtSeconds = Elapsed + Rng(20..60)` so `ProcessDelayedSpawns` spawns it shortly after (it appears climbing, or lined up on its runway — never on the release tick).
 
   A runway spawn with no scripted takeoff then leaves as described under [Release requests from untowered runway spawns](#release-requests-from-untowered-runway-spawns): on its own in a solo room, on the RPO's `CTO` in an RPO room.
 - **Held ground departure** — `ReleaseHeldGroundDeparture`: clear `Ground.HeldForRelease`, set `ReleasedForDeparture = true` and `ReleasedAtSeconds`, and answer the aircraft's open `Release` pending request (`PilotRequestTracker.SatisfyOpenRequest`), if it made one, which also clears the frequency's awaiting-controller-response gate (`SimulationWorld.AcknowledgeControllerResponse`).
@@ -108,6 +108,8 @@ So withholding runway-entry clearance keeps a held departure off the runway with
 
   Any other released departure the controller lines up waits for the controller's own `CTO`. The jitter is FNV-1a over the callsign (`DeterministicHash`, no salt, no RNG state) so replays reproduce; the spawn jitter uses `World.Rng` (the deterministic `SerializableRandom`).
 
+A runway departure already spawned held at the bar, or lined up, is a held ground departure and takes this path; a lined-up one with no preset (`InitialCallupPlan.RunwayNoPreset`) is then also marked `ReleasedAtSpawnGate`, so it never asks for the release it has and departs as one released through the spawn gate. At a towered field the simulated tower clears it only once released (`ProcessRunwaySpawnAutoTakeoffs` skips a spawn that is `HeldForRelease`).
+
 In a solo room the two paths are uniform from the controller's view: *released → airborne shortly*. In an RPO room *released* means only that the hold is lifted; the RPO (or a preset) still launches the departure.
 
 ## Release requests from untowered runway spawns
@@ -118,6 +120,7 @@ This is `RunwaySpawnCall` ([solo-training-pilot-speech.md](solo-training-pilot-s
 
 - 5–10 s after lining up it says "{approach}, runway 25 at {airport}, ready for departure, request release." and `RunwaySpawnCall.TryRequestRelease` sets `Ground.HeldForRelease` and records a `Release` pending request. The aircraft is now a held ground departure: it shows in the rundown with the status "Lined up (held)", and `REL <callsign>`, `REL <airport>` or the Rundowns window finds it.
 - `REL` releases it through the held-ground-departure path above, and `HFROFF` at an armed field does the same for every aircraft it releases; both answer the open `Release` request (`ReleaseHeldGroundDeparture` → `PilotRequestTracker.SatisfyOpenRequest`), so its 120 s follow-up stops. Lined up and released, it gets the solo-room auto-`CTO` after the 5–20 s jitter, and makes its airborne check-in after takeoff (the request is not its initial contact).
+- Under HFR the same request is made from the bar: a held runway spawn at an untowered field under a radar student with no scripted takeoff asks for its release as above ("Holding short (held)" while it waits at the bar, "Lined up (held)" with no bar).
 - A runway spawn released through the **spawn gate** (`Ground.ReleasedAtSpawnGate`) never asks. In a solo room, at an untowered field an IFR one starts the released departure's clock as soon as it is lined up (`SimulationEngine.ProcessRunwaySpawnAutoTakeoffs` sets `ReleasedForDeparture` and `ReleasedAtSeconds`) and departs after the jitter; at a towered field the solo towered auto-takeoff applies.
 - In solo training with a student who does not work the tower at the field (`PilotContactRoster.StudentWorksTowerAt`), a VFR runway spawn at an untowered field asks for nothing and departs on its own (a release gates only the IFR clearance, as above), and a runway spawn at a towered field is cleared by the simulated tower. Under a student who works the tower there none of this applies: the spawn makes the usual lined-up call.
 - An IFR runway spawn at an untowered field under a student who works neither a radar position nor the tower there (GND or DEL) makes no request and never departs on its own: it waits lined up for its release as a `CTO` from whoever works the overlying approach or center (the student working it, or the RPO).
@@ -131,12 +134,13 @@ group commands** (`isGlobal=true`, like `TAXIALL`/`SQALL`) — the airport/calls
 | Verb | Canonical type | Effect |
 |---|---|---|
 | `HFR <airport>` | `HoldForRelease` | Arm hold-for-release; sweep current on-ground IFR departures at the field to held. |
-| `HFROFF <airport>` | `DisarmHoldForRelease` | Disarm; auto-release the held ground departures there and every queued spawn already due, answering any release request it made (the reply's "(N released)" counts only those). A queued spawn not yet due keeps its schedule and its hold candidacy, so a later `HFR` holds it again. A released ground departure then takes off by itself in a solo room; in an RPO room it waits for the RPO's `CTO` or its timed preset. |
+| `HFROFF <airport>` | `DisarmHoldForRelease` | Disarm; release the held ground departures there (the one at the bar or lined up included) and every queued spawn already due, answering any release request it made (the reply's "(N released)" counts only those). Keeps spacing: the departures the hold delayed move later by the hold's length (measured from when the bar aircraft began holding, else from the first due one's time), each later one to max(its time, the previous new time + `HeldReleaseService.MinimumSpacingSeconds`, 120 s), none before the `HFROFF`. A queued spawn not yet due keeps its hold candidacy, so a later `HFR` holds it again. A released ground departure then takes off by itself in a solo room; in an RPO room it waits for the RPO's `CTO` or its timed preset. |
+| `HFROFF <airport> <minutes>` | `DisarmHoldForRelease` (interval) | As `HFROFF`, but releases one departure every `<minutes>` (1-30) until back on schedule; the later ones keep at least that gap. Any other argument answers "HFROFF syntax: HFROFF {airport} [minutes 1-30]". |
 | `REL <airport>` / `CTOA <airport>` | `ReleaseDeparture` | Release the next-pending at the field (then as for `HFROFF`: solo rooms launch it, RPO rooms wait for `CTO` or a preset). |
 | `REL <callsign>` | `ReleaseDeparture` | Release a specific held departure. |
 | `REL <airport> <minutes>` | `ReleaseDeparture` (interval) | Release the whole field's queue auto-spaced. |
 
-Parsed by `CommandParser.ParseRelease`; the interval arg is **minutes**, stored as seconds. Routed in
+Parsed by `CommandParser.ParseRelease` (`HFROFF`: `ParseDisarmHoldForRelease`); the interval arg is **minutes**, stored as seconds. Routed in
 `RoomEngine.SendCommandAsync` (`HandleHfrArmCmd` / `HandleHfrDisarmCmd` / `HandleReleaseCmd`), which
 delegate to `HeldReleaseService` and then `BroadcastHeldDeparturesChanged`. `REL <callsign>` vs
 `REL <airport>` is disambiguated inside `HeldReleaseService.Release` against the held set.
@@ -146,7 +150,7 @@ delegate to `HeldReleaseService` and then `BroadcastHeldDeparturesChanged`. `REL
 The armed-airports set + held departures are **dynamic per-room state**, broadcast like
 `ArrivalGeneratorsChanged` (not folded into `SessionSettingsDto`):
 
-- `HeldReleaseService.BuildRundown(scenario, world)` unions held runway/airborne spawns (from
+- `HeldReleaseService.BuildRundown(scenario, world)` unions held airborne spawns (from
   `DelayedQueue`) with held ground departures (from the world), grouped by airport and ordered so the
   first entry per field is the next-pending release.
 - `TrainingBroadcastService.BuildRundown(room)` projects that into the wire `RundownDto`
@@ -224,7 +228,7 @@ via `AircraftGroundOps`, so a rewind reproduces it, but replaying a recording ne
 ## Footguns
 
 - **Disarm auto-releases the field.** `HFROFF` (and the spawn gate's `Contains` check going false)
-  releases the held ground departures there and the queued spawns already due — call it out, it's intentional. Every due spawn is released at once and they spawn together on the next tick. A queued spawn not yet due is left alone: it spawns on schedule while the field is disarmed, and a later `HFR` holds it again.
+  releases the held ground departures there and the queued spawns already due — call it out, it's intentional. The due spawns get new times (`HeldReleaseService.Disarm` → `RescheduleHeldSpawns`, no RNG) instead of all spawning on the next tick. A queued spawn not yet due keeps its candidacy and moves only as far as the gap before it requires: it spawns while the field is disarmed, and a later `HFR` holds it again.
 - **`DelayedSpawn.HeldForRelease` is set only at load.** Nothing re-derives it, so any writer that clears it for an entry that was not actually released makes that entry unholdable until the scenario reloads (`Disarm` once did this to every queued entry, so after `HFR`, `HFROFF`, `HFR` the queued runway departures were never held again).
 - **Arming after a clearance is already in hand doesn't retroactively yank it.** The arm sweep only
   holds pre-runway ground departures (`AtParking`/`Pushback`/`TugRelease`/`HoldingAfterPushback`/`Taxiing`/`HoldingShort`, `IsHoldableGroundDeparture`); one already

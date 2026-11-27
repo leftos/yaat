@@ -608,7 +608,8 @@ internal static class ActionArms
             return ActionRefusals.NoScenario();
         }
 
-        HeldReleaseResult disarmed = HeldReleaseService.Disarm(scenario, ctx.Engine.World, ((DisarmHoldForReleaseCommand)ctx.Parsed!).Airport);
+        var command = (DisarmHoldForReleaseCommand)ctx.Parsed!;
+        HeldReleaseResult disarmed = HeldReleaseService.Disarm(scenario, ctx.Engine.World, command.Airport, command.IntervalSeconds);
         return HeldDeparturesChanged(ctx, disarmed);
     }
 

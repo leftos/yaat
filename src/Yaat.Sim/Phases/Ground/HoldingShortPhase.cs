@@ -55,6 +55,12 @@ public sealed class HoldingShortPhase(HoldShortPoint holdShort, HoldShortArrival
     /// </summary>
     internal void RebindHoldShort(HoldShortPoint holdShort) => _holdShort = holdShort;
 
+    /// <summary>
+    /// Marks the ready-for-departure call as made before the phase starts, so it never makes it: for a SAY-only runway spawn
+    /// placed at its bar under hold for release, whose SAY is its one transmission.
+    /// </summary>
+    internal void SuppressReadyCall() => _hasAnnouncedReady = true;
+
     public override string Name =>
         _holdShort.TargetName is { } target ? $"Holding Short {_displayEnd ?? HoldShortTarget.Describe(target)}" : "Holding Short";
 

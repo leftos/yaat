@@ -3,6 +3,7 @@ using Yaat.Sim.Commands;
 using Yaat.Sim.ControllerAi;
 using Yaat.Sim.Data.Airport.Precompute;
 using Yaat.Sim.Data.Vnas;
+using Yaat.Sim.Phases.Ground;
 using Yaat.Sim.Phases.Tower;
 using Yaat.Sim.Pilot;
 using Yaat.Sim.Simulation;
@@ -21,6 +22,13 @@ public class RunwaySpawnCallE2ETests
 {
     private static readonly Spawn Fat = new("FAT", "29R", "AAL1828", "B738", "IFR", 0);
     private static readonly Spawn Aun = new("AUN", "25", "N513SJ", "C421", "IFR", 0);
+
+    // A first IFR departure due before the subject at the same field, so under hold for release it is the one that spawns
+    // held (at the bar, or lined up where the field has no bar) and the subject stays queued behind it. Its SAY preset keeps
+    // it from making a lined-up call or asking for its own release.
+    private static readonly Spawn FatFirst = new("FAT", "29R", "AAL1827", "B738", "IFR", 5);
+    private static readonly Spawn AunFirst = new("AUN", "25", "N512SJ", "C421", "IFR", 5);
+    private static readonly (string Command, int Offset)[] FirstPresets = [("SAY GOOD DAY", 0)];
 
     private readonly ArtccConfigRoot? _zoa = TestArtccConfig.LoadZoa();
 
@@ -173,7 +181,7 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void NoPreset_ApproachStudent_TowerField_RpoRoomWithAiTower_KeepsTodaysAutomaticPath()
     {
-        if (Prepare(Fat, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Fat, "FAT_F_APP", "APP", [], null) is not { } prepared)
         {
             return;
         }
@@ -211,7 +219,7 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void NoPreset_ApproachStudent_TowerField_RpoRoom_WaitsLinedUpForTheRpoTakeoffClearance()
     {
-        if (Prepare(Fat, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Fat, "FAT_F_APP", "APP", [], null) is not { } prepared)
         {
             return;
         }
@@ -228,7 +236,7 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void NoPreset_ApproachStudent_UntoweredField_Vfr_RpoRoom_WaitsLinedUpForTheRpoTakeoffClearance()
     {
-        if (Prepare(Aun with { Rules = "VFR" }, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Aun with { Rules = "VFR" }, "FAT_F_APP", "APP", [], null) is not { } prepared)
         {
             return;
         }
@@ -245,14 +253,14 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void HfrGatedRunwaySpawn_UntoweredField_RpoRoom_ReleasedThroughTheGate_WaitsLinedUpForTheRpoTakeoffClearance()
     {
-        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", [], AunFirst) is not { } prepared)
         {
             return;
         }
 
         (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
         engine.Scenario!.SoloTrainingMode = false;
-        AircraftState aircraft = ReleaseThroughTheGate(engine, "KAUN", "N513SJ");
+        AircraftState aircraft = ReleaseThroughTheGate(engine, "KAUN", "N513SJ", AunFirst.Callsign);
 
         Tick(engine, 150);
 
@@ -361,7 +369,7 @@ public class RunwaySpawnCallE2ETests
         Assert.True(HeldReleaseService.Arm(scenario, run.Engine.World, "KAUN").Success);
         Assert.True(TickUntil(run, () => ReleaseLines(run).Count > 0, 30) > 0, "no release request");
 
-        Assert.True(HeldReleaseService.Disarm(scenario, run.Engine.World, "KAUN").Success);
+        Assert.True(HeldReleaseService.Disarm(scenario, run.Engine.World, "KAUN", null).Success);
         Assert.False(run.Aircraft.PendingPilotRequest!.IsOpen, "HFROFF is a release: it answers the request");
 
         Tick(run, (int)PilotRequestTracker.NormalFollowUpDelaySeconds + 5);
@@ -370,16 +378,103 @@ public class RunwaySpawnCallE2ETests
         Assert.False(run.Aircraft.IsOnGround, "never departed after HFROFF");
     }
 
-    [Fact]
-    public void HfrGatedRunwaySpawn_UntoweredField_ReleasedThroughTheGate_DepartsOnItsOwn_WithNoReleaseRequest()
+    // PAO: a towered field (the ZOA config gives it a cab) the committed ground data has no layout for, so a held runway
+    // departure there spawns lined up, held.
+    private static readonly Spawn Pao = new("PAO", "31", "N514SJ", "C421", "IFR", 10);
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HfrHeldRunwaySpawn_ToweredFieldNoBar_SoloRoom_DepartsOnceReleased(bool releaseByHfrOff)
     {
-        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Pao, "FAT_F_APP", "APP", [], null) is not { } prepared)
+        {
+            return;
+        }
+
+        Assert.True(AiPositionResolver.IsTowered(_zoa!, "PAO"));
+        Assert.Null(new TestAirportGroundData().GetLayout("PAO"));
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        SimScenarioState scenario = engine.Scenario!;
+        Assert.True(HeldReleaseService.Arm(scenario, engine.World, "KPAO").Success);
+        Assert.True(TickUntil(engine, () => engine.FindAircraft("N514SJ") is not null, 30) > 0, "the held departure did not spawn on time");
+        AircraftState aircraft = engine.FindAircraft("N514SJ")!;
+        Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases!.CurrentPhase);
+        Assert.True(aircraft.Ground.HeldForRelease);
+        Tick(engine, 60); // well past its lined-up call point while held
+        Assert.True(aircraft.IsOnGround, "the held departure left before its release");
+        Assert.False(HasTakeoffClearance(aircraft), "the held departure was cleared for takeoff");
+        Assert.DoesNotContain(terminal, t => t.Message.Contains("[Auto]", StringComparison.Ordinal)); // no tower clearance while held
+
+        HeldReleaseResult released = releaseByHfrOff
+            ? HeldReleaseService.Disarm(scenario, engine.World, "KPAO", null)
+            : HeldReleaseService.Release(scenario, engine.World, engine.World.Rng, "N514SJ", null);
+        Assert.True(released.Success, released.Message);
+
+        Assert.True(TickUntil(engine, () => !aircraft.IsOnGround, 180) > 0, "the released lined-up departure never departed");
+    }
+
+    /// <summary>
+    /// A SAY-only runway spawn placed at the bar under hold for release says only its SAY: it makes no holding-short ready
+    /// call of its own.
+    /// </summary>
+    [Fact]
+    public void HfrHeldRunwaySpawn_SayOnly_AtTheBar_MakesOnlyItsSayTransmission()
+    {
+        Spawn oak = new("OAK", "28R", "SWA1", "B738", "IFR", 10);
+        if (Prepare(oak, "FAT_F_APP", "APP", [("SAY GOOD DAY", 0)], null) is not { } prepared)
         {
             return;
         }
 
         (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
-        AircraftState aircraft = ReleaseThroughTheGate(engine, "KAUN", "N513SJ");
+        Assert.True(HeldReleaseService.Arm(engine.Scenario!, engine.World, "KOAK").Success);
+        Assert.True(TickUntil(engine, () => engine.FindAircraft("SWA1") is not null, 30) > 0, "the held departure did not spawn on time");
+        Assert.IsType<HoldingShortPhase>(engine.FindAircraft("SWA1")!.Phases!.CurrentPhase);
+
+        Tick(engine, 60);
+
+        // The SAY preset is its one transmission ("Say"); no "holding short …, ready for departure." ("SayPilot") follows.
+        Assert.Single(terminal, t => (t.Callsign == "SWA1") && (t.Kind is "Say" or "SayPilot"));
+    }
+
+    /// <summary>
+    /// A held runway departure at an untowered field with no ground layout (AUN) spawns lined up, held for release, and under a
+    /// radar student it still asks for its release at its call point, as a lined-up runway spawn with no preset does.
+    /// </summary>
+    [Fact]
+    public void HfrHeldRunwaySpawn_UntoweredField_NoBar_SpawnsLinedUpHeld_AndAsksForItsRelease()
+    {
+        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", [], null) is not { } prepared)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        Assert.True(HeldReleaseService.Arm(engine.Scenario!, engine.World, "KAUN").Success);
+        Assert.True(TickUntil(engine, () => engine.FindAircraft("N513SJ") is not null, 30) > 0, "the held departure did not spawn on time");
+        AircraftState aircraft = engine.FindAircraft("N513SJ")!;
+        Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases!.CurrentPhase);
+        Assert.True(aircraft.Ground.HeldForRelease);
+
+        Assert.True(
+            TickUntil(engine, () => terminal.Any(t => t.Message.Contains("request release", StringComparison.Ordinal)), 30) > 0,
+            "the held lined-up departure never asked for its release"
+        );
+        Assert.Equal(PilotPendingRequestKind.Release, aircraft.PendingPilotRequest!.Kind);
+        Assert.True(aircraft.Ground.HeldForRelease);
+    }
+
+    [Fact]
+    public void HfrGatedRunwaySpawn_UntoweredField_ReleasedThroughTheGate_DepartsOnItsOwn_WithNoReleaseRequest()
+    {
+        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", [], AunFirst) is not { } prepared)
+        {
+            return;
+        }
+
+        (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
+        AircraftState aircraft = ReleaseThroughTheGate(engine, "KAUN", "N513SJ", AunFirst.Callsign);
         Assert.IsType<LinedUpAndWaitingPhase>(aircraft.Phases!.CurrentPhase);
 
         // As one that asked and got REL: the line-up-and-wait auto-clearance after the 5 to 20 s tower jitter.
@@ -393,7 +488,7 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void HfrGatedRunwaySpawn_UntoweredField_HfrOffReleasesThroughTheGate_DepartsOnItsOwn_WithNoReleaseRequest()
     {
-        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Aun with { DelaySeconds = 10 }, "FAT_F_APP", "APP", [], AunFirst) is not { } prepared)
         {
             return;
         }
@@ -406,7 +501,8 @@ public class RunwaySpawnCallE2ETests
 
         // HFROFF auto-releases everything still held at the field — including a spawn-gated runway departure. Like a REL
         // through the gate, it already has its release: it must depart on its own and never ask the student for one again.
-        Assert.True(HeldReleaseService.Disarm(scenario, engine.World, "KAUN").Success);
+        Assert.True(HeldReleaseService.Disarm(scenario, engine.World, "KAUN", null).Success);
+        ClearTheRunway(engine, AunFirst.Callsign); // the first, held lined up in the world, is released by the HFROFF too
         Assert.True(TickUntil(engine, () => engine.FindAircraft("N513SJ") is not null, 90) > 0, "the released spawn never appeared");
         AircraftState aircraft = engine.FindAircraft("N513SJ")!;
 
@@ -418,13 +514,13 @@ public class RunwaySpawnCallE2ETests
     [Fact]
     public void HfrGatedRunwaySpawn_ToweredField_ApproachStudent_TakesTheToweredAutoTakeoff()
     {
-        if (Prepare(Fat with { DelaySeconds = 10 }, "FAT_F_APP", "APP", []) is not { } prepared)
+        if (Prepare(Fat with { DelaySeconds = 10 }, "FAT_F_APP", "APP", [], FatFirst) is not { } prepared)
         {
             return;
         }
 
         (SimulationEngine engine, List<TerminalEntry> terminal) = prepared;
-        AircraftState aircraft = ReleaseThroughTheGate(engine, "KFAT", "AAL1828");
+        AircraftState aircraft = ReleaseThroughTheGate(engine, "KFAT", "AAL1828", FatFirst.Callsign);
 
         // The simulated tower clears it at its lined-up call point, not on the release's tower jitter.
         Tick(engine, 80);
@@ -434,18 +530,32 @@ public class RunwaySpawnCallE2ETests
         Assert.DoesNotContain(terminal, t => t.Message.Contains("ready.", StringComparison.Ordinal));
     }
 
-    /// <summary>Arms <paramref name="airport"/>, holds the delayed spawn at the gate, releases it with REL and returns it once it appears.</summary>
-    private static AircraftState ReleaseThroughTheGate(SimulationEngine engine, string airport, string callsign)
+    /// <summary>
+    /// Arms <paramref name="airport"/>; the first departure spawns held and the subject <paramref name="callsign"/> stays queued
+    /// behind it at the gate. Releases the subject with REL while it is still queued, then releases the first and clears it
+    /// for takeoff so the runway is clear for the subject, and returns the subject once it appears.
+    /// </summary>
+    private static AircraftState ReleaseThroughTheGate(SimulationEngine engine, string airport, string callsign, string first)
     {
         SimScenarioState scenario = engine.Scenario!;
         Assert.True(HeldReleaseService.Arm(scenario, engine.World, airport).Success);
         Tick(engine, 40);
         Assert.Null(engine.FindAircraft(callsign));
+        Assert.True(engine.FindAircraft(first)?.Ground.HeldForRelease, "the first departure is not held in the world");
 
         HeldReleaseResult released = HeldReleaseService.Release(scenario, engine.World, engine.World.Rng, callsign, null);
         Assert.True(released.Success, released.Message);
+        Assert.True(HeldReleaseService.Release(scenario, engine.World, engine.World.Rng, first, null).Success);
+        ClearTheRunway(engine, first);
         Assert.True(TickUntil(engine, () => engine.FindAircraft(callsign) is not null, 90) > 0, "the released spawn never appeared");
         return engine.FindAircraft(callsign)!;
+    }
+
+    /// <summary>Clears the released first departure for takeoff, so it leaves the runway before the subject spawns on it.</summary>
+    private static void ClearTheRunway(SimulationEngine engine, string first)
+    {
+        CommandResult cto = engine.SendCommand(first, "CTO");
+        Assert.True(cto.Success, cto.Message);
     }
 
     /// <summary>True once the aircraft has a takeoff clearance, or has left its lined-up position on one.</summary>
@@ -474,7 +584,7 @@ public class RunwaySpawnCallE2ETests
 
     private Run? Load(Spawn spawn, string studentCallsign, string studentType, (string Command, int Offset)[] presets)
     {
-        if (Prepare(spawn, studentCallsign, studentType, presets) is not { } prepared)
+        if (Prepare(spawn, studentCallsign, studentType, presets, null) is not { } prepared)
         {
             return null;
         }
@@ -488,7 +598,7 @@ public class RunwaySpawnCallE2ETests
     /// <summary><see cref="Load"/> with no presets and the student's lowest worked level set, so the student has a worked range.</summary>
     private Run? LoadWithRange(Spawn spawn, string studentCallsign, string studentType, AtcPositionLevel lowest)
     {
-        if (Prepare(spawn, studentCallsign, studentType, []) is not { } prepared)
+        if (Prepare(spawn, studentCallsign, studentType, [], null) is not { } prepared)
         {
             return null;
         }
@@ -504,7 +614,8 @@ public class RunwaySpawnCallE2ETests
         Spawn spawn,
         string studentCallsign,
         string studentType,
-        (string Command, int Offset)[] presets
+        (string Command, int Offset)[] presets,
+        Spawn? first
     )
     {
         if (_zoa is null)
@@ -515,7 +626,7 @@ public class RunwaySpawnCallE2ETests
         var engine = new SimulationEngine(new TestAirportGroundData(), PushPlanStore.CreateShipped());
         var terminal = new List<TerminalEntry>();
         engine.TerminalEntryEmitted += entry => terminal.Add(entry);
-        List<string> warnings = engine.LoadScenario(ScenarioJson(spawn, presets), 42, MagneticDeclination.EvaluationDateUtc);
+        List<string> warnings = engine.LoadScenario(ScenarioJson(spawn, presets, first), 42, MagneticDeclination.EvaluationDateUtc);
         Assert.DoesNotContain(warnings, w => w.Contains("error", StringComparison.OrdinalIgnoreCase));
         SimScenarioState scenario = engine.Scenario!;
         scenario.ArtccConfig = _zoa;
@@ -526,12 +637,11 @@ public class RunwaySpawnCallE2ETests
         return (engine, terminal);
     }
 
-    private static string ScenarioJson(Spawn spawn, (string Command, int Offset)[] presets)
+    private static string ScenarioJson(Spawn spawn, (string Command, int Offset)[] presets, Spawn? first)
     {
-        string presetJson = string.Join(
-            ", ",
-            presets.Select((p, i) => $$"""{ "id": "p{{i}}", "command": "{{p.Command}}", "timeOffset": {{p.Offset}} }""")
-        );
+        string aircraft = first is null
+            ? AircraftJson("a1", spawn, presets)
+            : $"{AircraftJson("a0", first, FirstPresets)},\n{AircraftJson("a1", spawn, presets)}";
         return $$"""
             {
               "id": "runway-spawn-{{spawn.Callsign}}",
@@ -539,18 +649,29 @@ public class RunwaySpawnCallE2ETests
               "artccId": "ZOA",
               "primaryAirportId": "{{spawn.Airport}}",
               "aircraft": [
-                {
-                  "id": "a1",
-                  "aircraftId": "{{spawn.Callsign}}",
-                  "aircraftType": "{{spawn.Type}}",
-                  "transponderMode": "C",
-                  "spawnDelay": {{spawn.DelaySeconds}},
-                  "startingConditions": { "type": "OnRunway", "runway": "{{spawn.Runway}}" },
-                  "airportId": "{{spawn.Airport}}",
-                  "flightplan": { "rules": "{{spawn.Rules}}", "departure": "K{{spawn.Airport}}", "destination": "KOAK", "cruiseAltitude": 9000, "cruiseSpeed": 180, "route": "", "remarks": "", "aircraftType": "{{spawn.Type}}" },
-                  "presetCommands": [ {{presetJson}} ]
-                }
+                {{aircraft}}
               ]
+            }
+            """;
+    }
+
+    private static string AircraftJson(string id, Spawn spawn, (string Command, int Offset)[] presets)
+    {
+        string presetJson = string.Join(
+            ", ",
+            presets.Select((p, i) => $$"""{ "id": "p{{i}}", "command": "{{p.Command}}", "timeOffset": {{p.Offset}} }""")
+        );
+        return $$"""
+            {
+              "id": "{{id}}",
+              "aircraftId": "{{spawn.Callsign}}",
+              "aircraftType": "{{spawn.Type}}",
+              "transponderMode": "C",
+              "spawnDelay": {{spawn.DelaySeconds}},
+              "startingConditions": { "type": "OnRunway", "runway": "{{spawn.Runway}}" },
+              "airportId": "{{spawn.Airport}}",
+              "flightplan": { "rules": "{{spawn.Rules}}", "departure": "K{{spawn.Airport}}", "destination": "KOAK", "cruiseAltitude": 9000, "cruiseSpeed": 180, "route": "", "remarks": "", "aircraftType": "{{spawn.Type}}" },
+              "presetCommands": [ {{presetJson}} ]
             }
             """;
     }

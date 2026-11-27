@@ -255,6 +255,13 @@ public sealed partial class SimulationEngine
                 continue;
             }
 
+            // A runway spawn held for release (lined up where its runway has no bar) gets no takeoff clearance while held: its
+            // decision stays open until the release, which lets it depart as one released through the spawn gate.
+            if (ac.Ground.HeldForRelease)
+            {
+                continue;
+            }
+
             if (ShouldCloseDecision(ac, StudentWorksTowerAtRunwayOf(ac, scenario)))
             {
                 ac.Ground.InitialCallupDecisionProcessed = true;

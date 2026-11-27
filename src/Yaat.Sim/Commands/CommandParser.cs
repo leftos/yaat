@@ -876,8 +876,7 @@ public static class CommandParser
             SpawnDelay => ParseInt(arg, s => new SpawnDelayCommand(s)),
             HoldForRelease when arg is { Length: > 0 } => PR.Ok(new HoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
             HoldForRelease => PR.Fail("HFR requires an airport"),
-            DisarmHoldForRelease when arg is { Length: > 0 } => PR.Ok(new DisarmHoldForReleaseCommand(arg.Trim().ToUpperInvariant())),
-            DisarmHoldForRelease => PR.Fail("HFROFF requires an airport"),
+            DisarmHoldForRelease => ParseDisarmHoldForRelease(arg),
             ReleaseDeparture => ParseRelease(arg),
             CanonicalCommandType.ActiveRunways => ParseActiveRunways(arg),
             Cfr => ParseCfr(arg),
@@ -3165,6 +3164,31 @@ public static class CommandParser
         }
 
         return PR.Ok(factory(value));
+    }
+
+    /// <summary>Most catch-up minutes <c>HFROFF {airport} {minutes}</c> takes.</summary>
+    private const int MaxHfroffIntervalMinutes = 30;
+
+    private static PR ParseDisarmHoldForRelease(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return PR.Fail("HFROFF requires an airport");
+        }
+
+        string[] tokens = arg.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string airport = tokens[0].ToUpperInvariant();
+        if (tokens.Length == 1)
+        {
+            return PR.Ok(new DisarmHoldForReleaseCommand(airport, null));
+        }
+
+        if ((tokens.Length == 2) && int.TryParse(tokens[1], out int minutes) && (minutes >= 1) && (minutes <= MaxHfroffIntervalMinutes))
+        {
+            return PR.Ok(new DisarmHoldForReleaseCommand(airport, minutes * 60));
+        }
+
+        return PR.Fail($"HFROFF syntax: HFROFF <airport> [minutes 1-{MaxHfroffIntervalMinutes}]");
     }
 
     private static PR ParseRelease(string? arg)

@@ -1203,7 +1203,13 @@ public static class CommandRegistry
                 CommandDimension.None,
                 true,
                 ["HFROFF"],
-                [O(null, [R("airport", "airport ID")], "Disarm hold-for-release (auto-releases anything still held)")]
+                [
+                    O(
+                        null,
+                        [R("airport", "airport ID"), Opt("minutes", "1-30: release one every N minutes until back on schedule")],
+                        "Disarm hold-for-release (releases what is held; later departures keep their spacing)"
+                    ),
+                ]
             ),
             Cmd(
                 ActiveRunways,
