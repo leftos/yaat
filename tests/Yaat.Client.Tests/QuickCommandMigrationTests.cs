@@ -234,9 +234,12 @@ public class QuickCommandMigrationTests : IDisposable
 
     // --- v5 → v6: the EuroScope-mode preference becomes the EuroScope profile ---------------------------
 
-    /// <summary>An old file with EuroScope mode on gets the EuroScope profile for each position type without a hand pick.</summary>
+    /// <summary>
+    /// An old file with EuroScope mode on gets the EuroScope profile for each type the classifier gives and for a room with
+    /// none, a hand pick overwritten; DEL and DEP are never a room's type, so they get no entry.
+    /// </summary>
     [Fact]
-    public void V5EuroScopeModeOn_PicksTheEuroScopeProfile_ForEveryTypeWithoutAPick()
+    public void V5EuroScopeModeOn_PicksTheEuroScopeProfile_ForEveryType_OverwritingAHandPick()
     {
         InjectEuroScopeMode(5, true, new JsonObject { ["APP"] = "eram" });
         try
@@ -244,7 +247,7 @@ public class QuickCommandMigrationTests : IDisposable
             var prefs = new UserPreferences();
 
             Assert.Equal(
-                ["euroscope", "euroscope", "euroscope", "eram", "euroscope", "euroscope"],
+                [null, "euroscope", "euroscope", "euroscope", null, "euroscope", "euroscope"],
                 ScopeProfileTypes.Select(prefs.GetScopeProfileOverride)
             );
             JsonObject saved = JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject();
@@ -258,9 +261,9 @@ public class QuickCommandMigrationTests : IDisposable
         }
     }
 
-    /// <summary>A second v6 run keeps a hand pick made after the first, and the picks the first one gave.</summary>
+    /// <summary>A forced second v6 run with EuroScope mode re-armed overwrites a hand pick made after the first.</summary>
     [Fact]
-    public void V6MigrationRunTwice_KeepsAHandPickMadeAfterTheFirst()
+    public void V6MigrationRerun_OverwritesAHandPick()
     {
         InjectEuroScopeMode(5, true, []);
         try
@@ -274,7 +277,7 @@ public class QuickCommandMigrationTests : IDisposable
             var prefs = new UserPreferences();
 
             Assert.Equal(
-                ["euroscope", "euroscope", "stars", "euroscope", "euroscope", "euroscope"],
+                [null, "euroscope", "euroscope", "euroscope", null, "euroscope", "euroscope"],
                 ScopeProfileTypes.Select(prefs.GetScopeProfileOverride)
             );
             Assert.False(JsonNode.Parse(File.ReadAllText(PreferencesPath))!.AsObject().ContainsKey("euroScopeMode"));
@@ -404,7 +407,7 @@ public class QuickCommandMigrationTests : IDisposable
     }
 
     /// <summary>The position types the v6 migration gives the EuroScope profile.</summary>
-    private static readonly string[] ScopeProfileTypes = ["DEL", "GND", "TWR", "APP", "DEP", "CTR"];
+    private static readonly string?[] ScopeProfileTypes = ["DEL", "GND", "TWR", "APP", "DEP", "CTR", null];
 
     /// <summary>
     /// Writes the retired <c>euroScopeMode</c> as <paramref name="on"/> and <paramref name="picks"/> as the hand-picked Scope
@@ -424,7 +427,7 @@ public class QuickCommandMigrationTests : IDisposable
     private static void ClearScopeProfileOverrides()
     {
         var prefs = new UserPreferences();
-        foreach (string type in ScopeProfileTypes)
+        foreach (string? type in ScopeProfileTypes)
         {
             prefs.ClearScopeProfileOverride(type);
         }

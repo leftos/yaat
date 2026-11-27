@@ -98,17 +98,13 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Picks <paramref name="kind"/> by hand, as <c>.scope profile</c> does, saving it for the room's student position type
-    /// when that is known.
+    /// Picks <paramref name="kind"/> by hand, as <c>.scope profile</c> does, saving it for the room's student position type; a
+    /// room with no student position type saves it as the no-type pick, which the next such room gets.
     /// </summary>
     internal void PickScopeProfileByHand(ScopeProfileKind kind)
     {
         _isScopeProfileProvisional = false;
-        if (StudentPositionType is { } type)
-        {
-            Preferences.SetScopeProfileOverride(type, ScopeProfilePicker.NameOf(kind));
-        }
-
+        Preferences.SetScopeProfileOverride(StudentPositionType, ScopeProfilePicker.NameOf(kind));
         ScopeProfile = kind;
     }
 
@@ -161,7 +157,10 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>The profile picked by hand for the student position type, else the active position's kind.</summary>
+    /// <summary>
+    /// The profile picked by hand for the student position type (or the no-type pick while there is none), else the active
+    /// position's kind.
+    /// </summary>
     private ScopeProfileKind AutomaticScopeProfile() =>
         ScopeProfilePicker.TryParseKind(Preferences.GetScopeProfileOverride(StudentPositionType), out ScopeProfileKind kind)
             ? kind

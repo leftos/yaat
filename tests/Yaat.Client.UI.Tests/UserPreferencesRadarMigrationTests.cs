@@ -622,4 +622,41 @@ public class UserPreferencesRadarMigrationTests
         Assert.All(removed, key => Assert.False(saved.ContainsKey(key), key));
         Assert.Equal(16, saved["radarFlyoutFontSize"]!.GetValue<int>());
     }
+
+    /// <summary>The room types the classifier gives, then a room with none.</summary>
+    private static readonly string?[] EuroScopeRoomTypes = ["TWR", "GND", "APP", "CTR", null];
+
+    /// <summary>Writes a v5 file with the retired EuroScope-mode preference set to <paramref name="on"/> and the given picks.</summary>
+    private static void WriteV5EuroScopeFile(bool on, JsonObject picks) =>
+        File.WriteAllText(
+            PreferencesPath,
+            new JsonObject
+            {
+                ["preferencesVersion"] = 5,
+                ["euroScopeMode"] = on,
+                ["scopeProfileByPositionType"] = picks,
+            }.ToJsonString()
+        );
+
+    [Fact]
+    public void V5EuroScopeModeOn_MakesEuroScopeEveryTypesAndTheNoTypePick_OverwritingAHandPick()
+    {
+        WriteV5EuroScopeFile(true, new JsonObject { ["APP"] = "stars" });
+
+        var prefs = new UserPreferences();
+
+        Assert.Equal(["euroscope", "euroscope", "euroscope", "euroscope", "euroscope"], EuroScopeRoomTypes.Select(prefs.GetScopeProfileOverride));
+        Assert.False(WrittenFile().ContainsKey("euroScopeMode"));
+    }
+
+    [Fact]
+    public void V5EuroScopeModeOff_AddsNoPick_AndLeavesTheNoTypePickEmpty()
+    {
+        WriteV5EuroScopeFile(false, []);
+
+        var prefs = new UserPreferences();
+
+        Assert.All(EuroScopeRoomTypes, type => Assert.Null(prefs.GetScopeProfileOverride(type)));
+        Assert.Empty(WrittenFile()["scopeProfileByPositionType"]!.AsObject());
+    }
 }

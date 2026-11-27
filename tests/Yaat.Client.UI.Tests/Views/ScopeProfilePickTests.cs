@@ -173,7 +173,7 @@ public class ScopeProfilePickTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task PickByHand_WithNoType_SavesNoOverride()
+    public async Task PickByHand_WithNoType_SavesTheNoTypePick_AndNoTypesPick()
     {
         MainViewModel main = await NewMain();
         using ScopeViewModel scope = OpenScope(main, store: null);
@@ -181,7 +181,27 @@ public class ScopeProfilePickTests : IDisposable
         main.RunScopeCommand(".scope profile eram");
 
         Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
+        Assert.Equal("eram", main.Preferences.GetScopeProfileOverride(null));
         Assert.All(PositionTypes, type => Assert.Null(main.Preferences.GetScopeProfileOverride(type)));
+    }
+
+    [AvaloniaFact]
+    public async Task PickByHand_InANoTypeRoom_IsTheNextNoTypeRoomsProfile_AndNotATypedRooms()
+    {
+        MainViewModel main = await NewMain();
+        using ScopeViewModel scope = OpenScope(main, store: null);
+        main.SetActivePositionFromServer(Config(Tracon));
+        main.RunScopeCommand(".scope profile eram");
+        main.SetActivePositionFromServer(null);
+
+        main.SetActivePositionFromServer(Config(Tracon));
+        Assert.Equal(ScopeProfileKind.Eram, main.ScopeProfile);
+        main.SetActivePositionFromServer(null);
+
+        main.SetStudentPositionType("TWR");
+        main.SetActivePositionFromServer(Config(Tracon));
+        Assert.Equal(ScopeProfileKind.Stars, main.ScopeProfile);
+        Assert.Null(main.Preferences.GetScopeProfileOverride("TWR"));
     }
 
     [AvaloniaFact]

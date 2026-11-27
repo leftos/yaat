@@ -125,8 +125,17 @@ public sealed partial class UserPreferences
     /// </summary>
     internal const int CurrentPreferencesVersion = 6;
 
-    /// <summary>The position types the v6 migration gives the EuroScope profile.</summary>
-    private static readonly string[] EuroScopeModePositionTypes = ["DEL", "GND", "TWR", "APP", "DEP", "CTR"];
+    /// <summary>
+    /// The <see cref="SavedPrefs.ScopeProfileByPositionType"/> key of rooms with no student position type: a scenario without one, or a
+    /// callsign suffix <see cref="Yaat.Sim.AtcPositionTypeClassifier"/> does not classify. No real type can be "*".
+    /// </summary>
+    private const string NoPositionTypeKey = "*";
+
+    /// <summary>
+    /// The keys the v6 migration gives the EuroScope profile: every type <see cref="Yaat.Sim.AtcPositionTypeClassifier"/> returns,
+    /// and <see cref="NoPositionTypeKey"/>.
+    /// </summary>
+    private static readonly string[] EuroScopeModePositionTypes = ["GND", "TWR", "APP", "CTR", NoPositionTypeKey];
 
     /// <summary>The EuroScope profile's name, as the Scope's profile picker writes it.</summary>
     private const string EuroScopeProfileName = "euroscope";
@@ -232,7 +241,7 @@ public sealed partial class UserPreferences
     /// (<see cref="MigrateRadarWindows"/>), and so do the window-geometry store's (<see cref="MigrateTopLevelRadarWindows"/>).
     /// v4 → v5: every stored quick-command list of an airborne situation gains Ident after its squawk rows
     /// (<see cref="InsertIdentRow"/>). v5 → v6: the retired EuroScope-mode preference, when it was on, becomes the EuroScope
-    /// profile of each position type without a hand pick (<see cref="MigrateEuroScopeMode"/>).
+    /// profile of every position type and of rooms with none, over any hand pick (<see cref="MigrateEuroScopeMode"/>).
     /// </summary>
     private void MigratePreferences()
     {
@@ -357,15 +366,26 @@ public sealed partial class UserPreferences
     }
 
     /// <summary>
-    /// The v6 step: when the retired EuroScope-mode preference was on, each of <see cref="EuroScopeModePositionTypes"/> with
-    /// no hand-picked Scope profile gets the EuroScope profile; a pick already saved stands. The preference is then dropped.
+    /// The v6 step: when the retired EuroScope-mode preference was on, each of <see cref="EuroScopeModePositionTypes"/> (every
+    /// position type and the no-type key) gets the EuroScope profile, overwriting a hand pick: EuroScope mode applied to every
+    /// room. The preference is then dropped.
     /// </summary>
-    /// <returns>The number of position types given the EuroScope profile.</returns>
+    /// <returns>The number of keys given the EuroScope profile.</returns>
     private int MigrateEuroScopeMode()
     {
         bool wasOn = _data.LegacyEuroScopeMode == true;
         _data.LegacyEuroScopeMode = null;
-        return wasOn ? EuroScopeModePositionTypes.Count(type => _data.ScopeProfileByPositionType.TryAdd(type, EuroScopeProfileName)) : 0;
+        if (!wasOn)
+        {
+            return 0;
+        }
+
+        foreach (string type in EuroScopeModePositionTypes)
+        {
+            _data.ScopeProfileByPositionType[type] = EuroScopeProfileName;
+        }
+
+        return EuroScopeModePositionTypes.Length;
     }
 
     /// <summary>
@@ -1486,35 +1506,29 @@ public sealed partial class UserPreferences
 
     /// <summary>
     /// The YAAT Scope profile name (<c>stars</c>, <c>eram</c>, <c>mixed</c> or <c>euroscope</c>) picked by hand for rooms whose student
-    /// position type is <paramref name="positionType"/>, or null when none was picked or the type is unknown.
+    /// position type is <paramref name="positionType"/>, or null when none was picked. A null or empty type reads the pick of
+    /// rooms with no student position type.
     /// </summary>
     public string? GetScopeProfileOverride(string? positionType) =>
-        ((!string.IsNullOrEmpty(positionType)) && (_data.ScopeProfileByPositionType.TryGetValue(positionType, out string? profile))) ? profile : null;
+        _data.ScopeProfileByPositionType.TryGetValue(ScopeProfileKey(positionType), out string? profile) ? profile : null;
 
     /// <summary>
-    /// Saves <paramref name="profile"/> as the hand-picked Scope profile for <paramref name="positionType"/>; a null type
-    /// saves nothing.
+    /// Saves <paramref name="profile"/> as the hand-picked Scope profile for <paramref name="positionType"/>; a null or empty
+    /// type saves it as the pick of rooms with no student position type.
     /// </summary>
     public void SetScopeProfileOverride(string? positionType, string profile)
     {
-        if (string.IsNullOrEmpty(positionType))
-        {
-            return;
-        }
-
-        _data.ScopeProfileByPositionType[positionType] = profile;
+        _data.ScopeProfileByPositionType[ScopeProfileKey(positionType)] = profile;
         Save();
     }
 
-    /// <summary>Drops the hand-picked Scope profile for <paramref name="positionType"/>; a null type or one without a pick changes nothing.</summary>
+    /// <summary>
+    /// Drops the hand-picked Scope profile for <paramref name="positionType"/> (a null or empty type: the no-type pick); a type
+    /// without a pick changes nothing.
+    /// </summary>
     public void ClearScopeProfileOverride(string? positionType)
     {
-        if (string.IsNullOrEmpty(positionType))
-        {
-            return;
-        }
-
-        bool removed = _data.ScopeProfileByPositionType.Remove(positionType);
+        bool removed = _data.ScopeProfileByPositionType.Remove(ScopeProfileKey(positionType));
         if (!removed)
         {
             return;
@@ -1522,6 +1536,9 @@ public sealed partial class UserPreferences
 
         Save();
     }
+
+    /// <summary>The <see cref="SavedPrefs.ScopeProfileByPositionType"/> key of <paramref name="positionType"/>: the type, or <see cref="NoPositionTypeKey"/>.</summary>
+    private static string ScopeProfileKey(string? positionType) => string.IsNullOrEmpty(positionType) ? NoPositionTypeKey : positionType;
 
     public void SetRpoPilotSpeechAudibleAlert(bool enabled)
     {
@@ -3330,7 +3347,8 @@ public sealed partial class UserPreferences
         // global default above.
         public Dictionary<string, int> SoloGoAroundProbabilityByScenario { get; set; } = [];
 
-        // The YAAT Scope profile picked by hand, keyed by the room's student position type (GND, TWR, APP, CTR).
+        // The YAAT Scope profile picked by hand, keyed by the room's student position type (GND, TWR, APP, CTR), or "*" for rooms
+        // with none (UserPreferences.NoPositionTypeKey).
         public Dictionary<string, string> ScopeProfileByPositionType { get; set; } = [];
         public bool RpoShowPilotSpeech { get; set; }
         public bool RpoPilotSpeechAudibleAlert { get; set; }
