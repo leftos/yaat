@@ -51,6 +51,39 @@ public sealed class NotesMenuTests : IDisposable
     }
 
     [AvaloniaFact]
+    public void OpeningNotes_FocusesTheEditorText()
+    {
+        (MainWindow main, MainViewModel _) = MainWindowHost.Boot();
+        NotesWindow? opened = null;
+        try
+        {
+            MenuItem item = main.FindControl<MenuItem>("NotesMenuItem")!;
+
+            Click(item);
+            opened = Assert.Single(OpenWindows.All.OfType<NotesWindow>());
+            TextEditor editor = opened.FindControl<TextEditor>("NotesEditor")!;
+            // FocusManager.GetFocusedElement() is the app-wide keyboard focus, so this shows the button took it.
+            Button copyAll = opened.FindControl<Button>("CopyAllButton")!;
+            copyAll.Focusable = true;
+            copyAll.Focus();
+            MainWindowHost.Pump();
+            Assert.Same(copyAll, opened.FocusManager!.GetFocusedElement());
+
+            main.Activate();
+            MainWindowHost.Pump();
+            Click(item);
+
+            Assert.Same(opened, Assert.Single(OpenWindows.All.OfType<NotesWindow>()));
+            Assert.Same(editor.TextArea, opened.FocusManager!.GetFocusedElement());
+        }
+        finally
+        {
+            opened?.Close();
+            MainWindowHost.CloseAll(main);
+        }
+    }
+
+    [AvaloniaFact]
     public void Stamp_IsOffWithNoScenario_AndOnOnceAScenarioLoads()
     {
         (MainWindow main, MainViewModel vm) = MainWindowHost.Boot();

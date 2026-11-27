@@ -217,7 +217,7 @@ The command bar at the bottom is where you type and send commands. See [Commands
 
 > **macOS:** Substitute **⌘ (Cmd)** for **Ctrl** in all shortcuts below.
 
-Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS and in Notes, Ctrl+H replace in Notes, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
+Keys marked *(default)* are configurable under **Settings › Keys** (push-to-talk under **Settings › Speech**). A key another action already uses (or a fixed chord such as Ctrl+M measure, Ctrl+F find in Strips and vTDLS and, off macOS, in Notes, Ctrl+H replace in Notes off macOS, Ctrl+D the ground debug overlay, Ctrl+Shift+N the Notes window's stamp) is shown as "Also used by …" on every row involved, and **OK** and **Apply** stay disabled until it is changed.
 
 Window hotkeys need Ctrl or Alt (or an F-key), so they never fire while you type; **Esc** while capturing one cancels the capture.
 

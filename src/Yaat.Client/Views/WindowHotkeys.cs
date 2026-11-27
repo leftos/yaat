@@ -46,17 +46,10 @@ internal static class WindowHotkeys
     /// <summary>
     /// The chords bound in code rather than in Settings (here, and Find in the Strips and vTDLS views, the ground view's
     /// debug overlay and the Notes window's stamp), by the action name Settings shows when a configured key would take one
-    /// of them.
+    /// of them. The Notes find and replace rows are left out on macOS, where the Notes window takes Cmd chords Settings
+    /// cannot capture, so they could only report false clashes.
     /// </summary>
-    internal static readonly IReadOnlyList<(string Name, string Chord)> FixedChords =
-    [
-        ("Measure tool", MeasureChord),
-        ("Strips and vTDLS find", "Ctrl+F"),
-        ("Notes find", "Ctrl+F"),
-        ("Notes replace", "Ctrl+H"),
-        ("Ground view debug overlay", "Ctrl+D"),
-        ("Notes stamp", NotesStampChord),
-    ];
+    internal static readonly IReadOnlyList<(string Name, string Chord)> FixedChords = FixedChordsFor(OperatingSystem.IsMacOS());
 
     // Each configurable key scoped to YAAT working windows and what it does to the main view model: the panel keys flip the
     // flag the View menu binds, and the Open Settings key asks for Settings with no section of its own.
@@ -71,6 +64,18 @@ internal static class WindowHotkeys
         (p => p.FavoritesBarKey, vm => vm.ShowFavoritesBar = !vm.ShowFavoritesBar),
         (p => p.OpenSettingsKey, vm => vm.RequestSettings(section: null)),
     ];
+
+    /// <summary>Builds the fixed-chord rows for a platform, in the order Settings shows them.</summary>
+    /// <param name="mac">Whether to leave out the Notes window's find and replace chords, which are Cmd chords there.</param>
+    /// <returns>The rows bound in code rather than in Settings.</returns>
+    internal static IReadOnlyList<(string Name, string Chord)> FixedChordsFor(bool mac) =>
+        [
+            ("Measure tool", MeasureChord),
+            ("Strips and vTDLS find", "Ctrl+F"),
+            .. (mac ? Array.Empty<(string Name, string Chord)>() : [("Notes find", "Ctrl+F"), ("Notes replace", "Ctrl+H")]),
+            ("Ground view debug overlay", "Ctrl+D"),
+            ("Notes stamp", NotesStampChord),
+        ];
 
     private static bool _registered;
 

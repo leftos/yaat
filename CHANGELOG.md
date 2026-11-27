@@ -6,6 +6,11 @@
 
 - A RUNDOWN entry's Modify… opens with the entry's current message filled in and selected, on the Radar and in the Rundowns window.
 
+### Fixed
+
+- On macOS, Settings › Keys no longer reports a clash with the Notes window's find and replace keys, which are Cmd chords there.
+- The Notes window puts the caret in its text when it opens or is brought forward, so find and replace work without clicking first.
+
 ## v0.20.1-beta [2026/11/26]
 
 ### Highlights

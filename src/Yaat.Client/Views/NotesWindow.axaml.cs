@@ -71,6 +71,7 @@ public partial class NotesWindow : Window, IAlwaysOnTopToggle
         viewModel.StampRequested += OnStampRequested;
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         Closed += OnClosed;
+        Opened += (_, _) => FocusEditor();
     }
 
     /// <summary>Shows the window for <paramref name="viewModel"/>, or brings the open one forward.</summary>
@@ -82,6 +83,7 @@ public partial class NotesWindow : Window, IAlwaysOnTopToggle
         if (OpenWindows.TryGetValue(viewModel, out NotesWindow? existing))
         {
             existing.RestoreAndActivate();
+            existing.FocusEditor();
             return existing;
         }
 
@@ -95,6 +97,10 @@ public partial class NotesWindow : Window, IAlwaysOnTopToggle
 
     /// <inheritdoc />
     public void ToggleAlwaysOnTop() => _geometryHelper.ToggleTopmost();
+
+    // The find and replace gestures live in the text area's own key bindings, so they only fire once its caret has the
+    // focus: a newly opened or re-fronted window puts it there rather than making the user click the text first.
+    private void FocusEditor() => _editor.TextArea.Focus();
 
     // AvaloniaEdit's SearchPanel registers the find and replace commands but no chords for them, so the window binds the
     // gestures those commands carry: Ctrl+F and Ctrl+H, or Cmd+F and Cmd+Alt+F on macOS.

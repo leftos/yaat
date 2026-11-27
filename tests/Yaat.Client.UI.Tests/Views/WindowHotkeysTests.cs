@@ -24,6 +24,30 @@ namespace Yaat.Client.UI.Tests.Views;
 // pop-out and favorites-bar hotkey toggles its flag on the main view model from the main window or a pop-out.
 public class WindowHotkeysTests
 {
+    [Fact]
+    public void FixedChordsFor_Mac_OmitsTheNotesFindAndReplaceRows()
+    {
+        string[] names = [.. WindowHotkeys.FixedChordsFor(mac: true).Select(c => c.Name)];
+
+        Assert.Equal(["Measure tool", "Strips and vTDLS find", "Ground view debug overlay", "Notes stamp"], names);
+    }
+
+    [Fact]
+    public void FixedChordsFor_OtherPlatforms_KeepsNotesCtrlFAndCtrlH()
+    {
+        (string Name, string Chord)[] expected =
+        [
+            ("Measure tool", "Ctrl+M"),
+            ("Strips and vTDLS find", "Ctrl+F"),
+            ("Notes find", "Ctrl+F"),
+            ("Notes replace", "Ctrl+H"),
+            ("Ground view debug overlay", "Ctrl+D"),
+            ("Notes stamp", "Ctrl+Shift+N"),
+        ];
+
+        Assert.Equal(expected, WindowHotkeys.FixedChordsFor(mac: false).ToArray());
+    }
+
     [AvaloniaFact]
     public void FocusKey_FromPopOutWindow_RaisesRequestCommandInputFocus()
     {
