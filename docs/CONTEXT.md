@@ -1416,6 +1416,9 @@ A route the FAA publishes for an origin and destination pair in its preferred IF
 **Route history**:
 The routes, aircraft types and airline prefixes yaat-server has seen in live SWIM flight plans, kept in a rolling window of per-day buckets (`RouteHistoryIndex`) and offered by `RouteHistorySource`; a full callsign is never kept, only a three-letter airline prefix.
 
+**Route library**:
+The per-user folder of named routes the author composed (`RouteLibrary`: one `{guid}.json` per `SavedRoute` under `YaatPaths` `routes/`), each tagged with its ARTCC and holding geometry only; not a route source, which finds real-world routes between two airports.
+
 **Route source**:
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 
