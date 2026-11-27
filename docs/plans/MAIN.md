@@ -7,66 +7,66 @@
 ### M1 Scenario editor (9/9 done)
 
 ### M2 Export (3/8 done)
-- [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
 ### M3 Routes, timing and metrics (5/16 done)
-- [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
 
 ### M4 Airport editor (6/11 done)
-- [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor (sub-issue of YAAT-1989) · release vNext+1
-- [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON (sub-issue of YAAT-1989) · release vNext+1
+- [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor (sub-issue of YAAT-1989) · release vNext
+- [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON (sub-issue of YAAT-1989) · release vNext
 
 ### No milestone
-- [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext+1
-  - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext+1
-    - [ ] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext+1
-    - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext+1
-    - [ ] YAAT-2921 Show a one-sided reorder of a scenario list in the merge view · release vNext+1
-  - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext+1
-  - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext+1
-  - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext+1
-  - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext+1
-  - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext+1
-  - [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate · release vNext+1
-  - [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext+1
-  - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext+1
-  - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext+1
-  - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext+1
-  - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext+1
-  - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext+1
-  - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext+1
-  - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext+1
-  - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext+1
-  - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext+1
-  - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392) · release vNext+1
-  - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON · release vNext+1
-  - [ ] YAAT-2710 Keep RNAV-only fixes and low-altitude navaid legs out of non-RNAV navdata routes · release vNext+1
-  - [ ] YAAT-2712 Don't capture the caller's context in ScenarioDownloader's awaits · release vNext+1
-  - [ ] YAAT-2714 Scenario Editor: word the no-ARTCC state by its cause, and re-read the ARTCC list on Refresh · release vNext+1
-  - [ ] YAAT-2728 Fold AtomicTextFile into StoreFiles to close the Data.Vnas to Authoring.AirportMap edge · release vNext+1
-  - [ ] YAAT-2729 Scenario Editor: open and save working copies off the UI thread · release vNext+1
-  - [ ] YAAT-2744 YAATEdit: pan the Airport Editor's map without a middle button (touchpads) · release vNext+1
-  - [ ] YAAT-2747 Warn when a corner fillet override asks for a radius aircraft cannot steer · release vNext+1
-  - [ ] YAAT-2749 Reject a map feature that repeats a property key in AirportMapDocument.Read · release vNext+1
-  - [ ] YAAT-2753 Test the remaining fillet-override force paths and split the oversized fillet functions · release vNext+1
-  - [ ] YAAT-2763 Warn on a tight or lopsided pinned fillet corner (PINNED_TIGHT_RADIUS, pin asymmetry) · release vNext+1
-  - [ ] YAAT-2768 Airport Editor imagery: free replaced tower-cab images; FAA ids for Alaska and Hawaii · release vNext+1
-  - [ ] YAAT-2780 A click outside an open Scenario Editor drop-down is swallowed · release vNext+1
-- [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext+1
+- [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
+  - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
+    - [ ] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
+    - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
+    - [ ] YAAT-2921 Show a one-sided reorder of a scenario list in the merge view · release vNext
+  - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
+  - [ ] YAAT-2501 YAATEdit M3.4: Route Finder panel · release vNext
+  - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
+  - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext
+  - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
+  - [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate · release vNext
+  - [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
+  - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext
+  - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext
+  - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
+  - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext
+  - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext
+  - [ ] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext
+  - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext
+  - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext
+  - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext
+  - [ ] YAAT-2671 Merge feat/yaatedit to main (#1392) · release vNext
+  - [ ] YAAT-2674 YAATEdit M4.1b: Read and write split per-layer airport GeoJSON · release vNext
+  - [ ] YAAT-2710 Keep RNAV-only fixes and low-altitude navaid legs out of non-RNAV navdata routes · release vNext
+  - [ ] YAAT-2712 Don't capture the caller's context in ScenarioDownloader's awaits · release vNext
+  - [ ] YAAT-2714 Scenario Editor: word the no-ARTCC state by its cause, and re-read the ARTCC list on Refresh · release vNext
+  - [ ] YAAT-2728 Fold AtomicTextFile into StoreFiles to close the Data.Vnas to Authoring.AirportMap edge · release vNext
+  - [ ] YAAT-2729 Scenario Editor: open and save working copies off the UI thread · release vNext
+  - [ ] YAAT-2744 YAATEdit: pan the Airport Editor's map without a middle button (touchpads) · release vNext
+  - [ ] YAAT-2747 Warn when a corner fillet override asks for a radius aircraft cannot steer · release vNext
+  - [ ] YAAT-2749 Reject a map feature that repeats a property key in AirportMapDocument.Read · release vNext
+  - [ ] YAAT-2753 Test the remaining fillet-override force paths and split the oversized fillet functions · release vNext
+  - [ ] YAAT-2763 Warn on a tight or lopsided pinned fillet corner (PINNED_TIGHT_RADIUS, pin asymmetry) · release vNext
+  - [ ] YAAT-2768 Airport Editor imagery: free replaced tower-cab images; FAA ids for Alaska and Hawaii · release vNext
+  - [ ] YAAT-2780 A click outside an open Scenario Editor drop-down is swallowed · release vNext
+- [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -150,9 +150,9 @@
 
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
-- [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS · release vNext+1
-- [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked · release vNext+1
-- [ ] YAAT-2881 Prefill the RUNDOWN entry menu's Modify… box with the entry's current message · release vNext+1
+- [ ] YAAT-2852 Settings › Keys names the Notes find and replace chords wrongly on macOS · release vNext
+- [ ] YAAT-2853 Notes window: Ctrl+F and Ctrl+H do nothing until the text is clicked · release vNext
+- [ ] YAAT-2881 Prefill the RUNDOWN entry menu's Modify… box with the entry's current message · release vNext
 
 ## Context-menu quick commands (#471)
 
@@ -1548,7 +1548,7 @@
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
 - [ ] YAAT-1689 Make tools/tests collect: add brotli to the dev dependencies
-- [ ] YAAT-1880 Move the test pin to AIRAC 2612 and fix what it breaks · release vNext+1
+- [ ] YAAT-1880 Move the test pin to AIRAC 2612 and fix what it breaks · release vNext
 - [ ] YAAT-1914 Refresh the committed IAH test layout to today's vNAS map and fix what it breaks
 - [ ] YAAT-2039 Turn on server GC for the Sim test suite (property is misspelled)
 - [ ] YAAT-2177 Fix the dotnet format style findings in untouched test files (IDE0008, IDE0044, IDE0060)
@@ -1802,6 +1802,10 @@
 - [ ] YAAT-2850 Notepad: a stamp over a rectangular selection deletes the text between its columns
 - [ ] YAAT-2851 Re-capture the Notes window screenshot after the editor change
 - [ ] YAAT-2882 Clear the hold-for-release rundown when a scenario is cleared
+
+## No project
+
+- [ ] YAAT-2933 prepare-release screenshots run a stale GuideCapture build after the routed 2.0 build
 
 ## Design files
 
