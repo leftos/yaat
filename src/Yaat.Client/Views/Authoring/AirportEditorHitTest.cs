@@ -8,6 +8,12 @@ namespace Yaat.Client.Views.Authoring;
 /// <param name="VertexIndex">The index of the line's vertex in its positions, or null when the hit is the feature itself.</param>
 public sealed record AirportEditorHit(int FeatureIndex, int? VertexIndex);
 
+/// <summary>Where on a line a screen point falls nearest: the segment, and the point projected onto it.</summary>
+/// <param name="SegmentIndex">The segment's index, its first vertex's index: segment k runs from vertex k to vertex k + 1.</param>
+/// <param name="X">The projected point's screen x, in pixels.</param>
+/// <param name="Y">The projected point's screen y, in pixels.</param>
+public sealed record AirportEditorSegmentHit(int SegmentIndex, double X, double Y);
+
 /// <summary>
 /// Finds the raw map feature under a screen point, in three tiers, the first with any candidate winning: the selected
 /// line's vertices within <see cref="VertexRange"/>, then points within <see cref="PointRange"/>, then line segments
@@ -44,6 +50,47 @@ public static class AirportEditorHitTest
         return FindVertex(scene, viewport, at, selectedFeatureIndex) ?? FindPoint(scene, viewport, at) ?? FindSegment(scene, viewport, at);
     }
 
+    /// <summary>
+    /// Finds the segment of a drawn line nearest a screen point, measured to each segment clamped to its ends (the earlier
+    /// segment on an exact tie), and the point projected onto it; the caller has already hit the line.
+    /// </summary>
+    /// <param name="scene">The open map's scene.</param>
+    /// <param name="viewport">The view the point is in.</param>
+    /// <param name="x">The point's screen x, in pixels.</param>
+    /// <param name="y">The point's screen y, in pixels.</param>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <returns>The nearest segment, or null when the feature is not a drawn line.</returns>
+    public static AirportEditorSegmentHit? NearestSegment(AirportEditorScene scene, MapViewport viewport, float x, float y, int featureIndex)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(viewport);
+        AirportEditorShape? shape = scene.Shapes.FirstOrDefault(s => s.FeatureIndex == featureIndex);
+        if ((shape is null) || (!IsLine(shape.Kind)))
+        {
+            return null;
+        }
+
+        var at = new ScreenPoint(x, y);
+        AirportEditorSegmentHit? best = null;
+        double bestDistance = double.MaxValue;
+        ScreenPoint a = Project(viewport, shape.Positions[0]);
+        for (int i = 1; i < shape.Positions.Length; i++)
+        {
+            ScreenPoint b = Project(viewport, shape.Positions[i]);
+            ScreenPoint q = NearestOnSegment(at, a, b);
+            double d = Distance(at, q);
+            if (d < bestDistance)
+            {
+                best = new AirportEditorSegmentHit(i - 1, q.X, q.Y);
+                bestDistance = d;
+            }
+
+            a = b;
+        }
+
+        return best;
+    }
+
     /// <summary>Whether a kind is drawn as a line (a runway or a taxiway) rather than a point.</summary>
     /// <param name="kind">The kind.</param>
     /// <returns>True for a runway or a taxiway.</returns>
@@ -54,13 +101,16 @@ public static class AirportEditorHitTest
     /// <param name="a">The segment's start.</param>
     /// <param name="b">The segment's end.</param>
     /// <returns>The distance, in the points' units.</returns>
-    internal static double SegmentDistance(ScreenPoint p, ScreenPoint a, ScreenPoint b)
+    internal static double SegmentDistance(ScreenPoint p, ScreenPoint a, ScreenPoint b) => Distance(p, NearestOnSegment(p, a, b));
+
+    // The point of a segment nearest p, clamped to the segment's ends.
+    private static ScreenPoint NearestOnSegment(ScreenPoint p, ScreenPoint a, ScreenPoint b)
     {
         double dx = b.X - a.X;
         double dy = b.Y - a.Y;
         double lengthSquared = (dx * dx) + (dy * dy);
         double t = lengthSquared > 0 ? Math.Clamp((((p.X - a.X) * dx) + ((p.Y - a.Y) * dy)) / lengthSquared, 0, 1) : 0;
-        return Distance(p, new ScreenPoint(a.X + (t * dx), a.Y + (t * dy)));
+        return new ScreenPoint(a.X + (t * dx), a.Y + (t * dy));
     }
 
     private static AirportEditorHit? FindVertex(AirportEditorScene scene, MapViewport viewport, ScreenPoint at, int? selectedFeatureIndex)

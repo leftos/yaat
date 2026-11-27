@@ -19,8 +19,10 @@ namespace Yaat.Client.Views.Authoring;
 /// The Airport Editor's map: draws the open map's features through an <see cref="AirportEditorRenderer"/>, pans on a
 /// middle drag (the right button is kept for its context menus), zooms with the wheel, and fits itself to the map. In
 /// Select mode a left press selects the feature under it (or a vertex of the selected line), Esc clears the selection,
-/// the feature under the pointer is highlighted, and a right click selects as a left press does and opens a read-only
-/// menu. Nothing here edits the map.
+/// the feature under the pointer is highlighted, and a right click selects as a left press does and opens its menu. A
+/// left press on a vertex of the selected line, or on a point, that moves past the platform's tap size drags it, snapped,
+/// with a live preview; the release hands one move to <see cref="EditTarget"/>, as the menu's edit items do. The canvas
+/// never changes the map itself.
 /// </summary>
 public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
 {
@@ -42,6 +44,7 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     private AirportEditorHit? _selection;
     private AirportEditorHit? _hover;
     private Point? _rightPressAt;
+    private VertexDrag? _drag;
     private TowerCabImage? _image;
     private bool _showImagery = true;
     private int _imageryBrightness = 50;
@@ -68,6 +71,13 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
             if (ReferenceEquals(_document, value))
             {
                 return;
+            }
+
+            // A drag in progress and an open menu hold the old map's indices, so neither outlives it.
+            CloseContextMenu();
+            if (_drag is not null)
+            {
+                CancelDrag();
             }
 
             _document = value;
@@ -186,6 +196,12 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
             }
         }
     }
+
+    /// <summary>
+    /// Gets or sets what the canvas's drags and edit menu items ask to change the map, or null for none (a drag then
+    /// previews and applies nothing); set on the UI thread.
+    /// </summary>
+    public IAirportEditorEditTarget? EditTarget { get; set; }
 
     /// <summary>Gets what the pointer is over, or null when nothing is. Test seam.</summary>
     internal AirportEditorHit? Hover => _hover;
@@ -313,7 +329,9 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         {
             CloseContextMenu();
             Focus();
-            SelectAt(e.GetPosition(this));
+            Point at = e.GetPosition(this);
+            SelectAt(at);
+            StartDrag(e, at);
             e.Handled = true;
         }
         else if (button == MouseButton.Right)
@@ -328,6 +346,12 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (e.InitialPressMouseButton == MouseButton.Left)
+        {
+            EndDrag(e);
+            return;
+        }
+
         if ((e.InitialPressMouseButton != MouseButton.Right) || (_rightPressAt is not { } pressedAt))
         {
             return;
@@ -353,7 +377,26 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
 
         Point at = e.GetPosition(this);
         _pointerAt = at;
+        if (_drag is { } drag)
+        {
+            UpdateDrag(drag, at);
+            e.Handled = true;
+            return;
+        }
+
         SetHover(AirportEditorHitTest.Find(_scene, Viewport, (float)at.X, (float)at.Y, _selection?.FeatureIndex));
+    }
+
+    /// <inheritdoc />
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        // A drag whose capture went without its release (another window took the pointer) is dropped, unapplied.
+        if (_drag is not null)
+        {
+            CancelDrag();
+        }
     }
 
     /// <inheritdoc />
@@ -368,11 +411,22 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if ((!e.Handled) && (e.Key == Key.Escape))
+        if ((e.Handled) || (e.Key != Key.Escape))
+        {
+            return;
+        }
+
+        // Esc drops a drag in progress and keeps the selection; with no drag it clears the selection.
+        if (_drag is not null)
+        {
+            CancelDrag();
+        }
+        else
         {
             SetSelectionFromUser(null);
-            e.Handled = true;
         }
+
+        e.Handled = true;
     }
 
     /// <summary>Builds the frame the next render would draw, asking the tile cache as a render does. Test seam.</summary>
@@ -388,8 +442,10 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         }
 
         (ImmutableArray<ImageryTile> tiles, string? status) = BuildImagery();
-        return new AirportEditorRenderSnapshot(_scene, ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
+        VertexDrag? drag = _drag is { Moving: true } ? _drag : null;
+        return new AirportEditorRenderSnapshot(PreviewScene(drag), ModeText, _selection?.FeatureIndex, _selection?.VertexIndex, _hover)
         {
+            SnapAt = drag?.SnapAt,
             Image = _image,
             ShowImagery = _showImagery,
             ImageryBrightness = _imageryBrightness,
@@ -408,6 +464,111 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
         item.Click += async (_, _) => await action();
         return item;
     }
+
+    // The drag's vertex where the pointer has it, in a copy of the scene; the scene itself without a drag.
+    private AirportEditorScene PreviewScene(VertexDrag? drag)
+    {
+        int shapeIndex = drag is null ? -1 : ShapeIndexOf(drag.FeatureIndex);
+        if ((drag is null) || (shapeIndex < 0))
+        {
+            return _scene;
+        }
+
+        AirportEditorShape shape = _scene.Shapes[shapeIndex];
+        AirportEditorShape moved = shape with { Positions = shape.Positions.SetItem(drag.VertexIndex, drag.To) };
+        return _scene with { Shapes = _scene.Shapes.SetItem(shapeIndex, moved) };
+    }
+
+    private int ShapeIndexOf(int featureIndex)
+    {
+        for (int i = 0; i < _scene.Shapes.Length; i++)
+        {
+            if (_scene.Shapes[i].FeatureIndex == featureIndex)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // A press on the selected line's vertex, or on a point (vertex 0), may become a drag: the pointer is captured so the
+    // release reaches the canvas wherever it lands.
+    private void StartDrag(PointerPressedEventArgs e, Point at)
+    {
+        _drag = null;
+        if ((_selection is not { } hit) || (_scene.Shapes.FirstOrDefault(s => s.FeatureIndex == hit.FeatureIndex) is not { } shape))
+        {
+            return;
+        }
+
+        bool isPoint = !AirportEditorHitTest.IsLine(shape.Kind);
+        if ((!isPoint) && (hit.VertexIndex is null))
+        {
+            return;
+        }
+
+        int vertex = hit.VertexIndex ?? 0;
+        _drag = new VertexDrag(hit.FeatureIndex, vertex, isPoint, at, TapSize(e.Pointer.Type), shape.Positions[vertex]);
+        e.Pointer.Capture(this);
+    }
+
+    // Past the tap size the drag moves: the vertex follows the pointer, snapped to the nearest target but itself.
+    private void UpdateDrag(VertexDrag drag, Point at)
+    {
+        Vector travel = at - drag.PressedAt;
+        bool past = (Math.Abs(travel.X) > drag.TapSize.Width / 2) || (Math.Abs(travel.Y) > drag.TapSize.Height / 2);
+        if (((!drag.Moving) && (!past)) || (_document is not { } document))
+        {
+            return;
+        }
+
+        drag.Moving = true;
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)at.X, (float)at.Y);
+        var cursor = new MapPosition(lon, lat);
+        SnapResult? snap = SnapEngine.Find(document, cursor, SnapOptions.Default, new SnapExclusion(drag.FeatureIndex, drag.VertexIndex), null);
+        drag.SnapAt = snap?.Position;
+        drag.To = snap?.Position ?? cursor;
+        MarkDirty();
+    }
+
+    // The release ends the drag: one move where it moved, nothing where it stayed within the tap size.
+    private void EndDrag(PointerReleasedEventArgs e)
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        UpdateDrag(drag, e.GetPosition(this));
+        _drag = null;
+        e.Pointer.Capture(null);
+        MarkDirty();
+        e.Handled = true;
+        if (!drag.Moving)
+        {
+            return;
+        }
+
+        if (drag.IsPoint)
+        {
+            EditTarget?.MoveFeature(drag.FeatureIndex, drag.To);
+        }
+        else
+        {
+            EditTarget?.MoveVertex(drag.FeatureIndex, drag.VertexIndex, drag.To);
+        }
+    }
+
+    // Drops a drag unapplied; its release then does nothing.
+    private void CancelDrag()
+    {
+        _drag = null;
+        MarkDirty();
+    }
+
+    // The platform's tap size for the pointer, 4 px square without platform settings.
+    private static Size TapSize(PointerType type) => Application.Current?.PlatformSettings?.GetTapSize(type) ?? new Size(ClickSlop, ClickSlop);
 
     // The feature under the point, with the current selection's vertices first; a miss clears the selection.
     private void SelectAt(Point at) =>
@@ -475,8 +636,88 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
                 }
             )
         );
+        if (_selection is { } selected)
+        {
+            AddEditItems(menu, selected, at);
+        }
+
         return menu;
     }
+
+    private static MenuItem EditItem(string header, bool enabled, Action action)
+    {
+        var item = new MenuItem { Header = header, IsEnabled = enabled };
+        item.Click += (_, _) => action();
+        return item;
+    }
+
+    // After a separator, the edits for what the click is on, in this order: Insert Vertex Here, Delete Vertex, Split
+    // Taxiway Here (each only where it applies), then Delete. None without an edit target.
+    private void AddEditItems(ContextMenu menu, AirportEditorHit hit, Point at)
+    {
+        int shapeIndex = ShapeIndexOf(hit.FeatureIndex);
+        if ((EditTarget is not { } target) || (shapeIndex < 0))
+        {
+            return;
+        }
+
+        menu.Items.Add(new Separator());
+        AirportEditorShape shape = _scene.Shapes[shapeIndex];
+        if (AirportEditorHitTest.IsLine(shape.Kind))
+        {
+            AddLineItems(menu, target, shape, hit, at);
+        }
+
+        menu.Items.Add(EditItem("Delete", true, () => target.DeleteFeature(hit.FeatureIndex)));
+    }
+
+    // On a vertex: Delete Vertex, and on a taxiway Split Taxiway Here there. On a segment: Insert Vertex Here, and on a
+    // taxiway Split Taxiway Here, both at the click projected onto the segment.
+    private void AddLineItems(ContextMenu menu, IAirportEditorEditTarget target, AirportEditorShape shape, AirportEditorHit hit, Point at)
+    {
+        bool taxiway = shape.Kind == AirportEditorFeatureKind.Taxiway;
+        int feature = hit.FeatureIndex;
+        if ((hit.VertexIndex ?? VertexOfLineAt(feature, at)) is int vertex)
+        {
+            menu.Items.Add(EditItem("Delete Vertex", target.CanDeleteVertex(feature, vertex), () => target.DeleteVertex(feature, vertex)));
+            if (taxiway)
+            {
+                menu.Items.Add(EditItem("Split Taxiway Here", target.CanSplitTaxiway(feature, vertex), () => target.SplitTaxiway(feature, vertex)));
+            }
+
+            return;
+        }
+
+        if (AirportEditorHitTest.NearestSegment(_scene, Viewport, (float)at.X, (float)at.Y, feature) is not { } segment)
+        {
+            return;
+        }
+
+        (double lat, double lon) = Viewport.ScreenToLatLon((float)segment.X, (float)segment.Y);
+        var onSegment = new MapPosition(lon, lat);
+        int index = segment.SegmentIndex;
+        menu.Items.Add(
+            EditItem("Insert Vertex Here", target.CanInsertVertex(feature, index, onSegment), () => target.InsertVertex(feature, index, onSegment))
+        );
+        if (taxiway)
+        {
+            menu.Items.Add(
+                EditItem(
+                    "Split Taxiway Here",
+                    target.CanSplitTaxiwayAt(feature, index, onSegment),
+                    () => target.SplitTaxiwayAt(feature, index, onSegment)
+                )
+            );
+        }
+    }
+
+    // A line the click hit as a segment (it was not selected, so its vertices were not tried first) may still have a vertex
+    // within vertex range of the click: that vertex, looked up as if the line were selected.
+    private int? VertexOfLineAt(int feature, Point at) =>
+        AirportEditorHitTest.Find(_scene, Viewport, (float)at.X, (float)at.Y, feature) is { VertexIndex: int vertex } found
+        && (found.FeatureIndex == feature)
+            ? vertex
+            : null;
 
     private void ShowContextMenu(ContextMenu menu)
     {
@@ -581,6 +822,97 @@ public sealed class AirportEditorCanvas : MapCanvasBase, IDisposable
             }
         }
     }
+
+    // A left press on a draggable vertex, on the UI thread: where it was pressed, and once it moves past the tap size,
+    // where the vertex is now and the snap target it is on.
+    private sealed class VertexDrag(int featureIndex, int vertexIndex, bool isPoint, Point pressedAt, Size tapSize, MapPosition from)
+    {
+        public int FeatureIndex { get; } = featureIndex;
+
+        public int VertexIndex { get; } = vertexIndex;
+
+        public bool IsPoint { get; } = isPoint;
+
+        public Point PressedAt { get; } = pressedAt;
+
+        public Size TapSize { get; } = tapSize;
+
+        public bool Moving { get; set; }
+
+        public MapPosition To { get; set; } = from;
+
+        public MapPosition? SnapAt { get; set; }
+    }
+}
+
+/// <summary>
+/// What the Airport Editor canvas's drags and context-menu edit items ask to change the map; each change is one undo
+/// step, and an ask the map cannot take does nothing.
+/// </summary>
+public interface IAirportEditorEditTarget
+{
+    /// <summary>Moves a line's vertex.</summary>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    /// <param name="to">The vertex's new position.</param>
+    void MoveVertex(int featureIndex, int vertexIndex, MapPosition to);
+
+    /// <summary>Moves a point feature.</summary>
+    /// <param name="featureIndex">The point's index in the map's features.</param>
+    /// <param name="to">The point's new position.</param>
+    void MoveFeature(int featureIndex, MapPosition to);
+
+    /// <summary>Inserts a vertex on a line's segment, as the segment's second vertex's new predecessor.</summary>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The new vertex's position.</param>
+    void InsertVertex(int featureIndex, int segmentIndex, MapPosition at);
+
+    /// <summary>Whether a vertex can be inserted on a line's segment at a position.</summary>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The new vertex's position.</param>
+    /// <returns>True for a segment of a line and a position on neither of its ends.</returns>
+    bool CanInsertVertex(int featureIndex, int segmentIndex, MapPosition at);
+
+    /// <summary>Whether a line's vertex can be deleted.</summary>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    /// <returns>True when the line keeps its minimum once the vertex has gone.</returns>
+    bool CanDeleteVertex(int featureIndex, int vertexIndex);
+
+    /// <summary>Deletes a line's vertex.</summary>
+    /// <param name="featureIndex">The line's index in the map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    void DeleteVertex(int featureIndex, int vertexIndex);
+
+    /// <summary>Whether a taxiway can be split at a vertex.</summary>
+    /// <param name="featureIndex">The taxiway's index in the map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the taxiway's positions.</param>
+    /// <returns>True for an interior vertex of a taxiway.</returns>
+    bool CanSplitTaxiway(int featureIndex, int vertexIndex);
+
+    /// <summary>Splits a taxiway at an interior vertex.</summary>
+    /// <param name="featureIndex">The taxiway's index in the map's features.</param>
+    /// <param name="vertexIndex">The interior vertex.</param>
+    void SplitTaxiway(int featureIndex, int vertexIndex);
+
+    /// <summary>Whether a taxiway can be split on a segment at a position.</summary>
+    /// <param name="featureIndex">The taxiway's index in the map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The shared vertex's position.</param>
+    /// <returns>True for a segment of a taxiway and a position on neither of its ends.</returns>
+    bool CanSplitTaxiwayAt(int featureIndex, int segmentIndex, MapPosition at);
+
+    /// <summary>Inserts a vertex on a taxiway's segment and splits the taxiway there.</summary>
+    /// <param name="featureIndex">The taxiway's index in the map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The shared vertex's position.</param>
+    void SplitTaxiwayAt(int featureIndex, int segmentIndex, MapPosition at);
+
+    /// <summary>Deletes a feature.</summary>
+    /// <param name="featureIndex">The feature's index in the map's features.</param>
+    void DeleteFeature(int featureIndex);
 }
 
 /// <summary>The Airport Editor's imagery status line: one line saying why imagery is missing, or what is downloading.</summary>

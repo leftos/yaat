@@ -372,6 +372,210 @@ public sealed class AirportEditorViewModelTests : IDisposable
         Assert.Same(vm.Document!.Features[index], vm.SelectedFeature);
     }
 
+    [Fact]
+    public async Task MoveVertex_ThenUndo_RestoresTheVertex()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapPosition was = opened.Features[index].Coordinates[1];
+        var to = new MapPosition(was.Lon + 0.0001, was.Lat + 0.0001);
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+
+        vm.MoveVertex(index, 1, to);
+
+        Assert.Equal(to, vm.Document!.Features[index].Coordinates[1]);
+        Assert.Equal("Undo Move vertex", vm.UndoDescription);
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        Assert.Equal(1, vm.SelectedVertexIndex);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+        Assert.Equal(was, vm.Document!.Features[index].Coordinates[1]);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task MoveFeature_MovesAPoint_AsOneMoveFeatureStep_AndAMoveToWhereItIsRecordsNothing()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int parking = FirstOfType(opened, "parking");
+        MapPosition was = opened.Features[parking].Coordinates[0];
+
+        vm.MoveFeature(parking, was);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+
+        var to = new MapPosition(was.Lon - 0.0002, was.Lat);
+        vm.MoveFeature(parking, to);
+
+        Assert.Equal(to, vm.Document!.Features[parking].Coordinates[0]);
+        Assert.Equal("Undo Move feature", vm.UndoDescription);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+    }
+
+    [Fact]
+    public async Task InsertVertex_OnSegmentK_PutsTheNewVertexAtKPlusOne_AtThePosition()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapFeature taxiway = opened.Features[index];
+        MapPosition a = taxiway.Coordinates[1];
+        MapPosition b = taxiway.Coordinates[2];
+        var at = new MapPosition((a.Lon + b.Lon) / 2, (a.Lat + b.Lat) / 2);
+
+        vm.InsertVertex(index, 1, at);
+
+        Assert.Equal(taxiway.Coordinates.Insert(2, at), vm.Document!.Features[index].Coordinates);
+        Assert.Equal("Undo Insert vertex", vm.UndoDescription);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+    }
+
+    [Fact]
+    public async Task SplitTaxiway_AtAnInteriorVertex_YieldsTwoTaxiwaysSharingIt_TheFirstSelected()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapFeature taxiway = opened.Features[index];
+        vm.SelectedFeatureIndex = index;
+        vm.SelectedVertexIndex = 1;
+        Assert.True(vm.CanSplitTaxiway(index, 1));
+
+        vm.SplitTaxiway(index, 1);
+
+        Assert.Equal(opened.Features.Count + 1, vm.Document!.Features.Count);
+        MapFeature first = vm.Document!.Features[index];
+        MapFeature second = vm.Document!.Features[index + 1];
+        Assert.Equal([.. taxiway.Coordinates.Take(2)], first.Coordinates);
+        Assert.Equal([.. taxiway.Coordinates.Skip(1)], second.Coordinates);
+        Assert.Equal(first.Coordinates[^1], second.Coordinates[0]);
+        Assert.Equal("taxiway", first.FeatureType);
+        Assert.Equal("taxiway", second.FeatureType);
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        Assert.Same(first, vm.SelectedFeature);
+        Assert.Equal("Undo Split taxiway", vm.UndoDescription);
+    }
+
+    [Fact]
+    public async Task SplitTaxiwayAt_ASegment_IsOneUndoStep()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapFeature taxiway = opened.Features[index];
+        MapPosition a = taxiway.Coordinates[0];
+        MapPosition b = taxiway.Coordinates[1];
+        var at = new MapPosition((a.Lon + b.Lon) / 2, (a.Lat + b.Lat) / 2);
+        vm.SelectedFeatureIndex = index;
+        Assert.True(vm.CanSplitTaxiwayAt(index, 0, at));
+
+        vm.SplitTaxiwayAt(index, 0, at);
+
+        Assert.Equal(opened.Features.Count + 1, vm.Document!.Features.Count);
+        Assert.Equal([a, at], vm.Document!.Features[index].Coordinates);
+        Assert.Equal([at, .. taxiway.Coordinates.Skip(1)], vm.Document!.Features[index + 1].Coordinates);
+        Assert.Equal(index, vm.SelectedFeatureIndex);
+        Assert.Equal("Undo Split taxiway", vm.UndoDescription);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Split_IsDisabled_AtAnEndVertex_AndForANonTaxiwayLine()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        int last = opened.Features[index].Coordinates.Length - 1;
+        int runway = FirstOfType(opened, "runway");
+
+        Assert.False(vm.CanSplitTaxiway(index, 0));
+        Assert.False(vm.CanSplitTaxiway(index, last));
+        Assert.False(vm.CanSplitTaxiway(runway, 1));
+        Assert.False(vm.CanSplitTaxiwayAt(runway, 0, Middle(opened.Features[runway], 0)));
+        Assert.True(vm.CanSplitTaxiwayAt(index, 0, Middle(opened.Features[index], 0)));
+
+        vm.SplitTaxiway(index, 0);
+        vm.SplitTaxiwayAt(runway, 0, opened.Features[runway].Coordinates[0]);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task DeleteVertex_IsDisabled_AtTheLinesMinimumCount_AndDeleteFeatureIsOneStep()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        int index = FirstTaxiway(vm.Document!);
+        Assert.True(vm.CanDeleteVertex(index, 1));
+
+        vm.DeleteVertex(index, 1);
+
+        Assert.Equal("Undo Delete vertex", vm.UndoDescription);
+        while (vm.Document!.Features[index].Coordinates.Length > 2)
+        {
+            vm.DeleteVertex(index, 0);
+        }
+
+        AirportMapDocument atMinimum = vm.Document!;
+        Assert.False(vm.CanDeleteVertex(index, 0));
+
+        vm.DeleteVertex(index, 0);
+
+        Assert.Same(atMinimum, vm.Document);
+
+        vm.DeleteFeature(index);
+
+        Assert.Equal(atMinimum.Features.Count - 1, vm.Document!.Features.Count);
+        Assert.Equal("Undo Delete feature", vm.UndoDescription);
+    }
+
+    [Fact]
+    public async Task InsertVertex_AndSplitTaxiwayAt_RefuseAPointOnEitherEndOfTheSegment()
+    {
+        using AirportEditorViewModel vm = await OpenOakAsync();
+        AirportMapDocument opened = vm.Document!;
+        int index = FirstTaxiway(opened);
+        MapPosition a = opened.Features[index].Coordinates[0];
+        MapPosition b = opened.Features[index].Coordinates[1];
+        Assert.True(vm.CanInsertVertex(index, 0, Middle(opened.Features[index], 0)));
+
+        Assert.False(vm.CanInsertVertex(index, 0, a));
+        Assert.False(vm.CanInsertVertex(index, 0, b));
+        Assert.False(vm.CanSplitTaxiwayAt(index, 0, a));
+        Assert.False(vm.CanSplitTaxiwayAt(index, 0, b));
+
+        vm.InsertVertex(index, 0, a);
+        vm.InsertVertex(index, 0, b);
+        vm.SplitTaxiwayAt(index, 0, a);
+        vm.SplitTaxiwayAt(index, 0, b);
+
+        Assert.Same(opened, vm.Document);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    private static MapPosition Middle(MapFeature line, int segment)
+    {
+        MapPosition a = line.Coordinates[segment];
+        MapPosition b = line.Coordinates[segment + 1];
+        return new MapPosition((a.Lon + b.Lon) / 2, (a.Lat + b.Lat) / 2);
+    }
+
     private async Task<AirportEditorViewModel> OpenOakAsync()
     {
         string oak = _folder.WriteFile("oak.geojson", AirportEditorTestFolder.OakText);
@@ -382,6 +586,9 @@ public sealed class AirportEditorViewModelTests : IDisposable
 
     private static int FirstTaxiway(AirportMapDocument document) =>
         document.Features.Select((f, i) => (f, i)).First(x => x.f.FeatureType == "taxiway").i;
+
+    private static int FirstOfType(AirportMapDocument document, string type) =>
+        document.Features.Select((f, i) => (f, i)).First(x => x.f.FeatureType == type).i;
 }
 
 /// <summary>Answers the Airport Editor's prompts with fixed values; null is a cancel.</summary>

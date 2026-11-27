@@ -2425,9 +2425,13 @@ If the copy is open with unsaved edits, the editor asks first: **Yes** saves and
 
 ### Airport Editor
 
-**Tools > Airport Editor...** opens an airport map in its own window: from the vNAS cache by airport id, from a file, or from a folder holding one `.geojson` map. The airport's imagery draws under the map (toggle it with **Imagery**); pan with the middle mouse button, zoom with the wheel, and click a feature to inspect it. Drawing, dragging and property edits are not there yet, and nothing can be saved.
+**Tools > Airport Editor...** opens an airport map in its own window: from the vNAS cache by airport id, from a file, or from a folder holding one `.geojson` map. The airport's imagery draws under the map (toggle it with **Imagery**); pan with the middle mouse button, zoom with the wheel, and click a feature to inspect it. Dragging and the right-click menu edits below are there; drawing and property edits are not yet, and nothing can be saved.
 
 **Deleting and undoing.** With a feature selected, **Delete** (or the Del key) removes it; with a vertex of a line selected, it removes that vertex and leaves the line selected. A line keeps at least two positions, so **Delete** is greyed out for a vertex on a line that has only two. **Undo** and **Redo** step back and forward through your edits, and their tooltips name the edit ("Undo Delete feature"). The keys are Ctrl+Z to undo and Ctrl+Y to redo (on macOS Cmd+Z and Cmd+Shift+Z), and they work while a row of the Properties panel has focus. The selection stays on its feature through an edit, undo or redo when that feature still exists (a vertex only while its line still has the same number of positions), and clears otherwise. Opening another map starts with an empty undo history.
+
+**Moving.** Press and drag a vertex of the selected line, or a parking, spot or helipad point, to move it with a live preview. It snaps to a nearby target within 10 ft, marked by a magenta crosshair and ring, and releasing adds one undo step ("Undo Move vertex" or "Undo Move feature"). A press that barely moves still just selects, and a left drag on empty space neither pans nor selects. Esc during a drag cancels it and keeps the selection; so do Del, undo, redo and opening a map, and any change to the map closes an open right-click menu.
+
+**Right-click menu.** On a feature the menu adds, after a separator and where each applies: **Insert Vertex Here** (on a line segment), **Delete Vertex** (greyed out at two vertices), **Split Taxiway Here** (taxiways only, greyed out at an end vertex) and **Delete**. Right-clicking an unselected line within 8 px of a vertex gives that vertex's items. Insert and Split are greyed out on a segment's end point. A split is one undo step ("Undo Split taxiway") and leaves the first half selected; the other tooltips are "Undo Insert vertex", "Undo Delete vertex" and "Undo Delete feature".
 
 ---
 

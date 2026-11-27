@@ -288,7 +288,7 @@ public class AirportEditorWindowTests
             Press(window, canvas, at, MouseButton.Right);
 
             Assert.Equal(target.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
-            Assert.Equal(["Zoom to feature", "Copy coordinates", "-", "Fit to airport"], Labels(canvas.ActiveContextMenu!));
+            Assert.Equal(["Zoom to feature", "Copy coordinates", "-", "Fit to airport", "-", "Delete"], Labels(canvas.ActiveContextMenu!));
             canvas.ActiveContextMenu!.Close();
             MainWindowHost.Pump();
 
@@ -455,13 +455,26 @@ public class AirportEditorWindowTests
     }
 
     // A taxiway vertex whose own pixel hits the taxiway with nothing selected, and that vertex with the taxiway selected.
-    private static (AirportEditorHit Vertex, Point At) TaxiwayVertexUnderTheCursor(AirportEditorWindow window, AirportEditorCanvas canvas)
+    private static (AirportEditorHit Vertex, Point At) TaxiwayVertexUnderTheCursor(AirportEditorWindow window, AirportEditorCanvas canvas) =>
+        TaxiwayVertexWhere(window, canvas, (_, _) => true);
+
+    // As TaxiwayVertexUnderTheCursor, for the first vertex k of a taxiway shape that pick accepts.
+    private static (AirportEditorHit Vertex, Point At) TaxiwayVertexWhere(
+        AirportEditorWindow window,
+        AirportEditorCanvas canvas,
+        Func<AirportEditorShape, int, bool> pick
+    )
     {
         var scene = AirportEditorScene.Build(window.ViewModel.Document);
         foreach (AirportEditorShape shape in scene.Shapes.Where(s => s.Kind == AirportEditorFeatureKind.Taxiway))
         {
             for (int k = 0; k < shape.Positions.Length; k++)
             {
+                if (!pick(shape, k))
+                {
+                    continue;
+                }
+
                 (float x, float y) = canvas.Viewport.LatLonToScreen(shape.Positions[k].Lat, shape.Positions[k].Lon);
                 Point at = new(Math.Round(x), Math.Round(y));
                 var vertex = new AirportEditorHit(shape.FeatureIndex, k);
@@ -561,6 +574,674 @@ public class AirportEditorWindowTests
             window.Close();
         }
     }
+
+    [AvaloniaFact]
+    public async Task ADragOfAVertex_MovesIt_AndOneUndoRestoresIt()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit vertex, Point at) = TaxiwayVertexUnderTheCursor(window, canvas);
+            Press(window, canvas, at, MouseButton.Left);
+            Assert.Equal(new AirportEditorHit(vertex.FeatureIndex, null), canvas.Selection);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            Point to = at + new Vector(25, 15);
+            (double lat, double lon) = canvas.Viewport.ScreenToLatLon((float)to.X, (float)to.Y);
+            var exclusion = new SnapExclusion(vertex.FeatureIndex, vertex.VertexIndex!.Value);
+            Assert.Null(SnapEngine.Find(opened, new MapPosition(lon, lat), SnapOptions.Default, exclusion, null));
+
+            DragLeft(window, canvas, at, to);
+
+            MapPosition moved = window.ViewModel.Document!.Features[vertex.FeatureIndex].Coordinates[vertex.VertexIndex.Value];
+            Assert.Equal(lat, moved.Lat, 1e-9);
+            Assert.Equal(lon, moved.Lon, 1e-9);
+            Assert.Same(window.ViewModel.Document, canvas.Document);
+            Assert.Equal("Undo Move vertex", window.ViewModel.UndoDescription);
+            Assert.Equal(vertex, canvas.Selection);
+
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.Same(opened, canvas.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task APressThatMovesWithinTheTapSize_SelectsAndEditsNothing()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit target, Point at) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+
+            DragLeft(window, canvas, at, at + new Vector(1, 1));
+
+            Assert.Equal(target.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ALeftDragOnEmptySpace_NeitherPansNorSelects()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (_, Point parking) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            double centerLat = canvas.Viewport.CenterLat;
+            double centerLon = canvas.Viewport.CenterLon;
+
+            DragLeft(window, canvas, EmptyCorner, parking);
+
+            Assert.Equal(centerLat, canvas.Viewport.CenterLat);
+            Assert.Equal(centerLon, canvas.Viewport.CenterLon);
+            Assert.Null(window.ViewModel.SelectedFeatureIndex);
+            Assert.Null(canvas.Selection);
+            Assert.Same(opened, window.ViewModel.Document);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // Zoomed to about a metre a pixel, a parking point dragged to within a pixel of its nearest neighbour snaps to it: the
+    // crosshair is drawn on the neighbour during the drag, and the release puts the point exactly there.
+    [AvaloniaFact]
+    public async Task TheSnapCrosshair_IsDrawnDuringADrag_NearASnapTarget()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorShape dragged, AirportEditorShape target, Point from, Point to) = ParkingNextToAnother(window, canvas);
+            Point fromInWindow = canvas.TranslatePoint(from, window)!.Value;
+            Point toInWindow = canvas.TranslatePoint(to, window)!.Value;
+            window.MouseMove(fromInWindow);
+            MainWindowHost.Pump();
+            window.MouseDown(fromInWindow, MouseButton.Left);
+            MainWindowHost.Pump();
+            window.MouseMove(toInWindow, RawInputModifiers.LeftMouseButton);
+            MainWindowHost.Pump();
+
+            AirportEditorRenderSnapshot frame = canvas.SnapshotForTesting()!;
+            Assert.Equal(target.Positions[0], frame.SnapAt);
+            Assert.Equal(target.Positions[0], frame.Scene.Shapes.Single(s => s.FeatureIndex == dragged.FeatureIndex).Positions[0]);
+            using (SKBitmap bitmap = canvas.RenderForTesting())
+            {
+                Assert.True(CountNear(bitmap, AirportEditorRenderer.SnapColour) > 0);
+            }
+
+            window.MouseUp(toInWindow, MouseButton.Left);
+            MainWindowHost.Pump();
+
+            Assert.Equal(target.Positions[0], window.ViewModel.Document!.Features[dragged.FeatureIndex].Coordinates[0]);
+            Assert.Equal("Undo Move feature", window.ViewModel.UndoDescription);
+            Assert.Null(canvas.SnapshotForTesting()!.SnapAt);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // A parking point and its nearest parking neighbour 30 to 200 px away on a view centred on the first at zoom 20; the
+    // press is on the first's own pixel and the drag ends one pixel right of the neighbour's.
+    private static (AirportEditorShape Dragged, AirportEditorShape Target, Point From, Point To) ParkingNextToAnother(
+        AirportEditorWindow window,
+        AirportEditorCanvas canvas
+    )
+    {
+        var scene = AirportEditorScene.Build(window.ViewModel.Document);
+        List<AirportEditorShape> parking = [.. scene.Shapes.Where(s => s.Kind == AirportEditorFeatureKind.Parking)];
+        foreach (AirportEditorShape shape in parking)
+        {
+            canvas.Viewport.Zoom = 20;
+            canvas.Viewport.CenterLat = shape.Positions[0].Lat;
+            canvas.Viewport.CenterLon = shape.Positions[0].Lon;
+            (float x, float y) = canvas.Viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
+            Point from = new(Math.Round(x), Math.Round(y));
+            AirportEditorShape nearest = parking.Where(p => !ReferenceEquals(p, shape)).MinBy(p => ScreenDistance(canvas, from, p))!;
+            double distance = ScreenDistance(canvas, from, nearest);
+            bool fits =
+                (distance >= 30)
+                && (distance <= 200)
+                && (
+                    AirportEditorHitTest.Find(scene, canvas.Viewport, (float)from.X, (float)from.Y, null)
+                    == new AirportEditorHit(shape.FeatureIndex, null)
+                );
+            if (fits)
+            {
+                (float tx, float ty) = canvas.Viewport.LatLonToScreen(nearest.Positions[0].Lat, nearest.Positions[0].Lon);
+                return (shape, nearest, from, new Point(Math.Round(tx) + 1, Math.Round(ty)));
+            }
+        }
+
+        throw new InvalidOperationException("No parking point with a neighbour 30 to 200 px away");
+    }
+
+    private static double ScreenDistance(AirportEditorCanvas canvas, Point from, AirportEditorShape shape)
+    {
+        (float x, float y) = canvas.Viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
+        return Math.Sqrt(((x - from.X) * (x - from.X)) + ((y - from.Y) * (y - from.Y)));
+    }
+
+    // A left press at one point of the canvas, a move halfway and then to another with the button held, and the release there.
+    private static void DragLeft(Window window, AirportEditorCanvas canvas, Point from, Point to)
+    {
+        Point a = canvas.TranslatePoint(from, window)!.Value;
+        Point b = canvas.TranslatePoint(to, window)!.Value;
+        window.MouseMove(a);
+        MainWindowHost.Pump();
+        window.MouseDown(a, MouseButton.Left);
+        MainWindowHost.Pump();
+        window.MouseMove(new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), RawInputModifiers.LeftMouseButton);
+        MainWindowHost.Pump();
+        window.MouseMove(b, RawInputModifiers.LeftMouseButton);
+        MainWindowHost.Pump();
+        window.MouseUp(b, MouseButton.Left);
+        MainWindowHost.Pump();
+    }
+
+    [AvaloniaFact]
+    public async Task TheRightClickMenu_OnATaxiwaySegment_InsertsAVertex_AndSplitsAsOneUndoStep()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (int feature, int segment, Point at) = TaxiwaySegmentUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            MapFeature taxiway = opened.Features[feature];
+
+            Press(window, canvas, at, MouseButton.Right);
+
+            List<string> expected =
+            [
+                "Zoom to feature",
+                "Copy coordinates",
+                "-",
+                "Fit to airport",
+                "-",
+                "Insert Vertex Here",
+                "Split Taxiway Here",
+                "Delete",
+            ];
+            Assert.Equal(expected, Labels(canvas.ActiveContextMenu!));
+            ClickItem(canvas.ActiveContextMenu!, "Insert Vertex Here");
+
+            MapFeature inserted = window.ViewModel.Document!.Features[feature];
+            Assert.Equal(taxiway.Coordinates.Length + 1, inserted.Coordinates.Length);
+            Assert.Equal(taxiway.Coordinates[segment], inserted.Coordinates[segment]);
+            Assert.Equal(taxiway.Coordinates[segment + 1], inserted.Coordinates[segment + 2]);
+            Assert.Equal("Undo Insert vertex", window.ViewModel.UndoDescription);
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+            Assert.Same(opened, window.ViewModel.Document);
+
+            Press(window, canvas, at, MouseButton.Right);
+            ClickItem(canvas.ActiveContextMenu!, "Split Taxiway Here");
+
+            Assert.Equal(opened.Features.Count + 1, window.ViewModel.Document!.Features.Count);
+            Assert.Equal(feature, window.ViewModel.SelectedFeatureIndex);
+            Assert.Equal(segment + 2, window.ViewModel.Document!.Features[feature].Coordinates.Length);
+            Assert.Equal("Undo Split taxiway", window.ViewModel.UndoDescription);
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheRightClickMenu_OnAVertex_SplitsAtAnInteriorOne_NotAtAnEnd_AndDeletesTheVertexOrTheFeature()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            AirportMapDocument opened = window.ViewModel.Document!;
+            (AirportEditorHit vertex, Point at) = TaxiwayVertexWhere(window, canvas, (s, k) => (k > 0) && (k < s.Positions.Length - 1));
+            int count = opened.Features[vertex.FeatureIndex].Coordinates.Length;
+            Press(window, canvas, at, MouseButton.Left);
+
+            Press(window, canvas, at, MouseButton.Right);
+
+            Assert.Equal(vertex, canvas.Selection);
+            List<string> expected =
+            [
+                "Zoom to feature",
+                "Copy coordinates",
+                "-",
+                "Fit to airport",
+                "-",
+                "Delete Vertex",
+                "Split Taxiway Here",
+                "Delete",
+            ];
+            Assert.Equal(expected, Labels(canvas.ActiveContextMenu!));
+            Assert.True(Item(canvas.ActiveContextMenu!, "Delete Vertex").IsEnabled);
+            Assert.True(Item(canvas.ActiveContextMenu!, "Split Taxiway Here").IsEnabled);
+            ClickItem(canvas.ActiveContextMenu!, "Split Taxiway Here");
+
+            Assert.Equal(opened.Features.Count + 1, window.ViewModel.Document!.Features.Count);
+            Assert.Equal(vertex.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
+            Assert.Equal(vertex.VertexIndex + 1, window.ViewModel.Document!.Features[vertex.FeatureIndex].Coordinates.Length);
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+            Assert.Same(opened, window.ViewModel.Document);
+
+            Press(window, canvas, at, MouseButton.Left);
+            Press(window, canvas, at, MouseButton.Left);
+            Press(window, canvas, at, MouseButton.Right);
+            ClickItem(canvas.ActiveContextMenu!, "Delete Vertex");
+
+            Assert.Equal(count - 1, window.ViewModel.Document!.Features[vertex.FeatureIndex].Coordinates.Length);
+            Assert.Equal("Undo Delete vertex", window.ViewModel.UndoDescription);
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+            Assert.Same(opened, window.ViewModel.Document);
+
+            (AirportEditorHit end, Point endAt) = TaxiwayVertexWhere(window, canvas, (_, k) => k == 0);
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            MainWindowHost.Pump();
+            Press(window, canvas, endAt, MouseButton.Left);
+            Press(window, canvas, endAt, MouseButton.Right);
+
+            Assert.Equal(end, canvas.Selection);
+            Assert.False(Item(canvas.ActiveContextMenu!, "Split Taxiway Here").IsEnabled);
+            ClickItem(canvas.ActiveContextMenu!, "Delete");
+
+            Assert.Equal(opened.Features.Count - 1, window.ViewModel.Document!.Features.Count);
+            Assert.Equal("Undo Delete feature", window.ViewModel.UndoDescription);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // The middle of a taxiway segment at least 40 px long whose own pixel hits the taxiway with nothing selected, with that
+    // segment the nearest.
+    private static (int Feature, int Segment, Point At) TaxiwaySegmentUnderTheCursor(AirportEditorWindow window, AirportEditorCanvas canvas) =>
+        LineSegmentUnderTheCursor(window, canvas, AirportEditorFeatureKind.Taxiway);
+
+    // As TaxiwaySegmentUnderTheCursor, for a line of the given kind.
+    private static (int Feature, int Segment, Point At) LineSegmentUnderTheCursor(
+        AirportEditorWindow window,
+        AirportEditorCanvas canvas,
+        AirportEditorFeatureKind kind
+    )
+    {
+        var scene = AirportEditorScene.Build(window.ViewModel.Document);
+        foreach (AirportEditorShape shape in scene.Shapes.Where(s => s.Kind == kind))
+        {
+            for (int k = 0; k < shape.Positions.Length - 1; k++)
+            {
+                (float ax, float ay) = canvas.Viewport.LatLonToScreen(shape.Positions[k].Lat, shape.Positions[k].Lon);
+                (float bx, float by) = canvas.Viewport.LatLonToScreen(shape.Positions[k + 1].Lat, shape.Positions[k + 1].Lon);
+                Point at = new(Math.Round((ax + bx) / 2), Math.Round((ay + by) / 2));
+                bool fits =
+                    (Math.Sqrt(((bx - ax) * (bx - ax)) + ((by - ay) * (by - ay))) >= 40)
+                    && (
+                        AirportEditorHitTest.Find(scene, canvas.Viewport, (float)at.X, (float)at.Y, null)
+                        == new AirportEditorHit(shape.FeatureIndex, null)
+                    )
+                    && (AirportEditorHitTest.NearestSegment(scene, canvas.Viewport, (float)at.X, (float)at.Y, shape.FeatureIndex)?.SegmentIndex == k);
+                if (fits)
+                {
+                    return (shape.FeatureIndex, k, at);
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"No {kind} segment under its own pixel");
+    }
+
+    private static MenuItem Item(ContextMenu menu, string header) => menu.Items.OfType<MenuItem>().Single(i => (i.Header as string) == header);
+
+    // A drag past the tap size, then the case's interruption (Del, Ctrl+Z or Esc) before the release.
+    private static void StartDragAndHold(Window window, AirportEditorCanvas canvas, Point from, Point to)
+    {
+        Point a = canvas.TranslatePoint(from, window)!.Value;
+        Point b = canvas.TranslatePoint(to, window)!.Value;
+        window.MouseMove(a);
+        MainWindowHost.Pump();
+        window.MouseDown(a, MouseButton.Left);
+        MainWindowHost.Pump();
+        window.MouseMove(b, RawInputModifiers.LeftMouseButton);
+        MainWindowHost.Pump();
+    }
+
+    private static void Release(Window window, AirportEditorCanvas canvas, Point at)
+    {
+        window.MouseUp(canvas.TranslatePoint(at, window)!.Value, MouseButton.Left);
+        MainWindowHost.Pump();
+    }
+
+    [AvaloniaFact]
+    public async Task ADelDuringADrag_CancelsIt_AndTheReleaseAppliesNothing()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit last, Point at) = TaxiwayVertexWhere(
+                window,
+                canvas,
+                (s, k) => (s.Positions.Length > 2) && (k == s.Positions.Length - 1)
+            );
+            Press(window, canvas, at, MouseButton.Left);
+            StartDragAndHold(window, canvas, at, at + new Vector(20, 10));
+            Assert.Equal(last, canvas.Selection);
+
+            window.KeyPressQwerty(PhysicalKey.Delete, RawInputModifiers.None);
+            MainWindowHost.Pump();
+            AirportMapDocument deleted = window.ViewModel.Document!;
+
+            Assert.NotNull(canvas.SnapshotForTesting());
+            using (SKBitmap frame = canvas.RenderForTesting())
+            {
+                Assert.True(frame.Width > 0);
+            }
+
+            Release(window, canvas, at + new Vector(20, 10));
+
+            Assert.Same(deleted, window.ViewModel.Document);
+            Assert.Equal("Undo Delete vertex", window.ViewModel.UndoDescription);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ACtrlZDuringADrag_CancelsIt_AndTheReleaseAppliesNothing()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (_, Point at) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            DragLeft(window, canvas, at, at + new Vector(30, 0));
+            Assert.Equal("Undo Move feature", window.ViewModel.UndoDescription);
+            StartDragAndHold(window, canvas, at + new Vector(30, 0), at + new Vector(30, 30));
+
+            window.KeyPressQwerty(PhysicalKey.Z, RawInputModifiers.Control);
+            MainWindowHost.Pump();
+            Assert.NotNull(canvas.SnapshotForTesting());
+            Release(window, canvas, at + new Vector(30, 30));
+
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+            Assert.Equal("Redo Move feature", window.ViewModel.RedoDescription);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task EscDuringADrag_CancelsIt_AndKeepsTheSelection()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit target, Point at) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            StartDragAndHold(window, canvas, at, at + new Vector(30, 10));
+
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            MainWindowHost.Pump();
+            Release(window, canvas, at + new Vector(30, 10));
+
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+            Assert.Equal(target, canvas.Selection);
+            Assert.Equal(target.FeatureIndex, window.ViewModel.SelectedFeatureIndex);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AReleaseOutsideTheCanvas_AppliesTheMoveOnce()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit target, Point at) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            var outside = new Point(canvas.Bounds.Width + 20, at.Y);
+            Assert.True(window.Bounds.Width > canvas.TranslatePoint(outside, window)!.Value.X);
+            StartDragAndHold(window, canvas, at, new Point(canvas.Bounds.Width - 5, at.Y));
+            window.MouseMove(canvas.TranslatePoint(outside, window)!.Value, RawInputModifiers.LeftMouseButton);
+            MainWindowHost.Pump();
+
+            Release(window, canvas, outside);
+
+            Assert.NotSame(opened, window.ViewModel.Document);
+            Assert.NotEqual(
+                opened.Features[target.FeatureIndex].Coordinates[0],
+                window.ViewModel.Document!.Features[target.FeatureIndex].Coordinates[0]
+            );
+            Assert.Equal("Undo Move feature", window.ViewModel.UndoDescription);
+            window.ViewModel.UndoCommand.Execute(null);
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task CaptureLostWithoutARelease_AppliesNothing()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (_, Point at) = ParkingUnderTheCursor(window, canvas);
+            AirportMapDocument opened = window.ViewModel.Document!;
+            IPointer? pointer = null;
+            canvas.AddHandler(InputElement.PointerPressedEvent, (_, e) => pointer = e.Pointer, RoutingStrategies.Tunnel, handledEventsToo: true);
+            StartDragAndHold(window, canvas, at, at + new Vector(30, 10));
+            Assert.Same(canvas, pointer!.Captured);
+
+            pointer.Capture(null);
+            MainWindowHost.Pump();
+            Release(window, canvas, at + new Vector(30, 10));
+
+            Assert.Same(opened, window.ViewModel.Document);
+            Assert.False(window.ViewModel.UndoCommand.CanExecute(null));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheRightClickMenu_OnAnUnselectedLineNearItsVertex_OffersThatVertexsItems()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            Point at = BeyondATaxiwaysFirstVertex(window, canvas);
+            Assert.Null(canvas.Selection);
+
+            Press(window, canvas, at, MouseButton.Right);
+
+            List<string> expected =
+            [
+                "Zoom to feature",
+                "Copy coordinates",
+                "-",
+                "Fit to airport",
+                "-",
+                "Delete Vertex",
+                "Split Taxiway Here",
+                "Delete",
+            ];
+            Assert.Equal(expected, Labels(canvas.ActiveContextMenu!));
+            Assert.False(Item(canvas.ActiveContextMenu!, "Split Taxiway Here").IsEnabled);
+            canvas.ActiveContextMenu!.Close();
+            MainWindowHost.Pump();
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task TheRightClickMenu_OnARunway_HasNoSplit()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (_, _, Point at) = LineSegmentUnderTheCursor(window, canvas, AirportEditorFeatureKind.Runway);
+
+            Press(window, canvas, at, MouseButton.Right);
+
+            Assert.Equal(
+                ["Zoom to feature", "Copy coordinates", "-", "Fit to airport", "-", "Insert Vertex Here", "Delete"],
+                Labels(canvas.ActiveContextMenu!)
+            );
+            canvas.ActiveContextMenu!.Close();
+            MainWindowHost.Pump();
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task DeleteVertex_IsDisabled_OnATwoVertexLine()
+    {
+        using var downloader = new AirportLayoutDownloader();
+        AirportEditorWindow window = NewWindow(downloader);
+        try
+        {
+            await ShowAndOpenOakAsync(window);
+            AirportEditorCanvas canvas = window.FindControl<AirportEditorCanvas>("MapCanvas")!;
+            (AirportEditorHit first, Point at) = TaxiwayVertexWhere(window, canvas, (s, k) => (s.Positions.Length > 2) && (k == 0));
+            while (window.ViewModel.Document!.Features[first.FeatureIndex].Coordinates.Length > 2)
+            {
+                window.ViewModel.DeleteVertex(first.FeatureIndex, 1);
+            }
+
+            window.ViewModel.SelectedFeatureIndex = first.FeatureIndex;
+            window.ViewModel.SelectedVertexIndex = 0;
+            MainWindowHost.Pump();
+            Press(window, canvas, at, MouseButton.Right);
+
+            Assert.Equal(first, canvas.Selection);
+            Assert.False(Item(canvas.ActiveContextMenu!, "Delete Vertex").IsEnabled);
+            canvas.ActiveContextMenu!.Close();
+            MainWindowHost.Pump();
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    // On a view centred on a taxiway's first vertex at zoom 20, a pixel 2 to 5 px past that vertex, away from its second,
+    // that hits the taxiway with nothing selected and that vertex with the taxiway selected.
+    private static Point BeyondATaxiwaysFirstVertex(AirportEditorWindow window, AirportEditorCanvas canvas)
+    {
+        var scene = AirportEditorScene.Build(window.ViewModel.Document);
+        foreach (AirportEditorShape shape in scene.Shapes.Where(s => s.Kind == AirportEditorFeatureKind.Taxiway))
+        {
+            canvas.Viewport.Zoom = 20;
+            canvas.Viewport.CenterLat = shape.Positions[0].Lat;
+            canvas.Viewport.CenterLon = shape.Positions[0].Lon;
+            (float ax, float ay) = canvas.Viewport.LatLonToScreen(shape.Positions[0].Lat, shape.Positions[0].Lon);
+            (float bx, float by) = canvas.Viewport.LatLonToScreen(shape.Positions[1].Lat, shape.Positions[1].Lon);
+            double length = Math.Sqrt(((ax - bx) * (ax - bx)) + ((ay - by) * (ay - by)));
+            if (length < 20)
+            {
+                continue;
+            }
+
+            for (int d = 2; d <= 5; d++)
+            {
+                Point at = new(Math.Round(ax + (d * (ax - bx) / length)), Math.Round(ay + (d * (ay - by) / length)));
+                if (IsJustPastTheFirstVertex(scene, canvas, shape, at))
+                {
+                    return at;
+                }
+            }
+        }
+
+        throw new InvalidOperationException("No pixel just past a taxiway's first vertex");
+    }
+
+    private static bool IsJustPastTheFirstVertex(AirportEditorScene scene, AirportEditorCanvas canvas, AirportEditorShape shape, Point at) =>
+        (AirportEditorHitTest.Find(scene, canvas.Viewport, (float)at.X, (float)at.Y, null) == new AirportEditorHit(shape.FeatureIndex, null))
+        && (
+            AirportEditorHitTest.Find(scene, canvas.Viewport, (float)at.X, (float)at.Y, shape.FeatureIndex)
+            == new AirportEditorHit(shape.FeatureIndex, 0)
+        );
 
     // The first parking point whose own pixel hits it, in canvas coordinates.
     private static (AirportEditorHit Hit, Point At) ParkingUnderTheCursor(AirportEditorWindow window, AirportEditorCanvas canvas)

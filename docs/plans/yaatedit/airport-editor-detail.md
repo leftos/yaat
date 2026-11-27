@@ -173,8 +173,8 @@ tests/Yaat.AirportEditor.Tests/
 
 ### Chunk 4 — Draw/place modes, vertex editing
 - [ ] `EditorCanvas` draw modes: DrawTaxiway (click vertices, dbl-click finish), DrawRunway (2 clicks), PlaceParking/Spot/Helipad (single click)
-- [ ] Vertex drag: left-drag on selected line vertex → MoveVertex through undo stack
-- [ ] Point drag: left-drag on parking/spot/helipad → MoveVertex (vertex 0) through undo stack
+- [x] Vertex drag: left-drag on selected line vertex → MoveVertex through undo stack
+- [x] Point drag: left-drag on parking/spot/helipad → MoveVertex (vertex 0) through undo stack
 - [ ] Snap integration: snap indicator crosshair, snapped placement
 - [ ] `EditorRenderer` additions: ghost preview (dashed line), snap crosshair, mode HUD text
 - [ ] Full context menus: Insert Vertex, Delete Vertex, Split Taxiway, Add Here (empty space)

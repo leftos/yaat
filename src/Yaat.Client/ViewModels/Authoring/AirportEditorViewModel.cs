@@ -20,7 +20,7 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// that fails keeps the map that was open and shows why in <see cref="StatusText"/>. The view model only reads maps: it
 /// never writes a file, and the vNAS cache is refreshed only by the downloader behind <see cref="AirportMapSourceLoader"/>.
 /// </remarks>
-public sealed partial class AirportEditorViewModel : ObservableObject, IDisposable
+public sealed partial class AirportEditorViewModel : ObservableObject, IAirportEditorEditTarget, IDisposable
 {
     private static readonly ILogger Log = AppLog.CreateLogger("AirportEditorViewModel");
 
@@ -201,6 +201,124 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
         ReplaceDocument(after);
     }
 
+    /// <summary>Moves one vertex of a line as one <c>Move vertex</c> step; a move to where it already is records nothing.</summary>
+    /// <param name="featureIndex">The line's index in the open map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    /// <param name="to">The vertex's new position.</param>
+    public void MoveVertex(int featureIndex, int vertexIndex, MapPosition to) => Move("Move vertex", featureIndex, vertexIndex, to);
+
+    /// <summary>Moves a point feature as one <c>Move feature</c> step; a move to where it already is records nothing.</summary>
+    /// <param name="featureIndex">The point's index in the open map's features.</param>
+    /// <param name="to">The point's new position.</param>
+    public void MoveFeature(int featureIndex, MapPosition to) => Move("Move feature", featureIndex, 0, to);
+
+    /// <summary>
+    /// Inserts a vertex into a line's segment as one <c>Insert vertex</c> step: on segment k (from vertex k to vertex k + 1)
+    /// the new vertex becomes vertex k + 1. Does nothing where <see cref="CanInsertVertex"/> is false.
+    /// </summary>
+    /// <param name="featureIndex">The line's index in the open map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The new vertex's position.</param>
+    public void InsertVertex(int featureIndex, int segmentIndex, MapPosition at)
+    {
+        if (CanInsertVertex(featureIndex, segmentIndex, at))
+        {
+            ApplyEdit("Insert vertex", d => MapEdits.InsertVertex(d, featureIndex, segmentIndex + 1, at));
+        }
+    }
+
+    /// <summary>
+    /// Whether a vertex can be inserted on a line's segment at a position: the line has the segment and the position is on
+    /// neither of its ends, which would repeat a vertex.
+    /// </summary>
+    /// <param name="featureIndex">The line's index in the open map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The new vertex's position.</param>
+    /// <returns>True for a segment of a line and a position on neither of its ends.</returns>
+    public bool CanInsertVertex(int featureIndex, int segmentIndex, MapPosition at) =>
+        (IsSegmentOf(featureIndex, segmentIndex))
+        && (Document!.Features[featureIndex].Coordinates[segmentIndex] != at)
+        && (Document.Features[featureIndex].Coordinates[segmentIndex + 1] != at);
+
+    /// <summary>Whether a line's vertex can be deleted: the line keeps at least its minimum two positions once it has gone.</summary>
+    /// <param name="featureIndex">The line's index in the open map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    /// <returns>True when the vertex exists and the line has more than two positions.</returns>
+    public bool CanDeleteVertex(int featureIndex, int vertexIndex) =>
+        (LineAt(featureIndex) is { } line)
+        && (vertexIndex >= 0)
+        && (vertexIndex < line.Coordinates.Length)
+        && (line.Coordinates.Length > MinLineVertices);
+
+    /// <summary>Deletes a line's vertex as one <c>Delete vertex</c> step; does nothing where <see cref="CanDeleteVertex"/> is false.</summary>
+    /// <param name="featureIndex">The line's index in the open map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the line's positions.</param>
+    public void DeleteVertex(int featureIndex, int vertexIndex)
+    {
+        if (CanDeleteVertex(featureIndex, vertexIndex))
+        {
+            ApplyEdit("Delete vertex", d => MapEdits.DeleteVertex(d, featureIndex, vertexIndex));
+        }
+    }
+
+    /// <summary>Deletes a feature as one <c>Delete feature</c> step; does nothing for a feature the map does not have.</summary>
+    /// <param name="featureIndex">The feature's index in the open map's features.</param>
+    public void DeleteFeature(int featureIndex)
+    {
+        if (FeatureAt(featureIndex) is not null)
+        {
+            ApplyEdit("Delete feature", d => MapEdits.DeleteFeature(d, featureIndex));
+        }
+    }
+
+    /// <summary>Whether a taxiway can be split at a vertex: the feature is a taxiway line and the vertex is interior.</summary>
+    /// <param name="featureIndex">The taxiway's index in the open map's features.</param>
+    /// <param name="vertexIndex">The vertex's index in the taxiway's positions.</param>
+    /// <returns>True for an interior vertex of a taxiway line.</returns>
+    public bool CanSplitTaxiway(int featureIndex, int vertexIndex) =>
+        (TaxiwayAt(featureIndex) is { } taxiway) && (vertexIndex >= 1) && (vertexIndex <= taxiway.Coordinates.Length - 2);
+
+    /// <summary>
+    /// Whether a taxiway can be split on a segment at a position: the feature is a taxiway line that has the segment, and the
+    /// position is on neither of its ends.
+    /// </summary>
+    /// <param name="featureIndex">The taxiway's index in the open map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The position of the vertex the halves would share.</param>
+    /// <returns>True for a segment of a taxiway line and a position on neither of its ends.</returns>
+    public bool CanSplitTaxiwayAt(int featureIndex, int segmentIndex, MapPosition at) =>
+        (TaxiwayAt(featureIndex) is not null) && (CanInsertVertex(featureIndex, segmentIndex, at));
+
+    /// <summary>
+    /// Splits a taxiway at an interior vertex into two that share it, as one <c>Split taxiway</c> step, leaving the first half
+    /// selected; does nothing where <see cref="CanSplitTaxiway"/> is false.
+    /// </summary>
+    /// <param name="featureIndex">The taxiway's index in the open map's features.</param>
+    /// <param name="vertexIndex">The interior vertex to split at.</param>
+    public void SplitTaxiway(int featureIndex, int vertexIndex)
+    {
+        if (CanSplitTaxiway(featureIndex, vertexIndex))
+        {
+            ApplySplit(featureIndex, d => MapEdits.SplitTaxiway(d, featureIndex, vertexIndex).Document);
+        }
+    }
+
+    /// <summary>
+    /// Inserts a vertex on a taxiway's segment and splits the taxiway there, as one <c>Split taxiway</c> step, leaving the first
+    /// half selected; does nothing where <see cref="CanSplitTaxiwayAt"/> is false.
+    /// </summary>
+    /// <param name="featureIndex">The taxiway's index in the open map's features.</param>
+    /// <param name="segmentIndex">The segment's index, its first vertex's index.</param>
+    /// <param name="at">The position of the vertex the halves share.</param>
+    public void SplitTaxiwayAt(int featureIndex, int segmentIndex, MapPosition at)
+    {
+        if (CanSplitTaxiwayAt(featureIndex, segmentIndex, at))
+        {
+            int vertex = segmentIndex + 1;
+            ApplySplit(featureIndex, d => MapEdits.SplitTaxiway(MapEdits.InsertVertex(d, featureIndex, vertex, at), featureIndex, vertex).Document);
+        }
+    }
+
     /// <summary>Cancels an open in flight; a later open does nothing.</summary>
     public void Dispose()
     {
@@ -323,6 +441,43 @@ public sealed partial class AirportEditorViewModel : ObservableObject, IDisposab
             ApplyEdit("Delete feature", d => MapEdits.DeleteFeature(d, feature));
         }
     }
+
+    // A move of a feature's vertex (vertex 0 of a point), recorded only when the position changes.
+    private void Move(string description, int featureIndex, int vertexIndex, MapPosition to)
+    {
+        if ((FeatureAt(featureIndex) is not { GeometryType: not null } feature) || (vertexIndex < 0) || (vertexIndex >= feature.Coordinates.Length))
+        {
+            return;
+        }
+
+        if (feature.Coordinates[vertexIndex] != to)
+        {
+            ApplyEdit(description, d => MapEdits.MoveVertex(d, featureIndex, vertexIndex, to));
+        }
+    }
+
+    // The split's halves are new features, so the selection repair cannot find the old one: the first half is selected.
+    private void ApplySplit(int featureIndex, Func<AirportMapDocument, AirportMapDocument> split)
+    {
+        AirportMapDocument? before = Document;
+        ApplyEdit("Split taxiway", split);
+        if (!ReferenceEquals(before, Document))
+        {
+            SelectedFeatureIndex = featureIndex;
+        }
+    }
+
+    private MapFeature? FeatureAt(int featureIndex) =>
+        ((Document is { } document) && (featureIndex >= 0) && (featureIndex < document.Features.Count)) ? document.Features[featureIndex] : null;
+
+    private MapFeature? LineAt(int featureIndex) =>
+        ((FeatureAt(featureIndex) is { } feature) && (string.Equals(feature.GeometryType, "LineString", StringComparison.Ordinal))) ? feature : null;
+
+    private MapFeature? TaxiwayAt(int featureIndex) =>
+        ((LineAt(featureIndex) is { } line) && (string.Equals(line.FeatureType, "taxiway", StringComparison.Ordinal))) ? line : null;
+
+    private bool IsSegmentOf(int featureIndex, int segmentIndex) =>
+        (LineAt(featureIndex) is { } line) && (segmentIndex >= 0) && (segmentIndex < line.Coordinates.Length - 1);
 
     // An edit, an undo or a redo: the selection stays on its feature (and vertex) when they still exist, else it clears.
     private void ReplaceDocument(AirportMapDocument next)

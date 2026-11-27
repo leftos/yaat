@@ -123,6 +123,37 @@ public class AirportEditorHitTestTests
     }
 
     [Fact]
+    public void NearestSegment_NamesTheSegmentUnderTheClick_AndProjectsTheClickOntoIt()
+    {
+        AirportEditorScene scene = OakScene();
+        (AirportEditorShape taxiway, MapViewport view, (float X, float Y) normal) = IsolatedMidSpan(scene);
+        int expected = Enumerable
+            .Range(0, taxiway.Positions.Length - 1)
+            .First(k =>
+            {
+                MapPosition a = taxiway.Positions[k];
+                MapPosition b = taxiway.Positions[k + 1];
+                (float X, float Y) mid = view.LatLonToScreen((a.Lat + b.Lat) / 2, (a.Lon + b.Lon) / 2);
+                return (Math.Abs(mid.X - Cx) < 0.01) && (Math.Abs(mid.Y - Cy) < 0.01);
+            });
+        AirportEditorShape parking = scene.Shapes.First(s => s.Kind == AirportEditorFeatureKind.Parking);
+
+        AirportEditorSegmentHit? hit = AirportEditorHitTest.NearestSegment(
+            scene,
+            view,
+            Cx + (3f * normal.X),
+            Cy + (3f * normal.Y),
+            taxiway.FeatureIndex
+        );
+
+        Assert.NotNull(hit);
+        Assert.Equal(expected, hit.SegmentIndex);
+        Assert.Equal(Cx, hit.X, 0.01);
+        Assert.Equal(Cy, hit.Y, 0.01);
+        Assert.Null(AirportEditorHitTest.NearestSegment(scene, view, Cx, Cy, parking.FeatureIndex));
+    }
+
+    [Fact]
     public void AnEmptyScene_HitsNothing()
     {
         var view = new MapViewport { PixelWidth = 1000, PixelHeight = 800 };

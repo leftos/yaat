@@ -179,13 +179,17 @@ public sealed record AirportEditorRenderSnapshot(
 
     /// <summary>Gets the imagery status line drawn above the mode label, or null for none.</summary>
     public string? StatusLine { get; init; }
+
+    /// <summary>Gets the snap target a drag in progress snaps to, drawn as a crosshair, or null when it snaps to none.</summary>
+    public MapPosition? SnapAt { get; init; }
 }
 
 /// <summary>
 /// Draws the Airport Editor's map on its dark background, over the tower-cab image when the frame has one or else its USGS
 /// tiles (with the USGS credit bottom-right): runways,
 /// taxiways, parking, spots and helipads, then the hovered feature's and the selection's highlights and the selected
-/// line's vertex handles, then the taxiway and runway labels, then the HUD. Owns its paints and fonts; dispose it once the canvas is done with it.
+/// line's vertex handles and the snap crosshair of a drag in progress, then the taxiway and runway labels, then the HUD.
+/// Owns its paints and fonts; dispose it once the canvas is done with it.
 /// </summary>
 public sealed class AirportEditorRenderer : IDisposable
 {
@@ -198,6 +202,12 @@ public sealed class AirportEditorRenderer : IDisposable
     private const float HandleRadius = 4f;
     private const float ActiveHandleRadius = 6f;
 
+    private const float CrosshairArm = 10f;
+    private const float CrosshairRadius = 5f;
+
+    /// <summary>The snap crosshair's colour, magenta.</summary>
+    internal static readonly SKColor SnapColour = SKColor.Parse("#FF00FF");
+
     private static readonly SKColor Amber = SKColor.Parse("#FFC107");
 
     private readonly SKPaint _selectedLinePaint = LinePaint(Amber, 0f);
@@ -207,6 +217,7 @@ public sealed class AirportEditorRenderer : IDisposable
     private readonly SKPaint _handlePaint = FillPaint(SKColors.White);
     private readonly SKPaint _selectedHandlePaint = FillPaint(Amber);
     private readonly SKPaint _handleOutlinePaint = LinePaint(SKColor.Parse("#1F1F1F"), 1f);
+    private readonly SKPaint _snapPaint = LinePaint(SnapColour, 2f);
 
     private readonly SKColor _background = SKColor.Parse(GroundColorScheme.DefaultBackground);
 
@@ -257,6 +268,7 @@ public sealed class AirportEditorRenderer : IDisposable
 
         DrawHover(canvas, viewport, snapshot);
         DrawSelection(canvas, viewport, snapshot);
+        DrawSnapCrosshair(canvas, viewport, snapshot.SnapAt);
         DrawLineLabels(canvas, viewport, shapes);
         DrawHud(canvas, viewport, snapshot);
     }
@@ -321,6 +333,7 @@ public sealed class AirportEditorRenderer : IDisposable
         _handlePaint.Dispose();
         _selectedHandlePaint.Dispose();
         _handleOutlinePaint.Dispose();
+        _snapPaint.Dispose();
         _labelHaloPaint.Dispose();
         _taxiwayLabelFont.Dispose();
         _runwayLabelFont.Dispose();
@@ -460,6 +473,20 @@ public sealed class AirportEditorRenderer : IDisposable
             canvas.DrawCircle(x, y, radius, isSelected ? _selectedHandlePaint : _handlePaint);
             canvas.DrawCircle(x, y, radius, _handleOutlinePaint);
         }
+    }
+
+    // A magenta cross and ring on the snap target.
+    private void DrawSnapCrosshair(SKCanvas canvas, MapViewport viewport, MapPosition? snapAt)
+    {
+        if (snapAt is not { } at)
+        {
+            return;
+        }
+
+        (float x, float y) = viewport.LatLonToScreen(at.Lat, at.Lon);
+        canvas.DrawLine(x - CrosshairArm, y, x + CrosshairArm, y, _snapPaint);
+        canvas.DrawLine(x, y - CrosshairArm, x, y + CrosshairArm, _snapPaint);
+        canvas.DrawCircle(x, y, CrosshairRadius, _snapPaint);
     }
 
     // Each taxiway's and runway's name at the middle of its middle segment.

@@ -90,6 +90,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         ViewModel.FitRequested += OnFitRequested;
         MapCanvas.SelectionChanged += OnCanvasSelectionChanged;
+        MapCanvas.EditTarget = ViewModel;
         Activated += OnActivated;
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
         Closed += OnClosed;
@@ -255,6 +256,7 @@ public partial class AirportEditorWindow : Window, IAirportEditorPrompts
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.FitRequested -= OnFitRequested;
         MapCanvas.SelectionChanged -= OnCanvasSelectionChanged;
+        MapCanvas.EditTarget = null;
         Activated -= OnActivated;
         RemoveHandler(KeyDownEvent, OnWindowKeyDown);
 
