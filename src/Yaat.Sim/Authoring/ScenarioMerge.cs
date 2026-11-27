@@ -39,7 +39,24 @@ public sealed record MergeRow(
     JsonNode? Base,
     JsonNode? Mine,
     JsonNode? Theirs
-);
+)
+{
+    /// <summary>Gets a value indicating whether the base holds a value at this path; always false in a two-way merge.</summary>
+    public bool InBase { get; init; }
+
+    /// <summary>Gets a value indicating whether mine holds a value at this path, so an absent value reads apart from JSON null.</summary>
+    public bool InMine { get; init; }
+
+    /// <summary>Gets a value indicating whether theirs holds a value at this path, so an absent value reads apart from JSON null.</summary>
+    public bool InTheirs { get; init; }
+
+    /// <summary>
+    /// Gets the label path the editor keys the field by (<c>startingConditions/parking</c>, <c>presetCommands[]/command</c>),
+    /// <c>[]</c> for a list's item. A list and its order row carry the list's own label path, which is empty for a top-level
+    /// list: a nested list's order row reads <c>presetCommands</c>.
+    /// </summary>
+    public string FieldKey { get; init; } = "";
+}
 
 /// <summary>What a merge choice writes.</summary>
 public enum MergeChoiceKind
@@ -95,6 +112,12 @@ public sealed class MergeChoice
 /// </summary>
 public static class ScenarioMerge
 {
+    /// <summary>
+    /// The path suffix of the row covering the order of an id-matched list's shared items, so a reordered list's order row is
+    /// <c>/aircraft#order</c>.
+    /// </summary>
+    public const string OrderPathSuffix = "#order";
+
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioMerge");
 
     /// <summary>Compares mine and theirs, against the base when there is one.</summary>
@@ -247,8 +270,6 @@ internal sealed record PlannedRow(MergeRow Row, JsonSlot Mine, JsonSlot Theirs);
 /// </summary>
 internal sealed class MergeTree
 {
-    private const string OrderSuffix = "#order";
-
     private static readonly ILogger Log = SimLog.CreateLogger("ScenarioMerge");
 
     private static readonly JsonDocumentOptions ParseOptions = new() { CommentHandling = JsonCommentHandling.Skip };
@@ -402,7 +423,13 @@ internal sealed class MergeTree
             (slots.Base.Value is JsonArray baseItems)
                 ? JsonSlot.Of(IdArray(baseItems.Select(IdOf).OfType<string>().Where(shared.Contains)))
                 : JsonSlot.Absent;
-        var place = new FieldPlace(slots.Place.Path + OrderSuffix, null, slots.Place.Section, slots.Place.ItemKey, slots.Place.LabelPath);
+        var place = new FieldPlace(
+            slots.Place.Path + ScenarioMerge.OrderPathSuffix,
+            null,
+            slots.Place.Section,
+            slots.Place.ItemKey,
+            slots.Place.LabelPath
+        );
         AddRow(new MergeSlots(place, baseOrder, JsonSlot.Of(IdArray(mineOrder)), JsonSlot.Of(IdArray(theirsOrder))));
     }
 
@@ -437,7 +464,13 @@ internal sealed class MergeTree
             slots.Base.Value?.DeepClone(),
             slots.Mine.Value?.DeepClone(),
             slots.Theirs.Value?.DeepClone()
-        );
+        )
+        {
+            InBase = slots.Base.Present,
+            InMine = slots.Mine.Present,
+            InTheirs = slots.Theirs.Present,
+            FieldKey = place.LabelPath,
+        };
         var planned = new PlannedRow(row, slots.Mine, slots.Theirs);
         _rows.Add(planned);
         _rowsByPath.Add(place.Path, planned);
@@ -475,7 +508,7 @@ internal sealed class MergeTree
     // place the walk gave it.
     private List<JsonNode?> Ordered(FieldPlace place, List<JsonNode?> items, IReadOnlyDictionary<string, MergeChoice> choices)
     {
-        if (!_rowsByPath.TryGetValue(place.Path + OrderSuffix, out PlannedRow? order))
+        if (!_rowsByPath.TryGetValue(place.Path + ScenarioMerge.OrderPathSuffix, out PlannedRow? order))
         {
             return items;
         }

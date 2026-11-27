@@ -300,6 +300,7 @@ public class ScenarioMergeTests
             ("/aircraft/0/presetCommands#order", aircraftId, "Preset commands", MergeRowKind.AutoTheirs),
             (row.Path, row.ItemKey!, row.Label, row.Kind)
         );
+        Assert.Equal("presetCommands", row.FieldKey);
         List<string> expected = [.. Presets.Reverse().Select(p => p.Id)];
         Assert.Equal(expected, ItemIds(Merged(plan)["aircraft"]![0]!["presetCommands"]!.AsArray()));
     }
@@ -458,6 +459,139 @@ public class ScenarioMergeTests
         Assert.Equal(["/flightStripConfigurations/0/rack"], bays.Keys);
     }
 
+    [Fact]
+    public void Plan_FieldAddedInMine_IsAutoMine_PresentOnlyInMine()
+    {
+        JsonObject mine = Sample();
+        mine["unmodelledRootField"] = "mine only";
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(Sample()));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(MergeRowKind.AutoMine, row.Kind);
+        Assert.Equal("/unmodelledRootField", row.Path);
+        Assert.Equal((false, true, false), (row.InBase, row.InMine, row.InTheirs));
+    }
+
+    [Fact]
+    public void Plan_TheirsSetsAValueToJsonNull_IsAutoTheirs_PresentWithANullValue()
+    {
+        JsonObject theirs = Sample();
+        theirs["name"] = null;
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(Sample()), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/name", MergeRowKind.AutoTheirs), (row.Path, row.Kind));
+        Assert.Equal((true, true, true), (row.InBase, row.InMine, row.InTheirs));
+        Assert.Null(row.Theirs);
+    }
+
+    [Fact]
+    public void Plan_NoBase_NoRowIsInBase()
+    {
+        JsonObject mine = Sample();
+        mine["name"] = "Mine";
+        JsonObject theirs = Sample();
+        theirs["aircraft"]![0]!["flightplan"]!["route"] = "OAK6 OAK DIRECT";
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(null, Text(mine), Text(theirs));
+
+        Assert.Equal(2, plan.Rows.Count);
+        Assert.All(plan.Rows, row => Assert.False(row.InBase));
+    }
+
+    [Fact]
+    public void Plan_AircraftAddedInTheirs_ItemRowHasTheEmptyFieldKey_NotInMine()
+    {
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(WithAircraft("A", "B")), Text(WithAircraft("A", "B")), Text(WithAircraft("A", "B", "C")));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft/2", "[]"), (row.Path, row.FieldKey));
+        Assert.Equal((false, true), (row.InMine, row.InTheirs));
+        Assert.False(row.InBase);
+    }
+
+    [Fact]
+    public void Plan_AircraftParking_HasTheStartingConditionsFieldKey()
+    {
+        JsonObject mine = Sample();
+        mine["aircraft"]![0]!["startingConditions"]!["parking"] = "A12";
+        JsonObject theirs = Sample();
+        theirs["aircraft"]![0]!["startingConditions"]!["parking"] = "B34";
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft/0/startingConditions/parking", "startingConditions/parking"), (row.Path, row.FieldKey));
+    }
+
+    [Fact]
+    public void Plan_PresetCommand_HasThePresetCommandFieldKey()
+    {
+        List<(string Id, string Command)> minePresets = [.. Presets];
+        minePresets[0] = (Presets[0].Id, "FH 020");
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(
+            Text(WithPresetCommands(Sample(), Presets)),
+            Text(WithPresetCommands(Sample(), minePresets)),
+            Text(WithPresetCommands(Sample(), Presets))
+        );
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/aircraft/0/presetCommands/0/command", "presetCommands[]/command"), (row.Path, row.FieldKey));
+        Assert.Equal(MergeRowKind.AutoMine, row.Kind);
+    }
+
+    [Fact]
+    public void Plan_AutoDeleteMode_HasItsOwnFieldKey()
+    {
+        JsonObject mine = Sample();
+        mine["autoDeleteMode"] = "Never";
+        JsonObject theirs = Sample();
+        theirs["autoDeleteMode"] = "Parked";
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(mine), Text(theirs));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/autoDeleteMode", "autoDeleteMode"), (row.Path, row.FieldKey));
+    }
+
+    [Fact]
+    public void Plan_TriggerCommand_HasTheCommandFieldKey()
+    {
+        JsonObject mine = WithThreeTriggers(Sample());
+        mine["initializationTriggers"]![2]!["command"] = "PAUSE";
+
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(WithThreeTriggers(Sample())), Text(mine), Text(WithThreeTriggers(Sample())));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal(("/initializationTriggers/2/command", "command"), (row.Path, row.FieldKey));
+        Assert.Equal(MergeRowKind.AutoMine, row.Kind);
+    }
+
+    [Fact]
+    public void Plan_OrderRow_PathEndsWithTheOrderSuffix_AndHasNoFieldKey()
+    {
+        ScenarioMergePlan plan = ScenarioMerge.Plan(Text(Sample()), Text(ReorderAircraft(Sample(), Reverse)), Text(Sample()));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal("/aircraft" + ScenarioMerge.OrderPathSuffix, row.Path);
+        Assert.Equal("", row.FieldKey);
+        Assert.Equal((true, true, true), (row.InBase, row.InMine, row.InTheirs));
+    }
+
+    [Fact]
+    public void Plan_NoBase_OrderRowIsNotInBase()
+    {
+        ScenarioMergePlan plan = ScenarioMerge.Plan(null, Text(Sample()), Text(ReorderAircraft(Sample(), Reverse)));
+
+        MergeRow row = Assert.Single(plan.Rows);
+        Assert.Equal("/aircraft" + ScenarioMerge.OrderPathSuffix, row.Path);
+        Assert.False(row.InBase);
+        Assert.Equal((true, true), (row.InMine, row.InTheirs));
+    }
+
     private const string AutoMinePath = "/aircraft/2/aircraftId";
 
     private static (ScenarioMergePlan Plan, string FirstId) AircraftAndNameClashes()
@@ -508,6 +642,13 @@ public class ScenarioMergeTests
     private static JsonObject WithTriggers(JsonObject scenario, string? firstId = null, string? secondId = null)
     {
         scenario["initializationTriggers"] = new JsonArray(Trigger(firstId, "SQALL", 0), Trigger(secondId, "WX", 60));
+        return scenario;
+    }
+
+    private static JsonObject WithThreeTriggers(JsonObject scenario)
+    {
+        WithTriggers(scenario);
+        scenario["initializationTriggers"]!.AsArray().Add(Trigger(null, "SQALL", 120));
         return scenario;
     }
 

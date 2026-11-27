@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Authoring;
@@ -434,4 +435,35 @@ public class ScenarioEditSessionTests
             }
         );
     }
+
+    [Fact]
+    public void OverText_ReadsTheText_StartsClean_AndEditsUndo()
+    {
+        var session = ScenarioEditSession.OverText(Zoa, IdA, TrainingFixtures.Read(IdA));
+
+        Assert.Equal((Zoa, IdA), (session.ArtccId, session.ScenarioId));
+        Assert.Equal(TrainingFixtures.NameOf(IdA), session.Document.Scenario.Name);
+        Assert.False(session.IsDirty);
+        Assert.True(session.Edit("Rename", s => s.Name = "Merged aircraft"));
+        Assert.True(session.IsDirty);
+        Assert.True(session.Undo());
+        Assert.False(session.IsDirty);
+    }
+
+    [Fact]
+    public void OverText_Save_Throws()
+    {
+        var session = ScenarioEditSession.OverText(Zoa, IdA, TrainingFixtures.Read(IdA));
+
+        Assert.Throws<InvalidOperationException>(() => session.Save());
+        _ = session.Edit("Rename", s => s.Name = "Merged aircraft");
+        Assert.Throws<InvalidOperationException>(() => session.Save());
+    }
+
+    [Fact]
+    public void OverText_MalformedText_ThrowsJsonException() =>
+        Assert.Throws<JsonException>(() =>
+        {
+            _ = ScenarioEditSession.OverText(Zoa, IdA, "{ \"name\": ");
+        });
 }

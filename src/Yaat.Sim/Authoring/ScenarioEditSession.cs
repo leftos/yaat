@@ -8,13 +8,14 @@ namespace Yaat.Sim.Authoring;
 /// One open working copy being edited: the document, its undo and redo steps, and an explicit save. <see cref="Edit"/>
 /// is the only way to change the document, each call one undo step; undo and redo replace the document, so a view binds
 /// to the session and re-reads <see cref="Document"/> on <see cref="DocumentReplaced"/>, never holding a
-/// <see cref="Scenario"/>. UI-free and single-threaded: the caller runs every member on one thread.
+/// <see cref="Scenario"/>. A session opened over text (<see cref="OverText"/>) has no working copy behind it and refuses to
+/// save. UI-free and single-threaded: the caller runs every member on one thread.
 /// </summary>
 public sealed class ScenarioEditSession
 {
     private static readonly ILogger Log = SimLog.CreateLogger<ScenarioEditSession>();
 
-    private readonly LocalScenarioStore _store;
+    private readonly LocalScenarioStore? _store;
 
     private readonly UndoStack<string> _undo = new();
 
@@ -33,14 +34,33 @@ public sealed class ScenarioEditSession
     /// <exception cref="FileNotFoundException">There is no working copy with that id.</exception>
     /// <exception cref="System.Text.Json.JsonException">The working copy is not a readable scenario.</exception>
     public ScenarioEditSession(LocalScenarioStore store, string artccId, string scenarioId)
+        : this(store, artccId, scenarioId, ReadWorkingCopyText(store, artccId, scenarioId)) { }
+
+    private ScenarioEditSession(LocalScenarioStore? store, string artccId, string scenarioId, string text)
     {
-        ArgumentNullException.ThrowIfNull(store);
         _store = store;
         ArtccId = artccId;
         ScenarioId = scenarioId;
-        Document = ScenarioDocument.Read(store.ReadWorkingCopyText(artccId, scenarioId));
+        Document = ScenarioDocument.Read(text);
         _currentText = Document.Write();
         _lastSavedText = _currentText;
+    }
+
+    /// <summary>
+    /// Opens a session over a scenario text that no working copy stands behind, so <see cref="Save"/> refuses: the editor
+    /// for a merged scenario, and the checks it runs at Apply.
+    /// </summary>
+    /// <param name="artccId">The ARTCC the text belongs to.</param>
+    /// <param name="scenarioId">The scenario's id.</param>
+    /// <param name="json">The scenario text.</param>
+    /// <returns>The session.</returns>
+    /// <exception cref="System.Text.Json.JsonException">The text is not a readable scenario.</exception>
+    public static ScenarioEditSession OverText(string artccId, string scenarioId, string json)
+    {
+        ArgumentNullException.ThrowIfNull(artccId);
+        ArgumentNullException.ThrowIfNull(scenarioId);
+        ArgumentNullException.ThrowIfNull(json);
+        return new ScenarioEditSession(null, artccId, scenarioId, json);
     }
 
     /// <summary>Raised after undo or redo replaced <see cref="Document"/> with a new instance.</summary>
@@ -118,8 +138,16 @@ public sealed class ScenarioEditSession
     /// corrupt (no name) is refused and nothing is written. Undo and redo steps are kept.
     /// </summary>
     /// <returns>Whether the document was saved, had nothing to save, or was refused and why.</returns>
+    /// <exception cref="InvalidOperationException">The session was opened over text, so it has no working copy to write.</exception>
     public ScenarioSaveResult Save()
     {
+        if (_store is null)
+        {
+            throw new InvalidOperationException(
+                "A session opened over text has no working copy to save to; open the session from the store to save."
+            );
+        }
+
         string text = _currentText;
         if (string.Equals(text, _lastSavedText, StringComparison.Ordinal))
         {
@@ -140,6 +168,12 @@ public sealed class ScenarioEditSession
         _store.SaveWorkingCopy(ArtccId, ScenarioId, text);
         _lastSavedText = text;
         return new ScenarioSaveResult(ScenarioSaveOutcome.Saved, null);
+    }
+
+    private static string ReadWorkingCopyText(LocalScenarioStore store, string artccId, string scenarioId)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        return store.ReadWorkingCopyText(artccId, scenarioId);
     }
 
     private bool Replace(string? snapshot)
