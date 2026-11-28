@@ -36,7 +36,7 @@ public interface IScenarioBrowserPrompts
     /// <returns>The choice, and whether it applies to the remaining files of the import.</returns>
     Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question);
 
-    /// <summary>Asks what to do with the open scenario's unsaved edits before it is closed or exported.</summary>
+    /// <summary>Asks what to do with the open scenario's unsaved edits before it is closed, exported or merged.</summary>
     /// <param name="scenarioName">The open scenario's name.</param>
     /// <param name="context">What is about to happen to the scenario, which the question names.</param>
     /// <returns>Save them, discard them, or keep the scenario open with them and stop.</returns>
@@ -70,6 +70,11 @@ public interface IScenarioBrowserPrompts
     /// <param name="context">What is about to happen: the window closing or the ARTCC switching.</param>
     /// <returns>Save and export all, save and go on, discard and go on, or cancel.</returns>
     Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(string openName, IReadOnlyList<string> names, UnexportedChangesContext context);
+
+    /// <summary>Opens the merge window over a working copy and the version it is merged with.</summary>
+    /// <param name="request">The texts to compare, the window's captions, and the write Apply runs.</param>
+    /// <returns>What Apply wrote, or null when the author cancelled and nothing was written.</returns>
+    Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request);
 }
 
 /// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/>.</summary>
@@ -93,6 +98,9 @@ public enum UnsavedChangesContext
 
     /// <summary>Exporting the scenario as vNAS JSON.</summary>
     Export,
+
+    /// <summary>Merging server changes into the scenario: mine is read from its saved file.</summary>
+    Merge,
 }
 
 /// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnexportedChangesAsync"/>.</summary>

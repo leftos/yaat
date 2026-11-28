@@ -270,6 +270,8 @@ public class ScenarioEditorWindowTests
                 Assert.Same(command, view.FindControl<MenuItem>(name + "MenuItem")!.Command);
             }
 
+            // Merge server changes is a menu command only: it has no toolbar button.
+            Assert.Same(vm.ResolveServerChangesCommand, view.FindControl<MenuItem>("ResolveServerChangesMenuItem")!.Command);
             tabs.ContextMenu.Close();
         }
         finally
@@ -1829,6 +1831,16 @@ public class ScenarioEditorWindowTests
         {
             CombinedAsked++;
             return PendingCombined ?? Task.FromResult(CombinedAnswer);
+        }
+
+        public Queue<ScenarioMergeResult?> MergeAnswers { get; } = new();
+
+        public List<ScenarioMergeRequest> MergeRequests { get; } = [];
+
+        public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request)
+        {
+            MergeRequests.Add(request);
+            return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
         }
     }
 

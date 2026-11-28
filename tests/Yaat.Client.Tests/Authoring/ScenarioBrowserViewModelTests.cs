@@ -900,6 +900,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             vm.ExportJsonCommand,
             vm.ExportCleanJsonCommand,
             vm.ExportAllUnexportedCommand,
+            vm.ResolveServerChangesCommand,
         ];
 
     private static void Select(ScenarioBrowserViewModel vm, ScenarioBrowserRowViewModel row)
@@ -1090,6 +1091,16 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             IReadOnlyList<string> names,
             UnexportedChangesContext context
         ) => Task.FromResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
+
+        public Queue<ScenarioMergeResult?> MergeAnswers { get; } = new();
+
+        public List<ScenarioMergeRequest> MergeRequests { get; } = [];
+
+        public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request)
+        {
+            MergeRequests.Add(request);
+            return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
+        }
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

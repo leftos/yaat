@@ -279,5 +279,6 @@ public sealed partial class ScenarioBrowserViewModel
         ExportJsonCommand.NotifyCanExecuteChanged();
         ExportCleanJsonCommand.NotifyCanExecuteChanged();
         ExportAllUnexportedCommand.NotifyCanExecuteChanged();
+        ResolveServerChangesCommand.NotifyCanExecuteChanged();
     }
 }

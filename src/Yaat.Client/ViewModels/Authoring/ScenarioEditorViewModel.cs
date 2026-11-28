@@ -38,6 +38,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private readonly Func<UnsavedOpenCopy?> _unsavedCopy;
     private readonly Func<string, string, Task<bool>> _replaceGuard;
     private readonly Func<string, string, Task<bool>> _exportGuard;
+    private readonly Func<string, string, Task<bool>> _mergeGuard;
     private ScenarioEditSession? _session;
     private ScenarioGeneralViewModel? _general;
     private ScenarioAircraftViewModel? _aircraft;
@@ -83,12 +84,14 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         _unsavedCopy = UnsavedCopy;
         _replaceGuard = ConfirmReplaceAsync;
         _exportGuard = PrepareForExportAsync;
+        _mergeGuard = PrepareForMergeAsync;
         _browser.OpenRequested += OnOpenRequested;
         _browser.WorkingCopyDeleted += OnWorkingCopyDeleted;
         _browser.WorkingCopyReplaced += OnWorkingCopyReplaced;
         _browser.UnsavedCopy = _unsavedCopy;
         _browser.ReplaceGuard = _replaceGuard;
         _browser.ExportGuard = _exportGuard;
+        _browser.MergeGuard = _mergeGuard;
     }
 
     /// <summary>Gets the open working copy's session; null when nothing is open.</summary>
@@ -225,7 +228,37 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     /// <param name="artccId">The ARTCC whose folder holds the copy.</param>
     /// <param name="id">The working copy's id.</param>
     /// <returns>True to export the copy's saved file.</returns>
-    public async Task<bool> PrepareForExportAsync(string artccId, string id)
+    public Task<bool> PrepareForExportAsync(string artccId, string id) =>
+        SettleUnsavedAsync(artccId, id, UnsavedChangesContext.Export, "asking before an export of " + id);
+
+    /// <summary>
+    /// The browser's <see cref="ScenarioBrowserViewModel.MergeGuard"/>: whether Merge server changes may read a working
+    /// copy now. When it is the open copy with unsaved edits, the unsaved-changes question is asked as before a close:
+    /// Save saves first, so mine has the edits; Discard re-reads the saved file; Cancel (or a failed prompt) stops. When it
+    /// is open, the session is recorded, so a merge written to it reloads it.
+    /// </summary>
+    /// <param name="artccId">The ARTCC whose folder holds the copy.</param>
+    /// <param name="id">The working copy's id.</param>
+    /// <returns>True to read the copy's saved file.</returns>
+    public async Task<bool> PrepareForMergeAsync(string artccId, string id)
+    {
+        _replaceAnswer = null;
+        if (!await SettleUnsavedAsync(artccId, id, UnsavedChangesContext.Merge, "asking before a merge of " + id))
+        {
+            return false;
+        }
+
+        if (IsOpenCopy(artccId, id) && (Session is { } session))
+        {
+            _replaceAnswer = (session, _edits);
+        }
+
+        return true;
+    }
+
+    // True at once unless the copy is open with unsaved edits; then the question is asked: Save saves, Discard re-reads
+    // the saved file, Cancel (or a failed prompt) stops. False when the open copy changed while the question was pending.
+    private async Task<bool> SettleUnsavedAsync(string artccId, string id, UnsavedChangesContext context, string what)
     {
         if (!IsOpenCopy(artccId, id) || (Session is not { IsDirty: true } session))
         {
@@ -235,11 +268,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         UnsavedChangesChoice choice;
         try
         {
-            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session), UnsavedChangesContext.Export);
+            choice = await _services.Prompts.AskUnsavedChangesAsync(DisplayName(session), context);
         }
         catch (Exception ex)
         {
-            LogFailure(ex, "asking before an export of " + id);
+            LogFailure(ex, what);
             return false;
         }
 
@@ -289,6 +322,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         if (_browser.ExportGuard == _exportGuard)
         {
             _browser.ExportGuard = (_, _) => Task.FromResult(true);
+        }
+
+        if (_browser.MergeGuard == _mergeGuard)
+        {
+            _browser.MergeGuard = (_, _) => Task.FromResult(true);
         }
 
         CloseSession();

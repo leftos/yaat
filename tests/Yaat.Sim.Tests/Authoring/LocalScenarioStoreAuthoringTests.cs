@@ -633,4 +633,36 @@ public class LocalScenarioStoreAuthoringTests
                 Assert.Null(sidecar["lastExport"]);
             }
         );
+
+    [Fact]
+    public void CreateFreshCopyFromMirror_NoMirror_Throws() =>
+        InRoot(
+            (root, store) =>
+            {
+                Assert.Throws<FileNotFoundException>(() => store.CreateFreshCopyFromMirror(Zoa, IdA, Ids(21)()));
+                Assert.Empty(store.Load(Zoa).WorkingCopies);
+            }
+        );
+
+    [Fact]
+    public void CreateFreshCopyFromMirror_WritesALocalOnlyCopyUnderTheNewId_LeavesTheMirrorAndCopy() =>
+        InRoot(
+            (root, store) =>
+            {
+                string mirror = TrainingFixtures.Read(IdA);
+                store.ApplyServerBody(Zoa, IdA, mirror);
+                store.CreateWorkingCopy(Zoa, IdA);
+                string copyBefore = store.ReadWorkingCopyText(Zoa, IdA);
+                string newId = Ids(22)();
+
+                store.CreateFreshCopyFromMirror(Zoa, IdA, newId);
+
+                Assert.Equal(newId, IdIn(store.ReadWorkingCopyText(Zoa, newId)));
+                WorkingCopyEntry fresh = CopyOf(store, newId);
+                Assert.Null(fresh.OriginId);
+                Assert.False(fresh.ServerChanged);
+                Assert.Equal(mirror, store.ReadMirrorText(Zoa, IdA));
+                Assert.Equal(copyBefore, store.ReadWorkingCopyText(Zoa, IdA));
+            }
+        );
 }

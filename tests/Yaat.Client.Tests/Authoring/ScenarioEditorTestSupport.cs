@@ -401,6 +401,26 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 
         return Task.FromResult(CombinedAnswers.Count > 0 ? CombinedAnswers.Dequeue() : UnsavedAndUnexportedChoice.DiscardAndLeave);
     }
+
+    /// <summary>Gets the answers the merge window gives, in order; null (cancelled) once it is empty.</summary>
+    public Queue<ScenarioMergeResult?> MergeAnswers { get; } = new();
+
+    /// <summary>Gets each request the merge window was opened over.</summary>
+    public List<ScenarioMergeRequest> MergeRequests { get; } = [];
+
+    /// <summary>Gets or sets the merge window's behaviour, for one that writes before it answers; else the queue answers.</summary>
+    public Func<ScenarioMergeRequest, Task<ScenarioMergeResult?>>? Merge { get; set; }
+
+    public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request)
+    {
+        MergeRequests.Add(request);
+        if (Merge is { } merge)
+        {
+            return merge(request);
+        }
+
+        return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
+    }
 }
 
 /// <summary>The UI thread as a queue: each test runs the posted actions when, and in the order, it chooses.</summary>

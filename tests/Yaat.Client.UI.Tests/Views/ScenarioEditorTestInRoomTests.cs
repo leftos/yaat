@@ -345,6 +345,16 @@ public class ScenarioEditorTestInRoomTests
             IReadOnlyList<string> names,
             UnexportedChangesContext context
         ) => Task.FromResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
+
+        public Queue<ScenarioMergeResult?> MergeAnswers { get; } = new();
+
+        public List<ScenarioMergeRequest> MergeRequests { get; } = [];
+
+        public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request)
+        {
+            MergeRequests.Add(request);
+            return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
+        }
     }
 
     private sealed class StubAccess(params string[] artccs) : IArtccAccessSource

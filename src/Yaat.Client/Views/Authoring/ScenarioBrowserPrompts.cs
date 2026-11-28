@@ -59,13 +59,13 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
     /// <inheritdoc/>
     public async Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context)
     {
-        string before = (context == UnsavedChangesContext.Export) ? "exporting" : "closing";
-        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(
-            owner,
-            "Unsaved changes",
-            $"Save your changes to \"{scenarioName}\" before {before} it?",
-            ButtonEnum.YesNoCancel
-        );
+        string question = context switch
+        {
+            UnsavedChangesContext.Export => $"Save your changes to \"{scenarioName}\" before exporting it?",
+            UnsavedChangesContext.Merge => $"Save your changes to \"{scenarioName}\" before merging?",
+            _ => $"Save your changes to \"{scenarioName}\" before closing it?",
+        };
+        ButtonResult result = await MessageBoxPresenter.ShowStandardAsync(owner, "Unsaved changes", question, ButtonEnum.YesNoCancel);
         return result switch
         {
             ButtonResult.Yes => UnsavedChangesChoice.Save,
@@ -138,6 +138,10 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
 
         return (answer == discardAndLeave) ? UnsavedAndUnexportedChoice.DiscardAndLeave : UnsavedAndUnexportedChoice.Cancel;
     }
+
+    /// <inheritdoc/>
+    public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) =>
+        throw new NotSupportedException("The merge window is not built yet.");
 
     private static string UnexportedBody(IReadOnlyList<string> names) => UnexportedMessage + "\n\n" + string.Join("\n", names);
 

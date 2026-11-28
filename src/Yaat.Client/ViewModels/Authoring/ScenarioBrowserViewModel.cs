@@ -175,6 +175,13 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     public Func<string, string, Task<bool>> ReplaceGuard { get; set; } = (_, _) => Task.FromResult(true);
 
     /// <summary>
+    /// Gets or sets what is asked, on the UI thread, before Merge server changes reads a working copy (its ARTCC and id):
+    /// true to go on, false to stop. The editor sets it to ask about that copy's unsaved edits when it is open; with no
+    /// editor it always answers true.
+    /// </summary>
+    public Func<string, string, Task<bool>> MergeGuard { get; set; } = (_, _) => Task.FromResult(true);
+
+    /// <summary>
     /// Whether the window may close now. The rows are re-read, then one question is asked: the combined unsaved-and-
     /// unexported question when the open copy (<see cref="UnsavedCopy"/>) has unsaved edits, else the unexported-changes
     /// question when copies have unexported changes. Nothing is saved, discarded or exported before the answer. With

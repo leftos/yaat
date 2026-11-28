@@ -157,6 +157,31 @@ public sealed partial class LocalScenarioStore
     }
 
     /// <summary>
+    /// Makes a local-only working copy of a server scenario's mirror under a new id, with the JSON <c>id</c>
+    /// rewritten; the mirror and any working copy of it are left as they were.
+    /// </summary>
+    /// <param name="artccId">The ARTCC.</param>
+    /// <param name="id">The server scenario whose mirror is copied.</param>
+    /// <param name="newId">The new copy's id.</param>
+    /// <exception cref="FileNotFoundException">There is no mirror with that id; nothing is written.</exception>
+    /// <exception cref="ArgumentException">The mirror is not a scenario object with a name, or an id is not valid.</exception>
+    /// <exception cref="InvalidOperationException">A working copy with <paramref name="newId"/> exists; nothing is written.</exception>
+    public void CreateFreshCopyFromMirror(string artccId, string id, string newId)
+    {
+        string path = GetMirrorPath(artccId, id);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"There is no server scenario {id} at {path}.", path);
+        }
+
+        CreateLocalScenario(artccId, File.ReadAllText(path), newId);
+        if (Log.IsEnabled(LogLevel.Information))
+        {
+            Log.LogInformation("Made fresh copy {NewId} of server scenario {Id} of {ArtccId}", newId, id, artccId);
+        }
+    }
+
+    /// <summary>
     /// Deletes a working copy's file, its sidecar and its base text file, any of which may be absent; a corrupt copy is
     /// deleted too.
     /// </summary>

@@ -14,7 +14,11 @@ public sealed record ScenarioMergeRequest(
     ScenarioMergeTexts Texts,
     ScenarioMergeCaptions Captions,
     Func<string, Task> Write
-);
+)
+{
+    /// <summary>Makes a local-only copy of theirs beside the working copy; null when the entry has none.</summary>
+    public Func<Task>? FreshCopy { get; init; }
+}
 
 /// <summary>The scenario texts a merge compares.</summary>
 /// <param name="Base">The text both sides started from; null for a two-way merge.</param>
