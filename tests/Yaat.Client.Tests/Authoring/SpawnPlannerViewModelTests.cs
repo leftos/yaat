@@ -240,11 +240,167 @@ public class SpawnPlannerViewModelTests
 
         vm.Preview();
 
-        Assert.True(vm.Overrun!.CompressBreaksSeparation);
-        Assert.Equal(SpawnPlannerViewModel.CompressWarningText, vm.CompressWarning);
-        Assert.Equal("Compressing brings same-origin spawns closer than the minimum gap.", vm.CompressWarning);
-        Assert.Contains(SpawnPlannerViewModel.CompressWarningText, vm.Warnings);
+        Assert.True(vm.Overrun!.CompressBreaksGap);
+        Assert.Equal(SpawnPlannerViewModel.CompressWarningText(85, 120), vm.CompressWarning);
+        Assert.Equal("Compress the intervals would bring same-origin spawns to 85 s apart, under the 120 s minimum gap.", vm.CompressWarning);
+        Assert.Contains(SpawnPlannerViewModel.CompressWarningText(85, 120), vm.Warnings);
         Assert.False(session.CanUndo);
+    }
+
+    [Fact]
+    public void Compress_Warning_StatesTheMeasuredGap()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(3));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.PlanningLengthSec = 90;
+        vm.MinGapSec = 60;
+        SpawnPlannerScenario.UseBand(vm, "0", "10", "1:00", "0", "0");
+
+        vm.Preview();
+
+        Assert.True(vm.Overrun!.CompressBreaksGap);
+        Assert.Equal(45, vm.Overrun.CompressedMinGapSec);
+        Assert.Equal("Compress the intervals would bring same-origin spawns to 45 s apart, under the 60 s minimum gap.", vm.CompressWarning);
+        Assert.Contains(vm.CompressWarning!, vm.Warnings);
+    }
+
+    [Fact]
+    public void Extend_WithoutAnOverrun_AddsTheWorkingTimeThatDoesNotFit()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(2));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "60", "59:45", "0", "0");
+
+        vm.Preview();
+
+        Assert.Null(vm.Overrun);
+        Assert.True(vm.ExtendCommand.CanExecute(null));
+        Assert.Contains("The last spawn at 59:45 leaves 15 s of the 15 min working time.", vm.Warnings);
+
+        vm.ExtendCommand.Execute(null);
+
+        Assert.Equal(4485, vm.PlanningLengthSec);
+        Assert.False(vm.ExtendCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Apply_ExtendRemedy_WithoutAnOverrun_AddsTheMissingWorkingTime()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(2));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "60", "59:45", "0", "0");
+        vm.SelectedRemedy = SpawnOverrunRemedy.ExtendScenario;
+
+        vm.Apply();
+
+        Assert.Equal(4485, vm.PlanningLengthSec);
+    }
+
+    [Fact]
+    public void Extend_NotOffered_WhenTheWorkingTimeFits()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(3));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "40", "20:00", "0", "0");
+
+        vm.Preview();
+
+        Assert.Null(vm.Overrun);
+        Assert.False(vm.ExtendCommand.CanExecute(null));
+        Assert.DoesNotContain(vm.Warnings, line => line.Contains("working time", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Extend_NotOffered_WhenTheWorkingTimeEndsExactlyAtTheLength()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(3));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "45", "22:30", "0", "0");
+
+        vm.Preview();
+
+        Assert.Equal(2700, vm.PreviewResult!.Assignments.Max(assignment => assignment.SpawnDelaySec));
+        Assert.Null(vm.Overrun);
+        Assert.False(vm.ExtendCommand.CanExecute(null));
+        Assert.DoesNotContain(vm.Warnings, line => line.Contains("working time", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(5, 55, "The last spawn at 0:05 leaves 55 s of the 10 min working time.")]
+    [InlineData(3725, 475, "The last spawn at 1:02:05 leaves 475 s of the 10 min working time.")]
+    public void WorkingTimeWarningText_FormatsTheLastSpawnLikeTheEditor(int lastSpawnSec, int freeSec, string expected) =>
+        Assert.Equal(expected, SpawnPlannerViewModel.WorkingTimeWarningText(lastSpawnSec, freeSec, 10));
+
+    [Theory]
+    [InlineData(SpawnOverrunRemedy.None)]
+    [InlineData(SpawnOverrunRemedy.ExtendScenario)]
+    [InlineData(SpawnOverrunRemedy.CompressIntervals)]
+    public void Extend_Line_ShowsWhateverTheChosenRemedy(SpawnOverrunRemedy remedy)
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(2));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        vm.SelectedRemedy = remedy;
+        SpawnPlannerScenario.UseBand(vm, "0", "60", "59:45", "0", "0");
+
+        vm.Preview();
+
+        Assert.Null(vm.Overrun);
+        Assert.Contains("The last spawn at 59:45 leaves 15 s of the 15 min working time.", vm.Warnings);
+    }
+
+    [Fact]
+    public void Extend_CanExecuteChanges_WhenTheWorkingTimeGrows()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(3));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "40", "20:00", "0", "0");
+        vm.Preview();
+        Assert.False(vm.ExtendCommand.CanExecute(null));
+        bool raised = false;
+        vm.ExtendCommand.CanExecuteChanged += (_, _) => raised = true;
+
+        vm.WorkingTimeMinutes = 30;
+
+        Assert.True(raised);
+        Assert.True(vm.ExtendCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Apply_NoneRemedy_LeavesTheLengthWhenTheWorkingTimeDoesNotFit()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(2));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.WorkingTimeMinutes = 15;
+        SpawnPlannerScenario.UseBand(vm, "0", "60", "59:45", "0", "0");
+        vm.SelectedRemedy = SpawnOverrunRemedy.None;
+
+        vm.Apply();
+
+        Assert.Equal(3600, vm.PlanningLengthSec);
+    }
+
+    [Fact]
+    public void Extend_NotOffered_WhenAnOverrunLengthAlreadyCoversTheWorkingTime()
+    {
+        ScenarioEditSession session = SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(7));
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(session);
+        vm.PlanningLengthMinutes = 30;
+        SpawnPlannerScenario.UseBand(vm, "0", "60", "10:00", "0", "0");
+
+        vm.Preview();
+
+        Assert.NotNull(vm.Overrun);
+        Assert.True(vm.ExtendCommand.CanExecute(null));
+
+        vm.PlanningLengthSec = 5000;
+
+        Assert.False(vm.ExtendCommand.CanExecute(null));
     }
 
     [Fact]
@@ -267,11 +423,17 @@ public class SpawnPlannerViewModelTests
         Assert.Equal(60, vm.PlanningLengthMinutes);
         Assert.Equal(10, vm.WorkingTimeMinutes);
         Assert.Equal(60, vm.MinGapSec);
-        Assert.Equal("arrivals or en route traffic: 15-20 min", SpawnPlannerViewModel.WorkingTimeHelp);
         Assert.Equal(
-            "The minimum gap is a time gap between spawns at one origin, not a separation standard: 60 s suits departures and "
-                + "terminal fixes, 90-120 s en route or mixed speeds. Departures on one runway need 3 minutes behind a super and 2 "
-                + "behind a heavy for wake, so space heavies 120 s or more apart if you do not want wake holds.",
+            "Time to work the last aircraft after it spawns: about 10 min for a departure near the runway, 15-20 min for "
+                + "arrivals, en route traffic or long taxis.",
+            SpawnPlannerViewModel.WorkingTimeHelp
+        );
+        Assert.Equal(
+            "The minimum gap is a time between spawns at one origin, not a separation standard. 60 s suits departures and "
+                + "terminal fixes; use 90-120 s for en route fixes, mixed speeds and starts on final (60 s at 150 kt is 2.5 NM, "
+                + "under the 3 NM radar minimum). For wake, a departure on the same runway waits 2 minutes behind a heavy and 3 "
+                + "behind a super (7110.65 3-9-6f), and arrivals need up to 6 NM behind a heavy and 8 behind a super on final "
+                + "(5-5-4, TBL 5-5-2): a gap of 120 s, or 180 s with supers, keeps the plan clear of those waits.",
             SpawnPlannerViewModel.GapGuidance
         );
     }

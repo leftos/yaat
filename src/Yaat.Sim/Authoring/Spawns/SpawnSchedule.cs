@@ -111,7 +111,7 @@ public static class SpawnSchedule
     }
 
     /// <summary>Pairs <paramref name="ordered"/> with <paramref name="slots"/>, pushes same-origin spawns at least
-    /// <paramref name="deconfliction"/>'s separation apart, and reports any spawn later than
+    /// <paramref name="deconfliction"/>'s gap apart, and reports any spawn later than
     /// <paramref name="lengthSec"/>.</summary>
     /// <remarks>No spawn is ever moved earlier, and nothing is clamped to the length: an overrun is reported, with both
     /// remedies on <see cref="SpawnOverrun"/>. A same-origin aircraft the caller does not schedule keeps its delay, and
@@ -200,7 +200,7 @@ public static class SpawnSchedule
                 {
                     Assignments = Compressed(result.Assignments, overrun.CompressedSpawnSec),
                     Overrun = null,
-                    SeparationWarning = (result.SeparationWarning) || (overrun.CompressBreaksSeparation),
+                    GapWarning = (result.GapWarning) || (overrun.CompressBreaksGap),
                 };
             default:
                 throw new ArgumentOutOfRangeException(nameof(remedy), remedy, "Unknown overrun remedy.");
@@ -391,16 +391,16 @@ public static class SpawnSchedule
             delays[i] = slots[i];
         }
 
-        int separation = deconfliction?.MinSeparationSec ?? 0;
-        if (separation > 0)
+        int minGap = deconfliction?.MinGapSec ?? 0;
+        if (minGap > 0)
         {
-            PushApart(scenario, [.. ordered.Take(count)], origins, separation, delays);
+            PushApart(scenario, [.. ordered.Take(count)], origins, minGap, delays);
         }
 
         return (origins, delays);
     }
 
-    private static void PushApart(Scenario scenario, HashSet<ScenarioAircraft> scheduled, string[] origins, int separation, int[] delays)
+    private static void PushApart(Scenario scenario, HashSet<ScenarioAircraft> scheduled, string[] origins, int minGap, int[] delays)
     {
         Dictionary<string, List<int>> obstacles = UnscheduledDelays(scenario, scheduled);
         var groups = new Dictionary<string, List<int>>(StringComparer.Ordinal);
@@ -423,7 +423,7 @@ public static class SpawnSchedule
         foreach ((string key, List<int> indices) in groups)
         {
             obstacles.TryGetValue(key, out List<int>? clearing);
-            PushGroupApart(indices, separation, clearing, delays);
+            PushGroupApart(indices, minGap, clearing, delays);
         }
     }
 
@@ -460,18 +460,18 @@ public static class SpawnSchedule
         return obstacles;
     }
 
-    private static void PushGroupApart(List<int> indices, int separation, List<int>? obstacles, int[] delays)
+    private static void PushGroupApart(List<int> indices, int minGap, List<int>? obstacles, int[] delays)
     {
         List<int> sorted = [.. indices.OrderBy(index => delays[index])];
         for (int j = 0; j < sorted.Count; j++)
         {
             int current = sorted[j];
-            int candidate = (j == 0) ? delays[current] : Math.Max(delays[current], delays[sorted[j - 1]] + separation);
-            delays[current] = ClearObstacles(candidate, separation, obstacles);
+            int candidate = (j == 0) ? delays[current] : Math.Max(delays[current], delays[sorted[j - 1]] + minGap);
+            delays[current] = ClearObstacles(candidate, minGap, obstacles);
         }
     }
 
-    private static int ClearObstacles(int candidate, int separation, List<int>? obstacles)
+    private static int ClearObstacles(int candidate, int minGap, List<int>? obstacles)
     {
         if (obstacles is null)
         {
@@ -481,9 +481,9 @@ public static class SpawnSchedule
         int cleared = candidate;
         foreach (int obstacle in obstacles)
         {
-            if ((obstacle > cleared - separation) && (obstacle < cleared + separation))
+            if ((obstacle > cleared - minGap) && (obstacle < cleared + minGap))
             {
-                cleared = obstacle + separation;
+                cleared = obstacle + minGap;
             }
         }
 
@@ -503,14 +503,14 @@ public static class SpawnSchedule
             return null;
         }
 
-        int separation = deconfliction?.MinSeparationSec ?? 0;
+        int minGap = deconfliction?.MinGapSec ?? 0;
         double factor = lengthSec / (double)last;
         int[] compressed = [.. assignments.Select(assignment => (int)Math.Round(assignment.SpawnDelaySec * factor))];
-        int gap = (separation > 0) ? SmallestGap(assignments, compressed, scenario, separation) : 0;
-        return new SpawnOverrun(lengthSec, last, last - lengthSec, last, factor, compressed, gap, gap < separation);
+        int gap = (minGap > 0) ? SmallestGap(assignments, compressed, scenario, minGap) : 0;
+        return new SpawnOverrun(lengthSec, last, last - lengthSec, last, factor, compressed, gap, gap < minGap);
     }
 
-    private static int SmallestGap(List<SpawnAssignment> assignments, int[] compressed, Scenario scenario, int separation)
+    private static int SmallestGap(List<SpawnAssignment> assignments, int[] compressed, Scenario scenario, int minGap)
     {
         Dictionary<string, List<(int Delay, bool Scheduled)>> groups = DelaysByOrigin(assignments, compressed, scenario);
         int smallest = int.MaxValue;
@@ -526,7 +526,7 @@ public static class SpawnSchedule
             }
         }
 
-        return (smallest == int.MaxValue) ? separation : smallest;
+        return (smallest == int.MaxValue) ? minGap : smallest;
     }
 
     private static Dictionary<string, List<(int Delay, bool Scheduled)>> DelaysByOrigin(

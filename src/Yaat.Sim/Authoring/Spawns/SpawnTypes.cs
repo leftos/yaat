@@ -44,9 +44,9 @@ public sealed record SpawnFilter(
     IReadOnlySet<string>? ExcludeCallsigns = null
 );
 
-/// <summary>The least time between two spawns of the same origin; <see cref="SpawnSchedule.Assign"/> takes a separation
-/// of zero or less as off.</summary>
-public sealed record SpawnDeconfliction(int MinSeparationSec);
+/// <summary>The least time between two spawns of the same origin; <see cref="SpawnSchedule.Assign"/> takes a gap of zero
+/// or less as off.</summary>
+public sealed record SpawnDeconfliction(int MinGapSec);
 
 /// <summary>The interval limits of a workload-driven schedule: a busier sample spawns every
 /// <paramref name="MinIntervalSec"/> and an idle one every <paramref name="MaxIntervalSec"/>, each slot jittered by
@@ -57,10 +57,9 @@ public sealed record WorkloadSettings(int MinIntervalSec, int MaxIntervalSec, in
 public sealed record SpawnAssignment(ScenarioAircraft Aircraft, int SpawnDelaySec, string OriginKey);
 
 /// <summary>Every spawn time of a schedule, recomputed the other way an overrun can be answered.</summary>
-/// <param name="CompressedMinSeparationSec">The smallest gap between two spawns of one origin where at least one of the
-/// pair is a compressed scheduled spawn; the requested separation when there is no such pair, and zero with no
-/// deconfliction.</param>
-/// <param name="CompressBreaksSeparation">True when that gap is below the separation the caller asked for.</param>
+/// <param name="CompressedMinGapSec">The smallest gap between two spawns of one origin where at least one of the pair is
+/// a compressed scheduled spawn; the requested gap when there is no such pair, and zero with no deconfliction.</param>
+/// <param name="CompressBreaksGap">True when that gap is below the gap the caller asked for.</param>
 public sealed record SpawnOverrun(
     int LengthSec,
     int LastSpawnSec,
@@ -68,19 +67,19 @@ public sealed record SpawnOverrun(
     int ExtendedLengthSec,
     double CompressFactor,
     IReadOnlyList<int> CompressedSpawnSec,
-    int CompressedMinSeparationSec,
-    bool CompressBreaksSeparation
+    int CompressedMinGapSec,
+    bool CompressBreaksGap
 );
 
 /// <summary>What <see cref="SpawnSchedule.Assign"/> produced: the assigned aircraft, the ones left out, the length the
 /// schedule was planned over, and an overrun when a spawn falls later than it.</summary>
-/// <param name="SeparationWarning">True when a compress remedy shrank the same-origin separation below the one the
-/// caller asked for; the overrun that carried the figure is cleared once the remedy is applied.</param>
+/// <param name="GapWarning">True when a compress remedy shrank the same-origin gap below the one the caller asked for;
+/// the overrun that carried the figure is cleared once the remedy is applied.</param>
 public sealed record SpawnScheduleResult(
     IReadOnlyList<SpawnAssignment> Assignments,
     IReadOnlyList<ScenarioAircraft> Unassigned,
     int UnusedSlots,
     int LengthSec,
     SpawnOverrun? Overrun,
-    bool SeparationWarning
+    bool GapWarning
 );

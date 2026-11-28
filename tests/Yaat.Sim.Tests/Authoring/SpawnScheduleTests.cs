@@ -208,7 +208,7 @@ public class SpawnScheduleTests
     // ── D: same-origin deconfliction ─────────────────────────────────────────
 
     [Fact]
-    public void Assign_SameOrigin_PushesToTheMinSeparation()
+    public void Assign_SameOrigin_PushesToTheMinGap()
     {
         Scenario scenario = GroundScenario(Ground("AAL1", "KSFO"), Ground("AAL2", "KSFO"), Ground("UAL3", "KSFO"));
 
@@ -387,7 +387,7 @@ public class SpawnScheduleTests
     }
 
     [Fact]
-    public void Assign_UnscheduledAircraft_ClearsOnlyTheSpawnInsideTheSeparation()
+    public void Assign_UnscheduledAircraft_ClearsOnlyTheSpawnInsideTheGap()
     {
         ScenarioAircraft first = Airborne("AAL1", "SUNOL", 400);
         ScenarioAircraft second = Airborne("UAL2", "SUNOL", 470);
@@ -446,8 +446,8 @@ public class SpawnScheduleTests
         Assert.Equal(90, overrun.ExtendedLengthSec);
         Assert.Equal(60 / 90.0, overrun.CompressFactor, 6);
         Assert.Equal([0, 20, 40, 60], [.. overrun.CompressedSpawnSec]);
-        Assert.Equal(20, overrun.CompressedMinSeparationSec);
-        Assert.True(overrun.CompressBreaksSeparation);
+        Assert.Equal(20, overrun.CompressedMinGapSec);
+        Assert.True(overrun.CompressBreaksGap);
         Assert.Equal(slots.Count, result.Assignments.Count);
     }
 
@@ -481,11 +481,11 @@ public class SpawnScheduleTests
         Assert.Equal(90, extended.LengthSec);
         Assert.Equal([0, 30, 60, 90], Delays(extended));
         Assert.Null(extended.Overrun);
-        Assert.False(extended.SeparationWarning);
+        Assert.False(extended.GapWarning);
     }
 
     [Fact]
-    public void ApplyRemedy_Compress_ScalesEverySlot_AndReportsTheShrunkenSeparation()
+    public void ApplyRemedy_Compress_ScalesEverySlot_AndReportsTheShrunkenGap()
     {
         (_, _, SpawnScheduleResult result) = OverrunFixture();
 
@@ -494,14 +494,14 @@ public class SpawnScheduleTests
         Assert.Equal(60, newLengthSec);
         Assert.Equal([0, 20, 40, 60], Delays(compressed));
         Assert.Null(compressed.Overrun);
-        Assert.True(compressed.SeparationWarning);
+        Assert.True(compressed.GapWarning);
         SpawnOverrun? overrun = result.Overrun;
         Assert.NotNull(overrun);
-        Assert.Equal(20, overrun.CompressedMinSeparationSec);
+        Assert.Equal(20, overrun.CompressedMinGapSec);
     }
 
     [Fact]
-    public void ApplyRemedy_Compress_ThatKeepsTheSeparation_WarnsNothing()
+    public void ApplyRemedy_Compress_ThatKeepsTheGap_WarnsNothing()
     {
         Scenario scenario = GroundScenario(Ground("AAL1", "KSFO"), Ground("AAL2", "KSFO"));
         IReadOnlyList<int> slots = [0, 61];
@@ -510,14 +510,14 @@ public class SpawnScheduleTests
         Assert.Equal([0, 61], Delays(result));
         SpawnOverrun? overrun = result.Overrun;
         Assert.NotNull(overrun);
-        Assert.Equal(60, overrun.CompressedMinSeparationSec);
-        Assert.False(overrun.CompressBreaksSeparation);
+        Assert.Equal(60, overrun.CompressedMinGapSec);
+        Assert.False(overrun.CompressBreaksGap);
 
         SpawnScheduleResult compressed = SpawnSchedule.ApplyRemedy(result, SpawnOverrunRemedy.CompressIntervals, out int newLengthSec);
 
         Assert.Equal(60, newLengthSec);
         Assert.Equal([0, 60], Delays(compressed));
-        Assert.False(compressed.SeparationWarning);
+        Assert.False(compressed.GapWarning);
     }
 
     [Fact]
@@ -529,8 +529,8 @@ public class SpawnScheduleTests
         SpawnOverrun? overrun = result.Overrun;
         Assert.NotNull(overrun);
         Assert.Equal(600, overrun.LastSpawnSec);
-        Assert.Equal(540, overrun.CompressedMinSeparationSec);
-        Assert.False(overrun.CompressBreaksSeparation);
+        Assert.Equal(540, overrun.CompressedMinGapSec);
+        Assert.False(overrun.CompressBreaksGap);
     }
 
     [Fact]
@@ -554,8 +554,8 @@ public class SpawnScheduleTests
         SpawnOverrun? overrun = result.Overrun;
         Assert.NotNull(overrun);
         Assert.Equal(900, overrun.LastSpawnSec);
-        Assert.Equal(200, overrun.CompressedMinSeparationSec);
-        Assert.False(overrun.CompressBreaksSeparation);
+        Assert.Equal(200, overrun.CompressedMinGapSec);
+        Assert.False(overrun.CompressBreaksGap);
     }
 
     [Fact]
@@ -570,14 +570,14 @@ public class SpawnScheduleTests
         SpawnOverrun? overrun = result.Overrun;
         Assert.NotNull(overrun);
         Assert.Equal(660, overrun.LastSpawnSec);
-        Assert.Equal(0, overrun.CompressedMinSeparationSec);
-        Assert.True(overrun.CompressBreaksSeparation);
+        Assert.Equal(0, overrun.CompressedMinGapSec);
+        Assert.True(overrun.CompressBreaksGap);
 
         SpawnScheduleResult compressed = SpawnSchedule.ApplyRemedy(result, SpawnOverrunRemedy.CompressIntervals, out int newLengthSec);
 
         Assert.Equal(500, newLengthSec);
         Assert.Equal([500], Delays(compressed));
-        Assert.True(compressed.SeparationWarning);
+        Assert.True(compressed.GapWarning);
     }
 
     [Fact]

@@ -30,16 +30,32 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
     public const string ApplyDescription = "Apply spawn plan";
 
     /// <summary>The working time field's help text.</summary>
-    public const string WorkingTimeHelp = "arrivals or en route traffic: 15-20 min";
+    public const string WorkingTimeHelp =
+        "Time to work the last aircraft after it spawns: about 10 min for a departure near the runway, 15-20 min for "
+        + "arrivals, en route traffic or long taxis.";
 
     /// <summary>The minimum gap field's guidance text.</summary>
     public const string GapGuidance =
-        "The minimum gap is a time gap between spawns at one origin, not a separation standard: 60 s suits departures and "
-        + "terminal fixes, 90-120 s en route or mixed speeds. Departures on one runway need 3 minutes behind a super and 2 "
-        + "behind a heavy for wake, so space heavies 120 s or more apart if you do not want wake holds.";
+        "The minimum gap is a time between spawns at one origin, not a separation standard. 60 s suits departures and "
+        + "terminal fixes; use 90-120 s for en route fixes, mixed speeds and starts on final (60 s at 150 kt is 2.5 NM, "
+        + "under the 3 NM radar minimum). For wake, a departure on the same runway waits 2 minutes behind a heavy and 3 "
+        + "behind a super (7110.65 3-9-6f), and arrivals need up to 6 NM behind a heavy and 8 behind a super on final "
+        + "(5-5-4, TBL 5-5-2): a gap of 120 s, or 180 s with supers, keeps the plan clear of those waits.";
 
     /// <summary>The warning a preview shows when compressing would bring same-origin spawns under the minimum gap.</summary>
-    public const string CompressWarningText = "Compressing brings same-origin spawns closer than the minimum gap.";
+    /// <param name="gapSec">The smallest same-origin gap the compression leaves.</param>
+    /// <param name="minGapSec">The minimum gap the plan asks for.</param>
+    /// <returns>The warning text.</returns>
+    public static string CompressWarningText(int gapSec, int minGapSec) =>
+        $"Compress the intervals would bring same-origin spawns to {gapSec} s apart, under the {minGapSec} s minimum gap.";
+
+    /// <summary>The warning a preview shows when the last spawn leaves less working time than the plan asks for.</summary>
+    /// <param name="lastSpawnSec">The last spawn's delay.</param>
+    /// <param name="freeSec">The seconds the planning length leaves after it.</param>
+    /// <param name="workingTimeMinutes">The working time the plan asks for.</param>
+    /// <returns>The warning text.</returns>
+    public static string WorkingTimeWarningText(int lastSpawnSec, int freeSec, int workingTimeMinutes) =>
+        $"The last spawn at {ScenarioTime.Format(lastSpawnSec)} leaves {freeSec} s of the {workingTimeMinutes} min working time.";
 
     /// <summary>The error a preview or Apply shows when the planning length is not above zero.</summary>
     public const string LengthErrorText = "The planning length must be more than zero.";
@@ -94,9 +110,11 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlanningLengthMinutes))]
+    [NotifyCanExecuteChangedFor(nameof(ExtendCommand))]
     private int _planningLengthSec = SpawnPlan.DefaultPlanningLengthSec;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExtendCommand))]
     private int _workingTimeMinutes = SpawnPlan.DefaultWorkingTimeMinutes;
 
     [ObservableProperty]
@@ -112,6 +130,7 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
     private SpawnOverrunRemedy _selectedRemedy = SpawnOverrunRemedy.None;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExtendCommand))]
     private bool _hasPreview;
 
     [ObservableProperty]
@@ -124,7 +143,10 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
     private int _unusedSlots;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExtendCommand))]
     private SpawnOverrun? _overrun;
+
+    private int? _lastSpawnSec;
 
     [ObservableProperty]
     private string? _compressWarning;
@@ -163,7 +185,7 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
     /// <summary>Gets the callsigns of the matched aircraft the preview found no slot for.</summary>
     public ObservableCollection<string> UnassignedCallsigns { get; } = [];
 
-    /// <summary>Gets the preview's warnings: skipped and reordering bands and the compress warning.</summary>
+    /// <summary>Gets the preview's warnings: skipped and reordering bands, the compress warning, and the working-time line.</summary>
     public ObservableCollection<string> Warnings { get; } = [];
 
     /// <summary>Gives the plan a new seed, different from the one it has.</summary>
@@ -218,9 +240,9 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
                 SpawnSchedule.Apply(applied.Final);
             }
         );
-        if ((applied is { } done) && (SelectedRemedy == SpawnOverrunRemedy.ExtendScenario) && (done.Raw.Overrun is not null))
+        if (applied is { } done)
         {
-            PlanningLengthSec = done.NewLengthSec + (WorkingTimeMinutes * 60);
+            ExtendIfChosen(done);
         }
 
         if (Log.IsEnabled(LogLevel.Information))
@@ -242,18 +264,68 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
         RefreshMatched();
     }
 
-    /// <summary>Sets the planning length to the previewed overrun's extended length plus the working time, and previews again.</summary>
-    [RelayCommand]
+    /// <summary>Gets whether extend has anything to do: an overrun, or a last spawn that leaves less than the working time.</summary>
+    private bool CanExtend => ExtendTargetSec() is not null;
+
+    /// <summary>Sets the planning length to hold the last spawn plus the working time, and previews again.</summary>
+    [RelayCommand(CanExecute = nameof(CanExtend))]
     public void Extend()
     {
-        if (Overrun is not { } overrun)
+        if (ExtendTargetSec() is not { } target)
         {
             return;
         }
 
-        PlanningLengthSec = overrun.ExtendedLengthSec + (WorkingTimeMinutes * 60);
+        PlanningLengthSec = target;
         Preview();
     }
+
+    private int? ExtendTargetSec()
+    {
+        if (!HasPreview)
+        {
+            return null;
+        }
+
+        if ((Overrun?.LastSpawnSec ?? _lastSpawnSec) is not { } lastSpawn)
+        {
+            return null;
+        }
+
+        return WorkingTimeTargetSec(lastSpawn, PlanningLengthSec);
+    }
+
+    private int? WorkingTimeTargetSec(int lastSpawnSec, int lengthSec)
+    {
+        int target = lastSpawnSec + (WorkingTimeMinutes * 60);
+        return (target > lengthSec) ? target : null;
+    }
+
+    private void ExtendIfChosen(PlanComputation done)
+    {
+        if (SelectedRemedy != SpawnOverrunRemedy.ExtendScenario)
+        {
+            return;
+        }
+
+        if (done.Raw.Overrun is { } overrun)
+        {
+            if (WorkingTimeTargetSec(overrun.LastSpawnSec, done.Raw.LengthSec) is { } overrunTarget)
+            {
+                PlanningLengthSec = overrunTarget;
+            }
+
+            return;
+        }
+
+        if ((LastSpawnSec(done.Final) is { } lastSpawn) && (WorkingTimeTargetSec(lastSpawn, done.Final.LengthSec) is { } target))
+        {
+            PlanningLengthSec = target;
+        }
+    }
+
+    private static int? LastSpawnSec(SpawnScheduleResult result) =>
+        (result.Assignments.Count == 0) ? null : result.Assignments.Max(assignment => assignment.SpawnDelaySec);
 
     /// <summary>Every planner input as a plan.</summary>
     /// <returns>The plan, at <see cref="SpawnPlan.CurrentVersion"/>.</returns>
@@ -424,10 +496,17 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
         }
 
         AddBandWarnings();
-        if (plan.Raw.Overrun?.CompressBreaksSeparation == true)
+        if (plan.Raw.Overrun is { CompressBreaksGap: true } breaksGap)
         {
-            CompressWarning = CompressWarningText;
-            Warnings.Add(CompressWarningText);
+            string warning = CompressWarningText(breaksGap.CompressedMinGapSec, MinGapSec);
+            CompressWarning = warning;
+            Warnings.Add(warning);
+        }
+
+        _lastSpawnSec = LastSpawnSec(plan.Final);
+        if ((plan.Raw.Overrun is null) && (_lastSpawnSec is { } lastSpawn))
+        {
+            AddWorkingTimeWarning(plan.Final.LengthSec, lastSpawn);
         }
 
         HasPreview = true;
@@ -435,6 +514,16 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
         {
             Log.LogDebug("Spawn plan preview over {Scenario}: {Count} assigned, {Slots} slots", scenario.Id, PreviewRows.Count, PreviewSlots.Count);
         }
+    }
+
+    private void AddWorkingTimeWarning(int lengthSec, int lastSpawnSec)
+    {
+        if (WorkingTimeTargetSec(lastSpawnSec, lengthSec) is null)
+        {
+            return;
+        }
+
+        Warnings.Add(WorkingTimeWarningText(lastSpawnSec, lengthSec - lastSpawnSec, WorkingTimeMinutes));
     }
 
     private void ClearPreview()
@@ -446,6 +535,7 @@ public sealed partial class SpawnPlannerViewModel : ObservableObject, IDisposabl
         PreviewResult = null;
         UnusedSlots = 0;
         Overrun = null;
+        _lastSpawnSec = null;
         CompressWarning = null;
         PreviewError = null;
         HasPreview = false;
