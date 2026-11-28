@@ -162,8 +162,11 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     /// <summary>Gets the window's title.</summary>
     public string Title => Request.Captions.Title;
 
-    /// <summary>Gets a value indicating whether Apply is offered: every clash has a choice, no MERGED VALUE editor is open and no Apply runs.</summary>
-    public bool CanApply => (OpenClashCount == 0) && !_applying && !Rows.Any(row => row.IsEditing);
+    /// <summary>
+    /// Gets a value indicating whether Apply is offered: every clash has a choice, no MERGED VALUE or MERGED AIRCRAFT editor is
+    /// open and no Apply runs.
+    /// </summary>
+    public bool CanApply => (OpenClashCount == 0) && !_applying && !Rows.Any(row => row.IsEditing) && (MergedAircraft is null);
 
     /// <summary>Gets a value indicating whether Show base is offered; there is no base in a two-way merge.</summary>
     public bool CanShowBase => !IsTwoWay;
@@ -228,14 +231,20 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         PreviousClashCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>Keeps one side for a row, an auto row included.</summary>
+    /// <summary>Keeps one side for a row, an auto row included; on an aircraft's row it drops that aircraft's merged-aircraft replacement.</summary>
     /// <param name="row">One of <see cref="Rows"/>.</param>
     /// <param name="choice"><see cref="MergeChoice.KeepMine"/> or <see cref="MergeChoice.KeepTheirs"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">The choice is an edit, which is made through the row's editor.</exception>
+    /// <exception cref="InvalidOperationException">The MERGED AIRCRAFT editor is open.</exception>
     public void Choose(ScenarioMergeRowViewModel row, MergeChoice choice)
     {
         ArgumentNullException.ThrowIfNull(row);
         ArgumentNullException.ThrowIfNull(choice);
+        if (MergedAircraft is not null)
+        {
+            throw new InvalidOperationException("Close the merged aircraft editor first.");
+        }
+
         if (choice.Kind == MergeChoiceKind.Edit)
         {
             throw new ArgumentOutOfRangeException(
@@ -246,25 +255,32 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         }
 
         _choices[row.Path] = choice;
+        DropAircraftEdits([row]);
         Refresh();
     }
 
     private void ChooseRows(IReadOnlyList<ScenarioMergeRowViewModel> rows, MergeChoice choice)
     {
+        if (MergedAircraft is not null)
+        {
+            return;
+        }
+
         foreach (ScenarioMergeRowViewModel row in rows)
         {
             _choices[row.Path] = choice;
         }
 
+        DropAircraftEdits(rows);
         Refresh();
     }
 
     private void Refresh()
     {
-        ApplyError = null;
+        ApplyError = (MergedAircraft is null) ? null : _editorRefusal;
         foreach (ScenarioMergeRowViewModel row in Rows)
         {
-            row.Refresh(_choices.GetValueOrDefault(row.Path), ShowBase);
+            row.Refresh(_choices.GetValueOrDefault(row.Path), ShowBase, IsReplaced(row));
         }
 
         List<ScenarioMergeRowViewModel> open = [.. Rows.Where(row => row.IsOpen)];
@@ -281,7 +297,7 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         AircraftSection.Refresh(OnlyDifferences);
         foreach (ScenarioMergeAircraftLineViewModel line in AircraftLines)
         {
-            line.Refresh(OnlyDifferences);
+            line.Refresh(OnlyDifferences, _aircraftEdits.ContainsKey(line.ItemKey));
         }
     }
 
@@ -313,8 +329,7 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
 
     private static bool IsListKey(string key) => (key == AircraftKey) || Lists.Any(list => list.Key == key);
 
-    private static string? IdOf(JsonObject? item) =>
-        ((item?["id"] is JsonValue value) && value.TryGetValue(out string? id) && !string.IsNullOrEmpty(id)) ? id : null;
+    private static string? IdOf(JsonObject? item) => ScenarioMergeItemKeys.IdOf(item);
 
     private static string? TextOf(JsonObject? item, string key) =>
         ((item?[key] is JsonValue value) && value.TryGetValue(out string? text)) ? text : null;

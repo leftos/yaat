@@ -22,6 +22,8 @@ public sealed record ScenarioMergeAircraftCells(
 /// </summary>
 public sealed class ScenarioMergeAircraftLineViewModel : ScenarioMergeScopeViewModel
 {
+    private bool _isReplaced;
+
     internal ScenarioMergeAircraftLineViewModel(
         ScenarioMergeAircraftCells cells,
         bool isTwoWay,
@@ -32,6 +34,16 @@ public sealed class ScenarioMergeAircraftLineViewModel : ScenarioMergeScopeViewM
     {
         Cells = cells;
         StatusText = Status(rows, isTwoWay);
+    }
+
+    /// <summary>
+    /// Gets a value indicating whether the MERGED AIRCRAFT editor's replacement stands for the aircraft, differing rows or
+    /// not; Only differences never hides a replaced line.
+    /// </summary>
+    public bool IsReplaced
+    {
+        get => _isReplaced;
+        private set => SetProperty(ref _isReplaced, value);
     }
 
     /// <summary>Gets both sides' cells.</summary>
@@ -57,6 +69,18 @@ public sealed class ScenarioMergeAircraftLineViewModel : ScenarioMergeScopeViewM
     /// "added in mine"), one with differing fields "changed", and one identical on both sides "same".
     /// </summary>
     public string StatusText { get; }
+
+    internal void Refresh(bool onlyDifferences, bool replaced)
+    {
+        IsReplaced = replaced;
+        Refresh(onlyDifferences);
+    }
+
+    internal override void Refresh(bool onlyDifferences)
+    {
+        base.Refresh(onlyDifferences);
+        IsVisible = IsVisible || IsReplaced;
+    }
 
     private static string Status(IReadOnlyList<ScenarioMergeRowViewModel> rows, bool isTwoWay)
     {

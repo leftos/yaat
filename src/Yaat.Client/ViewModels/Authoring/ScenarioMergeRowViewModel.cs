@@ -23,6 +23,9 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
 {
     private readonly Action<ScenarioMergeRowViewModel, MergeChoice> _choose;
 
+    // Set while the MERGED AIRCRAFT editor is open: keep mine and keep theirs do nothing.
+    private bool _locked;
+
     /// <summary>The side the row takes: its choice, else an auto row's own side; null for a clash with no choice.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMinePressed), nameof(IsTheirsPressed), nameof(IsEditPressed))]
@@ -33,7 +36,7 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsEditing))]
     private ScenarioMergedValueViewModel? _editor;
 
-    /// <summary>Whether the row is a clash with no choice yet.</summary>
+    /// <summary>Whether the row is a clash with no choice yet and no merged-aircraft replacement over its aircraft.</summary>
     [ObservableProperty]
     private bool _isOpen;
 
@@ -57,7 +60,7 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
         MineNote = Note(MinePresence, "mine");
         TheirsNote = Note(TheirsPresence, "theirs");
         BaseReason = Reason();
-        Refresh(null, false);
+        Refresh(null, false, false);
     }
 
     /// <summary>Gets the engine's row.</summary>
@@ -141,10 +144,11 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
     /// <summary>Gets the row's label path.</summary>
     public string FieldKey => Row.FieldKey;
 
-    internal void Refresh(MergeChoice? choice, bool showBase)
+    // A row of an aircraft the merged-aircraft editor replaced reads as resolved by that edit, whatever its own choice.
+    internal void Refresh(MergeChoice? choice, bool showBase, bool replaced)
     {
-        PressedSide = choice?.Kind ?? AutoSide();
-        IsOpen = IsClash && (choice is null);
+        PressedSide = replaced ? MergeChoiceKind.Edit : (choice?.Kind ?? AutoSide());
+        IsOpen = IsClash && (choice is null) && !replaced;
         ShowsBase = !IsTwoWay && (IsClash || showBase);
     }
 
@@ -157,11 +161,38 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
             _ => Row.Mine,
         };
 
-    [RelayCommand]
-    private void KeepMine() => _choose(this, MergeChoice.KeepMine);
+    // Keep mine and keep theirs are offered only while the MERGED AIRCRAFT editor is closed.
+    internal void Lock(bool locked)
+    {
+        if (_locked == locked)
+        {
+            return;
+        }
 
-    [RelayCommand]
-    private void KeepTheirs() => _choose(this, MergeChoice.KeepTheirs);
+        _locked = locked;
+        KeepMineCommand.NotifyCanExecuteChanged();
+        KeepTheirsCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanChoose() => !_locked;
+
+    [RelayCommand(CanExecute = nameof(CanChoose))]
+    private void KeepMine()
+    {
+        if (CanChoose())
+        {
+            _choose(this, MergeChoice.KeepMine);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChoose))]
+    private void KeepTheirs()
+    {
+        if (CanChoose())
+        {
+            _choose(this, MergeChoice.KeepTheirs);
+        }
+    }
 
     private MergeChoiceKind? AutoSide() =>
         Kind switch

@@ -13,6 +13,9 @@ public abstract partial class ScenarioMergeScopeViewModel : ObservableObject
 {
     private readonly Action<IReadOnlyList<ScenarioMergeRowViewModel>, MergeChoice> _choose;
 
+    // Set while the MERGED AIRCRAFT editor is open: the scope's buttons do nothing.
+    private bool _locked;
+
     /// <summary>Whether every row in scope takes mine; false when the scope has no row.</summary>
     [ObservableProperty]
     private bool _isMinePressed;
@@ -47,11 +50,38 @@ public abstract partial class ScenarioMergeScopeViewModel : ObservableObject
         IsVisible = !onlyDifferences || IsDifferent;
     }
 
-    [RelayCommand(CanExecute = nameof(IsDifferent))]
-    private void KeepMine() => _choose(Rows, MergeChoice.KeepMine);
+    // The scope's buttons are offered only while the MERGED AIRCRAFT editor is closed.
+    internal virtual void Lock(bool locked)
+    {
+        if (_locked == locked)
+        {
+            return;
+        }
 
-    [RelayCommand(CanExecute = nameof(IsDifferent))]
-    private void KeepTheirs() => _choose(Rows, MergeChoice.KeepTheirs);
+        _locked = locked;
+        KeepMineCommand.NotifyCanExecuteChanged();
+        KeepTheirsCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanChoose() => IsDifferent && !_locked;
+
+    [RelayCommand(CanExecute = nameof(CanChoose))]
+    private void KeepMine()
+    {
+        if (CanChoose())
+        {
+            _choose(Rows, MergeChoice.KeepMine);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChoose))]
+    private void KeepTheirs()
+    {
+        if (CanChoose())
+        {
+            _choose(Rows, MergeChoice.KeepTheirs);
+        }
+    }
 }
 
 /// <summary>One General-tab section of the merge window: its lines in view order and the buttons over all its rows.</summary>
@@ -84,6 +114,15 @@ public sealed class ScenarioMergeSectionViewModel : ScenarioMergeScopeViewModel
         foreach (ScenarioMergeLineViewModel line in Lines)
         {
             line.Refresh(onlyDifferences);
+        }
+    }
+
+    internal override void Lock(bool locked)
+    {
+        base.Lock(locked);
+        foreach (ScenarioMergeLineViewModel line in Lines)
+        {
+            line.Lock(locked);
         }
     }
 }

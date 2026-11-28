@@ -48,6 +48,9 @@ public sealed partial class ScenarioMergedValueViewModel : ObservableObject
         Options = Editor.OptionsFor(Text, pickers);
     }
 
+    /// <summary>Gets the flight plan a preset command resolves against; null for none.</summary>
+    public ScenarioMergeCommandContext? Context => _context;
+
     /// <summary>Gets the field's editor.</summary>
     public ScenarioMergeFieldEditor Editor { get; }
 
