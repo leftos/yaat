@@ -19,7 +19,8 @@ public readonly record struct GraphPlot(double Left, double Top, double Width, d
 
 /// <summary>
 /// The workload graph's maths, with no drawing: spawn delays counted into buckets over the planning length, a time in
-/// seconds or a workload percent mapped to a pixel of the plot and back, and the time axis's ticks.
+/// seconds or a workload percent mapped to a pixel of the plot and back, a pixel hit on a control point's dot back to
+/// that point, and the time axis's ticks.
 /// </summary>
 public static class WorkloadGraphGeometry
 {
@@ -28,6 +29,9 @@ public static class WorkloadGraphGeometry
 
     /// <summary>The gap in pixels a bar keeps from each side of its bucket, so neighbouring bars stay apart.</summary>
     public const double BarInset = 1;
+
+    /// <summary>The distance in pixels from a control point's dot within which a press grabs it.</summary>
+    public const double GrabRadius = 8;
 
     /// <summary>How many buckets of the bucket size cover the planning length, the last one possibly short.</summary>
     /// <param name="lengthSec">The planning length in seconds.</param>
@@ -128,6 +132,61 @@ public static class WorkloadGraphGeometry
 
         double timeSec = Math.Clamp(point.TimeMinutes * 60, 0, Math.Max(0, lengthSec));
         return (TimeToX(plot, lengthSec, timeSec), PercentToY(plot, Math.Clamp(point.Percent, 0, 100)));
+    }
+
+    /// <summary>The index of the control point whose dot is nearest a pixel, within <see cref="GrabRadius"/>.</summary>
+    /// <param name="plot">The plot area.</param>
+    /// <param name="lengthSec">The planning length in seconds.</param>
+    /// <param name="points">The control points, in the order they are drawn.</param>
+    /// <param name="x">The x pixel, inside the control's bounds.</param>
+    /// <param name="y">The y pixel, inside the control's bounds.</param>
+    /// <returns>
+    /// The index of the nearest dot within the grab radius, a tie going to the one drawn last; null when no dot is in
+    /// reach, when there are no points, or when there is no planning length.
+    /// </returns>
+    public static int? HitPoint(GraphPlot plot, int lengthSec, ImmutableArray<SpawnPlanPoint> points, double x, double y)
+    {
+        if (lengthSec <= 0)
+        {
+            return null;
+        }
+
+        int? nearest = null;
+        double best = GrabRadius;
+        for (int index = 0; index < points.Length; index++)
+        {
+            if (PointPixel(plot, lengthSec, points[index]) is not { } at)
+            {
+                continue;
+            }
+
+            double dx = at.X - x;
+            double dy = at.Y - y;
+            double distance = Math.Sqrt((dx * dx) + (dy * dy));
+            if (distance <= best)
+            {
+                best = distance;
+                nearest = index;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// The control point a pixel maps to, clamped to the plot: its time to the planning length and its percent to 0-100,
+    /// each rounded to the precision the row's text boxes show.
+    /// </summary>
+    /// <param name="plot">The plot area.</param>
+    /// <param name="lengthSec">The planning length in seconds.</param>
+    /// <param name="x">The x pixel, inside the control's bounds.</param>
+    /// <param name="y">The y pixel, inside the control's bounds.</param>
+    /// <returns>The point, its time in minutes rounded to a tenth and its percent to a whole number.</returns>
+    public static SpawnPlanPoint DragPoint(GraphPlot plot, int lengthSec, double x, double y)
+    {
+        double minutes = Math.Round(XToTime(plot, lengthSec, x) / 60.0, 1);
+        double percent = Math.Round(YToPercent(plot, y));
+        return new SpawnPlanPoint(Math.Clamp(minutes, 0, Math.Max(0, lengthSec) / 60.0), Math.Clamp(percent, 0, 100));
     }
 
     /// <summary>The pixel of one curve sample, the samples spread evenly across the plot's width.</summary>

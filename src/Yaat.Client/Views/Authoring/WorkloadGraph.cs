@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Yaat.Client.ViewModels.Authoring;
@@ -68,10 +69,11 @@ public sealed record WorkloadGraphSnapshot(
 }
 
 /// <summary>
-/// The spawn planner's read-only workload graph: minutes of the planning length across, the previewed spawns per bucket as
-/// bars against the left axis, and in Workload mode the curve as a line with its control points as dots against the
-/// percent axis on the right. It copies the planner into a <see cref="WorkloadGraphSnapshot"/> whenever the planner
-/// changes, and a frame draws from that snapshot alone.
+/// The spawn planner's workload graph: minutes of the planning length across, the previewed spawns per bucket as bars
+/// against the left axis, and in Workload mode the curve as a line with its control points as dots against the percent
+/// axis on the right. It copies the planner into a <see cref="WorkloadGraphSnapshot"/> whenever the planner changes, and a
+/// frame draws from that snapshot alone. In Workload mode a drag from a control point's dot writes that row's time and
+/// percent, so the curve and the row stay in step.
 /// </summary>
 public sealed class WorkloadGraph : Control
 {
@@ -82,6 +84,10 @@ public sealed class WorkloadGraph : Control
     private const double LabelSize = 10;
     private const double DotRadius = 3.5;
 
+    // The tap size used when the platform reports none, as the airport editor's canvas does.
+    private const double ClickSlop = 4;
+
+    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
     private static readonly IImmutableSolidColorBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
     private static readonly IImmutableSolidColorBrush BarBrush = new ImmutableSolidColorBrush(Color.FromRgb(0x6C, 0xB4, 0xEE));
     private static readonly IImmutableSolidColorBrush CurveBrush = new ImmutableSolidColorBrush(Color.FromRgb(0xE0, 0xA3, 0x3A));
@@ -93,6 +99,17 @@ public sealed class WorkloadGraph : Control
     private SpawnPlannerViewModel? _planner;
     private WorkloadGraphSnapshot _snapshot = WorkloadGraphSnapshot.Empty;
     private Size _size;
+    private PointDrag? _drag;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WorkloadGraph"/> class; it takes the focus on a press so Escape
+    /// reaches a drag, without becoming a Tab stop.
+    /// </summary>
+    public WorkloadGraph()
+    {
+        Focusable = true;
+        IsTabStop = false;
+    }
 
     /// <summary>Gets the frame the next render draws.</summary>
     public WorkloadGraphSnapshot Snapshot => _snapshot;
@@ -121,9 +138,10 @@ public sealed class WorkloadGraph : Control
         Refresh();
     }
 
-    /// <summary>Stops following the planner; the last frame stays.</summary>
+    /// <summary>Stops following the planner; the last frame stays, and a drag in flight is dropped.</summary>
     public void Detach()
     {
+        DropDrag();
         if (_planner is { } planner)
         {
             planner.PropertyChanged -= OnPlannerChanged;
@@ -162,6 +180,155 @@ public sealed class WorkloadGraph : Control
         _size = e.NewSize;
         Refresh();
     }
+
+    /// <inheritdoc/>
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnPointerPressed(e);
+
+        // One pointer owns a drag: a second press while one runs is not a grab.
+        if ((_drag is not null) || (e.GetCurrentPoint(this).Properties.PointerUpdateKind.GetMouseButton() != MouseButton.Left))
+        {
+            return;
+        }
+
+        Point at = e.GetPosition(this);
+        if (PointAt(at) is not { } row)
+        {
+            return;
+        }
+
+        _drag = new PointDrag(row, at, TapSize(e.Pointer.Type), e.Pointer);
+        Focus();
+        e.Pointer.Capture(this);
+        e.Handled = true;
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnPointerMoved(e);
+        Point at = e.GetPosition(this);
+        if (_drag is { } drag)
+        {
+            if (e.Pointer == drag.Pointer)
+            {
+                UpdateDrag(drag, at);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        Cursor = (PointAt(at) is null) ? null : HandCursor;
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnPointerReleased(e);
+        if ((_drag is not { } drag) || (e.Pointer != drag.Pointer) || (e.InitialPressMouseButton != MouseButton.Left))
+        {
+            return;
+        }
+
+        UpdateDrag(drag, e.GetPosition(this));
+        _drag = null;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnPointerCaptureLost(e);
+        CancelDrag();
+    }
+
+    /// <inheritdoc/>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        base.OnKeyDown(e);
+        if ((_drag is null) || (e.Key != Key.Escape))
+        {
+            return;
+        }
+
+        CancelDrag();
+        e.Handled = true;
+    }
+
+    // The row whose dot is under the pixel; the snapshot's points are the planner's rows in their order.
+    private WorkloadPointRowViewModel? PointAt(Point at)
+    {
+        if (_planner is not { } planner)
+        {
+            return null;
+        }
+
+        GraphPlot plot = PlotOf(_snapshot.Width, _snapshot.Height);
+        int? index = WorkloadGraphGeometry.HitPoint(plot, _snapshot.LengthSec, _snapshot.Points, at.X, at.Y);
+        return ((index is { } hit) && (hit < planner.ControlPoints.Count)) ? planner.ControlPoints[hit] : null;
+    }
+
+    // Past the tap size the row follows the pointer; its setters redraw the curve and the row's text boxes.
+    private void UpdateDrag(PointDrag drag, Point at)
+    {
+        Vector travel = at - drag.PressedAt;
+        bool past = (Math.Abs(travel.X) > drag.TapSize.Width / 2) || (Math.Abs(travel.Y) > drag.TapSize.Height / 2);
+        if ((!drag.Moving) && (!past))
+        {
+            return;
+        }
+
+        drag.Moving = true;
+        GraphPlot plot = PlotOf(_snapshot.Width, _snapshot.Height);
+        SpawnPlanPoint point = WorkloadGraphGeometry.DragPoint(plot, _snapshot.LengthSec, at.X, at.Y);
+        drag.Row.TimeMinutes = point.TimeMinutes;
+        drag.Row.Percent = point.Percent;
+    }
+
+    // Drops a drag, releasing the pointer only where the graph still holds it: a capture another element took belongs
+    // to that element now, and the loss that brought us here left it in place.
+    private void DropDrag()
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        _drag = null;
+        if (drag.Pointer.Captured == this)
+        {
+            drag.Pointer.Capture(null);
+        }
+    }
+
+    // Drops a drag that is abandoned rather than released, putting its row back where the pointer grabbed it.
+    private void CancelDrag()
+    {
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        DropDrag();
+        if (!drag.Moving)
+        {
+            return;
+        }
+
+        drag.Row.TimeMinutes = drag.FromMinutes;
+        drag.Row.Percent = drag.FromPercent;
+    }
+
+    // The platform's tap size for the pointer, 4 px square without platform settings.
+    private static Size TapSize(PointerType type) => Application.Current?.PlatformSettings?.GetTapSize(type) ?? new Size(ClickSlop, ClickSlop);
 
     private static FormattedText Label(string text) =>
         new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, LabelSize, LabelBrush);
@@ -294,8 +461,28 @@ public sealed class WorkloadGraph : Control
 
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        DropDrag();
         UnwatchPoints();
         WatchPoints();
         Refresh();
+    }
+
+    // One control point's dot being dragged: its row, where the pointer pressed, the tap size, and the values the row
+    // held then, to put back when the drag is dropped rather than released.
+    private sealed class PointDrag(WorkloadPointRowViewModel row, Point pressedAt, Size tapSize, IPointer pointer)
+    {
+        public WorkloadPointRowViewModel Row { get; } = row;
+
+        public double FromMinutes { get; } = row.TimeMinutes;
+
+        public double FromPercent { get; } = row.Percent;
+
+        public Point PressedAt { get; } = pressedAt;
+
+        public Size TapSize { get; } = tapSize;
+
+        public IPointer Pointer { get; } = pointer;
+
+        public bool Moving { get; set; }
     }
 }
