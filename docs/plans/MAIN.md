@@ -6,24 +6,20 @@
 
 ### M1 Scenario editor (9/9 done)
 
-### M2 Export (4/8 done)
+### M2 Export (5/9 done)
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (6/16 done)
-- [ ] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping (sub-issue of YAAT-1989) · release vNext
+### M3 Routes, timing and metrics (8/16 done)
+- [/] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
+- [/] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet (sub-issue of YAAT-1989) · release vNext
 
-### M4 Airport editor (6/11 done)
-- [/] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo (sub-issue of YAAT-1989) · release vNext
+### M4 Airport editor (7/11 done)
 - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor (sub-issue of YAAT-1989) · release vNext
@@ -34,18 +30,15 @@
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
     - [/] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
     - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
-  - [ ] YAAT-2497 YAATEdit M2.3: Unexported-changes warning and guide · release vNext
-  - [ ] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
-  - [ ] YAAT-2503 YAATEdit M3.6: Stamp profiles and stamping · release vNext
+    - [ ] YAAT-2952 Merge window: one public field-label and section table from Yaat.Sim
+  - [/] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
   - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
-  - [ ] YAAT-2505 YAATEdit M3.8: Gate ranking and Assign Gate · release vNext
-  - [ ] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
+  - [/] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
   - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext
   - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext
   - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
   - [ ] YAAT-2511 YAATEdit M3.14: Procedure fixup · release vNext
   - [ ] YAAT-2512 YAATEdit M3.15: Excel RPO sheet · release vNext
-  - [/] YAAT-2516 YAATEdit M4.4: Drawing and editing with undo · release vNext
   - [ ] YAAT-2517 YAATEdit M4.5: Live graph validation · release vNext
   - [ ] YAAT-2518 YAATEdit M4.6: Gate tags, movement areas and save · release vNext
   - [ ] YAAT-2520 YAATEdit M4.8: fillet override tools in the Airport Editor · release vNext
@@ -63,7 +56,12 @@
   - [ ] YAAT-2780 A click outside an open Scenario Editor drop-down is swallowed · release vNext
   - [ ] YAAT-2935 Use the Sim's minimum line vertex count in the Airport Editor's delete rule
   - [ ] YAAT-2938 Map TEC class codes M, P and Q by cruise speed, not engine type
+  - [ ] YAAT-2949 Airport Editor: the drawing ghost line lags a wheel zoom until the pointer moves
+  - [ ] YAAT-2953 Airport Editor: a feature cannot gain a supported key it lacks (new runway has no pattern altitude)
+  - [ ] YAAT-2955 Airport Editor: an optional runway key cannot be cleared once set
+  - [ ] YAAT-2959 User guide: document the Airport Editor imagery settings and retake the Ground settings screenshot
 - [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext
+- [ ] YAAT-2961 Scenario Editor: a resync overwrites the Export all result after the close question
 
 ## YAAT Scope (feat/yaat-scope)
 
@@ -145,6 +143,7 @@
 
 ## Bug reports and feature requests
 
+- [/] YAAT-2946 SQALL is refused in a chained command (WAIT 5 SQALL preset) · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
@@ -436,6 +435,7 @@
 - [ ] YAAT-2053 Bias the early-rollout CROSS exit side by geometry when parallels carry different numbers
 - [ ] YAAT-2098 Plan the landing rollout's exit-turn lead with the per-type main-gear radius
 - [ ] YAAT-2194 Clear an arrival's landing clearance once it has landed
+- [ ] YAAT-2951 StandFit and SmallestCoveringSpan disagree at a design-group boundary span
 
 ## Taxi navigator: speed, braking and turns
 
@@ -501,6 +501,7 @@
 - [ ] YAAT-2263 TAXI T TE @29 from KOAK stand 20 drops T with no unable-via warning
 - [ ] YAAT-2748 Rule out fillet arcs tighter than the aircraft category can steer in the ground pathfinder
 - [ ] YAAT-2750 End a taxiing aircraft's entry-alignment slow turn on the taxiway centreline
+- [ ] YAAT-2956 GeoJsonParser reads runway numbers with the machine culture
 
 ## Ground traffic: follow, give-way and conflicts
 
@@ -815,6 +816,7 @@
 - [ ] YAAT-2219 Measure live-checkpoint memory and capture cost in a long session and soak
 - [ ] YAAT-2745 Keep the ground navigator's heading memory across a restore that drops its playback
 - [ ] YAAT-2746 Restore pushback noses and magnetic headings bit for bit from a snapshot
+- [ ] YAAT-2958 Queued strip-verb presets are lost by a snapshot taken before the first tick
 
 ## Command parser and queue
 
@@ -864,6 +866,8 @@
 - [ ] YAAT-2384 Make GIVE without initials answer its usage line (the branch is unreachable)
 - [ ] YAAT-2879 Hoist a preset's leading AS in the call-up classifier, runway signals and scenario validator
 - [ ] YAAT-2880 Let a scenario preset gate RDAUTO behind a WAIT
+- [ ] YAAT-2950 Typed VP does not accept the CRC F9 form (BOS*BTV C172/G 065)
+- [ ] YAAT-2957 Typed DA ignores the facility scratchpad length that CRC DA applies
 
 ## Speed control and performance limits
 
@@ -1627,6 +1631,7 @@
 - [ ] YAAT-1950 Add a bug_bundle.py remap subcommand that moves a recording's node ids onto a new ground graph
 - [ ] YAAT-2572 Recording kill reports a false unreachable child for an elevated older process listed under cmd's pid
 - [ ] YAAT-2787 Make AircraftPerformance's profile-database state independent of test order
+- [ ] YAAT-2948 Check whether Yaat.Sim.Tests writes into the real app-data folder through YaatPaths
 
 ## Docs, agent tooling and repo hygiene
 
@@ -1799,6 +1804,10 @@
 - [ ] YAAT-2850 Notepad: a stamp over a rectangular selection deletes the text between its columns
 - [ ] YAAT-2851 Re-capture the Notes window screenshot after the editor change
 - [ ] YAAT-2882 Clear the hold-for-release rundown when a scenario is cleared
+- [ ] YAAT-2947 Give AirportSidecarLoader its SimLog logger
+- [ ] YAAT-2954 Give CommandParser its SimLog logger
+- [ ] YAAT-2960 Split CommandDispatcher.ApplyCommandCore under the function length limit
+- [ ] YAAT-2962 A chained global squawk after a phase-starting block never fires
 
 ## Design files
 
@@ -1827,4 +1836,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2497, YAAT-2502, YAAT-2503, YAAT-2504, YAAT-2505, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2516, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2502, YAAT-2504, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
