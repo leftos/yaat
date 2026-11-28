@@ -347,8 +347,17 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
         return Task.FromResult(ExportFolder);
     }
 
-    public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>
-        Task.FromResult(new ImportConflictAnswer(ImportChoice, false));
+    /// <summary>Gets the answers to the import id clashes, in order; <see cref="ImportChoice"/> once it is empty.</summary>
+    public Queue<ImportConflictAnswer> ImportAnswers { get; } = new();
+
+    /// <summary>Gets each import id clash asked.</summary>
+    public List<ImportConflictQuestion> ConflictsAsked { get; } = [];
+
+    public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question)
+    {
+        ConflictsAsked.Add(question);
+        return Task.FromResult(ImportAnswers.Count > 0 ? ImportAnswers.Dequeue() : new ImportConflictAnswer(ImportChoice, false, false));
+    }
 
     /// <summary>Gets the answers to the unexported-changes question, in order; Leave once it is empty.</summary>
     public Queue<UnexportedChangesChoice> UnexportedAnswers { get; } = new();

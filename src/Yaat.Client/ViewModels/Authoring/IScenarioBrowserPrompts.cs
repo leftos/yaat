@@ -33,7 +33,7 @@ public interface IScenarioBrowserPrompts
 
     /// <summary>Asks what to do with an imported file whose scenario id is already taken.</summary>
     /// <param name="question">The file, its id and what holds the id.</param>
-    /// <returns>The choice, and whether it applies to the remaining files of the import.</returns>
+    /// <returns>The choice, and whether it applies to the remaining files of the import, or Compare.</returns>
     Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question);
 
     /// <summary>Asks what to do with the open scenario's unsaved edits before it is closed, exported or merged.</summary>
@@ -156,4 +156,8 @@ public sealed record ImportConflictQuestion(string FileName, string ScenarioId, 
 /// <summary>The answer to an <see cref="ImportConflictQuestion"/>.</summary>
 /// <param name="Choice">New id, keep id or skip.</param>
 /// <param name="ApplyToRemaining">Whether the choice answers every later clash of the same import without asking.</param>
-public sealed record ImportConflictAnswer(ImportIdChoice Choice, bool ApplyToRemaining);
+/// <param name="Compare">
+/// Whether the author asked to compare the file with the scenario holding the id first; then <paramref name="Choice"/> is
+/// Skip, nothing is applied to the remaining files, and the clash is asked again after the merge window closes.
+/// </param>
+public sealed record ImportConflictAnswer(ImportIdChoice Choice, bool ApplyToRemaining, bool Compare);

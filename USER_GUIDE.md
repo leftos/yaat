@@ -2378,7 +2378,7 @@ A menu bar (**File** and **Tools**) sits above the toolbar. The **File** menu an
 - **New scenario**: a new local-only scenario.
 - **Duplicate**: a local-only copy of the selected working copy.
 - **Delete...**: deletes the selected working copy, after asking.
-- **Import...**: adds scenario JSON files as working copies. A file whose scenario id is already taken asks whether to give it a new id, keep the id or skip it.
+- **Import...**: adds scenario JSON files as working copies. A file whose scenario id is already taken asks what to do with it. **Compare…** (the default, so Enter presses it) shows the file beside the scenario that has the id in the merge window, two-way ("Compare import: {name}", the working copy or, with none, the server version as mine, the imported file as theirs), because the two share no saved base version and every difference is yours to choose; an open copy with unsaved edits is asked about first. **Apply** writes the merged scenario over the working copy (an open editor reloads it), or, for an id only the server holds, makes that scenario's working copy from it, still started from the server scenario; a merged id that is not the file's id is refused with "Not written: the merged scenario's id is not {id}". After Apply or Cancel the question is asked again, and Compare… is never applied to the remaining files. **New id** imports the file as a separate local copy, **Keep id** replaces what holds the id, and **Skip** (also Esc or closing the dialog) leaves the file out.
 - **Save a copy...**: writes the selected scenario to a file of your choice.
 - **Export JSON...**, **Export clean JSON...** and **Export all unexported...**: see [Exporting JSON](#exporting-json).
 

@@ -581,7 +581,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             WriteFile("two.json", Scenario("L1", "Two", Zoa)),
             WriteFile("three.json", Scenario("F3", "Three", Zny)),
         ];
-        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.NewId, ApplyToRemaining: true));
+        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.NewId, ApplyToRemaining: true, Compare: false));
         ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
 
         await _ui.Run(vm.ImportCommand.ExecuteAsync(null));
@@ -611,8 +611,8 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             WriteFile("two.json", Scenario("M1", "Two", Zoa)),
             WriteFile("three.json", Scenario("L1", "Three", Zoa)),
         ];
-        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.NewId, ApplyToRemaining: true));
-        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false));
+        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.NewId, ApplyToRemaining: true, Compare: false));
+        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: false));
         ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
 
         await _ui.Run(vm.ImportCommand.ExecuteAsync(null));
@@ -627,7 +627,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     {
         Mirror(Zoa, "A1", "Alpha");
         _prompts.ImportFiles = [WriteFile("alpha.json", Scenario("A1", "Alpha edited", Zoa))];
-        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.KeepId, ApplyToRemaining: false));
+        _prompts.ConflictAnswers.Enqueue(new ImportConflictAnswer(ImportIdChoice.KeepId, ApplyToRemaining: false, Compare: false));
         ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
 
         await _ui.Run(vm.ImportCommand.ExecuteAsync(null));
@@ -1059,7 +1059,9 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
         public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question)
         {
             ConflictsAsked.Add(question);
-            return Task.FromResult(ConflictAnswers.Count > 0 ? ConflictAnswers.Dequeue() : new ImportConflictAnswer(ImportIdChoice.Skip, false));
+            return Task.FromResult(
+                ConflictAnswers.Count > 0 ? ConflictAnswers.Dequeue() : new ImportConflictAnswer(ImportIdChoice.Skip, false, false)
+            );
         }
 
         // The browser alone never asks it: only the editor's UnsavedCopy hook does.

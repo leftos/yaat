@@ -6,9 +6,10 @@ using Yaat.Sim.Authoring;
 namespace Yaat.Client.Views.Authoring;
 
 /// <summary>
-/// Asks what to do with an imported file whose scenario id is already taken: New id, Keep id or Skip, with "Apply to the
-/// remaining N files" (ticked) when files of the import remain. Keep id's wording follows what holds the id. Closing the
-/// dialog without a button answers Skip.
+/// Asks what to do with an imported file whose scenario id is already taken: Compare… (the default), New id, Keep id or
+/// Skip, with "Apply to the remaining N files" (ticked) when files of the import remain. Compare… answers Compare, never
+/// applied to the remaining files. Keep id's wording follows what holds the id. Closing the dialog without a button
+/// answers Skip.
 /// </summary>
 public partial class ImportConflictDialog : Window
 {
@@ -28,6 +29,7 @@ public partial class ImportConflictDialog : Window
         this.FindControl<TextBlock>("FileText")!.Text = question.FileName;
         this.FindControl<TextBlock>("MessageText")!.Text =
             $"The scenario “{question.ScenarioName}” has the id {question.ScenarioId}, which {HolderText(question.Conflict)}.";
+        this.FindControl<TextBlock>("CompareText")!.Text = "Compare… shows this file beside the scenario that has the id, to merge them.";
         this.FindControl<TextBlock>("NewIdText")!.Text = "New id imports it as a separate local copy with a fresh id.";
         this.FindControl<TextBlock>("KeepIdText")!.Text = KeepIdWording(question.Conflict);
         this.FindControl<TextBlock>("SkipText")!.Text = "Skip leaves this file out.";
@@ -35,6 +37,8 @@ public partial class ImportConflictDialog : Window
         _applyToRemaining.IsVisible = question.RemainingFiles > 0;
         _applyToRemaining.Content =
             question.RemainingFiles == 1 ? "Apply to the remaining file" : $"Apply to the remaining {question.RemainingFiles} files";
+        this.FindControl<Button>("CompareButton")!.Click += (_, _) =>
+            DialogPresenter.Close(this, new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: true));
         this.FindControl<Button>("NewIdButton")!.Click += (_, _) => Answer(ImportIdChoice.NewId);
         this.FindControl<Button>("KeepIdButton")!.Click += (_, _) => Answer(ImportIdChoice.KeepId);
         this.FindControl<Button>("SkipButton")!.Click += OnSkipClick;
@@ -42,10 +46,10 @@ public partial class ImportConflictDialog : Window
 
     /// <summary>Shows the dialog over <paramref name="owner"/> and finishes with the answer; Skip when closed without one.</summary>
     /// <param name="owner">The window the dialog is modal over.</param>
-    /// <returns>The choice, and whether it applies to the remaining files.</returns>
+    /// <returns>The choice, and whether it applies to the remaining files, or Compare.</returns>
     public async Task<ImportConflictAnswer> ShowAsync(Window owner) =>
         await DialogPresenter.ShowModalAsync<ImportConflictAnswer>(this, owner)
-        ?? new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false);
+        ?? new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: false);
 
     /// <summary>What Keep id does, by what holds the id.</summary>
     /// <param name="conflict">What holds the id.</param>
@@ -66,5 +70,8 @@ public partial class ImportConflictDialog : Window
     private void OnSkipClick(object? sender, RoutedEventArgs e) => Answer(ImportIdChoice.Skip);
 
     private void Answer(ImportIdChoice choice) =>
-        DialogPresenter.Close(this, new ImportConflictAnswer(choice, _applyToRemaining.IsVisible && (_applyToRemaining.IsChecked == true)));
+        DialogPresenter.Close(
+            this,
+            new ImportConflictAnswer(choice, _applyToRemaining.IsVisible && (_applyToRemaining.IsChecked == true), Compare: false)
+        );
 }

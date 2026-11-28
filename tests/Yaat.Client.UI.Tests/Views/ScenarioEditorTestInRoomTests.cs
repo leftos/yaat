@@ -330,7 +330,7 @@ public class ScenarioEditorTestInRoomTests
         public Task<string?> PickExportFolderAsync() => Task.FromResult<string?>(null);
 
         public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>
-            Task.FromResult(new ImportConflictAnswer(ImportIdChoice.Skip, false));
+            Task.FromResult(new ImportConflictAnswer(ImportIdChoice.Skip, false, false));
 
         public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context) =>
             Task.FromResult(UnsavedChangesChoice.Cancel);

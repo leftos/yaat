@@ -12,9 +12,10 @@ using Yaat.Sim.Authoring;
 namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
-/// The import id-conflict dialog: New id, Keep id and Skip each answer their choice; the "Apply to the remaining N files"
-/// checkbox shows, ticked, only when files remain; Keep id's wording follows what holds the id; and closing the dialog
-/// without a button answers Skip.
+/// The import id-conflict dialog: Compare… is the default button and answers Compare, never applied to the remaining
+/// files; New id, Keep id and Skip each answer their choice; the "Apply to the remaining N files" checkbox shows,
+/// ticked, only when files remain; Keep id's wording follows what holds the id; and closing the dialog without a
+/// button answers Skip.
 /// </summary>
 public class ImportConflictDialogTests
 {
@@ -36,7 +37,44 @@ public class ImportConflictDialogTests
             dialog.FindControl<Button>(buttonName)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ImportConflictAnswer(expected, ApplyToRemaining: false), await pending);
+            Assert.Equal(new ImportConflictAnswer(expected, ApplyToRemaining: false, Compare: false), await pending);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Compare_IsTheDefaultButton_NewIdIsNot()
+    {
+        var dialog = new ImportConflictDialog(Question(ScenarioIdConflict.WorkingCopy, remaining: 0));
+
+        Assert.True(dialog.FindControl<Button>("CompareButton")!.IsDefault);
+        Assert.False(dialog.FindControl<Button>("NewIdButton")!.IsDefault);
+        Assert.False(dialog.FindControl<Button>("KeepIdButton")!.IsDefault);
+        Assert.False(dialog.FindControl<Button>("SkipButton")!.IsDefault);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task Compare_AnswersCompare_NeverAppliedToTheRemainingFiles(int remaining)
+    {
+        Window owner = ShowOwner();
+        try
+        {
+            var dialog = new ImportConflictDialog(Question(ScenarioIdConflict.WorkingCopy, remaining));
+            CheckBox box = dialog.FindControl<CheckBox>("ApplyToRemainingCheckBox")!;
+            Assert.Equal(remaining > 0, box.IsVisible);
+            Assert.True(box.IsChecked);
+            Task<ImportConflictAnswer> pending = dialog.ShowAsync(owner);
+            Dispatcher.UIThread.RunJobs();
+
+            dialog.FindControl<Button>("CompareButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: true), await pending);
         }
         finally
         {
@@ -70,7 +108,7 @@ public class ImportConflictDialogTests
             dialog.FindControl<Button>("KeepIdButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.KeepId, ApplyToRemaining: true), await pending);
+            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.KeepId, ApplyToRemaining: true, Compare: false), await pending);
         }
         finally
         {
@@ -102,7 +140,7 @@ public class ImportConflictDialogTests
             dialog.Close();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false), await pending);
+            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: false), await pending);
         }
         finally
         {
@@ -123,7 +161,7 @@ public class ImportConflictDialogTests
             dialog.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false), await pending);
+            Assert.Equal(new ImportConflictAnswer(ImportIdChoice.Skip, ApplyToRemaining: false, Compare: false), await pending);
         }
         finally
         {
