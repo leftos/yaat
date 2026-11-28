@@ -1407,6 +1407,15 @@ _Avoid_: video map (the radar's facility video maps are a different thing)
 
 ## Scenario authoring
 
+**Auto-merged**:
+A difference only one side made, which the merge takes by itself.
+
+**Base version**:
+The text both sides of a merge started from; none in a two-way merge.
+
+**Clash**:
+A difference both sides made, which the author must choose.
+
 **NAIPPlus**:
 The USGS National Map aerial imagery service the Airport Editor draws under a map, fetched as Web Mercator tiles and credited to the USGS.
 
@@ -1442,6 +1451,9 @@ A saved set of aircraft fields a route stamp writes onto scenario aircraft besid
 
 **Tile cache**:
 The Airport Editor's store of USGS imagery tiles (`UsgsImageryTileCache`): a disk copy per tile under `cache/imagery/usgs-naipplus/` and a memory cache of the tiles in view.
+
+**Two-way merge**:
+A merge with no base version, where every difference is chosen.
 
 **Working copy**:
 A locally edited scenario (`scenarios/{ARTCC}/local/{id}.json` with an `{id}.meta.json` sidecar and, for a server-origin copy, an `{id}.base` file holding the server text it started from), kept apart from the server mirror and never deleted or overwritten by a download.

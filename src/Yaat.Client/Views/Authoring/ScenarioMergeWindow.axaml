@@ -1,0 +1,519 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  x:Class="Yaat.Client.Views.Authoring.ScenarioMergeWindow"
+  x:DataType="vm:ScenarioMergeViewModel"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="{Binding Title}"
+  Background="#1F1F1F"
+  Width="1100"
+  Height="720"
+  MinWidth="800"
+  MinHeight="480"
+  WindowStartupLocation="CenterOwner"
+>
+  <Window.Styles>
+    <Style Selector="Border.vsep">
+      <Setter Property="Width" Value="1" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="Background" Value="#3D3D3D" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.toolbar Button">
+      <Setter Property="Padding" Value="9,3" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.status">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="#FF8A8A" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.caps">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.count">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="Foreground" Value="#8F8F8F" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#D4D4D4" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="8,0,6,0" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="TextBlock.note">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#9A9A9A" />
+      <Setter Property="Margin" Value="8,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.autoTag">
+      <Setter Property="Foreground" Value="#7CC48A" />
+      <Setter Property="Margin" Value="6,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.sectionHead">
+      <Setter Property="Background" Value="#2C2C2C" />
+      <Setter Property="BorderBrush" Value="#3D3D3D" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="Grid.line">
+      <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style Selector="Border.lineBox">
+      <Setter Property="BorderBrush" Value="#2F2F2F" />
+      <Setter Property="BorderThickness" Value="3,0,0,1" />
+    </Style>
+    <Style Selector="Border.lineBox.clash">
+      <Setter Property="Background" Value="#2E2A20" />
+      <Setter Property="BorderBrush" Value="#7A6230" />
+    </Style>
+    <Style Selector="Border.lineBox.clash.open">
+      <Setter Property="Background" Value="#3A2F1A" />
+      <Setter Property="BorderBrush" Value="#E0A33A" />
+    </Style>
+    <Style Selector="Border.lineBox.auto">
+      <Setter Property="BorderBrush" Value="#356A45" />
+    </Style>
+    <Style Selector="Border.lineBox.current">
+      <Setter Property="BorderBrush" Value="#4EA1FF" />
+    </Style>
+    <Style Selector="Border.cell">
+      <Setter Property="Background" Value="#2A2A2A" />
+      <Setter Property="BorderBrush" Value="#3D3D3D" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="Margin" Value="0,2,8,2" />
+      <Setter Property="MinHeight" Value="22" />
+    </Style>
+    <Style Selector="Border.cell.added">
+      <Setter Property="Background" Value="#1D3324" />
+      <Setter Property="BorderBrush" Value="#356A45" />
+    </Style>
+    <Style Selector="Border.cell.removed">
+      <Setter Property="Background" Value="#3D1F1F" />
+      <Setter Property="BorderBrush" Value="#7A3434" />
+    </Style>
+    <Style Selector="Border.cell.writes">
+      <Setter Property="BorderBrush" Value="#4EA1FF" />
+    </Style>
+    <Style Selector="Border.cell TextBlock.value">
+      <Setter Property="Foreground" Value="#E6E6E6" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Button.gutter">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="1,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.gutter.pressed">
+      <Setter Property="Background" Value="#2F6FB0" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.baseStrip">
+      <Setter Property="Background" Value="#242424" />
+      <Setter Property="BorderBrush" Value="#2F2F2F" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="Border.mergedValue">
+      <Setter Property="Background" Value="#1C2D3C" />
+      <Setter Property="BorderBrush" Value="#2F5C80" />
+      <Setter Property="BorderThickness" Value="0,1" />
+      <Setter Property="Padding" Value="0,3" />
+    </Style>
+    <Style Selector="TextBox.mono">
+      <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+    </Style>
+    <Style Selector="TextBlock.moved">
+      <Setter Property="Foreground" Value="#E0A33A" />
+    </Style>
+  </Window.Styles>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:ScenarioMergeSectionViewModel">
+      <StackPanel IsVisible="{Binding IsVisible}">
+        <Border Classes="sectionHead">
+          <Grid ColumnDefinitions="*,96,*">
+            <StackPanel Orientation="Horizontal" Margin="8,0">
+              <TextBlock Classes="caps" Text="{Binding Title}" />
+              <TextBlock Classes="count" Text="{Binding Lines.Count}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" IsVisible="{Binding IsDifferent}">
+              <Button Classes="gutter keepMine" Classes.pressed="{Binding IsMinePressed}" Content="←" Command="{Binding KeepMineCommand}" />
+              <Button Classes="gutter keepTheirs" Classes.pressed="{Binding IsTheirsPressed}" Content="→" Command="{Binding KeepTheirsCommand}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0">
+              <TextBlock Classes="caps" Text="{Binding Title}" />
+              <TextBlock Classes="count" Text="{Binding Lines.Count}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Lines}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ScenarioMergeLineViewModel">
+      <StackPanel IsVisible="{Binding IsVisible}">
+        <Border Classes="lineBox">
+          <Border.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.Or}">
+              <Binding Path="!IsDifferent" />
+              <Binding Path="ItemKey" Converter="{x:Static ObjectConverters.IsNotNull}" />
+              <Binding Path="Order" Converter="{x:Static ObjectConverters.IsNotNull}" />
+            </MultiBinding>
+          </Border.IsVisible>
+          <Grid Classes="line" ColumnDefinitions="170,*,96,170,*">
+            <TextBlock Classes="label" Text="{Binding Label}" />
+            <Border Grid.Column="1" Classes="cell">
+              <Panel>
+                <TextBlock Classes="value" Text="{Binding MineText}" IsVisible="{Binding Order, Converter={x:Static ObjectConverters.IsNull}}" />
+                <ItemsControl ItemsSource="{Binding Order.Mine}" />
+              </Panel>
+            </Border>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <StackPanel.IsVisible>
+                <Binding Path="IsDifferent" />
+              </StackPanel.IsVisible>
+              <Button Classes="gutter keepMine" Classes.pressed="{Binding IsMinePressed}" Content="←" Command="{Binding KeepMineCommand}" />
+              <Button Classes="gutter keepTheirs" Classes.pressed="{Binding IsTheirsPressed}" Content="→" Command="{Binding KeepTheirsCommand}" />
+            </StackPanel>
+            <TextBlock Grid.Column="3" Classes="label" Text="{Binding Label}" />
+            <Border Grid.Column="4" Classes="cell">
+              <Panel>
+                <TextBlock Classes="value" Text="{Binding TheirsText}" IsVisible="{Binding Order, Converter={x:Static ObjectConverters.IsNull}}" />
+                <ItemsControl ItemsSource="{Binding Order.Theirs}" />
+              </Panel>
+            </Border>
+          </Grid>
+        </Border>
+        <ItemsControl ItemsSource="{Binding Rows}">
+          <ItemsControl.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsDifferent" />
+              <Binding Path="Order" Converter="{x:Static ObjectConverters.IsNull}" />
+            </MultiBinding>
+          </ItemsControl.IsVisible>
+        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding Order, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:ScenarioMergeRowViewModel">
+              <Border Classes="baseStrip orderBaseStrip" IsVisible="{Binding ShowsBase}">
+                <Grid ColumnDefinitions="170,*,*">
+                  <TextBlock Classes="caps" Margin="8,0" FontSize="10" Text="BASE" />
+                  <Border Grid.Column="1" Classes="cell">
+                    <TextBlock Classes="value" Foreground="#B0B0B0" TextWrapping="Wrap">
+                      <TextBlock.Text>
+                        <MultiBinding Converter="{x:Static local:MergeBaseOrderConverter.Instance}">
+                          <Binding />
+                          <Binding Path="$parent[Window].DataContext" />
+                        </MultiBinding>
+                      </TextBlock.Text>
+                    </TextBlock>
+                  </Border>
+                  <TextBlock Grid.Column="2" Classes="note" Text="{Binding BaseReason}" TextTrimming="CharacterEllipsis" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ScenarioMergeOrderItem">
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <TextBlock Classes="note" Margin="0" Text="{Binding Position, StringFormat='{}{0}.'}" />
+        <TextBlock Classes="value" Classes.moved="{Binding MovedFrom, Converter={x:Static ObjectConverters.IsNotNull}}" Text="{Binding Text}" />
+        <TextBlock
+          Classes="moved"
+          FontSize="11"
+          Text="{Binding MovedFrom, StringFormat='↕{0}'}"
+          IsVisible="{Binding MovedFrom, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ScenarioMergeRowViewModel">
+      <StackPanel Classes="rowLine">
+        <Border Classes="lineBox" Classes.clash="{Binding IsClash}" Classes.open="{Binding IsOpen}" Classes.auto="{Binding ShowsAutoTag}">
+          <Grid Classes="line" ColumnDefinitions="170,*,96,170,*">
+            <TextBlock Classes="label" Text="{Binding Label}" />
+            <Border
+              Grid.Column="1"
+              Classes="cell"
+              Classes.writes="{Binding IsMinePressed}"
+              Classes.added="{Binding MinePresence, Converter={x:Static local:MergePresenceConverters.IsAdded}}"
+              Classes.removed="{Binding MinePresence, Converter={x:Static local:MergePresenceConverters.IsRemoved}}"
+            >
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Classes="value" Text="{Binding MineText}" IsVisible="{Binding !IsOrderRow}" />
+                <TextBlock Classes="note" Text="{Binding MineNote}" IsVisible="{Binding MineNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Classes="autoTag" Text="✓">
+                  <TextBlock.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="ShowsAutoTag" />
+                      <Binding Path="IsMinePressed" />
+                    </MultiBinding>
+                  </TextBlock.IsVisible>
+                </TextBlock>
+              </StackPanel>
+            </Border>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Button Classes="gutter keepMine" Classes.pressed="{Binding IsMinePressed}" Content="←" Command="{Binding KeepMineCommand}" />
+              <Button
+                Classes="gutter edit"
+                Classes.pressed="{Binding IsEditPressed}"
+                Content="✎"
+                IsVisible="{Binding CanEdit}"
+                Command="{Binding $parent[Window].((vm:ScenarioMergeViewModel)DataContext).EditRowCommand}"
+                CommandParameter="{Binding}"
+              />
+              <Button Classes="gutter keepTheirs" Classes.pressed="{Binding IsTheirsPressed}" Content="→" Command="{Binding KeepTheirsCommand}" />
+            </StackPanel>
+            <TextBlock Grid.Column="3" Classes="label" Text="{Binding Label}" />
+            <Border
+              Grid.Column="4"
+              Classes="cell"
+              Classes.writes="{Binding IsTheirsPressed}"
+              Classes.added="{Binding TheirsPresence, Converter={x:Static local:MergePresenceConverters.IsAdded}}"
+              Classes.removed="{Binding TheirsPresence, Converter={x:Static local:MergePresenceConverters.IsRemoved}}"
+            >
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Classes="value" Text="{Binding TheirsText}" IsVisible="{Binding !IsOrderRow}" />
+                <TextBlock
+                  Classes="note"
+                  Text="{Binding TheirsNote}"
+                  IsVisible="{Binding TheirsNote, Converter={x:Static ObjectConverters.IsNotNull}}"
+                />
+                <TextBlock Classes="autoTag" Text="✓">
+                  <TextBlock.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="ShowsAutoTag" />
+                      <Binding Path="IsTheirsPressed" />
+                    </MultiBinding>
+                  </TextBlock.IsVisible>
+                </TextBlock>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Border>
+        <Border Classes="baseStrip" IsVisible="{Binding ShowsBase}">
+          <Grid ColumnDefinitions="170,*,*">
+            <TextBlock Classes="caps" Margin="8,0" FontSize="10" Text="BASE" />
+            <Border Grid.Column="1" Classes="cell">
+              <TextBlock Classes="value" Foreground="#B0B0B0" Text="{Binding BaseText}" />
+            </Border>
+            <TextBlock Grid.Column="2" Classes="note" Text="{Binding BaseReason}" TextTrimming="CharacterEllipsis" />
+          </Grid>
+        </Border>
+        <ContentControl Content="{Binding Editor}" IsVisible="{Binding IsEditing}" />
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ScenarioMergedValueViewModel">
+      <Border Classes="mergedValue">
+        <Grid ColumnDefinitions="170,*,Auto" RowDefinitions="Auto,Auto">
+          <TextBlock Classes="caps" Margin="8,0" FontSize="10" Foreground="#9CC8F0" Text="MERGED VALUE" />
+          <Panel Grid.Column="1" Margin="0,0,8,0">
+            <TextBox Text="{Binding Text}" Tag="{Binding CommitTextCommand}" Classes.mono="{Binding IsMonospace}">
+              <TextBox.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="Options" Converter="{x:Static ObjectConverters.IsNull}" />
+                  <Binding
+                    Path="Kind"
+                    Converter="{x:Static ObjectConverters.NotEqual}"
+                    ConverterParameter="{x:Static vm:ScenarioMergeEditorKind.Bool}"
+                  />
+                  <Binding
+                    Path="Kind"
+                    Converter="{x:Static ObjectConverters.NotEqual}"
+                    ConverterParameter="{x:Static vm:ScenarioMergeEditorKind.OptionalBool}"
+                  />
+                </MultiBinding>
+              </TextBox.IsVisible>
+            </TextBox>
+            <ComboBox
+              ItemsSource="{Binding Options}"
+              SelectedItem="{Binding Selection}"
+              DisplayMemberBinding="{Binding Label, x:DataType=vm:ScenarioPickOption}"
+              MinWidth="200"
+              IsVisible="{Binding Options, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+            <CheckBox IsChecked="{Binding IsChecked}" IsThreeState="{Binding IsThreeState}">
+              <CheckBox.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                  <Binding
+                    Path="Kind"
+                    Converter="{x:Static ObjectConverters.Equal}"
+                    ConverterParameter="{x:Static vm:ScenarioMergeEditorKind.Bool}"
+                  />
+                  <Binding
+                    Path="Kind"
+                    Converter="{x:Static ObjectConverters.Equal}"
+                    ConverterParameter="{x:Static vm:ScenarioMergeEditorKind.OptionalBool}"
+                  />
+                </MultiBinding>
+              </CheckBox.IsVisible>
+            </CheckBox>
+          </Panel>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,0,8,0">
+            <Button Classes="accent keepThis" Content="Keep this" Command="{Binding KeepCommand}" />
+            <Button Classes="cancelEdit" Content="Cancel" Command="{Binding CancelCommand}" />
+          </StackPanel>
+          <TextBlock
+            Grid.Row="1"
+            Grid.Column="1"
+            Classes="error"
+            Text="{Binding Error}"
+            IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="toolbar" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5" MinHeight="36">
+      <DockPanel>
+        <Button x:Name="WholeScenarioButton" DockPanel.Dock="Right" Content="Whole scenario ▾">
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem x:Name="KeepMineForEveryClashItem" Header="Keep mine for every clash" Command="{Binding KeepMineForEveryClashCommand}" />
+              <MenuItem
+                x:Name="KeepTheirsForEveryClashItem"
+                Header="Keep theirs for every clash"
+                Command="{Binding KeepTheirsForEveryClashCommand}"
+              />
+              <MenuItem x:Name="TakeMineForEverythingItem" Header="Take mine for everything" Command="{Binding TakeMineForEverythingCommand}" />
+              <MenuItem x:Name="TakeTheirsForEverythingItem" Header="Take theirs for everything" Command="{Binding TakeTheirsForEverythingCommand}" />
+              <MenuItem x:Name="EditEveryClashItem" Header="Edit every clash in place" Command="{Binding EditEveryClashCommand}" />
+              <MenuItem x:Name="FreshCopyItem" Header="Fresh copy beside" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <TextBlock x:Name="SummaryText" Classes="status" Foreground="#D4D4D4" Text="{Binding SummaryText}" />
+          <Border Classes="vsep" />
+          <Button x:Name="PreviousButton" Content="Previous" Command="{Binding PreviousClashCommand}" />
+          <TextBlock x:Name="PositionText" Classes="status" Text="{Binding PositionText}" />
+          <Button x:Name="NextButton" Content="Next" Command="{Binding NextClashCommand}" />
+          <Border Classes="vsep" />
+          <CheckBox
+            x:Name="ShowBaseCheckBox"
+            VerticalAlignment="Center"
+            Content="{Binding ShowBaseLabel}"
+            IsChecked="{Binding ShowBase}"
+            IsEnabled="{Binding CanShowBase}"
+          />
+          <TextBlock x:Name="ShowBaseSourceText" Classes="status" Text="{Binding ShowBaseSourceText}" />
+          <Border Classes="vsep" />
+          <CheckBox x:Name="OnlyDifferencesCheckBox" VerticalAlignment="Center" Content="Only differences" IsChecked="{Binding OnlyDifferences}" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border
+      x:Name="TwoWayNote"
+      DockPanel.Dock="Top"
+      Background="#3A2F1A"
+      BorderBrush="#7A5C26"
+      BorderThickness="0,0,0,1"
+      Padding="10,5"
+      IsVisible="{Binding TwoWayNote, Converter={x:Static ObjectConverters.IsNotNull}}"
+    >
+      <TextBlock x:Name="TwoWayNoteText" Foreground="#E0A33A" TextWrapping="Wrap" Text="{Binding TwoWayNote}" />
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,1,0,0" Padding="10,6">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel VerticalAlignment="Center" Spacing="2">
+          <TextBlock x:Name="FooterText" Classes="status" Text="{Binding FooterText}" />
+          <TextBlock
+            x:Name="ApplyErrorText"
+            Classes="error"
+            Text="{Binding ApplyError}"
+            IsVisible="{Binding ApplyError, Converter={x:Static ObjectConverters.IsNotNull}}"
+          />
+          <TextBlock x:Name="FreshCopyErrorText" Classes="error" IsVisible="False" />
+          <TextBlock x:Name="ApplyFailureText" Classes="error" IsVisible="False" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button x:Name="CancelButton" Content="Cancel" MinWidth="74" Command="{Binding CancelCommand}" />
+          <Button x:Name="ApplyButton" Content="Apply" MinWidth="74" Classes="accent" IsEnabled="{Binding CanApply}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TabControl x:Name="Tabs" Padding="0">
+      <TabItem x:Name="GeneralTab">
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="General" VerticalAlignment="Center" />
+            <TextBlock Foreground="#E0A33A" FontSize="11" VerticalAlignment="Center" Text="{Binding GeneralOpenClashCount, StringFormat='⚠ {0}'}">
+              <TextBlock.IsVisible>
+                <Binding Path="GeneralOpenClashCount" Converter="{x:Static ObjectConverters.NotEqual}">
+                  <Binding.ConverterParameter>
+                    <x:Int32>0</x:Int32>
+                  </Binding.ConverterParameter>
+                </Binding>
+              </TextBlock.IsVisible>
+            </TextBlock>
+          </StackPanel>
+        </TabItem.Header>
+        <DockPanel>
+          <Border DockPanel.Dock="Top" Background="#262626" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="0,4">
+            <Grid ColumnDefinitions="*,96,*">
+              <StackPanel Orientation="Horizontal" Spacing="6" Margin="8,0">
+                <TextBlock Text="MINE" FontWeight="Bold" Foreground="White" />
+                <TextBlock x:Name="MineCaption" Classes="status" Text="{Binding Request.Captions.Mine}" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0">
+                <TextBlock Text="THEIRS" FontWeight="Bold" Foreground="White" />
+                <TextBlock x:Name="TheirsCaption" Classes="status" Text="{Binding Request.Captions.Theirs}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <ScrollViewer x:Name="GeneralScroller" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="SectionList" ItemsSource="{Binding Sections}" />
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+      <TabItem x:Name="AircraftTab">
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <TextBlock Text="Aircraft" VerticalAlignment="Center" />
+            <TextBlock Foreground="#E0A33A" FontSize="11" VerticalAlignment="Center" Text="{Binding AircraftOpenClashCount, StringFormat='⚠ {0}'}">
+              <TextBlock.IsVisible>
+                <Binding Path="AircraftOpenClashCount" Converter="{x:Static ObjectConverters.NotEqual}">
+                  <Binding.ConverterParameter>
+                    <x:Int32>0</x:Int32>
+                  </Binding.ConverterParameter>
+                </Binding>
+              </TextBlock.IsVisible>
+            </TextBlock>
+          </StackPanel>
+        </TabItem.Header>
+        <Panel x:Name="AircraftPane" />
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
