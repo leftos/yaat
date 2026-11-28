@@ -12,10 +12,11 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <summary>
 /// The Scenario Editor's editing side: the one working copy open (a <see cref="ScenarioEditSession"/> over the browser's
 /// store) and its General and Aircraft tabs, with Save, Undo and Redo. A copy opens on the browser's
-/// <see cref="ScenarioBrowserViewModel.OpenRequested"/>; leaving it with unsaved edits (opening another, closing the
-/// window, switching ARTCC: the browser's <see cref="ScenarioBrowserViewModel.LeaveGuard"/>) asks to save, discard or
-/// cancel first. Deleting the open copy closes it without asking; an import that replaces it reloads it, asking first
-/// (the browser's <see cref="ScenarioBrowserViewModel.ReplaceGuard"/>) when it has unsaved edits. Runs on the UI thread;
+/// <see cref="ScenarioBrowserViewModel.OpenRequested"/>; opening another while it has unsaved edits asks to save, discard
+/// or cancel first, and closing the window or switching ARTCC asks through the browser, which reads the copy's unsaved
+/// state from <see cref="ScenarioBrowserViewModel.UnsavedCopy"/>. Deleting the open copy closes it without asking; an
+/// import that replaces it reloads it, asking first (the browser's <see cref="ScenarioBrowserViewModel.ReplaceGuard"/>)
+/// when it has unsaved edits. Runs on the UI thread;
 /// every await re-checks that the session it started with is still the one open, and an open abandons itself when a
 /// newer open started.
 /// </summary>
@@ -34,7 +35,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private readonly ScenarioBrowserServices _services;
     private readonly Func<string, CancellationToken, Task<AirportGroundLayout?>> _layouts;
     private readonly Task _navDataReady;
-    private readonly Func<Task<bool>> _guard;
+    private readonly Func<UnsavedOpenCopy?> _unsavedCopy;
     private readonly Func<string, string, Task<bool>> _replaceGuard;
     private readonly Func<string, string, Task<bool>> _exportGuard;
     private ScenarioEditSession? _session;
@@ -61,7 +62,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
     private string? _saveMessage;
 
     /// <summary>Initializes a new instance of the <see cref="ScenarioEditorViewModel"/> class over a browser.</summary>
-    /// <param name="browser">The browser whose opens and deletes it follows, and whose leave guard it answers.</param>
+    /// <param name="browser">The browser whose opens and deletes it follows, and whose UnsavedCopy hook it answers.</param>
     /// <param name="services">The browser's services: the store, the prompts, the pickers' config source and the post.</param>
     /// <param name="layouts">
     /// The airport ground layouts the live validation routes TAXI presets on: the app's
@@ -79,13 +80,13 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _layouts = layouts ?? throw new ArgumentNullException(nameof(layouts));
         _navDataReady = navDataReady ?? throw new ArgumentNullException(nameof(navDataReady));
-        _guard = ConfirmLeaveAsync;
+        _unsavedCopy = UnsavedCopy;
         _replaceGuard = ConfirmReplaceAsync;
         _exportGuard = PrepareForExportAsync;
         _browser.OpenRequested += OnOpenRequested;
         _browser.WorkingCopyDeleted += OnWorkingCopyDeleted;
         _browser.WorkingCopyReplaced += OnWorkingCopyReplaced;
-        _browser.LeaveGuard = _guard;
+        _browser.UnsavedCopy = _unsavedCopy;
         _browser.ReplaceGuard = _replaceGuard;
         _browser.ExportGuard = _exportGuard;
     }
@@ -259,7 +260,10 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         }
     }
 
-    /// <summary>Stops following the browser, gives back its leave guard when it is still this editor's, and closes the open copy unsaved.</summary>
+    /// <summary>
+    /// Stops following the browser, gives back its UnsavedCopy hook when it is still this editor's, and closes the open
+    /// copy unsaved.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
@@ -272,9 +276,9 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         _browser.OpenRequested -= OnOpenRequested;
         _browser.WorkingCopyDeleted -= OnWorkingCopyDeleted;
         _browser.WorkingCopyReplaced -= OnWorkingCopyReplaced;
-        if (_browser.LeaveGuard == _guard)
+        if (_browser.UnsavedCopy == _unsavedCopy)
         {
-            _browser.LeaveGuard = () => Task.FromResult(true);
+            _browser.UnsavedCopy = () => null;
         }
 
         if (_browser.ReplaceGuard == _replaceGuard)
@@ -411,6 +415,33 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         Session?.Redo();
         _edits++;
         NotifyState();
+    }
+
+    // The browser's UnsavedCopy: the open copy when it has unsaved edits; its save and discard act only while that session
+    // is still the one open.
+    private UnsavedOpenCopy? UnsavedCopy() =>
+        (Session is { IsDirty: true } session)
+            ? new UnsavedOpenCopy(
+                session.ArtccId,
+                session.ScenarioId,
+                DisplayName(session),
+                () => SaveIfStillOpenAsync(session),
+                () => DiscardIfStillOpen(session)
+            )
+            : null;
+
+    private async Task<bool> SaveIfStillOpenAsync(ScenarioEditSession session) =>
+        ReferenceEquals(Session, session) && await SaveBeforeLeaveAsync(session);
+
+    private bool DiscardIfStillOpen(ScenarioEditSession session)
+    {
+        if (!ReferenceEquals(Session, session))
+        {
+            return false;
+        }
+
+        CloseSession();
+        return true;
     }
 
     // Saves, then has the browser re-read its rows without moving its selection (it is on the copy being opened, or the

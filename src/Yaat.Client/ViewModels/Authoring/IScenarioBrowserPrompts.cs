@@ -51,6 +51,25 @@ public interface IScenarioBrowserPrompts
     /// <param name="scenarioName">The working copy about to load.</param>
     /// <returns>True to load it in the running scenario's place; false to leave the room alone.</returns>
     Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName);
+
+    /// <summary>
+    /// Asks what to do with the working copies whose changes were never exported before the window closes or the ARTCC
+    /// switches.
+    /// </summary>
+    /// <param name="names">The copies' names: the first five, then one entry "and N more" when there are more.</param>
+    /// <param name="context">What is about to happen: the window closing or the ARTCC switching.</param>
+    /// <returns>Export them all and go on, go on without exporting, or cancel.</returns>
+    Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context);
+
+    /// <summary>
+    /// Asks one question when the open copy has unsaved edits and the window closes or the ARTCC switches: what to do with
+    /// those edits and with the copies whose changes were never exported.
+    /// </summary>
+    /// <param name="openName">The open copy's name as edited.</param>
+    /// <param name="names">The copies' names, the open one among them: the first five, then one entry "and N more".</param>
+    /// <param name="context">What is about to happen: the window closing or the ARTCC switching.</param>
+    /// <returns>Save and export all, save and go on, discard and go on, or cancel.</returns>
+    Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(string openName, IReadOnlyList<string> names, UnexportedChangesContext context);
 }
 
 /// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/>.</summary>
@@ -69,11 +88,53 @@ public enum UnsavedChangesChoice
 /// <summary>What <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/> asks before.</summary>
 public enum UnsavedChangesContext
 {
-    /// <summary>Closing the scenario: another opens, the window closes, the ARTCC switches, or a save over an import.</summary>
+    /// <summary>Closing the scenario: another copy opens, or a save writes over an import.</summary>
     Close,
 
     /// <summary>Exporting the scenario as vNAS JSON.</summary>
     Export,
+}
+
+/// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnexportedChangesAsync"/>.</summary>
+public enum UnexportedChangesChoice
+{
+    /// <summary>Export every copy with unexported changes, then go on when all were written.</summary>
+    ExportAll,
+
+    /// <summary>Go on without exporting.</summary>
+    Leave,
+
+    /// <summary>Cancel: do not close or switch.</summary>
+    Cancel,
+}
+
+/// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedAndUnexportedAsync"/>.</summary>
+public enum UnsavedAndUnexportedChoice
+{
+    /// <summary>Save the open copy, then export every copy with unexported changes; go on when all were written.</summary>
+    SaveAndExportAll,
+
+    /// <summary>Save the open copy and go on without exporting.</summary>
+    SaveAndLeave,
+
+    /// <summary>Drop the open copy's edits and go on without exporting.</summary>
+    DiscardAndLeave,
+
+    /// <summary>Change nothing: do not close or switch.</summary>
+    Cancel,
+}
+
+/// <summary>
+/// What <see cref="IScenarioBrowserPrompts.AskUnexportedChangesAsync"/> and the combined
+/// <see cref="IScenarioBrowserPrompts.AskUnsavedAndUnexportedAsync"/> ask before.
+/// </summary>
+public enum UnexportedChangesContext
+{
+    /// <summary>The Scenario Editor window closing.</summary>
+    Close,
+
+    /// <summary>The browser switching to another ARTCC.</summary>
+    SwitchArtcc,
 }
 
 /// <summary>An imported file whose scenario id is already taken.</summary>

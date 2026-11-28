@@ -336,6 +336,15 @@ public class ScenarioEditorTestInRoomTests
             Task.FromResult(UnsavedChangesChoice.Cancel);
 
         public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);
+
+        public Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context) =>
+            Task.FromResult(UnexportedChangesChoice.Leave);
+
+        public Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+            string openName,
+            IReadOnlyList<string> names,
+            UnexportedChangesContext context
+        ) => Task.FromResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
     }
 
     private sealed class StubAccess(params string[] artccs) : IArtccAccessSource

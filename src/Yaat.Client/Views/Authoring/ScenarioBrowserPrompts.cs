@@ -11,7 +11,8 @@ namespace Yaat.Client.Views.Authoring;
 /// The Scenario Editor window's answers to the browser's questions: a Yes/No box before a delete, the file pickers for
 /// Import, Save copy and the exports, the import id-conflict dialog, a Yes/No/Cancel box before unsaved edits are left or
 /// exported, a Replace/Cancel box before an import replaces the copy open with unsaved edits, and a Yes/No box before Test
-/// in Room replaces the running scenario, each over the window.
+/// in Room replaces the running scenario, and, before the window closes or the ARTCC switches, an unexported-changes box
+/// or, when the open copy also has unsaved edits, one combined box, each over the window.
 /// </summary>
 /// <param name="owner">The window the boxes and dialogs show over.</param>
 /// <param name="picker">The window's file picker.</param>
@@ -19,6 +20,9 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
 {
     private const string ReplaceButton = "Replace";
     private const string CancelButton = "Cancel";
+    private const string ExportAllButton = "Export all";
+    private const string SaveAndExportAllButton = "Save and export all";
+    private const string UnexportedMessage = "These scenarios have changes you have not exported:";
 
     private static readonly IReadOnlyList<FilePickerFilter> JsonFilter = [new FilePickerFilter("Scenario JSON", ["*.json"])];
 
@@ -93,5 +97,69 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
             ButtonEnum.YesNo
         );
         return result == ButtonResult.Yes;
+    }
+
+    /// <inheritdoc/>
+    public async Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        string leave = (context == UnexportedChangesContext.SwitchArtcc) ? "Switch without exporting" : "Close without exporting";
+        string answer = await ShowChoicesAsync("Unexported changes", UnexportedBody(names), [ExportAllButton, leave]);
+        if (answer == ExportAllButton)
+        {
+            return UnexportedChangesChoice.ExportAll;
+        }
+
+        return (answer == leave) ? UnexportedChangesChoice.Leave : UnexportedChangesChoice.Cancel;
+    }
+
+    /// <inheritdoc/>
+    public async Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+        string openName,
+        IReadOnlyList<string> names,
+        UnexportedChangesContext context
+    )
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        bool switching = context == UnexportedChangesContext.SwitchArtcc;
+        string saveAndLeave = switching ? "Save and switch without exporting" : "Save and close without exporting";
+        string discardAndLeave = switching ? "Discard and switch" : "Discard and close";
+        string body = $"{openName} has unsaved changes.\n\n{UnexportedBody(names)}";
+        string answer = await ShowChoicesAsync("Unsaved and unexported changes", body, [SaveAndExportAllButton, saveAndLeave, discardAndLeave]);
+        if (answer == SaveAndExportAllButton)
+        {
+            return UnsavedAndUnexportedChoice.SaveAndExportAll;
+        }
+
+        if (answer == saveAndLeave)
+        {
+            return UnsavedAndUnexportedChoice.SaveAndLeave;
+        }
+
+        return (answer == discardAndLeave) ? UnsavedAndUnexportedChoice.DiscardAndLeave : UnsavedAndUnexportedChoice.Cancel;
+    }
+
+    private static string UnexportedBody(IReadOnlyList<string> names) => UnexportedMessage + "\n\n" + string.Join("\n", names);
+
+    // A box with the given buttons in order and then Cancel, the default and the Esc answer; the pressed button's label.
+    private Task<string> ShowChoicesAsync(string title, string message, IReadOnlyList<string> buttons)
+    {
+        var parameters = new MessageBoxCustomParams
+        {
+            ContentTitle = title,
+            ContentMessage = message,
+            ButtonDefinitions =
+            [
+                .. buttons.Select(b => new ButtonDefinition { Name = b }),
+                new ButtonDefinition
+                {
+                    Name = CancelButton,
+                    IsDefault = true,
+                    IsCancel = true,
+                },
+            ],
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        };
+        return MessageBoxPresenter.ShowCustomAsync(owner, parameters);
     }
 }

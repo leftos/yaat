@@ -212,21 +212,32 @@ public sealed partial class ScenarioBrowserViewModel
     // Runs the store or file work on a pool thread; a failure is logged and posted as a notice naming the scenario.
     private async Task<(bool Ok, T? Value)> TryStoreAsync<T>(string name, string what, Func<T> work)
     {
+        (T? value, string? failure) = await TryStepAsync(name, what, work).ConfigureAwait(false);
+        return (failure is null, value);
+    }
+
+    private async Task<bool> TryDoAsync(string name, string what, Action work) => await TryStepAsync(name, what, work).ConfigureAwait(false) is null;
+
+    // Runs the store or file work on a pool thread: its value, or default and the failure's message, logged and posted as
+    // a notice naming the scenario.
+    private async Task<(T? Value, string? Failure)> TryStepAsync<T>(string name, string what, Func<T> work)
+    {
         try
         {
-            return (true, await Task.Run(work).ConfigureAwait(false));
+            return (await Task.Run(work).ConfigureAwait(false), null);
         }
         catch (Exception ex)
         {
             LogFailure(ex, what + " " + name);
             await OnUiAsync(() => AddNotice($"{name}: {ex.Message}")).ConfigureAwait(false);
-            return (false, default);
+            return (default, ex.Message);
         }
     }
 
-    private async Task<bool> TryDoAsync(string name, string what, Action work)
+    // As the value form, for work with no value: null once done, else the failure's message.
+    private async Task<string?> TryStepAsync(string name, string what, Action work)
     {
-        (bool ok, _) = await TryStoreAsync(
+        (_, string? failure) = await TryStepAsync(
                 name,
                 what,
                 () =>
@@ -236,7 +247,7 @@ public sealed partial class ScenarioBrowserViewModel
                 }
             )
             .ConfigureAwait(false);
-        return ok;
+        return failure;
     }
 
     // Runs a prompt (or other UI work) through the post; a failure is a notice naming the scenario and gives the fallback.

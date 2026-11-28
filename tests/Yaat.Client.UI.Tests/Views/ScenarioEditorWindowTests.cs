@@ -45,6 +45,7 @@ public class ScenarioEditorWindowTests
     private const string Zny = "ZNY";
     private const string MirrorId = "01HB2KQ4XG8T3W5Y9RZ0MNPC1D";
     private const string CopyId = "01HE9T5V1R7MZQ3KJ8W2NXD4GB";
+    private const string UnexportedId = "01HJ3M8Q2W6R9T4Y7B5N1C0XDZ";
     private const string OakId = "01HHWYG5C2DCFR09A7S5A0Q0KP";
     private const string OakName = "S2-OAK-5 (2) | Practical Exam Preparation/Advanced Concepts";
 
@@ -1022,7 +1023,8 @@ public class ScenarioEditorWindowTests
             window.Close();
             MainWindowHost.Pump();
 
-            Assert.Equal(typed ? 1 : 0, prompts.UnsavedAsked);
+            Assert.Equal(typed ? 1 : 0, prompts.CombinedAsked);
+            Assert.Equal(0, prompts.UnsavedAsked);
             Assert.True(closed);
         }
         finally
@@ -1284,12 +1286,213 @@ public class ScenarioEditorWindowTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task Close_WithAnUnexportedCopy_AsksAndStaysOpenOnCancel()
+    {
+        var prompts = new CountingPrompts { UnexportedAnswer = UnexportedChangesChoice.Cancel };
+        ScenarioEditorWindow window = NewEditorWindow(UnexportedStore(), prompts);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            await ShowAsync(window);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.False(closed);
+            Assert.Equal(1, prompts.UnexportedAsked);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Close_UnsavedAndUnexported_AsksOneCombinedQuestion_CancelKeepsTheWindowOpen()
+    {
+        var prompts = new CountingPrompts { CombinedAnswer = UnsavedAndUnexportedChoice.Cancel };
+        LocalScenarioStore store = OakStore();
+        string before = store.ReadWorkingCopyText(Zoa, OakId);
+        ScenarioEditorWindow window = NewEditorWindow(store, prompts);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            EditName(window, "OAK renamed");
+            Assert.True(window.Editor.IsDirty);
+
+            window.Close();
+            MainWindowHost.Pump();
+
+            Assert.False(closed);
+            Assert.Equal(1, prompts.CombinedAsked);
+            Assert.Equal(0, prompts.UnsavedAsked);
+            Assert.Equal(0, prompts.UnexportedAsked);
+            Assert.True(window.Editor.IsDirty);
+            Assert.Equal(before, store.ReadWorkingCopyText(Zoa, OakId));
+        }
+        finally
+        {
+            if (!closed)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Close_AgainWhileTheCombinedAnswerIsPending_AsksNothing_ThenClosesOnce()
+    {
+        var answer = new TaskCompletionSource<UnsavedAndUnexportedChoice>();
+        var prompts = new CountingPrompts { PendingCombined = answer.Task };
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), prompts);
+        int closes = 0;
+        window.Closed += (_, _) => closes++;
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            EditName(window, "OAK renamed");
+
+            window.Close();
+            MainWindowHost.Pump();
+            window.Close();
+            MainWindowHost.Pump();
+            Assert.Equal(1, prompts.CombinedAsked);
+            Assert.Equal(0, closes);
+
+            answer.SetResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
+            MainWindowHost.Pump();
+
+            Assert.Equal(1, closes);
+            Assert.Equal(1, prompts.CombinedAsked);
+        }
+        finally
+        {
+            if (closes == 0)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Close_APendingSaveAndLeave_ThroughTheBrowsersGuard_SavesThenClosesOnce()
+    {
+        var answer = new TaskCompletionSource<UnsavedAndUnexportedChoice>();
+        var prompts = new CountingPrompts { PendingCombined = answer.Task };
+        LocalScenarioStore store = OakStore();
+        ScenarioEditorWindow window = NewEditorWindow(store, prompts);
+        int closes = 0;
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) =>
+        {
+            closes++;
+            closed.TrySetResult();
+        };
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            EditName(window, "OAK renamed");
+
+            window.Close();
+            MainWindowHost.Pump();
+            Assert.Equal(0, closes);
+
+            answer.SetResult(UnsavedAndUnexportedChoice.SaveAndLeave);
+            DateTime hangGuard = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+            while (!closed.Task.IsCompleted)
+            {
+                Assert.True(DateTime.UtcNow < hangGuard, "hung: the window never closed");
+                MainWindowHost.Pump();
+                await Task.WhenAny(closed.Task, Task.Delay(20, TestContext.Current.CancellationToken));
+            }
+
+            MainWindowHost.Pump();
+            Assert.Equal(1, closes);
+            Assert.Equal(1, prompts.CombinedAsked);
+            Assert.Contains("OAK renamed", store.ReadWorkingCopyText(Zoa, OakId), StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (closes == 0)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Close_WithNothingUnexported_ClosesAtOnce()
+    {
+        var prompts = new CountingPrompts { UnexportedAnswer = UnexportedChangesChoice.Cancel };
+        ScenarioEditorWindow window = NewEditorWindow(SeededStore(), prompts);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            await ShowAsync(window);
+
+            window.Close();
+
+            Assert.True(closed);
+            Assert.Equal(0, prompts.UnexportedAsked);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ApplicationShutdown_WithAnUnexportedCopy_ClosesWithoutAsking()
+    {
+        var prompts = new CountingPrompts { UnexportedAnswer = UnexportedChangesChoice.Cancel };
+        ScenarioEditorWindow window = NewEditorWindow(UnexportedStore(), prompts);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+        try
+        {
+            await ShowAsync(window);
+
+            CloseFor(window, WindowCloseReason.ApplicationShutdown);
+            MainWindowHost.Pump();
+
+            Assert.True(closed);
+            Assert.Equal(0, prompts.UnexportedAsked);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                CloseNow(window);
+            }
+        }
+    }
+
     // A store under this process's app-data folder with one ZOA server scenario and one local-only working copy.
     private static LocalScenarioStore SeededStore()
     {
         var store = new LocalScenarioStore(YaatPaths.Combine("scenario-editor-tests", Guid.NewGuid().ToString("N")));
         store.ApplyServerBody(Zoa, MirrorId, $$"""{"id":"{{MirrorId}}","name":"SFO_TWR - SFO Tower Rush","artccId":"ZOA"}""");
         store.CreateLocalScenario(Zoa, $$"""{"id":"{{CopyId}}","name":"SMF_APP - Sacramento Arrivals","artccId":"ZOA"}""", CopyId);
+        store.RecordExport(Zoa, CopyId, DateTimeOffset.UtcNow);
+        return store;
+    }
+
+    // The seeded store plus a local-only working copy that was never exported, so it has unexported changes.
+    private static LocalScenarioStore UnexportedStore()
+    {
+        LocalScenarioStore store = SeededStore();
+        store.CreateLocalScenario(Zoa, $$"""{"id":"{{UnexportedId}}","name":"OAK_TWR - Oakland Tower","artccId":"ZOA"}""", UnexportedId);
         return store;
     }
 
@@ -1571,10 +1774,23 @@ public class ScenarioEditorWindowTests
         public Task<IReadOnlyList<string>> GetEditableArtccsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>(artccs);
     }
 
-    // The window's dialogs, counting the unsaved-changes question and answering it Discard; nothing else is asked.
+    // The window's dialogs, counting the unsaved-changes question and answering it Discard, the unexported-changes question
+    // answering it UnexportedAnswer (Leave unless set) and the combined question answering it CombinedAnswer
+    // (DiscardAndLeave unless set); nothing else is asked.
     private sealed class CountingPrompts : IScenarioBrowserPrompts
     {
         public int UnsavedAsked { get; private set; }
+
+        public int UnexportedAsked { get; private set; }
+
+        public UnexportedChangesChoice UnexportedAnswer { get; set; } = UnexportedChangesChoice.Leave;
+
+        public int CombinedAsked { get; private set; }
+
+        public UnsavedAndUnexportedChoice CombinedAnswer { get; set; } = UnsavedAndUnexportedChoice.DiscardAndLeave;
+
+        // When set, the combined question answers with this task (one the test completes later) instead of CombinedAnswer.
+        public Task<UnsavedAndUnexportedChoice>? PendingCombined { get; set; }
 
         public Task<bool> ConfirmDeleteAsync(ScenarioBrowserRowViewModel row) => Task.FromResult(false);
 
@@ -1598,6 +1814,22 @@ public class ScenarioEditorWindowTests
         public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Task.FromResult(false);
 
         public Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName) => Task.FromResult(false);
+
+        public Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context)
+        {
+            UnexportedAsked++;
+            return Task.FromResult(UnexportedAnswer);
+        }
+
+        public Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+            string openName,
+            IReadOnlyList<string> names,
+            UnexportedChangesContext context
+        )
+        {
+            CombinedAsked++;
+            return PendingCombined ?? Task.FromResult(CombinedAnswer);
+        }
     }
 
     // data-api answers ZOA with the snapshot and every other ARTCC (a neighbour) as the network being down.

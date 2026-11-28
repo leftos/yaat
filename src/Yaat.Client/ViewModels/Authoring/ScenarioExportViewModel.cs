@@ -35,8 +35,13 @@ internal sealed class ScenarioExportViewModel(LocalScenarioStore store, TimeProv
     /// <param name="name">The scenario's name.</param>
     /// <param name="result">The refused or corrupt result.</param>
     /// <returns>The notice line.</returns>
-    public static string RefusalNotice(string name, ExportResult result) =>
-        $"{name}: not exported: {string.Join("; ", result.Issues.Where(i => i.Severity == ExportIssueSeverity.Error).Select(i => i.Message))}";
+    public static string RefusalNotice(string name, ExportResult result) => $"{name}: not exported: {RefusalReason(result)}";
+
+    /// <summary>Why an export was refused: each error of its checks, joined by "; ".</summary>
+    /// <param name="result">The refused or corrupt result.</param>
+    /// <returns>The errors.</returns>
+    public static string RefusalReason(ExportResult result) =>
+        string.Join("; ", result.Issues.Where(i => i.Severity == ExportIssueSeverity.Error).Select(i => i.Message));
 
     /// <summary>
     /// The notices of a written export: the YAAT-only parts it kept or dropped, then each warning of its checks, each

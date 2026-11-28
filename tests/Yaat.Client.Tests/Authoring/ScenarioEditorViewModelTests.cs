@@ -187,26 +187,28 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData(UnsavedChangesChoice.Save, true, true)]
-    [InlineData(UnsavedChangesChoice.Discard, true, true)]
-    [InlineData(UnsavedChangesChoice.Cancel, false, true)]
-    [InlineData(UnsavedChangesChoice.Save, true, false)]
-    [InlineData(UnsavedChangesChoice.Discard, true, false)]
-    [InlineData(UnsavedChangesChoice.Cancel, false, false)]
-    public async Task CanCloseAndCanSwitch_WhileDirty_FollowThePrompt(UnsavedChangesChoice choice, bool expected, bool closing)
+    [InlineData(UnsavedAndUnexportedChoice.SaveAndLeave, true, true)]
+    [InlineData(UnsavedAndUnexportedChoice.DiscardAndLeave, true, true)]
+    [InlineData(UnsavedAndUnexportedChoice.Cancel, false, true)]
+    [InlineData(UnsavedAndUnexportedChoice.SaveAndLeave, true, false)]
+    [InlineData(UnsavedAndUnexportedChoice.DiscardAndLeave, true, false)]
+    [InlineData(UnsavedAndUnexportedChoice.Cancel, false, false)]
+    public async Task CanCloseAndCanSwitch_WhileDirty_FollowThePrompt(UnsavedAndUnexportedChoice choice, bool expected, bool closing)
     {
         _fx.AddCopy("L1", "Lima");
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await _fx.OpenEditorOn("L1");
         Rename(editor, "Lima Two");
-        _fx.Prompts.Answers.Enqueue(choice);
+        _fx.Prompts.CombinedAnswers.Enqueue(choice);
 
         Task<bool> answer = closing ? browser.CanCloseAsync() : browser.CanSwitchArtccAsync();
         await _fx.Ui.Run(answer);
 
         Assert.Equal(expected, await answer);
-        Assert.Equal(["Lima Two"], _fx.Prompts.UnsavedAsked);
-        Assert.Equal(choice == UnsavedChangesChoice.Save ? "Lima Two" : "Lima", _fx.CopyJsonString("L1", "name"));
-        Assert.Equal(choice != UnsavedChangesChoice.Discard, editor.IsOpen);
+        Assert.Equal("Lima Two", Assert.Single(_fx.Prompts.CombinedAsked).OpenName);
+        Assert.Equal(closing ? UnexportedChangesContext.Close : UnexportedChangesContext.SwitchArtcc, Assert.Single(_fx.Prompts.CombinedContexts));
+        Assert.Empty(_fx.Prompts.UnsavedAsked);
+        Assert.Equal(choice == UnsavedAndUnexportedChoice.SaveAndLeave ? "Lima Two" : "Lima", _fx.CopyJsonString("L1", "name"));
+        Assert.Equal(choice != UnsavedAndUnexportedChoice.DiscardAndLeave, editor.IsOpen);
     }
 
     [Fact]
@@ -224,7 +226,7 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     public async Task APromptThatThrows_AnswersCancel()
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await DirtyFirstWithOthers();
-        _fx.Prompts.Ask = () => Task.FromException<UnsavedChangesChoice>(new InvalidOperationException("the box failed"));
+        _fx.Prompts.AskCombined = () => Task.FromException<UnsavedAndUnexportedChoice>(new InvalidOperationException("the box failed"));
 
         Assert.False(await browser.CanCloseAsync());
 
@@ -237,7 +239,7 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await DirtyFirstWithOthers();
         _ = editor.Session!.Edit("Edit name", s => s.Name = "");
-        _fx.Prompts.Answers.Enqueue(UnsavedChangesChoice.Save);
+        _fx.Prompts.CombinedAnswers.Enqueue(UnsavedAndUnexportedChoice.SaveAndLeave);
 
         Assert.False(await browser.CanCloseAsync());
 
@@ -250,14 +252,14 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     public async Task ArtccSwitch_APendingPrompt_SwitchesOnceDiscardIsAnswered()
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await TwoArtccsWithL1Dirty();
-        var answer = new TaskCompletionSource<UnsavedChangesChoice>();
-        _fx.Prompts.Ask = () => answer.Task;
+        var answer = new TaskCompletionSource<UnsavedAndUnexportedChoice>();
+        _fx.Prompts.AskCombined = () => answer.Task;
 
         browser.SelectedArtcc = Zny;
         Task switching = browser.ArtccSwitch;
         Assert.False(switching.IsCompleted);
         Assert.Equal(Zoa, browser.SelectedArtcc);
-        answer.SetResult(UnsavedChangesChoice.Discard);
+        answer.SetResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
         await _fx.Ui.Run(switching);
         await _fx.Ui.Run(browser.ResyncTask);
 
@@ -273,23 +275,27 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await TwoArtccsWithL1Dirty();
         string? lastPick = _fx.Preferences.ScenarioEditorLastArtcc;
-        var answer = new TaskCompletionSource<UnsavedChangesChoice>();
+        var answer = new TaskCompletionSource<UnsavedAndUnexportedChoice>();
         if (pending)
         {
-            _fx.Prompts.Ask = () => answer.Task;
+            _fx.Prompts.AskCombined = () => answer.Task;
+        }
+        else
+        {
+            _fx.Prompts.CombinedAnswers.Enqueue(UnsavedAndUnexportedChoice.Cancel);
         }
 
         int snaps = 0;
         browser.PropertyChanged += (_, e) => snaps += (e.PropertyName == nameof(ScenarioBrowserViewModel.SelectedArtcc)) ? 1 : 0;
         browser.SelectedArtcc = Zny;
-        answer.SetResult(UnsavedChangesChoice.Cancel);
+        answer.SetResult(UnsavedAndUnexportedChoice.Cancel);
         await _fx.Ui.Run(browser.ArtccSwitch);
 
         Assert.Equal(1, snaps);
         Assert.Equal(Zoa, browser.SelectedArtcc);
         Assert.Equal(lastPick, _fx.Preferences.ScenarioEditorLastArtcc);
         Assert.True(editor.IsDirty);
-        Assert.Single(_fx.Prompts.UnsavedAsked);
+        Assert.Single(_fx.Prompts.CombinedAsked);
     }
 
     [Fact]
@@ -445,7 +451,7 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Dispose_UnhooksTheBrowser_AndGivesBackItsLeaveGuard()
+    public async Task Dispose_UnhooksTheBrowser_AndGivesBackItsUnsavedCopy()
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await DirtyFirstWithOthers();
 
@@ -459,15 +465,15 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Dispose_LeavesALeaveGuardThatIsNotItsOwn()
+    public async Task Dispose_LeavesAnUnsavedCopyThatIsNotItsOwn()
     {
         (ScenarioBrowserViewModel browser, ScenarioEditorViewModel editor) = await _fx.OpenEditor();
-        Func<Task<bool>> other = () => Task.FromResult(false);
-        browser.LeaveGuard = other;
+        Func<UnsavedOpenCopy?> other = () => null;
+        browser.UnsavedCopy = other;
 
         editor.Dispose();
 
-        Assert.Same(other, browser.LeaveGuard);
+        Assert.Same(other, browser.UnsavedCopy);
     }
 
     // One file to import that keeps the id of a working copy, its clash answered Keep id.

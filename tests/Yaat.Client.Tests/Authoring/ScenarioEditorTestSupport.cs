@@ -268,7 +268,8 @@ internal sealed class StubArtccHandler(Func<HttpRequestMessage, string?> body) :
 
 /// <summary>
 /// The editor's prompts: the unsaved-changes question answered by <see cref="Ask"/> when set, else from the queue
-/// (Cancel when it is empty), and a fixed delete answer.
+/// (Cancel when it is empty), the unexported-changes question answered by <see cref="AskUnexported"/> when set, else
+/// from its queue (Leave when it is empty), and a fixed delete answer.
 /// </summary>
 internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 {
@@ -348,6 +349,58 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 
     public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>
         Task.FromResult(new ImportConflictAnswer(ImportChoice, false));
+
+    /// <summary>Gets the answers to the unexported-changes question, in order; Leave once it is empty.</summary>
+    public Queue<UnexportedChangesChoice> UnexportedAnswers { get; } = new();
+
+    /// <summary>Gets the names each unexported-changes question listed.</summary>
+    public List<IReadOnlyList<string>> UnexportedAsked { get; } = [];
+
+    /// <summary>Gets what each unexported-changes question was asked before: the window closing or the ARTCC switching.</summary>
+    public List<UnexportedChangesContext> UnexportedContexts { get; } = [];
+
+    /// <summary>Gets or sets the answer to the unexported-changes question, for a pending or failing prompt.</summary>
+    public Func<Task<UnexportedChangesChoice>>? AskUnexported { get; set; }
+
+    public Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context)
+    {
+        UnexportedAsked.Add(names);
+        UnexportedContexts.Add(context);
+        if (AskUnexported is { } ask)
+        {
+            return ask();
+        }
+
+        return Task.FromResult(UnexportedAnswers.Count > 0 ? UnexportedAnswers.Dequeue() : UnexportedChangesChoice.Leave);
+    }
+
+    /// <summary>Gets the answers to the combined unsaved-and-unexported question, in order; DiscardAndLeave once it is empty.</summary>
+    public Queue<UnsavedAndUnexportedChoice> CombinedAnswers { get; } = new();
+
+    /// <summary>Gets each combined question asked: the open copy's name and the names it listed.</summary>
+    public List<(string OpenName, IReadOnlyList<string> Names)> CombinedAsked { get; } = [];
+
+    /// <summary>Gets what each combined question was asked before: the window closing or the ARTCC switching.</summary>
+    public List<UnexportedChangesContext> CombinedContexts { get; } = [];
+
+    /// <summary>Gets or sets the answer to the combined question, for a pending or failing prompt.</summary>
+    public Func<Task<UnsavedAndUnexportedChoice>>? AskCombined { get; set; }
+
+    public Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+        string openName,
+        IReadOnlyList<string> names,
+        UnexportedChangesContext context
+    )
+    {
+        CombinedAsked.Add((openName, names));
+        CombinedContexts.Add(context);
+        if (AskCombined is { } ask)
+        {
+            return ask();
+        }
+
+        return Task.FromResult(CombinedAnswers.Count > 0 ? CombinedAnswers.Dequeue() : UnsavedAndUnexportedChoice.DiscardAndLeave);
+    }
 }
 
 /// <summary>The UI thread as a queue: each test runs the posted actions when, and in the order, it chooses.</summary>

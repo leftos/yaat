@@ -2407,7 +2407,7 @@ For a parking start, **Pick on map** beside the Parking field opens a map of the
 
 **Assign Gate**, beside **Pick on map**, opens the same map as "Assign gate — {airport}" with the airport's stands ranked for this aircraft. Each stand is coloured by its reason (green preferred, red too small, purple another airline's, grey taken) and listed on the right as "{stand}: {reason}": "preferred for {airline}", "fits", "too small (span cap {cap} ft)", "another airline's" or "taken until {time}". Three modes choose the stand **OK** writes. **Random** draws a free stand that fits, from the best tier. **In area** draws one inside the parking area picked in the drop-down. **From map** leaves the choice to your click. A stand that does not fit can still be clicked and assigned: the status line names the reason and says it is assigned anyway. When no free stand fits, nothing is selected and the status line reads "No free stand fits; parking unchanged". While navdata is still loading the picker notes "Navdata loading; ranking without airline tags". The pick is one "Edit parking" undo step, as with **Pick on map**.
 
-**Undo** and **Redo** step through every edit, and their tooltips name the step. **Save** (or Ctrl+S) writes the copy, first applying the field you are typing in. A marker beside Save shows unsaved edits, and closing the window asks whether to save them.
+**Undo** and **Redo** step through every edit, and their tooltips name the step. **Save** (or Ctrl+S) writes the copy, first applying the field you are typing in. A marker beside Save shows unsaved edits. Opening another copy while this one has unsaved edits asks whether to save them; closing the window or switching ARTCC asks too, as described under Exporting JSON.
 
 ### Live Findings
 
@@ -2421,13 +2421,20 @@ Findings about the scenario as a whole show in the status bar. An editor opened 
 
 ### Exporting JSON
 
-YAAT never sends anything to vNAS: export the JSON, then upload it on the vNAS site yourself.
+YAAT never sends anything to vNAS: export the JSON, then upload it on the vNAS site yourself, as the [vNAS training documentation](https://docs.virtualnas.net/data-admin/training/) describes.
 
 - **Export JSON...** writes the selected working copy with every field kept.
 - **Export clean JSON...** leaves out the fields YAAT does not model and the YAAT-only parts.
 - **Export all unexported...** writes every copy with unexported changes, as full JSON, into a folder you pick.
 
 If the copy is open with unsaved edits, the editor asks first: **Yes** saves and exports, **No** drops the edits and exports the last saved file, **Cancel** stops. A copy with validation errors is not exported. YAAT-only parts (YAAT's own generators, live-session settings, taxi time, RPO notes) are named in a warning, and a target folder inside the vNAS cache is refused. Exporting clears the **Unexported** badge.
+
+**Closing or switching ARTCC.** Closing the Scenario Editor or switching ARTCC asks first when copies have changes you have not exported. A copy counts as unexported when it was never exported or differs from its last export, so a new scenario asks on every close until you export it.
+
+- "Unexported changes" lists the scenarios ("These scenarios have changes you have not exported:") with **Export all**, **Close without exporting** (**Switch without exporting** on an ARTCC switch) and **Cancel**.
+- When the open copy also has unsaved edits, one combined question, "Unsaved and unexported changes" ("{name} has unsaved changes."), offers **Save and export all**, **Save and close without exporting**, **Discard and close** and **Cancel** (on a switch **Save and switch without exporting** and **Discard and switch**).
+- **Export all** asks for a folder and writes every listed copy there; the files are named "{ARTCC}-{name}-{id}.json" when the copies span ARTCCs. If a copy cannot be written the editor stays open and says "Could not export {name}: {reason}".
+- **Cancel** changes nothing.
 
 ### Airport Editor
 

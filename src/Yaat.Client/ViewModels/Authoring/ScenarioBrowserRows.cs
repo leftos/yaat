@@ -18,7 +18,10 @@ internal sealed record ScenarioBrowserSnapshot(
     IReadOnlyList<string> Problems
 );
 
-/// <summary>Builds the browser rows from <see cref="LocalScenarioStore.Load"/>; runs off the UI thread.</summary>
+/// <summary>
+/// Builds the browser rows from <see cref="LocalScenarioStore.Load"/>. It may run on any thread: loads run it off the UI
+/// thread, and the close and switch-ARTCC guard runs it on the UI thread.
+/// </summary>
 internal static class ScenarioBrowserRows
 {
     // StoreProblem.FileName names a file relative to the ARTCC folder with LocalScenarioStore's private folder names

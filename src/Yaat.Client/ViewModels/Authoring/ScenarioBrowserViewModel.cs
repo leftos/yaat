@@ -26,6 +26,9 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     private IReadOnlyList<string> _artccs = [];
     private CancellationTokenSource _runCts = new();
     private RowSelection? _pendingSelection;
+
+    // The switch guard still waiting on the user's answer; null when none is pending.
+    private Task<bool>? _switchGuard;
     private string? _artcc;
     private int _loadSeq;
     private int _resyncSeq;
@@ -159,10 +162,10 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     public Task ArtccSwitch { get; private set; } = Task.CompletedTask;
 
     /// <summary>
-    /// Gets or sets what is asked before the open scenario is left (the window closing, an ARTCC switch): true to go on.
-    /// The editor sets it to its unsaved-changes question; with no editor it always answers true.
+    /// Gets or sets what the open working copy with unsaved edits is, read on the UI thread when the window closes or the
+    /// ARTCC switches: null when nothing is open or nothing is unsaved. The editor sets it; with no editor it answers null.
     /// </summary>
-    public Func<Task<bool>> LeaveGuard { get; set; } = () => Task.FromResult(true);
+    public Func<UnsavedOpenCopy?> UnsavedCopy { get; set; } = () => null;
 
     /// <summary>
     /// Gets or sets what is asked, on the UI thread, before an import that keeps its id replaces a working copy (its ARTCC
@@ -171,13 +174,21 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     /// </summary>
     public Func<string, string, Task<bool>> ReplaceGuard { get; set; } = (_, _) => Task.FromResult(true);
 
-    /// <summary>Whether the window may close now: the <see cref="LeaveGuard"/>'s answer.</summary>
+    /// <summary>
+    /// Whether the window may close now. The rows are re-read, then one question is asked: the combined unsaved-and-
+    /// unexported question when the open copy (<see cref="UnsavedCopy"/>) has unsaved edits, else the unexported-changes
+    /// question when copies have unexported changes. Nothing is saved, discarded or exported before the answer. With
+    /// nothing to ask the task is already complete.
+    /// </summary>
     /// <returns>True to close.</returns>
-    public Task<bool> CanCloseAsync() => LeaveGuard();
+    public Task<bool> CanCloseAsync() => AskBeforeLeaving(UnexportedChangesContext.Close);
 
-    /// <summary>Whether the browser may switch to another ARTCC now: the <see cref="LeaveGuard"/>'s answer.</summary>
+    /// <summary>
+    /// Whether the browser may switch to another ARTCC now, asked as <see cref="CanCloseAsync"/> asks it about the ARTCC
+    /// being left.
+    /// </summary>
     /// <returns>True to switch.</returns>
-    public Task<bool> CanSwitchArtccAsync() => LeaveGuard();
+    public Task<bool> CanSwitchArtccAsync() => AskBeforeLeaving(UnexportedChangesContext.SwitchArtcc);
 
     /// <summary>
     /// Re-reads the rows after the editor saved a working copy, so its name and badges show; does nothing when the copy's
@@ -324,6 +335,12 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
             return;
         }
 
+        if (_switchGuard is not null)
+        {
+            OnPropertyChanged(nameof(SelectedArtcc));
+            return;
+        }
+
         Task<bool> guard = CanSwitchArtccAsync();
         if (guard.IsCompleted)
         {
@@ -336,6 +353,7 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
             return;
         }
 
+        _switchGuard = guard;
         ArtccSwitch = SwitchAfterGuardAsync(value, guard);
     }
 
@@ -352,7 +370,8 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
         return SwitchToAsync(value);
     }
 
-    // A guard that asks the user: its answer is applied through the post, and a failed guard refuses the switch.
+    // A guard that asks the user: its answer is applied through the post, and a failed guard refuses the switch. While it
+    // is pending, another pick snaps the selector back without asking.
     private async Task SwitchAfterGuardAsync(string value, Task<bool> guard)
     {
         bool allowed;
@@ -367,7 +386,12 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
         }
 
         Task switching = Task.CompletedTask;
-        await OnUiAsync(() => switching = SwitchIfAllowed(value, allowed)).ConfigureAwait(false);
+        await OnUiAsync(() =>
+            {
+                _switchGuard = null;
+                switching = SwitchIfAllowed(value, allowed);
+            })
+            .ConfigureAwait(false);
         await switching.ConfigureAwait(false);
     }
 
@@ -500,6 +524,152 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
         }
     }
 
+    // On the UI thread: re-reads the rows (another tool may have written copies since the last load), then asks one
+    // question, the combined one when the open copy has unsaved edits, else the unexported one when copies are marked;
+    // with neither it answers true at once. A failed re-read answers Cancel, with a notice.
+    private Task<bool> AskBeforeLeaving(UnexportedChangesContext context)
+    {
+        if (_disposed)
+        {
+            return Task.FromResult(true);
+        }
+
+        if (!TryRereadRows())
+        {
+            return Task.FromResult(false);
+        }
+
+        ScenarioBrowserRowViewModel[] marked = MarkedRows();
+        if (UnsavedCopy() is { } open)
+        {
+            return AskUnsavedAndUnexportedAsync(open, ListedWith(open, marked), context);
+        }
+
+        return ((marked.Length == 0) || (_artcc is not { } artcc)) ? Task.FromResult(true) : AskUnexportedAsync(artcc, marked, context);
+    }
+
+    // On the UI thread: false, with a notice, when the shown ARTCC's rows cannot be re-read.
+    private bool TryRereadRows()
+    {
+        if (_artcc is not { } artcc)
+        {
+            return true;
+        }
+
+        try
+        {
+            ApplySnapshot(Interlocked.Increment(ref _loadSeq), ScenarioBrowserRows.Read(_services.Store, artcc), null);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "re-reading the rows before asking about unexported changes");
+            AddNotice($"Unexported changes: {ex.Message}");
+            return false;
+        }
+    }
+
+    // The marked copies' saved names with the open copy among them in row order under its edited name (saving leaves it
+    // unexported), or last when it has no row shown.
+    private string[] ListedWith(UnsavedOpenCopy open, ScenarioBrowserRowViewModel[] marked)
+    {
+        bool shown = open.ArtccId == _artcc;
+        bool IsOpenRow(ScenarioBrowserRowViewModel r) => shown && (r.Id == open.Id) && !r.IsCorrupt;
+        string[] names = [.. LocalRows.Where(r => marked.Contains(r) || IsOpenRow(r)).Select(r => IsOpenRow(r) ? open.Name : r.Name)];
+        return FirstNames(LocalRows.Any(IsOpenRow) ? names : [.. names, open.Name]);
+    }
+
+    // Plain awaits: the answer is acted on in the caller's context, the UI thread, where the editor saves or discards.
+    private async Task<bool> AskUnsavedAndUnexportedAsync(UnsavedOpenCopy open, string[] names, UnexportedChangesContext context)
+    {
+        UnsavedAndUnexportedChoice choice;
+        try
+        {
+            choice = await _services.Prompts.AskUnsavedAndUnexportedAsync(open.Name, names, context);
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "asking about unsaved and unexported changes");
+            AddNotice($"Unexported changes: {ex.Message}");
+            return false;
+        }
+
+        return choice switch
+        {
+            UnsavedAndUnexportedChoice.DiscardAndLeave => open.Discard(),
+            UnsavedAndUnexportedChoice.SaveAndLeave => await open.SaveAsync(),
+            UnsavedAndUnexportedChoice.SaveAndExportAll => await open.SaveAsync() && await ExportAllAfterSaveAsync(open),
+            _ => false,
+        };
+    }
+
+    // Save and export all, once the open copy is saved: the rows are re-read on the UI thread, then every marked copy of
+    // the shown ARTCC and the open copy, wherever its ARTCC is, are exported.
+    private async Task<bool> ExportAllAfterSaveAsync(UnsavedOpenCopy open)
+    {
+        bool read = false;
+        ExportJob[] jobs = [];
+        await OnUiAsync(() =>
+            {
+                read = TryRereadRows();
+                jobs = JobsWith(open);
+            })
+            .ConfigureAwait(false);
+        if (!read)
+        {
+            return false;
+        }
+
+        return (jobs.Length == 0) || await ExportAllBeforeLeavingAsync(jobs).ConfigureAwait(false);
+    }
+
+    // The shown ARTCC's marked copies as full exports, with the open copy added when it is not among them.
+    private ExportJob[] JobsWith(UnsavedOpenCopy open)
+    {
+        ExportJob[] marked = (_artcc is { } artcc) ? FullJobs(artcc, MarkedRows()) : [];
+        if (marked.Any(j => (j.Artcc == open.ArtccId) && (j.Row.Id == open.Id)))
+        {
+            return marked;
+        }
+
+        var row = new ScenarioBrowserRowViewModel
+        {
+            Id = open.Id,
+            Name = open.Name,
+            Kind = ScenarioRowKind.WorkingCopy,
+        };
+        return [.. marked, new ExportJob(open.ArtccId, row, ExportKind.Full)];
+    }
+
+    private async Task<bool> AskUnexportedAsync(string artcc, ScenarioBrowserRowViewModel[] marked, UnexportedChangesContext context)
+    {
+        UnexportedChangesChoice choice = await AskUnexportedChoiceAsync(FirstNames([.. marked.Select(r => r.Name)]), context).ConfigureAwait(false);
+        return choice switch
+        {
+            UnexportedChangesChoice.Leave => true,
+            UnexportedChangesChoice.ExportAll => await ExportAllBeforeLeavingAsync(FullJobs(artcc, marked)).ConfigureAwait(false),
+            _ => false,
+        };
+    }
+
+    // A prompt that fails answers Cancel, with a notice.
+    private async Task<UnexportedChangesChoice> AskUnexportedChoiceAsync(string[] names, UnexportedChangesContext context)
+    {
+        try
+        {
+            return await _services.Prompts.AskUnexportedChangesAsync(names, context).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "asking about unexported changes");
+            await OnUiAsync(() => AddNotice($"Unexported changes: {ex.Message}")).ConfigureAwait(false);
+            return UnexportedChangesChoice.Cancel;
+        }
+    }
+
+    private static string[] FirstNames(string[] names) =>
+        (names.Length <= UnexportedNamesShown) ? names : [.. names.Take(UnexportedNamesShown), $"and {names.Length - UnexportedNamesShown} more"];
+
     // Runs the action through the post seam and finishes when it has run.
     private Task OnUiAsync(Action action)
     {
@@ -605,3 +775,11 @@ public sealed class ScenarioWorkingCopyReplacedEventArgs(string artccId, string 
     /// <summary>Gets the replaced copy's id.</summary>
     public string Id { get; } = id;
 }
+
+/// <summary>The open working copy with unsaved edits, as the editor holds it, and what saving or discarding it does.</summary>
+/// <param name="ArtccId">The ARTCC whose folder holds it.</param>
+/// <param name="Id">Its id.</param>
+/// <param name="Name">Its name as edited, which the question names.</param>
+/// <param name="SaveAsync">Saves it: true once saved and still the copy open.</param>
+/// <param name="Discard">Closes it without saving: false when another copy was opened meanwhile.</param>
+public sealed record UnsavedOpenCopy(string ArtccId, string Id, string Name, Func<Task<bool>> SaveAsync, Func<bool> Discard);

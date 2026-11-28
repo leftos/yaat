@@ -1061,7 +1061,7 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             return Task.FromResult(ConflictAnswers.Count > 0 ? ConflictAnswers.Dequeue() : new ImportConflictAnswer(ImportIdChoice.Skip, false));
         }
 
-        // The browser alone never asks it: only the editor's leave guard does.
+        // The browser alone never asks it: only the editor's UnsavedCopy hook does.
         public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context) =>
             Task.FromResult(UnsavedChangesChoice.Cancel);
 
@@ -1081,6 +1081,15 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             ReplaceRunningAsked.Add(scenarioName);
             return Task.FromResult(ConfirmReplaceRunning);
         }
+
+        public Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context) =>
+            Task.FromResult(UnexportedChangesChoice.Leave);
+
+        public Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+            string openName,
+            IReadOnlyList<string> names,
+            UnexportedChangesContext context
+        ) => Task.FromResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

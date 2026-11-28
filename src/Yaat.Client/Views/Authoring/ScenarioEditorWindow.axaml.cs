@@ -32,6 +32,9 @@ public partial class ScenarioEditorWindow : Window
     // Set once an asked close was allowed, so the close it starts again goes through.
     private bool _closeAllowed;
 
+    // The close guard still waiting on the user's answer; a close while it is set is cancelled without asking again.
+    private Task<bool>? _pendingClose;
+
     // Parameterless ctor for the Avalonia designer / XamlLoader: no ARTCC to edit, so it lists nothing.
     public ScenarioEditorWindow()
         : this(new UserPreferences()) { }
@@ -147,7 +150,8 @@ public partial class ScenarioEditorWindow : Window
     }
 
     // The text field still being typed in is taken first. An application or OS shutdown closes without asking; otherwise
-    // an answer already known decides this close, and one that asks the user cancels it and closes again once allowed.
+    // an answer already known decides this close, and one that asks the user cancels it and closes again once allowed. A
+    // close while that answer is pending is cancelled without asking again.
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         if (_closeAllowed)
@@ -159,6 +163,12 @@ public partial class ScenarioEditorWindow : Window
         AircraftView.CommitFocusedField();
         if (ClosesForShutdown(e.CloseReason))
         {
+            return;
+        }
+
+        if (_pendingClose is not null)
+        {
+            e.Cancel = true;
             return;
         }
 
@@ -175,6 +185,7 @@ public partial class ScenarioEditorWindow : Window
         }
 
         e.Cancel = true;
+        _pendingClose = guard;
         _ = CloseWhenAllowedAsync(guard);
     }
 
@@ -212,6 +223,7 @@ public partial class ScenarioEditorWindow : Window
             allowed = false;
         }
 
+        _pendingClose = null;
         if (allowed)
         {
             _closeAllowed = true;

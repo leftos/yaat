@@ -13,6 +13,9 @@ public sealed partial class ScenarioBrowserViewModel
     /// <summary>The status line when Export all unexported finds no copy with unexported changes.</summary>
     public const string NothingToExportText = "Nothing to export.";
 
+    // How many copy names the unexported-changes question lists before "and N more".
+    private const int UnexportedNamesShown = 5;
+
     /// <summary>
     /// Gets or sets what is asked, on the UI thread, before a working copy (its ARTCC and id) is exported: true to export
     /// its saved file, false to stop. The editor sets it to ask when that copy is open with unsaved edits; with no editor
@@ -54,37 +57,93 @@ public sealed partial class ScenarioBrowserViewModel
     private async Task ExportAllUnexportedAsync()
     {
         string artcc = _artcc!;
-        ScenarioBrowserRowViewModel[] marked = [.. LocalRows.Where(r => r.HasUnexportedChanges && !r.IsCorrupt)];
+        ScenarioBrowserRowViewModel[] marked = MarkedRows();
         if (marked.Length == 0)
         {
             await OnUiAsync(() => StatusText = NothingToExportText).ConfigureAwait(false);
             return;
         }
 
-        string? folder = await PromptAsync<string?>("Export all", () => _services.Prompts.PickExportFolderAsync(), null).ConfigureAwait(false);
-        if ((folder is null) || !await AllGuardsAllowAsync(artcc, marked).ConfigureAwait(false))
+        await ExportMarkedAsync(FullJobs(artcc, marked)).ConfigureAwait(false);
+    }
+
+    private static ExportJob[] FullJobs(string artcc, IEnumerable<ScenarioBrowserRowViewModel> rows) =>
+        [.. rows.Select(r => new ExportJob(artcc, r, ExportKind.Full))];
+
+    // The shown ARTCC's working copies with unexported changes, corrupt ones left out.
+    private ScenarioBrowserRowViewModel[] MarkedRows() => [.. LocalRows.Where(r => r.HasUnexportedChanges && !r.IsCorrupt)];
+
+    // Export all, answered at the unexported-changes question: true once every marked copy was written; a cancelled
+    // folder pick or guard stays, and a copy that failed stays with the status line naming it.
+    private async Task<bool> ExportAllBeforeLeavingAsync(ExportJob[] jobs)
+    {
+        IReadOnlyList<ExportFailure>? failures = await ExportMarkedAsync(jobs).ConfigureAwait(false);
+        if (failures is null)
         {
-            return;
+            return false;
+        }
+
+        if (failures.Count == 0)
+        {
+            return true;
+        }
+
+        ExportFailure first = failures[0];
+        await OnUiAsync(() => StatusText = $"Could not export {first.Name}: {first.Reason}").ConfigureAwait(false);
+        return false;
+    }
+
+    // Picks the folder, asks each copy's guard, exports every job's copy into it, then re-reads the shown ARTCC's rows.
+    // Null when the pick was cancelled or a guard refused (nothing written); else the copies that were not written.
+    private async Task<IReadOnlyList<ExportFailure>?> ExportMarkedAsync(ExportJob[] jobs)
+    {
+        string? folder = await PromptAsync<string?>("Export all", () => _services.Prompts.PickExportFolderAsync(), null).ConfigureAwait(false);
+        if ((folder is null) || !await AllGuardsAllowAsync(jobs).ConfigureAwait(false))
+        {
+            return null;
         }
 
         var export = new ScenarioExportViewModel(_services.Store, _services.Clock);
-        int written = 0;
-        foreach (ScenarioBrowserRowViewModel row in marked)
+        bool severalArtccs = jobs.Select(j => j.Artcc).Distinct(StringComparer.Ordinal).Skip(1).Any();
+        List<ExportFailure> failures = [];
+        foreach (ExportJob job in jobs)
         {
-            var job = new ExportJob(artcc, row, ExportKind.Full);
-            string path = Path.Combine(folder, ScenarioExportViewModel.BulkFileName(row.Name, row.Id));
-            if (
-                (await PrepareExportAsync(export, job).ConfigureAwait(false) is { } result)
-                && await WriteExportAsync(export, job, result, path).ConfigureAwait(false)
-            )
+            string path = Path.Combine(folder, BulkFileName(job, severalArtccs));
+            if (await ExportOneAsync(export, job, path).ConfigureAwait(false) is { } reason)
             {
-                written++;
+                failures.Add(new ExportFailure(job.Row.Name, reason));
             }
         }
 
-        await OnUiAsync(() => StatusText = $"Exported {written} of {marked.Length} {(marked.Length == 1 ? "scenario" : "scenarios")} to {folder}.")
+        int written = jobs.Length - failures.Count;
+        await OnUiAsync(() => StatusText = $"Exported {written} of {jobs.Length} {(jobs.Length == 1 ? "scenario" : "scenarios")} to {folder}.")
             .ConfigureAwait(false);
-        await ReloadAsync(artcc, null).ConfigureAwait(false);
+        if (_artcc is { } shown)
+        {
+            await ReloadAsync(shown, null).ConfigureAwait(false);
+        }
+
+        return failures;
+    }
+
+    // A job's file name in Export all: "{name}-{id}.json", led by "{ARTCC}-" when the jobs span several ARTCCs so that two
+    // copies with the same name and id do not write the same file.
+    private static string BulkFileName(ExportJob job, bool withArtcc)
+    {
+        string name = ScenarioExportViewModel.BulkFileName(job.Row.Name, job.Row.Id);
+        return withArtcc ? $"{job.Artcc}-{name}" : name;
+    }
+
+    // One copy's bulk export: null once written, else why it was not.
+    private async Task<string?> ExportOneAsync(ScenarioExportViewModel export, ExportJob job, string path)
+    {
+        PreparedExport prepared = await PrepareExportAsync(export, job).ConfigureAwait(false);
+        if (prepared.Result is not { } result)
+        {
+            return prepared.Failure;
+        }
+
+        return await WriteExportAsync(export, job, result, path).ConfigureAwait(false);
     }
 
     private async Task ExportSelectedAsync(ExportKind kind)
@@ -101,13 +160,13 @@ public sealed partial class ScenarioBrowserViewModel
         }
 
         var export = new ScenarioExportViewModel(_services.Store, _services.Clock);
-        ExportResult? result = await PrepareExportAsync(export, job).ConfigureAwait(false);
+        ExportResult? result = (await PrepareExportAsync(export, job).ConfigureAwait(false)).Result;
         string suggested = ScenarioExportViewModel.FileName(row.Name, row.Id);
         string? path =
             (result is null)
                 ? null
                 : await PromptAsync<string?>(row.Name, () => _services.Prompts.PickExportPathAsync(suggested), null).ConfigureAwait(false);
-        if ((path is not null) && (result is { } prepared) && await WriteExportAsync(export, job, prepared, path).ConfigureAwait(false))
+        if ((path is not null) && (result is { } prepared) && (await WriteExportAsync(export, job, prepared, path).ConfigureAwait(false) is null))
         {
             await OnUiAsync(() => StatusText = $"Exported {row.Name} to {path}.").ConfigureAwait(false);
         }
@@ -116,11 +175,11 @@ public sealed partial class ScenarioBrowserViewModel
     }
 
     // Asks the guard for each copy in turn (only the open copy with unsaved edits asks the user); false at the first no.
-    private async Task<bool> AllGuardsAllowAsync(string artcc, IReadOnlyList<ScenarioBrowserRowViewModel> rows)
+    private async Task<bool> AllGuardsAllowAsync(ExportJob[] jobs)
     {
-        foreach (ScenarioBrowserRowViewModel row in rows)
+        foreach (ExportJob job in jobs)
         {
-            if (!await PromptAsync(row.Name, () => ExportGuard(artcc, row.Id), false).ConfigureAwait(false))
+            if (!await PromptAsync(job.Row.Name, () => ExportGuard(job.Artcc, job.Row.Id), false).ConfigureAwait(false))
             {
                 return false;
             }
@@ -129,35 +188,40 @@ public sealed partial class ScenarioBrowserViewModel
         return true;
     }
 
-    // The prepared export when it can be written; a refused or corrupt copy is a notice, a failure to read it too.
-    private async Task<ExportResult?> PrepareExportAsync(ScenarioExportViewModel export, ExportJob job)
+    // The prepared export when it can be written, else why not; a refused or corrupt copy is a notice, a failure to read
+    // it too.
+    private async Task<PreparedExport> PrepareExportAsync(ScenarioExportViewModel export, ExportJob job)
     {
-        (bool read, ExportResult? result) = await TryStoreAsync(
+        (ExportResult? result, string? failure) = await TryStepAsync(
                 job.Row.Name,
                 "preparing the export of",
                 () => export.Prepare(job.Artcc, job.Row.Id, job.Kind)
             )
             .ConfigureAwait(false);
-        if (!read || (result is null))
+        if (result is null)
         {
-            return null;
+            return new PreparedExport(null, failure ?? "it could not be read");
         }
 
         if (result.Outcome != ExportOutcome.Written)
         {
             await OnUiAsync(() => AddNotice(ScenarioExportViewModel.RefusalNotice(job.Row.Name, result))).ConfigureAwait(false);
-            return null;
+            return new PreparedExport(null, ScenarioExportViewModel.RefusalReason(result));
         }
 
-        return result;
+        return new PreparedExport(result, null);
     }
 
-    // Writes and records the export, then posts its warnings; a failed write is a notice and records nothing.
-    private async Task<bool> WriteExportAsync(ScenarioExportViewModel export, ExportJob job, ExportResult result, string path)
+    // Writes and records the export, then posts its warnings: null once written. A failed write is a notice, records
+    // nothing and gives its reason.
+    private async Task<string?> WriteExportAsync(ScenarioExportViewModel export, ExportJob job, ExportResult result, string path)
     {
-        if (!await TryDoAsync(job.Row.Name, "exporting", () => export.Write(job.Artcc, job.Row.Id, result, path)).ConfigureAwait(false))
+        if (
+            await TryStepAsync(job.Row.Name, "exporting", () => export.Write(job.Artcc, job.Row.Id, result, path)).ConfigureAwait(false) is
+            { } failure
+        )
         {
-            return false;
+            return failure;
         }
 
         IReadOnlyList<string> notices = ScenarioExportViewModel.WarningNotices(job.Row.Name, job.Kind, result);
@@ -173,9 +237,15 @@ public sealed partial class ScenarioBrowserViewModel
                 .ConfigureAwait(false);
         }
 
-        return true;
+        return null;
     }
 
     // One copy's export: its ARTCC, its row and the kind.
     private sealed record ExportJob(string Artcc, ScenarioBrowserRowViewModel Row, ExportKind Kind);
+
+    // A prepared export, or null and why it cannot be written.
+    private sealed record PreparedExport(ExportResult? Result, string? Failure);
+
+    // A marked copy Export all did not write: its name and why.
+    private sealed record ExportFailure(string Name, string Reason);
 }
