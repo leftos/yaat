@@ -9,9 +9,9 @@
 ### M2 Export (5/9 done)
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (8/16 done)
+### M3 Routes, timing and metrics (8/17 done)
 - [/] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
-- [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
+- [/] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
 - [/] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2509 YAATEdit M3.12: N-number finder (sub-issue of YAAT-1989) · release vNext
@@ -29,11 +29,12 @@
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
     - [/] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
-    - [ ] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
+    - [/] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
     - [ ] YAAT-2952 Merge window: one public field-label and section table from Yaat.Sim
   - [/] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
-  - [ ] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
+  - [/] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
   - [/] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
+    - [ ] YAAT-2968 Spawn planner: correct the gap guidance, working-time and compress-warning texts from the aviation review
   - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext
   - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext
   - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
@@ -60,6 +61,9 @@
   - [ ] YAAT-2953 Airport Editor: a feature cannot gain a supported key it lacks (new runway has no pattern altitude)
   - [ ] YAAT-2955 Airport Editor: an optional runway key cannot be cleared once set
   - [ ] YAAT-2959 User guide: document the Airport Editor imagery settings and retake the Ground settings screenshot
+  - [ ] YAAT-2964 Pass the navdata database into RouteStamp.Apply instead of reading the singleton
+  - [ ] YAAT-2965 Route composer: ask before New or another route drops unsaved edits
+  - [ ] YAAT-2966 Route composer: let the author select and delete a saved point that no longer resolves
 - [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext
 - [ ] YAAT-2961 Scenario Editor: a resync overwrites the Export all result after the close question
 
@@ -143,7 +147,6 @@
 
 ## Bug reports and feature requests
 
-- [/] YAAT-2946 SQALL is refused in a chained command (WAIT 5 SQALL preset) · release vNext
 - [!] YAAT-2355 Loading a saved layout does not move the main window to its saved position
 - [!] YAAT-539 vTBFM: follow each user's chosen YAAT room (contributed PR)
 
@@ -1544,7 +1547,7 @@
 
 ## Test infrastructure and CI
 
-### 1 Defects (29/40 done)
+### 1 Defects (29/41 done)
 - [ ] YAAT-177 Find the Yaat.Client.Tests hang with hangdump; give test-all a timeout
 - [ ] YAAT-1277 Find the test-host crash (signal 11) in Yaat.Sim.Tests on the Mac builder
 - [ ] YAAT-1477 Point SelfHandoffTests at the bundled A1 montage scenario instead of a deleted file it always skips on
@@ -1556,6 +1559,7 @@
 - [ ] YAAT-2262 Reject NaN and Infinity in SoakRunner's --sim-hours and --sim-rate-limit
 - [ ] YAAT-2677 Point Yaat.Sim.Tests at a temp app-data folder so no test writes the real %LOCALAPPDATA%/yaat
 - [ ] YAAT-2713 Ship the OpenFlights ODbL licence text in every package, as the font licences are
+- [ ] YAAT-2967 UI tests hang when a MessageBox.Avalonia box shows a blank line under the headless platform
 
 ### 2 Refinements and rulings (3/7 done)
 - [ ] YAAT-985 Run the desktop-gated UI tests the routed builder skips before a landing counts as green
