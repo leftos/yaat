@@ -842,7 +842,10 @@ public sealed partial class LocalScenarioStore
     /// The corrupt-file rule shared by bodies, mirrors and working copies: malformed JSON, a top-level value that is not
     /// an object, or an object without a text <c>id</c> or <c>name</c>. Null when the text is a scenario.
     /// </summary>
-    internal static string? CheckScenario(string text, out JsonObject? scenario)
+    /// <param name="text">The scenario text.</param>
+    /// <param name="scenario">The parsed scenario when the text is one; null otherwise.</param>
+    /// <returns>Why the text is not a scenario; null when it is.</returns>
+    public static string? CheckScenario(string text, out JsonObject? scenario)
     {
         scenario = null;
         JsonNode? node;

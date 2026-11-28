@@ -123,6 +123,7 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         Request = request;
         Plan = plan;
         Rows = [.. plan.Rows.Select((row, index) => new ScenarioMergeRowViewModel(row, plan.IsTwoWay, index, Choose))];
+        WatchEditors();
         _clashOrder = [.. Rows.Where(row => row.IsClash).OrderBy(row => RankOf(row.Section)).ThenBy(row => row.Index)];
         var sides = MergeSides.Read(request.Texts);
         Sections = [FieldSection(sides), .. Lists.Select(list => ListSection(sides, list.Key, list.Section))];
@@ -161,8 +162,8 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     /// <summary>Gets the window's title.</summary>
     public string Title => Request.Captions.Title;
 
-    /// <summary>Gets a value indicating whether Apply is offered: every clash has a choice.</summary>
-    public bool CanApply => OpenClashCount == 0;
+    /// <summary>Gets a value indicating whether Apply is offered: every clash has a choice, no MERGED VALUE editor is open and no Apply runs.</summary>
+    public bool CanApply => (OpenClashCount == 0) && !_applying && !Rows.Any(row => row.IsEditing);
 
     /// <summary>Gets a value indicating whether Show base is offered; there is no base in a two-way merge.</summary>
     public bool CanShowBase => !IsTwoWay;
@@ -260,6 +261,7 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
 
     private void Refresh()
     {
+        ApplyError = null;
         foreach (ScenarioMergeRowViewModel row in Rows)
         {
             row.Refresh(_choices.GetValueOrDefault(row.Path), ShowBase);
