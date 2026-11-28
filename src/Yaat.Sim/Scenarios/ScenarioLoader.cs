@@ -384,18 +384,40 @@ public static class ScenarioLoader
 
             case "Coordinates":
             case "FixOrFrd":
-            {
-                string? groundAirportId = GroundSpawnAirportId(ac, primaryAirportId);
-                StartingConditions cond = ac.StartingConditions;
-                double fieldElevation = FieldElevation(groundAirportId);
-                if (IsGroundSpawn(cond.Altitude ?? fieldElevation, AuthoredSpeedSentinel(cond), fieldElevation))
+                if (IsCoordinateGroundSpawn(ac, primaryAirportId))
                 {
-                    yield return groundAirportId;
+                    yield return GroundSpawnAirportId(ac, primaryAirportId);
                 }
 
                 break;
-            }
         }
+    }
+
+    /// <summary>
+    /// True when a <c>Coordinates</c> / <c>FixOrFrd</c> spawn lands on the ground: <see cref="IsGroundSpawn"/> against the
+    /// field the spawn resolves to. <see cref="MapRequiredAirportIds"/> and <see cref="IsAirborneSpawn"/> both read it.
+    /// </summary>
+    private static bool IsCoordinateGroundSpawn(ScenarioAircraft ac, string? primaryAirportId)
+    {
+        StartingConditions cond = ac.StartingConditions;
+        double fieldElevation = FieldElevation(GroundSpawnAirportId(ac, primaryAirportId));
+        return IsGroundSpawn(cond.Altitude ?? fieldElevation, AuthoredSpeedSentinel(cond), fieldElevation);
+    }
+
+    /// <summary>
+    /// True when <paramref name="ac"/> spawns airborne, by the gate <c>LoadAircraft</c> applies: a <c>Parking</c> or
+    /// <c>OnRunway</c> start is on the ground, an <c>OnFinal</c> start is airborne, and a <c>Coordinates</c> or
+    /// <c>FixOrFrd</c> start passes the loader's ground gate. A kind the loader does not place never becomes a strip.
+    /// </summary>
+    internal static bool IsAirborneSpawn(ScenarioAircraft ac, string? primaryAirportId)
+    {
+        return ac.StartingConditions.Type switch
+        {
+            "Parking" or "OnRunway" => false,
+            "OnFinal" => true,
+            "Coordinates" or "FixOrFrd" => !IsCoordinateGroundSpawn(ac, primaryAirportId),
+            _ => false,
+        };
     }
 
     private static double FieldElevation(string? airportId) =>

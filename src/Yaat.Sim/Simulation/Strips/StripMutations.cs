@@ -447,7 +447,14 @@ public static class StripMutations
     /// docs/crc/vstrips.md Departure Strip Fields. Annotation boxes 10-18 are left empty for
     /// subsequent <c>AN</c> updates.
     /// </summary>
-    public static string[] BuildDepartureStripFields(AircraftState ac, SimScenarioState scenario, bool displayDestinationAirportIds)
+    public static string[] BuildDepartureStripFields(AircraftState ac, SimScenarioState scenario, bool displayDestinationAirportIds) =>
+        BuildDepartureStripFields(ac, scenario.SimTimeUtc, displayDestinationAirportIds);
+
+    /// <summary>
+    /// Builds a departure strip's fields at a given session clock. With no clock (a scenario aircraft not yet in a
+    /// session) the proposed departure time comes back empty; every other field prints as the engine prints it.
+    /// </summary>
+    public static string[] BuildDepartureStripFields(AircraftState ac, DateTime? simTimeUtc, bool displayDestinationAirportIds)
     {
         string[] fields = new string[DepartureFieldCount];
         for (int i = 0; i < DepartureFieldCount; i++)
@@ -461,7 +468,7 @@ public static class StripMutations
         fields[FieldIdxEquipment] = FormatEquipment(ac);
         fields[FieldIdxCid] = ac.Cid ?? "";
         fields[FieldIdxBeacon] = FormatBeacon(ac.Transponder.AssignedCode);
-        fields[FieldIdxPropDep] = FormatProposedDepartureTime(scenario);
+        fields[FieldIdxPropDep] = simTimeUtc is { } printedAt ? FormatProposedDepartureTime(printedAt) : "";
         fields[FieldIdxReqAlt] = FormatRequestedAltitude(ac.FlightPlan.Altitude);
         fields[FieldIdxDeparture] = ac.FlightPlan.Departure ?? "";
         // Field 8 (col 3 row 1) shows the departure airport, optionally with
@@ -666,7 +673,14 @@ public static class StripMutations
     /// docs/crc/vstrips.md Arrival Strip Fields. ETA is the session clock at print time plus the
     /// supplied minutes-to-arrival, formatted <c>HHmm</c>.
     /// </summary>
-    public static string[] BuildArrivalStripFields(AircraftState ac, SimScenarioState scenario, double etaMinutes)
+    public static string[] BuildArrivalStripFields(AircraftState ac, SimScenarioState scenario, double etaMinutes) =>
+        BuildArrivalStripFields(ac, scenario.SimTimeUtc, etaMinutes);
+
+    /// <summary>
+    /// Builds an arrival strip's fields at a given session clock. With no clock the ETA comes back empty; every other
+    /// field prints as the engine prints it.
+    /// </summary>
+    public static string[] BuildArrivalStripFields(AircraftState ac, DateTime? simTimeUtc, double etaMinutes)
     {
         string[] fields = new string[DepartureFieldCount];
         for (int i = 0; i < DepartureFieldCount; i++)
@@ -681,7 +695,7 @@ public static class StripMutations
         fields[FieldIdxCid] = ac.Cid ?? "";
         fields[FieldIdxBeacon] = FormatBeacon(ac.Transponder.AssignedCode);
         // Previous fix and coordination fix are controller artifacts — left empty for v1.
-        fields[FieldIdxEta] = FormatEta(scenario, etaMinutes);
+        fields[FieldIdxEta] = simTimeUtc is { } printedAt ? FormatEta(printedAt, etaMinutes) : "";
         fields[FieldIdxFlightRules] = ac.FlightPlan.FlightRules ?? "";
         fields[FieldIdxDestRemarks] = FormatDestRemarks(ac);
         return fields;
@@ -1103,12 +1117,12 @@ public static class StripMutations
     }
 
     /// <summary>
-    /// Formats the session clock at print time (<see cref="SimScenarioState.SimTimeUtc"/>) as <c>HHmm</c>
+    /// Formats a print-time session clock (<see cref="SimScenarioState.SimTimeUtc"/>) as <c>HHmm</c>
     /// for the Proposed Departure Time field. The clock is anchored at the session start and advances with
     /// the scenario, so the same strip reprints the same text on a rewind or a reconstruction.
     /// </summary>
-    internal static string FormatProposedDepartureTime(SimScenarioState scenario) =>
-        scenario.SimTimeUtc.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
+    internal static string FormatProposedDepartureTime(DateTime simTimeUtc) =>
+        simTimeUtc.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Formats a filed cruise altitude for the strip's requested-altitude box and any
@@ -1118,16 +1132,16 @@ public static class StripMutations
     public static string FormatRequestedAltitude(PlannedAltitude altitude) => FlightPlanAltitude.Format(altitude);
 
     /// <summary>
-    /// Formats the arrival's ETA as <c>HHmm</c>: the session clock at print time
+    /// Formats the arrival's ETA as <c>HHmm</c>: the print-time session clock
     /// (<see cref="SimScenarioState.SimTimeUtc"/>) plus <paramref name="minutesUntilArrival"/>.
     /// </summary>
-    internal static string FormatEta(SimScenarioState scenario, double minutesUntilArrival)
+    internal static string FormatEta(DateTime simTimeUtc, double minutesUntilArrival)
     {
         if (minutesUntilArrival < 0)
         {
             minutesUntilArrival = 0;
         }
-        DateTime eta = scenario.SimTimeUtc.AddMinutes(minutesUntilArrival);
+        DateTime eta = simTimeUtc.AddMinutes(minutesUntilArrival);
         return eta.ToString("HHmm", System.Globalization.CultureInfo.InvariantCulture);
     }
 

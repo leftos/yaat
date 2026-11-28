@@ -2,7 +2,7 @@
 
 Reference for how flight strips (full and half) work end-to-end in YAAT.
 
-Read this before changing anything under `src/Yaat.Sim/Simulation/Strips/` (`FlightStripState`, `StripMutations`, `StripRackSort`, `StripCommandHandler`, `StripRequests`, `StripChangeTracker`, `StripItemType`), `src/Yaat.Sim/Simulation/SimulationEngine.Strips.cs` (the auto-print steps, the deferred dispatch, the spawn hook, the amendment reprint), `src/Yaat.Sim/Data/Vnas/ArtccConfigResolver.cs` (bay lookup), or the strip-related entries in `src/Yaat.Sim/Commands/`.
+Read this before changing anything under `src/Yaat.Sim/Simulation/Strips/` (`FlightStripState`, `StripMutations`, `StripRackSort`, `StripCommandHandler`, `StripRequests`, `StripChangeTracker`, `StripItemType`), `src/Yaat.Sim/Simulation/SimulationEngine.Strips.cs` (the auto-print steps, the deferred dispatch, the spawn hook, the amendment reprint), `src/Yaat.Sim/Data/Vnas/ArtccConfigResolver.cs` (bay lookup), the strip-related entries in `src/Yaat.Sim/Commands/`, or the strip editor's model under `src/Yaat.Sim/Authoring/Strips/` (`StripStep`, `StripPresets`, `StripSpawnPlacement`).
 
 The same goes for these files in the sibling yaat-server repo: `src/Yaat.Server/Dtos/CrcDtos.Strips.cs`, `src/Yaat.Server/Simulation/StripBroadcaster.cs`, `src/Yaat.Server/Hubs/CrcClientState.Strips.cs`.
 
@@ -205,6 +205,8 @@ is `SimScenarioState.SimTimeUtc` as `HHmm`, and the arrival strip's ETA
 request computed. Neither reads `DateTime.UtcNow`, so a rewind or a bundle
 reconstruction re-prints the text the live session showed; the client prefixes `P`
 and never parses it.
+
+`StripMutations.BuildDepartureStripFields` and `BuildArrivalStripFields` also take the clock as a `DateTime?`, so the strip editor can build a scenario aircraft's printed fields before any session exists: with no clock the proposed departure time and the ETA come back empty and every other field prints as the engine prints it.
 
 ## State model
 
@@ -622,30 +624,24 @@ against `bayConfig.NumberOfRacks`.
 
 #### Bay vs. key disambiguation rule (HSA / HSD only)
 
-The parser can't tell at parse time whether the first whitespace-
-separated token is a bay name or part of the lookup key. The rule:
+The parser can't tell at parse time whether the first whitespace-separated token is a bay name or part of the lookup key. The rule (`CommandParser.HeadIsBaySpec`):
 
-> **The first whitespace-separated token is treated as a bay specifier
-> if and only if (a) it contains no `\` AND (b) there is at least one
-> more whitespace-separated token after it.**
+> **The first whitespace-separated token is a bay specifier if and only if it contains a `/` AND contains no `\`.** Bay specifiers are facility-qualified (`FAC/Bay[/rack]`); anything else is half-strip content.
 
 Examples:
 
 | Input | Bay? | Tokens |
 |-------|------|--------|
 | `HSA` | — | `[]` |
-| `HSA key` | — | `["key"]` (single token → not a bay) |
+| `HSA key` | — | `["key"]` |
 | `HSA key\new1\new2` | — | `["key","new1","new2"]` (first token has `\`) |
-| `HSA Ground key\new1` | `Ground` | `["key","new1"]` |
-| `HSA Ground/2 key\new1` | `Ground` rack 2 | `["key","new1"]` |
+| `HSA OAK/Ground key\new1` | `OAK/Ground` | `["key","new1"]` |
+| `HSA OAK/Ground/2 key\new1` | `OAK/Ground` rack 2 | `["key","new1"]` |
 | `HSD` | — | `[]` |
 | `HSD key` | — | `["key"]` |
-| `HSD Ground key` | `Ground` | `["key"]` |
+| `HSD OAK/Ground key` | `OAK/Ground` | `["key"]` |
 
-Consequence: a single-token global `HSD Ground` is interpreted as
-"delete the half-strip whose first line is `Ground`", not as
-"aircraft-scoped delete in bay `Ground`". Aircraft-scoped delete with
-no bay is always just `HSD`.
+Consequence: `HSD Ground` is "delete the half-strip whose first line is `Ground`", never a bay-scoped delete. Aircraft-scoped delete with no bay is always just `HSD`. The strip editor's `HSA` writer (`StripCommandText`) refuses a first line whose first word has a `/` and no `\`, or starts with `HSTRIP_`, since the parser would read it as a bay or an id.
 
 Parsing for `HSA` is capped at 7 tokens total (1 lookup key + 6 new
 lines). `HSD` is capped at 1 token.
@@ -800,6 +796,22 @@ Create and delete blank strips:
   either way it takes the lowest rack, then the lowest index, so a replay
   deletes the same blank. The facility qualifier's `/` does not count as a
   rack: a rack was given only when the reference carries a second `/`.
+
+## Strip editor model
+
+The YAATEdit strip editor's model lives in `src/Yaat.Sim/Authoring/Strips/` (UI-free, no room). It reads a scenario aircraft's strip steps out of its preset commands and writes them back; a strip step is one preset holding a strip command.
+
+- **`StripStep`** (record): `Kind` (`StripStepKind`), `TimeOffsetSeconds` (the preset's time offset), `PresetId`, then the fields its kind uses: `FacilityId` / `BayName` / `Rack` / `Slot` (1-based) for a bay, `Box` / `Text` for an annotation, `Lines` for a half-strip. An external step also carries `SourceText` and `ConditionText`; `DerivedTimeSeconds` is reserved and always null.
+- **`StripStepKind`** is one preset strip command each: `Move` (`STRIP`), `Annotate` (`AN`), `Offset` (`STRIPO`), `Delete` (`STRIPD`), `HalfCreate` (`HSC`), `HalfAmend` (`HSA`), `HalfMove` (`HSM`), `HalfOffset` (`HSO`), `HalfSlide` (`HSS`), `HalfDelete` (`HSD`), and `Other` for a strip command the editor shows but never writes (`SCAN`, separators, `RACKSORT`, blanks).
+- **`StripBox`** is a closed set of annotation boxes in three spellings: the parser's canonical box (`1`..`9`, `8a`, `8b`), the one the editor writes (`10`..`18`, `8a`, `8b`) and the label.
+
+**Owned vs external.** `StripPresets.Read(aircraft, primaryAirportId)` classifies every preset of the aircraft, by parsing it with `CommandParser.ParseCompound`, on every read (nothing is stored). A preset is an **owned strip step** when its whole command is one unconditional strip command in the editor's spelling: aircraft-scoped, no bay-scoped or `HSTRIP_` half-strip form, no lookup key, and for an arrival's full strip its `ARRIVAL_{callsign}` id. Any other preset holding a strip command (a condition, a compound, a keyed or bay-scoped form) is an **external strip step**, read with its source text and condition and never rewritten. `Read` returns both lists in preset order.
+
+**Writing.** `StripPresets.Write(aircraft, primaryAirportId, steps, idFactory)` returns the aircraft's new preset list and leaves the aircraft unchanged (the caller assigns it). Every preset that is not an owned step is kept as the same object in its order; the owned block is replaced by the given steps sorted by time, then move and create, then annotate and amend, then offset and slide, then delete (ties keep the given order), where the first owned preset stood or appended when there was none. A step whose `PresetId` names an owned preset keeps that id and its extension data; every other step gets an id from `idFactory`. A step that cannot be written (an `Other` or external step, a missing bay, a rack or slot below 1, more than five half-strip lines, an `HSA` first word that would read back as a bay or id) throws `ArgumentException`. `StripCommandText` formats each kind and removes text the parser would split (`,`, `;`, their word aliases, and `\` inside a half-strip line).
+
+**Arrival or departure forms.** Only an aircraft the engine would give an arrival strip uses `AN` / `STRIP` / `STRIPO` / `STRIPD` with its `ARRIVAL_{callsign}` id: it spawns airborne (`ScenarioLoader.IsAirborneSpawn`, sharing the loader's ground gate with `MapRequiredAirportIds`), is no live-traffic shadow, and is filed into the primary airport (`StripRequests.IsArrivalCandidate(AircraftState, string?)`, via `StripCommandText.IsArrival`). A parked, taxiing or on-runway aircraft filed into the primary airport reads and writes the bare forms. A null primary airport means no aircraft is an arrival.
+
+**Spawn placement.** `StripSpawnPlacement` edits the aircraft's entry in `Scenario.FlightStripConfigurations` (the pre-placement above), which is the placement's only home. `Set(scenario, aircraftId, facilityId, bayId, rack0, idFactory)` adds the aircraft to the entry with that facility, bay and rack (minting an entry through `idFactory`), removes it from every other entry and drops an entry left empty; it returns null when placed and otherwise the reason it refused, writing nothing: an unknown aircraft, an empty facility or bay id, a negative rack, or an arrival (whose strip never prints into a bay at spawn). `Get` resolves the bay as the loader does (the last entry with a bay naming the aircraft), `Clear` and `Prune` remove an aircraft from every entry.
 
 ## CRC protocol integration
 
@@ -1128,4 +1140,12 @@ StripRequests.cs               # The manual "Request Strip" body: StripRequestPl
                                # training-hub form vs. a CRC facility's departure request resolve the same plan) + PrintRequestedStrip (the
                                # RecordedStripRequest applier — an ARRIVAL_ id reprints and requeues, a STRIP_ id prints nothing if the engine already
                                # holds it) + IsArrivalCandidate + ResolveAirportPosition (ETA reference point)
+
+# Authoring/Strips/ — the strip editor's model: strip steps read from and written to a scenario aircraft's presets (tests in tests/Yaat.Sim.Tests/Authoring/Strips/)
+Authoring/Strips/StripStep.cs           # StripStep: one strip step (kind, time offset, preset id, bay, annotation box and text, half-strip lines; an external step's source text and condition)
+Authoring/Strips/StripStepKind.cs       # StripStepKind: one preset strip command each (Move, Annotate, Offset, Delete, the six half-strip kinds) plus Other, which the editor shows but never writes
+Authoring/Strips/StripBox.cs            # StripBox: the closed set of annotation boxes in their canonical, written and label spellings; FromCanonical
+Authoring/Strips/StripCommandText.cs    # TryFormat writes a step as its one preset command; IsArrival / ArrivalStripId decide the arrival forms by the engine's own rule; MaxHalfStripUserLines
+Authoring/Strips/StripPresets.cs        # Read → owned and external steps of an aircraft's presets; Write → the new preset list, owned block replaced and everything else kept
+Authoring/Strips/StripSpawnPlacement.cs # Set / Get / Clear / Prune: an aircraft's spawn bay in Scenario.FlightStripConfigurations
 ```

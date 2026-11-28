@@ -145,19 +145,22 @@ public static class StripRequests
         return record is null ? new CommandResult(false, $"Could not print flight strip for {request.Callsign}") : new CommandResult(true, printed);
     }
 
+    /// <summary>Whether the aircraft is an arrival for the scenario's primary airport; see the primary-airport overload.</summary>
+    public static bool IsArrivalCandidate(AircraftState ac, SimScenarioState scenario) => IsArrivalCandidate(ac, scenario.PrimaryAirportId);
+
     /// <summary>
-    /// Whether the aircraft is an arrival for the scenario's primary airport — airborne and filed into it. A rolled-out
-    /// landing is on the ground and therefore no longer a candidate, which is what keeps a repeat request for it on
-    /// the departure format.
+    /// Whether the aircraft is an arrival for <paramref name="primaryAirportId"/> — airborne and filed into it. A
+    /// rolled-out landing is on the ground and therefore no longer a candidate, which is what keeps a repeat request for
+    /// it on the departure format.
     /// </summary>
-    public static bool IsArrivalCandidate(AircraftState ac, SimScenarioState scenario)
+    public static bool IsArrivalCandidate(AircraftState ac, string? primaryAirportId)
     {
         // A live-traffic shadow is real traffic: no auto strip for it (every real arrival would print one).
         if (ac.IsOnGround || ac.IsShadow)
         {
             return false;
         }
-        return NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Destination, scenario.PrimaryAirportId);
+        return NavigationDatabase.AirportIdsMatch(ac.FlightPlan.Destination, primaryAirportId);
     }
 
     /// <summary>The airport reference point an arrival's ETA is measured to, or null when the navdata carries no runway for it.</summary>

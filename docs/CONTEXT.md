@@ -1470,6 +1470,13 @@ _Avoid_: sorted rack (a rack can happen to be in order without the flag)
 **Bay**:
 One named strip area of a facility (Ground 1, Local) holding a fixed number of racks; vNAS configures it, and bay names are unique only within a facility.
 
+**External strip step**:
+A preset of a scenario aircraft that holds a strip command the strip editor does not own (it has a condition, sits in a compound, or uses a keyed or bay-scoped form); the editor shows it with its source text and never rewrites it.
+_Avoid_: foreign step
+
+**Owned strip step**:
+A preset of a scenario aircraft whose whole command is one unconditional strip command in the editor's spelling, with its time in the preset's time offset; the strip editor reads and writes these, derived on every read and never stored.
+
 **Rack**:
 One column of strips in a bay, numbered from 1 in commands and from 0 in the engine; index 0 is its visual bottom and the newest strip stacks on top.
 
