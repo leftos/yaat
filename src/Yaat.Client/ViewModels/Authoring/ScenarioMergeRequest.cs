@@ -40,9 +40,9 @@ public sealed record ScenarioMergeCaptions(string Title, string Mine, string The
 public sealed record ScenarioMergeResult(string MergedJson, IReadOnlyList<ScenarioEditIssue> Warnings);
 
 /// <summary>What Apply runs on the merged scenario before it writes: the editor's checks, then the box listing their findings.</summary>
-/// <param name="Run">Runs the editor's checks over the merged text; its findings, empty for none.</param>
+/// <param name="Run">Runs the editor's checks over the merged text, off the UI thread; its findings, empty for none.</param>
 /// <param name="ShowWarnings">Shows the findings ("Merged with problems", OK only) and finishes once the author dismisses them.</param>
 public sealed record ScenarioMergeChecks(
-    Func<string, IReadOnlyList<ScenarioEditIssue>> Run,
+    Func<string, Task<IReadOnlyList<ScenarioEditIssue>>> Run,
     Func<IReadOnlyList<ScenarioEditIssue>, Task> ShowWarnings
 );

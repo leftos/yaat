@@ -276,6 +276,119 @@ public sealed class ScenarioMergeWindowTests
     }
 
     [AvaloniaFact]
+    public async Task ChecksRunningOffTheUiThread_HoldApply_ThenWriteOnTheUiThread()
+    {
+        var release = new TaskCompletionSource<IReadOnlyList<ScenarioEditIssue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool writeOnUiThread = false;
+        ScenarioMergeRequest request = Request(threeWay: true) with
+        {
+            Write = json =>
+            {
+                writeOnUiThread = Dispatcher.UIThread.CheckAccess();
+                _written.Add(json);
+                _events.Add("write");
+                return Task.CompletedTask;
+            },
+        };
+        var owner = new Window { ShowActivated = false };
+        owner.Show();
+        Dispatcher.UIThread.RunJobs();
+        var window = new ScenarioMergeWindow(
+            request,
+            new UserPreferences(),
+            _ =>
+                Task.Run<IReadOnlyList<ScenarioEditIssue>>(() =>
+                {
+                    started.SetResult(!Dispatcher.UIThread.CheckAccess());
+                    return release.Task;
+                })
+        );
+        Task<ScenarioMergeResult?> pending = window.ShowAsync(owner);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            ResolveTheirs(window);
+            Click(window, window.FindControl<Button>("ApplyButton")!);
+
+            Assert.True(await started.Task.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken));
+            Assert.False(pending.IsCompleted);
+            Assert.False(window.ViewModel.CancelCommand.CanExecute(null));
+            Assert.False(window.FindControl<Button>("ApplyButton")!.IsEnabled);
+            Assert.Empty(_written);
+
+            release.SetResult([]);
+            ScenarioMergeResult? result = await pending.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+
+            Assert.NotNull(result);
+            Assert.True(writeOnUiThread);
+            Assert.Equal(["write"], _events);
+            Assert.Single(_written);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AircraftEdit_IsDisabledWhileTheChecksRun_AndEnabledAfterTheyFail()
+    {
+        var release = new TaskCompletionSource<IReadOnlyList<ScenarioEditIssue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var owner = new Window { ShowActivated = false };
+        owner.Show();
+        Dispatcher.UIThread.RunJobs();
+        var window = new ScenarioMergeWindow(
+            AircraftNoClashRequest(),
+            new UserPreferences(),
+            _ =>
+                Task.Run<IReadOnlyList<ScenarioEditIssue>>(() =>
+                {
+                    started.SetResult();
+                    return release.Task;
+                })
+        );
+        Task<ScenarioMergeResult?> pending = window.ShowAsync(owner);
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        try
+        {
+            ResolveTheirs(window);
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, AircraftId);
+            Assert.True(AircraftEdit(window, line).IsEnabled);
+
+            Click(window, window.FindControl<Button>("ApplyButton")!);
+            await started.Task.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+
+            Assert.False(AircraftEdit(window, line).IsEnabled);
+
+            var unlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            window.ViewModel.PropertyChanged += (_, e) =>
+            {
+                if ((e.PropertyName == nameof(ScenarioMergeViewModel.CanApply)) && window.ViewModel.CanApply)
+                {
+                    unlocked.TrySetResult();
+                }
+            };
+            release.SetException(new InvalidOperationException("The checks broke."));
+            await unlocked.Task.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+            window.UpdateLayout();
+
+            Assert.True(AircraftEdit(window, line).IsEnabled);
+            Assert.Equal("Couldn't check the merged scenario: The checks broke.", window.ViewModel.ApplyError);
+            Assert.False(pending.IsCompleted);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public void FreshCopyBeside_IsHidden_WhenTheRequestHasNone()
     {
         (Window owner, ScenarioMergeWindow window, _) = Open(Request(threeWay: true));
@@ -858,6 +971,8 @@ public sealed class ScenarioMergeWindowTests
 
         public Task<IReadOnlyList<string>> PickImportFilesAsync() => Unasked<IReadOnlyList<string>>();
 
+        public Task<string?> PickCompareFileAsync() => Unasked<string?>();
+
         public Task<string?> PickSavePathAsync(string suggestedFileName) => Unasked<string?>();
 
         public Task<string?> PickExportPathAsync(string suggestedFileName) => Unasked<string?>();
@@ -890,6 +1005,17 @@ public sealed class ScenarioMergeWindowTests
     }
 
     private static string NksPath(string member) => "/aircraft/8" + member;
+
+    // The General clashes of the base request, plus one aircraft no side changes.
+    private ScenarioMergeRequest AircraftNoClashRequest() =>
+        Request(threeWay: true) with
+        {
+            Texts = new ScenarioMergeTexts(
+                WithAircraft(Scenario("Base", "Never", "OAK"), 60),
+                WithAircraft(Scenario("Mine", "OnLanding", "OAK"), 60),
+                WithAircraft(Scenario("Theirs", "Parked", "SFO"), 60)
+            ),
+        };
 
     // The General clashes of the base request, plus one aircraft whose spawn delay differs on each side.
     private ScenarioMergeRequest AircraftClashRequest() =>
@@ -1068,10 +1194,10 @@ public sealed class ScenarioMergeWindowTests
             }
         );
 
-    private IReadOnlyList<ScenarioEditIssue> RunChecks(string merged)
+    private Task<IReadOnlyList<ScenarioEditIssue>> RunChecks(string merged)
     {
         _events.Add("checks");
-        return _findings;
+        return Task.FromResult(_findings);
     }
 
     private (Window Owner, ScenarioMergeWindow Window, Task<ScenarioMergeResult?> Pending) Open(ScenarioMergeRequest request)

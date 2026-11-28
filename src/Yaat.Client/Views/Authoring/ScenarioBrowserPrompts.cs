@@ -15,7 +15,7 @@ namespace Yaat.Client.Views.Authoring;
 /// The Scenario Editor window's answers to the browser's questions, each shown over the window:
 /// <list type="bullet">
 /// <item>a Yes/No box before a delete, and before Test in Room replaces the running scenario;</item>
-/// <item>the file pickers for Import, Save copy and the exports;</item>
+/// <item>the file pickers for Import, Compare, Save copy and the exports;</item>
 /// <item>the import id-conflict dialog, the Compare picker and the merge window;</item>
 /// <item>a Yes/No/Cancel box before unsaved edits are left, exported or merged;</item>
 /// <item>a Replace/Cancel box before an import replaces the copy open with unsaved edits;</item>
@@ -59,6 +59,9 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
 
     /// <inheritdoc/>
     public Task<IReadOnlyList<string>> PickImportFilesAsync() => picker.OpenFilesAsync(new OpenFileOptions("Import scenarios", JsonFilter));
+
+    /// <inheritdoc/>
+    public Task<string?> PickCompareFileAsync() => picker.OpenFileAsync(new OpenFileOptions("Compare with a scenario file", JsonFilter));
 
     /// <inheritdoc/>
     public Task<string?> PickSavePathAsync(string suggestedFileName) =>
@@ -165,7 +168,16 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
             MergeServices ?? throw new InvalidOperationException("The merge window cannot open: the Scenario Editor gave it no services.");
         // The checks read the window's pickers at Apply, long after it is built, so the variable is declared before it is set.
         ScenarioMergeWindow window = null!;
-        window = new ScenarioMergeWindow(request, preferences, merged => CheckAtApply(request, merged, window.ViewModel.Pickers))
+        window = new ScenarioMergeWindow(
+            request,
+            preferences,
+            merged =>
+            {
+                // The pickers are read here, on the UI thread, so the check task touches nothing of the window.
+                IReadOnlySet<string>? positionIds = window.ViewModel.Pickers.CheckedPositionIds;
+                return Task.Run(() => CheckAtApply(request, merged, positionIds));
+            }
+        )
         {
             AircraftServices = services,
         };
@@ -186,12 +198,13 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
     public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) =>
         new ScenarioComparePickerWindow(picker, preferences).ShowAsync(owner);
 
-    // The checks at Apply: the Scenario Editor's checks over the merged text, with the position ids by the editor's rule once
-    // the pickers have loaded (none before, which skips the position checks). No ground layouts: the TAXI-route checks run
-    // in the editor's live checks once the copy reloads, not at Apply, so their not-checked findings are dropped here.
-    private static IReadOnlyList<ScenarioEditIssue> CheckAtApply(ScenarioMergeRequest request, string merged, ScenarioMergePickers pickers)
+    // The checks at Apply, run off the UI thread: the Scenario Editor's checks over the merged text, with the position ids by
+    // the editor's rule once the pickers have loaded (none before, which skips the position checks). No ground layouts: the
+    // TAXI-route checks run in the editor's live checks once the copy reloads, not at Apply, so their not-checked findings are
+    // dropped here.
+    private static IReadOnlyList<ScenarioEditIssue> CheckAtApply(ScenarioMergeRequest request, string merged, IReadOnlySet<string>? positionIds)
     {
-        var inputs = new ScenarioEditInputs(() => NavigationDatabase.InstanceOrNull is not null, pickers.CheckedPositionIds, null);
+        var inputs = new ScenarioEditInputs(() => NavigationDatabase.InstanceOrNull is not null, positionIds, null);
         return [.. ScenarioMergeViewModel.CheckMerged(request, merged, inputs).Where(i => i.Severity != ScenarioEditIssueSeverity.NotChecked)];
     }
 

@@ -671,7 +671,7 @@ public sealed class ScenarioMergedAircraftTests : IDisposable
         return Task.CompletedTask;
     }
 
-    private static ScenarioMergeChecks Checks() => new(_ => [], _ => Task.CompletedTask);
+    private static ScenarioMergeChecks Checks() => new(_ => Task.FromResult<IReadOnlyList<ScenarioEditIssue>>([]), _ => Task.CompletedTask);
 
     // NKS2904's parking changed in mine only (11 to 12) and its second preset changed on both sides.
     private static (JsonObject Base, JsonObject Mine, JsonObject Theirs) NksSides(bool withAutoDeleteClash)

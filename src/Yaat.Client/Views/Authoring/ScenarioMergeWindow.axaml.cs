@@ -46,14 +46,18 @@ public partial class ScenarioMergeWindow : Window
 
     // Parameterless ctor for the Avalonia designer / XamlLoader: an empty merge that checks nothing.
     public ScenarioMergeWindow()
-        : this(DesignRequest(), new UserPreferences(), _ => []) { }
+        : this(DesignRequest(), new UserPreferences(), _ => Task.FromResult<IReadOnlyList<ScenarioEditIssue>>([])) { }
 
     /// <summary>Creates the window over a merge of the request's texts.</summary>
     /// <param name="request">The texts, captions and writer.</param>
     /// <param name="preferences">Keeps the window's position and size.</param>
-    /// <param name="runChecks">Runs the Scenario Editor's checks over the merged text at Apply; its findings, empty for none.</param>
+    /// <param name="runChecks">Runs the checks over the merged text at Apply, off the UI thread; its findings, empty for none.</param>
     /// <exception cref="System.Text.Json.JsonException">A text is malformed or not a JSON object.</exception>
-    public ScenarioMergeWindow(ScenarioMergeRequest request, UserPreferences preferences, Func<string, IReadOnlyList<ScenarioEditIssue>> runChecks)
+    public ScenarioMergeWindow(
+        ScenarioMergeRequest request,
+        UserPreferences preferences,
+        Func<string, Task<IReadOnlyList<ScenarioEditIssue>>> runChecks
+    )
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(preferences);

@@ -126,11 +126,9 @@ public sealed class ScenarioBrowserCompareTests : IDisposable
     {
         _fx.AddCopy("L1", "Lima");
         string fileText = "{\"id\": \"F1\", \"name\": \"Elsewhere\", \"artccId\": \"ZNY\"}";
-        _fx.Prompts.ImportFiles = [_fx.WriteImportFile("elsewhere.json", fileText)];
-        _fx.Prompts.Compare = p => new ScenarioComparePick(
-            p.MineOptions.Single(s => s.Id == "L1"),
-            p.TheirsOptions.Single(s => s.Kind == ScenarioCompareSideKind.File)
-        );
+        string path = _fx.WriteImportFile("elsewhere.json", fileText);
+        _fx.Prompts.CompareFile = () => path;
+        _fx.Prompts.Compare = PickTheFile;
         ScenarioBrowserViewModel browser = await Browser();
 
         await Compare(browser);
@@ -140,24 +138,45 @@ public sealed class ScenarioBrowserCompareTests : IDisposable
     }
 
     [Fact]
-    public async Task AFile_IsAskedForWithTheImportPicker_AndComparedTwoWay()
+    public async Task AFile_IsAskedForWithTheComparePickerOnce_AndComparedTwoWay()
     {
         _fx.AddCopy("L1", "Lima");
         string fileText = ScenarioEditorFixture.ScenarioJson("F1", "From a file");
-        _fx.Prompts.ImportFiles = [_fx.WriteImportFile("other.json", fileText)];
-        _fx.Prompts.Compare = p => new ScenarioComparePick(
-            p.MineOptions.Single(s => s.Id == "L1"),
-            p.TheirsOptions.Single(s => s.Kind == ScenarioCompareSideKind.File)
-        );
+        string path = _fx.WriteImportFile("other.json", fileText);
+        _fx.Prompts.ImportFiles = [_fx.WriteImportFile("stale.json", ScenarioEditorFixture.ScenarioJson("F2", "The import answer"))];
+        int asked = 0;
+        _fx.Prompts.CompareFile = () =>
+        {
+            asked++;
+            return path;
+        };
+        _fx.Prompts.Compare = PickTheFile;
         ScenarioBrowserViewModel browser = await Browser();
 
         await Compare(browser);
 
+        Assert.Equal(1, asked);
         ScenarioMergeRequest request = Assert.Single(_fx.Prompts.MergeRequests);
         Assert.Null(request.Texts.Base);
         Assert.Equal(fileText, request.Texts.Theirs);
         Assert.Equal("file", request.Captions.Theirs);
         Assert.Equal("Compare: Lima with other.json", request.Captions.Title);
+    }
+
+    [Fact]
+    public async Task ACancelledCompareFilePicker_OpensNoMergeWindow_AndWritesNothing()
+    {
+        _fx.AddCopy("L1", "Lima");
+        byte[] before = _fx.CopyBytes("L1");
+        _fx.Prompts.CompareFile = () => null;
+        _fx.Prompts.Compare = PickTheFile;
+        ScenarioBrowserViewModel browser = await Browser();
+
+        await Compare(browser);
+
+        Assert.Single(_fx.Prompts.ComparePickers);
+        Assert.Empty(_fx.Prompts.MergeRequests);
+        Assert.Equal(before, _fx.CopyBytes("L1"));
     }
 
     [Fact]
@@ -231,6 +250,10 @@ public sealed class ScenarioBrowserCompareTests : IDisposable
     }
 
     private Task Compare(ScenarioBrowserViewModel browser) => _fx.Ui.Run(browser.CompareCommand.ExecuteAsync(null));
+
+    // The Compare pickers' file entry as theirs, with L1 as mine.
+    private static ScenarioComparePick PickTheFile(ScenarioComparePickerViewModel picker) =>
+        new(picker.MineOptions.Single(s => s.Id == "L1"), picker.TheirsOptions.Single(s => s.Kind == ScenarioCompareSideKind.File));
 
     private static ScenarioComparePick Pick(
         ScenarioComparePickerViewModel picker,

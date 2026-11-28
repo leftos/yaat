@@ -2292,6 +2292,8 @@ public class ScenarioEditorWindowTests
 
         public Task<IReadOnlyList<string>> PickImportFilesAsync() => Task.FromResult<IReadOnlyList<string>>([]);
 
+        public Task<string?> PickCompareFileAsync() => Task.FromResult<string?>(null);
+
         public Task<string?> PickSavePathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
 
         public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) =>

@@ -214,10 +214,11 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
     private void PreviousClash() => MoveTo(_position - 1);
 
-    // Previous/Next wait while the MERGED AIRCRAFT editor is open, so the selection stays on the edited aircraft.
-    private bool CanGoNext() => (MergedAircraft is null) && (_position < (_clashOrder.Count - 1));
+    // Previous/Next wait while the MERGED AIRCRAFT editor is open, so the selection stays on the edited aircraft, and while
+    // an Apply runs, as every choice waits then.
+    private bool CanGoNext() => (MergedAircraft is null) && !_applying && (_position < (_clashOrder.Count - 1));
 
-    private bool CanGoPrevious() => (MergedAircraft is null) && (_position > 0);
+    private bool CanGoPrevious() => (MergedAircraft is null) && !_applying && (_position > 0);
 
     private static int RankOf(string section) => SectionRanks[section];
 
@@ -245,7 +246,10 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         PreviousClashCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>Keeps one side for a row, an auto row included; on an aircraft's row it drops that aircraft's merged-aircraft replacement.</summary>
+    /// <summary>
+    /// Keeps one side for a row, an auto row included; on an aircraft's row it drops that aircraft's merged-aircraft
+    /// replacement. A choice that arrives while an Apply runs is dropped.
+    /// </summary>
     /// <param name="row">One of <see cref="Rows"/>.</param>
     /// <param name="choice"><see cref="MergeChoice.KeepMine"/> or <see cref="MergeChoice.KeepTheirs"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">The choice is an edit, which is made through the row's editor.</exception>
@@ -254,6 +258,16 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(row);
         ArgumentNullException.ThrowIfNull(choice);
+        if (_applying)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Merge window: a choice for {Path} arrived while an Apply runs; dropped", row.Path);
+            }
+
+            return;
+        }
+
         if (MergedAircraft is not null)
         {
             throw new InvalidOperationException("Close the merged aircraft editor first.");
@@ -275,6 +289,16 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
 
     private void ChooseRows(IReadOnlyList<ScenarioMergeRowViewModel> rows, MergeChoice choice)
     {
+        if (_applying)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("Merge window: a choice for {Count} rows arrived while an Apply runs; dropped", rows.Count);
+            }
+
+            return;
+        }
+
         if (MergedAircraft is not null)
         {
             return;

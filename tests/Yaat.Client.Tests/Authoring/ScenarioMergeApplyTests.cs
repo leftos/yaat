@@ -253,7 +253,10 @@ public sealed class ScenarioMergeApplyTests : IDisposable
         var before = vm.Choices.ToDictionary(c => c.Key, c => c.Value.Kind);
         ScenarioEditIssue warning = new(ScenarioEditIssueSeverity.Warning, null, null, ScenarioEditFields.Scenario, null, "finding");
         var checks = new ScenarioMergeChecks(
-            _ => runThrows ? throw new InvalidOperationException("The checks broke.") : [warning],
+            _ =>
+                runThrows
+                    ? Task.FromException<IReadOnlyList<ScenarioEditIssue>>(new InvalidOperationException("The checks broke."))
+                    : Task.FromResult<IReadOnlyList<ScenarioEditIssue>>([warning]),
             _ => throw new InvalidOperationException("The checks broke.")
         );
 
@@ -265,6 +268,113 @@ public sealed class ScenarioMergeApplyTests : IDisposable
         Assert.Equal(before, vm.Choices.ToDictionary(c => c.Key, c => c.Value.Kind));
         Assert.False(vm.Completion.IsCompleted);
         Assert.True(vm.CanApply);
+    }
+
+    [Fact]
+    public async Task HeldChecks_KeepApplyInProgress_ThenShowTheWarningsAndWrite()
+    {
+        ScenarioMergeViewModel vm = ResolvedSampleMerge(Recorded);
+        var release = new TaskCompletionSource<IReadOnlyList<ScenarioEditIssue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var checks = new ScenarioMergeChecks(
+            _ =>
+                Task.Run<IReadOnlyList<ScenarioEditIssue>>(() =>
+                {
+                    started.SetResult();
+                    return release.Task;
+                }),
+            shown =>
+            {
+                _events.Add("show " + shown.Count);
+                return Task.CompletedTask;
+            }
+        );
+
+        Task<ScenarioMergeResult?> apply = vm.ApplyAsync(checks);
+
+        await started.Task.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+        Assert.False(apply.IsCompleted);
+        Assert.False(vm.CanApply);
+        Assert.False(vm.CancelCommand.CanExecute(null));
+        Assert.False(vm.Completion.IsCompleted);
+        Assert.Empty(_written);
+
+        ScenarioEditIssue warning = new(ScenarioEditIssueSeverity.Warning, null, null, ScenarioEditFields.Scenario, null, "finding");
+        release.SetResult([warning]);
+        ScenarioMergeResult? result = await apply;
+
+        Assert.NotNull(result);
+        Assert.Equal([warning], result.Warnings);
+        Assert.Equal(["show 1", "write"], _events);
+        Assert.Single(_written);
+        Assert.Same(result, await vm.Completion);
+        Assert.True(vm.CancelCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ChecksTaskFaulting_SetsTheFooterError_AndWritesNothing()
+    {
+        ScenarioMergeViewModel vm = ResolvedSampleMerge(Recorded);
+        var checks = new ScenarioMergeChecks(
+            _ => Task.FromException<IReadOnlyList<ScenarioEditIssue>>(new InvalidOperationException("The checks broke.")),
+            _ => Task.CompletedTask
+        );
+
+        ScenarioMergeResult? result = await vm.ApplyAsync(checks);
+
+        Assert.Null(result);
+        Assert.Empty(_written);
+        Assert.Equal("Couldn't check the merged scenario: The checks broke.", vm.ApplyError);
+        Assert.False(vm.Completion.IsCompleted);
+        Assert.True(vm.CanApply);
+    }
+
+    [Fact]
+    public async Task WhileTheChecksRun_EveryChoiceIsLocked_AndUnlockedOnceTheyReturn()
+    {
+        ScenarioMergeViewModel vm = ResolvedSampleMerge(Recorded);
+        var release = new TaskCompletionSource<IReadOnlyList<ScenarioEditIssue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var checks = new ScenarioMergeChecks(
+            _ =>
+                Task.Run<IReadOnlyList<ScenarioEditIssue>>(() =>
+                {
+                    started.SetResult();
+                    return release.Task;
+                }),
+            _ => Task.CompletedTask
+        );
+        ScenarioMergeRowViewModel row = vm.Rows[0];
+        var services = new ScenarioMergedAircraftServices(_fx.Services(), ScenarioEditorFixture.NoLayouts, Task.CompletedTask);
+        string itemKey = vm.AircraftLines[0].ItemKey;
+        Assert.True(vm.NextClashCommand.CanExecute(null));
+
+        Task<ScenarioMergeResult?> apply = vm.ApplyAsync(checks);
+
+        await started.Task.WaitAsync(TimeSpan.FromMinutes(5), TestContext.Current.CancellationToken);
+        Assert.False(row.KeepMineCommand.CanExecute(null));
+        Assert.False(row.KeepTheirsCommand.CanExecute(null));
+        Assert.False(vm.KeepTheirsForEveryClashCommand.CanExecute(null));
+        Assert.False(vm.TakeMineForEverythingCommand.CanExecute(null));
+        Assert.False(vm.NextClashCommand.CanExecute(null));
+        Assert.False(vm.PreviousClashCommand.CanExecute(null));
+        Assert.Null(vm.EditAircraft(itemKey, services));
+
+        release.SetException(new InvalidOperationException("The checks broke."));
+        Assert.Null(await apply);
+
+        Assert.True(row.KeepMineCommand.CanExecute(null));
+        Assert.True(row.KeepTheirsCommand.CanExecute(null));
+        Assert.True(vm.KeepTheirsForEveryClashCommand.CanExecute(null));
+        Assert.True(vm.TakeMineForEverythingCommand.CanExecute(null));
+        Assert.True(vm.NextClashCommand.CanExecute(null));
+        while (vm.NextClashCommand.CanExecute(null))
+        {
+            vm.NextClashCommand.Execute(null);
+        }
+
+        Assert.True(vm.PreviousClashCommand.CanExecute(null));
+        Assert.NotNull(vm.EditAircraft(itemKey, services));
     }
 
     [Fact]
@@ -335,7 +445,7 @@ public sealed class ScenarioMergeApplyTests : IDisposable
             _ =>
             {
                 _events.Add("checks");
-                return warnings;
+                return Task.FromResult(warnings);
             },
             shown =>
             {

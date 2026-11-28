@@ -152,7 +152,7 @@ public sealed partial class ScenarioBrowserViewModel
         await PromptAsync(pick.Mine.Name, () => _services.Prompts.ShowMergeAsync(request), null).ConfigureAwait(false);
     }
 
-    // The file theirs is, asked with the import picker when theirs is the file entry: go on with its path (null when theirs
+    // The file theirs is, asked with the Compare file picker when theirs is the file entry: go on with its path (null when theirs
     // is no file), or stop when the author cancelled the picker.
     private async Task<(bool Go, string? Path)> CompareFileAsync(ScenarioComparePick pick)
     {
@@ -161,9 +161,8 @@ public sealed partial class ScenarioBrowserViewModel
             return (true, null);
         }
 
-        IReadOnlyList<string> paths = await PromptAsync<IReadOnlyList<string>>("Compare", () => _services.Prompts.PickImportFilesAsync(), [])
-            .ConfigureAwait(false);
-        return (paths.Count > 0) ? (true, paths[0]) : (false, null);
+        string? path = await PromptAsync<string?>("Compare", () => _services.Prompts.PickCompareFileAsync(), null).ConfigureAwait(false);
+        return (path is not null) ? (true, path) : (false, null);
     }
 
     // The MergeGuard over theirs when it is a working copy, then over mine (mine last, since the editor records the copy a

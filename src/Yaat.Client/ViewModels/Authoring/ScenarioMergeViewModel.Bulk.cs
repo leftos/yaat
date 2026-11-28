@@ -81,8 +81,8 @@ public sealed partial class ScenarioMergeViewModel
         aircraft.PositionCatalog = _pickers.Positions ?? [];
     }
 
-    // Every choice waits while the MERGED AIRCRAFT editor is open.
-    private bool CanChoose() => MergedAircraft is null;
+    // Every choice waits while the MERGED AIRCRAFT editor is open or an Apply runs.
+    private bool CanChoose() => (MergedAircraft is null) && !_applying;
 
     // Opens the row's editor (✎), pre-filled from the side it takes; an order row takes mine or theirs only.
     [RelayCommand(CanExecute = nameof(CanChoose))]

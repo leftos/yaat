@@ -575,10 +575,7 @@
                         <Button.IsEnabled>
                           <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <Binding Path="$parent[local:ScenarioMergeWindow].AircraftServices" Converter="{x:Static ObjectConverters.IsNotNull}" />
-                            <Binding
-                              Path="$parent[local:ScenarioMergeWindow].((vm:ScenarioMergeViewModel)DataContext).MergedAircraft"
-                              Converter="{x:Static ObjectConverters.IsNull}"
-                            />
+                            <Binding Path="$parent[local:ScenarioMergeWindow].((vm:ScenarioMergeViewModel)DataContext).CanEditAircraft" />
                           </MultiBinding>
                         </Button.IsEnabled>
                       </Button>

@@ -36,6 +36,9 @@ public sealed partial class ScenarioMergeViewModel
     [NotifyPropertyChangedFor(nameof(CanApply))]
     private ScenarioMergedAircraftViewModel? _mergedAircraft;
 
+    /// <summary>Gets whether an aircraft line's ✎ may open the MERGED AIRCRAFT editor: not while one is open or an Apply runs.</summary>
+    public bool CanEditAircraft => (MergedAircraft is null) && !_applying;
+
     // The member of the stand-in a one-sided aircraft's item row is given to find where the aircraft merges; its value is
     // fresh for each search, so an aircraft that happens to carry the member is not taken for it.
     private const string PlaceMarker = "$yaatMergePlace";
@@ -148,9 +151,13 @@ public sealed partial class ScenarioMergeViewModel
         }
     }
 
-    partial void OnMergedAircraftChanged(ScenarioMergedAircraftViewModel? value) => LockChoices(value is not null);
+    partial void OnMergedAircraftChanged(ScenarioMergedAircraftViewModel? value)
+    {
+        OnPropertyChanged(nameof(CanEditAircraft));
+        LockChoices((value is not null) || _applying);
+    }
 
-    // Every choice command, and Previous/Next, waits while the MERGED AIRCRAFT editor is open.
+    // Every choice command, and Previous/Next, waits while the MERGED AIRCRAFT editor is open or an Apply runs.
     private void LockChoices(bool locked)
     {
         foreach (ScenarioMergeRowViewModel row in Rows)
@@ -178,10 +185,14 @@ public sealed partial class ScenarioMergeViewModel
         TakeTheirsForEverythingCommand.NotifyCanExecuteChanged();
     }
 
+    // While an Apply runs every choice is locked, as it is while the MERGED AIRCRAFT editor is open: the checks await a
+    // background task, and a choice made then would land in a text already built and be dropped.
     private void SetApplying(bool applying)
     {
         _applying = applying;
+        LockChoices(applying || (MergedAircraft is not null));
         OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(CanEditAircraft));
         CancelCommand.NotifyCanExecuteChanged();
     }
 
@@ -234,7 +245,7 @@ public sealed partial class ScenarioMergeViewModel
     {
         try
         {
-            IReadOnlyList<ScenarioEditIssue> warnings = checks.Run(merged);
+            IReadOnlyList<ScenarioEditIssue> warnings = await checks.Run(merged).ConfigureAwait(true);
             if (warnings.Count > 0)
             {
                 await checks.ShowWarnings(warnings).ConfigureAwait(true);

@@ -17,6 +17,10 @@ public interface IScenarioBrowserPrompts
     /// <returns>The picked files' paths; empty when the user cancelled.</returns>
     Task<IReadOnlyList<string>> PickImportFilesAsync();
 
+    /// <summary>Asks for the scenario file Compare with… compares against.</summary>
+    /// <returns>The file's path, or null when the user cancelled.</returns>
+    Task<string?> PickCompareFileAsync();
+
     /// <summary>Asks where to save a copy of a scenario.</summary>
     /// <param name="suggestedFileName">The file name to offer: the scenario's name with <c>.json</c>.</param>
     /// <returns>The path to write, or null when the user cancelled.</returns>

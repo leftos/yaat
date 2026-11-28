@@ -1059,6 +1059,8 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
 
         public Task<IReadOnlyList<string>> PickImportFilesAsync() => Task.FromResult(ImportFiles);
 
+        public Task<string?> PickCompareFileAsync() => Task.FromResult<string?>(null);
+
         public Task<string?> PickSavePathAsync(string suggestedFileName)
         {
             SaveSuggested.Add(suggestedFileName);

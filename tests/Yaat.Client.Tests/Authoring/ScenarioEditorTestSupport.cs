@@ -350,6 +350,11 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 
     public Task<IReadOnlyList<string>> PickImportFilesAsync() => Task.FromResult(ImportFiles);
 
+    /// <summary>Gets or sets the answer to the Compare file picker; null as the author cancelling it.</summary>
+    public Func<string?>? CompareFile { get; set; }
+
+    public Task<string?> PickCompareFileAsync() => Task.FromResult(CompareFile?.Invoke());
+
     public Task<string?> PickSavePathAsync(string suggestedFileName) => Task.FromResult<string?>(null);
 
     public Task<string?> PickExportPathAsync(string suggestedFileName)
