@@ -1,0 +1,61 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:routes="using:Yaat.Sim.Authoring.Routes"
+  x:Class="Yaat.Client.Views.Authoring.RouteComposerWindow"
+  x:DataType="vm:RouteComposerViewModel"
+  x:CompileBindings="True"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Route composer"
+  Background="#1F1F1F"
+  Width="1100"
+  Height="750"
+>
+  <DockPanel Margin="12">
+    <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" Margin="0,8,0,0" Foreground="#B0B0B0" TextWrapping="Wrap" Text="{Binding StatusText}" />
+    <StackPanel x:Name="LibraryPanel" DockPanel.Dock="Left" Width="280" Spacing="6" Margin="0,0,12,0">
+      <TextBlock Text="Routes" FontSize="14" FontWeight="SemiBold" Foreground="White" />
+      <CheckBox x:Name="ShowAllArtccsBox" Content="Show all ARTCCs" IsChecked="{Binding ShowAllArtccs}" />
+      <ListBox x:Name="RouteList" Height="320" ItemsSource="{Binding Routes}" SelectedItem="{Binding SelectedRoute}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="routes:SavedRoute">
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock Text="Name" Foreground="#D4D4D4" />
+      <TextBox x:Name="NameBox" Text="{Binding Name}" />
+      <TextBlock Text="Colour (hex)" Foreground="#D4D4D4" />
+      <TextBox x:Name="ColorBox" Text="{Binding Color}" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button x:Name="NewButton" Content="New" MinWidth="64" Command="{Binding NewCommand}" />
+        <Button x:Name="SaveButton" Content="Save" MinWidth="64" Classes="accent" Command="{Binding SaveCommand}" />
+        <Button x:Name="DeleteButton" Content="Delete" MinWidth="64" Command="{Binding DeleteCommand}" />
+      </StackPanel>
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Bottom" Spacing="2" Margin="0,8,0,0">
+      <SelectableTextBlock x:Name="NavPathText" Foreground="#D4D4D4" TextWrapping="Wrap" Text="{Binding NavPathText}" />
+      <TextBlock x:Name="MessageText" Foreground="#E0B050" TextWrapping="Wrap" Text="{Binding MessageText}" />
+    </StackPanel>
+    <Grid>
+      <Border BorderBrush="#3D3D3D" BorderThickness="1">
+        <local:RouteComposerCanvas x:Name="MapCanvas" />
+      </Border>
+      <Button x:Name="MapsButton" Content="Maps ▾" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8">
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedRight">
+            <ItemsControl x:Name="MapList" ItemsSource="{Binding Maps}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RouteComposerMapLayer">
+                  <CheckBox Content="{Binding Name}" IsChecked="{Binding IsEnabled}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+    </Grid>
+  </DockPanel>
+</Window>
