@@ -15,8 +15,8 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The route composer's canvas over the committed navdata around SFO: each frame's snapshot is a copy (a point added later
-/// does not reach an earlier frame), carries only the enabled video maps and has no imagery member, and a render draws the
-/// route in its colour.
+/// does not reach an earlier frame), carries only the ticked video maps that are loaded and has no imagery member, and a
+/// render draws the route in its colour.
 /// </summary>
 public sealed class RouteComposerCanvasSnapshotTests : IDisposable
 {
@@ -64,7 +64,7 @@ public sealed class RouteComposerCanvasSnapshotTests : IDisposable
     {
         VideoMapData east = Map("EAST", -122.2);
         VideoMapData west = Map("WEST", -122.6);
-        (Window window, RouteComposerCanvas canvas, RouteComposerViewModel vm) = await Show([new("East", east), new("West", west)]);
+        (Window window, RouteComposerCanvas canvas, RouteComposerViewModel vm) = await Show([("East", "EAST", east), ("West", "WEST", west)]);
         try
         {
             Assert.Equal([east, west], canvas.SnapshotForTesting()!.Maps);
@@ -160,17 +160,29 @@ public sealed class RouteComposerCanvasSnapshotTests : IDisposable
         return count;
     }
 
-    private Task<(Window Window, RouteComposerCanvas Canvas, RouteComposerViewModel Vm)> Show(IReadOnlyList<RouteComposerMap> maps) =>
+    private Task<(Window Window, RouteComposerCanvas Canvas, RouteComposerViewModel Vm)> Show((string Name, string Id, VideoMapData Data)[] maps) =>
         Show(maps, () => NavDb);
 
     private async Task<(Window Window, RouteComposerCanvas Canvas, RouteComposerViewModel Vm)> Show(
-        IReadOnlyList<RouteComposerMap> maps,
+        (string Name, string Id, VideoMapData Data)[] maps,
         Func<NavigationDatabase?> navDb
     )
     {
-        var context = new RouteComposerContext("ZOA", FixResolutionContext.None, _ => Task.FromResult(maps));
+        RouteComposerMap[] listed = [.. maps.Select(m => new RouteComposerMap(m.Name, m.Id))];
+        var context = new RouteComposerContext(
+            "ZOA",
+            FixResolutionContext.None,
+            _ => Task.FromResult<IReadOnlyList<RouteComposerMap>>(listed),
+            (id, _) => Task.FromResult<VideoMapData?>(maps.FirstOrDefault(m => m.Id == id).Data)
+        );
         var vm = new RouteComposerViewModel(context, new RouteLibrary(_root), navDb);
         await vm.LoadMapsAsync(CancellationToken.None);
+        foreach (RouteComposerMapLayer layer in vm.Maps)
+        {
+            layer.IsEnabled = true;
+            await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        }
+
         var canvas = new RouteComposerCanvas { ViewModel = vm };
         var window = new Window
         {

@@ -1,11 +1,13 @@
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Commands;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels.Authoring;
 
 /// <summary>
 /// The editor's satellites: the spawn planner over the open copy, refreshed after each edit made in the editor, its
-/// applied plans written as one undo step the Aircraft tab shows, and closed with the copy.
+/// applied plans written as one undo step the Aircraft tab shows, and closed with the copy; and what the route composer
+/// opens over, the open copy's ARTCC and its video maps.
 /// </summary>
 public sealed partial class ScenarioEditorViewModel
 {
@@ -39,6 +41,26 @@ public sealed partial class ScenarioEditorViewModel
         {
             _spawnPlanner = null;
         }
+    }
+
+    /// <summary>
+    /// Creates what the route composer opens over: the open copy's ARTCC and that ARTCC's video maps, loaded with no room.
+    /// </summary>
+    /// <returns>The context; null when no copy is open.</returns>
+    public RouteComposerContext? CreateRouteComposerContext()
+    {
+        if (Session is not { } session)
+        {
+            return null;
+        }
+
+        string artccId = session.ArtccId;
+        return new RouteComposerContext(
+            artccId,
+            FixResolutionContext.None,
+            ct => ArtccVideoMapLoader.ListAsync(_services.Configs, artccId, ct),
+            (mapId, ct) => ArtccVideoMapLoader.LoadOneAsync(_services.DownloadVideoMaps, artccId, mapId, _services.Configs, ct)
+        );
     }
 
     // A satellite's edit on the copy it was opened over; one on a copy no longer open writes nothing.

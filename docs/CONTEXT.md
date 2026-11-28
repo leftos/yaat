@@ -1435,7 +1435,7 @@ The per-user folder of named routes the author composed (`RouteLibrary`: one `{g
 One provider of candidate routes for a departure and destination pair (an `IRouteSource`, such as the csko source), whose routes `RouteFinder` merges, checks against navdata and orders; a source that fails is reported beside the others' routes, never fatal.
 
 **Satellite window**:
-A window the Scenario Editor's Tools menu opens over the open copy (the spawn planner today): modeless and owned by the editor, one at a time, refreshed after each edit made in the editor, and closed with the copy or the editor (`ScenarioEditorWindow.Satellites.cs`, `ScenarioEditorViewModel.Satellites.cs`).
+A window the Scenario Editor's Tools menu opens over the open copy (the spawn planner and the route composer): modeless and owned by the editor, one at a time, refreshed after each edit made in the editor, and closed with the copy or the editor (`ScenarioEditorWindow.Satellites.cs`, `ScenarioEditorViewModel.Satellites.cs`).
 
 **Server changed**:
 The marker (`ScenarioBadge.ServerChanged`) on a working copy whose origin server scenario has a newer version in the server mirror than the one the copy started from; the copy itself is never touched. Not the same as Modified (the copy's own content differs from its base) or Gone from server (the server no longer lists the origin).

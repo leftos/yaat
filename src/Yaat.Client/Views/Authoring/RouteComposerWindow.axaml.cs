@@ -11,8 +11,8 @@ namespace Yaat.Client.Views.Authoring;
 /// The route composer window: the route library filtered to the composer's ARTCC on the left (Show all ARTCCs lists every
 /// route), the name and colour of the route being edited with New, Save and Delete; the map in the centre with a Maps
 /// drop-down of the ARTCC's video maps; under it the route's nav-path text and the warning or failure line; the navdata
-/// state in the status bar. The maps load off the UI thread when the window opens. Code-behind only wires the view model
-/// to the canvas.
+/// state in the status bar. The map list loads off the UI thread when the window opens, and a map loads when its box is
+/// ticked. Code-behind only wires the view model to the canvas.
 /// </summary>
 public partial class RouteComposerWindow : Window
 {
@@ -26,7 +26,12 @@ public partial class RouteComposerWindow : Window
     public RouteComposerWindow()
         : this(
             new RouteComposerViewModel(
-                new RouteComposerContext("ZOA", FixResolutionContext.None, _ => Task.FromResult<IReadOnlyList<RouteComposerMap>>([])),
+                new RouteComposerContext(
+                    "ZOA",
+                    FixResolutionContext.None,
+                    _ => Task.FromResult<IReadOnlyList<RouteComposerMap>>([]),
+                    (_, _) => Task.FromResult<VideoMapData?>(null)
+                ),
                 new RouteLibrary(),
                 () => null
             ),
@@ -84,6 +89,7 @@ public partial class RouteComposerWindow : Window
         _closing.Cancel();
         _closing.Dispose();
         ViewModel.RouteLoaded -= OnRouteLoaded;
+        ViewModel.Dispose();
         MapCanvas.Dispose();
     }
 }

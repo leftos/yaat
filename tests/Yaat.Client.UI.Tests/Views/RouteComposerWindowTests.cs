@@ -21,7 +21,8 @@ namespace Yaat.Client.UI.Tests.Views;
 
 /// <summary>
 /// The route composer window over the committed navdata around SFO and two small video maps: it opens titled for its ARTCC
-/// with a check box per map, all on; a click 3 px from SFO's symbol adds SFO and a click 40 px from every fix adds an FRD;
+/// with a check box per map, all off until ticked (each loads on its first tick); a click 3 px from SFO's symbol adds SFO
+/// and a click 40 px from every fix adds an FRD;
 /// the middle button pans while a left drag moves a point; a right click on a point offers Delete point and Insert after,
 /// and the Delete key removes the selected point; Save lists the route.
 /// </summary>
@@ -42,7 +43,7 @@ public sealed class RouteComposerWindowTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Opens_TitledForItsArtcc_WithACheckedBoxPerMap()
+    public async Task Opens_TitledForItsArtcc_WithAnUncheckedBoxPerMap()
     {
         RouteComposerWindow window = await Open();
         try
@@ -58,7 +59,7 @@ public sealed class RouteComposerWindowTests : IDisposable
             CheckBox[] boxes = [.. window.FindControl<ItemsControl>("MapList")!.GetLogicalDescendants().OfType<CheckBox>()];
 
             Assert.Equal(["East", "West"], boxes.Select(b => b.Content));
-            Assert.All(boxes, b => Assert.True(b.IsChecked));
+            Assert.All(boxes, b => Assert.False(b.IsChecked));
         }
         finally
         {
@@ -237,6 +238,41 @@ public sealed class RouteComposerWindowTests : IDisposable
         }
     }
 
+    [AvaloniaFact]
+    public async Task ClosingTheComposer_CancelsAnInFlightMapLoad()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<VideoMapData?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken seen = default;
+        IReadOnlyList<RouteComposerMap> maps = [new("East", "EAST")];
+        var context = new RouteComposerContext(
+            "ZOA",
+            FixResolutionContext.None,
+            _ => Task.FromResult(maps),
+            (_, ct) =>
+            {
+                seen = ct;
+                started.TrySetResult();
+                return pending.Task;
+            }
+        );
+        var vm = new RouteComposerViewModel(context, new RouteLibrary(_root), () => NavDb);
+        var window = new RouteComposerWindow(vm, new UserPreferences());
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        await window.LoadTask.WaitAsync(HangGuard);
+
+        vm.Maps.Single().IsEnabled = true;
+        await started.Task.WaitAsync(HangGuard);
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(seen.IsCancellationRequested);
+        pending.TrySetResult(null);
+        await vm.MapLoadTask.WaitAsync(HangGuard);
+    }
+
     private static RouteComposerCanvas Canvas(RouteComposerWindow window) => window.FindControl<RouteComposerCanvas>("MapCanvas")!;
 
     // A canvas point at least the given pixels from every drawn fix, on a grid across the canvas.
@@ -294,8 +330,13 @@ public sealed class RouteComposerWindowTests : IDisposable
 
     private async Task<RouteComposerWindow> Open(NavigationDatabase navDb, FixResolutionContext fixes)
     {
-        IReadOnlyList<RouteComposerMap> maps = [new("East", Map("EAST", -122.2)), new("West", Map("WEST", -122.6))];
-        var context = new RouteComposerContext("ZOA", fixes, _ => Task.FromResult(maps));
+        IReadOnlyList<RouteComposerMap> maps = [new("East", "EAST"), new("West", "WEST")];
+        var context = new RouteComposerContext(
+            "ZOA",
+            fixes,
+            _ => Task.FromResult(maps),
+            (id, _) => Task.FromResult<VideoMapData?>(Map(id, (id == "EAST") ? -122.2 : -122.6))
+        );
         var vm = new RouteComposerViewModel(context, new RouteLibrary(_root), () => navDb);
         var window = new RouteComposerWindow(vm, new UserPreferences());
         window.Show();

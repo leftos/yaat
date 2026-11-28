@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -33,26 +34,32 @@ public sealed record RouteComposerPoint(RoutePoint Point, LatLon Placed, LatLon?
     public bool IsDisplaced => (Position is { } position) && (GeoMath.DistanceNm(Placed, position) > RoutePointResolver.DisplacementWarningNm);
 }
 
-/// <summary>One video map's layer in the composer: drawn while its check box is on.</summary>
+/// <summary>One video map's layer in the composer: drawn while its check box is on and its map is loaded.</summary>
 public sealed partial class RouteComposerMapLayer : ObservableObject
 {
     [ObservableProperty]
-    private bool _isEnabled = true;
+    private bool _isEnabled;
 
-    /// <summary>Initializes a new instance of the <see cref="RouteComposerMapLayer"/> class, drawn.</summary>
-    /// <param name="map">The map.</param>
+    [ObservableProperty]
+    private bool _isLoading;
+
+    /// <summary>Initializes a new instance of the <see cref="RouteComposerMapLayer"/> class, unticked and not yet loaded.</summary>
+    /// <param name="map">The map, as the ARTCC's config lists it.</param>
     public RouteComposerMapLayer(RouteComposerMap map)
     {
         ArgumentNullException.ThrowIfNull(map);
         Name = map.Name;
-        Data = map.Data;
+        MapId = map.MapId;
     }
 
     /// <summary>Gets the map's name.</summary>
     public string Name { get; }
 
-    /// <summary>Gets the map's lines.</summary>
-    public VideoMapData Data { get; }
+    /// <summary>Gets the map's id in the ARTCC's config.</summary>
+    public string MapId { get; }
+
+    /// <summary>Gets or sets the map's lines; null until it is loaded, and kept once loaded even when unticked.</summary>
+    public VideoMapData? Data { get; internal set; }
 }
 
 /// <summary>
@@ -62,7 +69,7 @@ public sealed partial class RouteComposerMapLayer : ObservableObject
 /// the selected point, or at the end when none is. Each add, move and delete is one undo step. With no navigation database
 /// the status says so and nothing is added.
 /// </summary>
-public sealed partial class RouteComposerViewModel : ObservableObject
+public sealed partial class RouteComposerViewModel : ObservableObject, IDisposable
 {
     /// <summary>The status while no navigation database is loaded.</summary>
     public const string NavdataLoadingText = "Navdata is loading…";
@@ -90,6 +97,8 @@ public sealed partial class RouteComposerViewModel : ObservableObject
     private bool _loadingRoute;
     private bool _corruptShown;
     private string? _loadedArtccId;
+    private readonly CancellationTokenSource _mapLoads = new();
+    private bool _disposed;
 
     [ObservableProperty]
     private int? _selectedIndex;
@@ -154,8 +163,11 @@ public sealed partial class RouteComposerViewModel : ObservableObject
     /// <summary>Gets the library's routes: the composer's ARTCC only unless <see cref="ShowAllArtccs"/> is on.</summary>
     public ObservableCollection<SavedRoute> Routes { get; } = [];
 
-    /// <summary>Gets the ARTCC's video map layers, once <see cref="LoadMapsAsync"/> has loaded them.</summary>
+    /// <summary>Gets the ARTCC's video map layers, once <see cref="LoadMapsAsync"/> has listed them; each loads when it is ticked.</summary>
     public ObservableCollection<RouteComposerMapLayer> Maps { get; } = [];
+
+    /// <summary>Gets the load of the layer ticked last, for tests to await; completed when no layer is loading.</summary>
+    internal Task MapLoadTask { get; private set; } = Task.CompletedTask;
 
     /// <summary>Adds a point after the selected one (at the end when none is) and selects it.</summary>
     /// <param name="click">Where the author clicked.</param>
@@ -203,9 +215,12 @@ public sealed partial class RouteComposerViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>Loads the ARTCC's video maps into <see cref="Maps"/>, every one drawn; a failure is shown in the message line.</summary>
-    /// <param name="ct">Cancels the load.</param>
-    /// <returns>The load.</returns>
+    /// <summary>
+    /// Lists the ARTCC's video maps into <see cref="Maps"/> as layers, none downloaded, loaded or drawn until it is ticked;
+    /// a failure is shown in the message line.
+    /// </summary>
+    /// <param name="ct">Cancels the listing.</param>
+    /// <returns>The listing.</returns>
     public async Task LoadMapsAsync(CancellationToken ct)
     {
         Func<CancellationToken, Task<IReadOnlyList<RouteComposerMap>>> load = _context.LoadMaps;
@@ -221,7 +236,7 @@ public sealed partial class RouteComposerViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.LogWarning(ex, "Route composer: loading the video maps of {ArtccId} failed", ArtccId);
+            Log.LogWarning(ex, "Route composer: listing the video maps of {ArtccId} failed", ArtccId);
             MessageText = $"Could not load the video maps of {ArtccId}: {ex.Message}";
             return;
         }
@@ -229,8 +244,86 @@ public sealed partial class RouteComposerViewModel : ObservableObject
         Maps.Clear();
         foreach (RouteComposerMap map in maps)
         {
-            Maps.Add(new RouteComposerMapLayer(map));
+            var layer = new RouteComposerMapLayer(map);
+            layer.PropertyChanged += OnLayerChanged;
+            Maps.Add(layer);
         }
+    }
+
+    /// <summary>Stops the map loads still in flight; the composer's window calls it as it closes.</summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _mapLoads.Cancel();
+        _mapLoads.Dispose();
+    }
+
+    // Ticking a layer draws it at once when its map is loaded, and loads it first when it is not; a loaded layer is kept.
+    private void OnLayerChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not RouteComposerMapLayer layer)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(Maps));
+        bool ticking =
+            (!_disposed)
+            && (e.PropertyName == nameof(RouteComposerMapLayer.IsEnabled))
+            && (layer.IsEnabled)
+            && (layer.Data is null)
+            && (!layer.IsLoading);
+        if (ticking)
+        {
+            MapLoadTask = LoadLayerAsync(layer);
+        }
+    }
+
+    // One map's load off the UI thread: a map that cannot be fetched unties the layer and says why.
+    private async Task LoadLayerAsync(RouteComposerMapLayer layer)
+    {
+        layer.IsLoading = true;
+        VideoMapData? data;
+        try
+        {
+            CancellationToken ct = _mapLoads.Token;
+            data = await Task.Run(() => _context.LoadMap(layer.MapId, ct), ct);
+        }
+        catch (OperationCanceledException) when (_mapLoads.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Route composer: loading the video map {MapId} failed", layer.MapId);
+            MessageText = $"Could not load the video map {layer.Name}: {ex.Message}";
+            layer.IsEnabled = false;
+            return;
+        }
+        finally
+        {
+            layer.IsLoading = false;
+        }
+
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (data is null)
+        {
+            MessageText = $"The video map {layer.Name} is not cached; it needs one online open.";
+            layer.IsEnabled = false;
+            return;
+        }
+
+        layer.Data = data;
+        OnPropertyChanged(nameof(Maps));
     }
 
     [RelayCommand]

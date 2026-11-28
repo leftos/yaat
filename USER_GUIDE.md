@@ -38,6 +38,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Test in Room](#test-in-room)
   - [Editing a Scenario](#editing-a-scenario)
   - [Spawn planner](#spawn-planner)
+  - [Route composer](#route-composer)
   - [Live Findings](#live-findings)
   - [Exporting JSON](#exporting-json)
   - [Airport Editor](#airport-editor)
@@ -2382,7 +2383,7 @@ A menu bar (**File** and **Tools**) sits above the toolbar. The **File** menu an
 - **Save a copy...**: writes the selected scenario to a file of your choice.
 - **Export JSON...**, **Export clean JSON...** and **Export all unexported...**: see [Exporting JSON](#exporting-json).
 
-The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open.
+The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open. **Tools > Route composer...** opens the [Route composer](#route-composer) the same way.
 
 ### Test in Room
 
@@ -2426,7 +2427,14 @@ On the right, the graph shows the previewed spawns per bucket as bars, and in Wo
 
 **Preview** computes the plan and shows it without changing the scenario. **Apply** writes the new delays into the scenario as one undo step, "Apply spawn plan", recomputed against the copy as it is now with the same seed; the Aircraft tab shows the new delays, and a single **Undo** takes them back. With **Extend the planning length** chosen and the last spawn leaving less than the working time (an overrun or not), Apply also sets the planning length to the last spawn plus the working time. **Save plan...** writes every input to a plan file and **Load plan...** reads one back, starting in the folder you last used; a file from another version is refused, and an airport the scenario lacks matches no aircraft.
 
-### Live Findings
+### Route composer
+
+**Tools > Route composer...** opens "Route composer — {ARTCC}" over the open copy's ARTCC; it is greyed out while no copy is open and needs no room. You build a route by clicking points on a map and save it to your route library, so it is there to pick later. The window is separate from the editor and stays open while you keep editing; only one is open at a time, a second click on the menu item brings it forward, and it closes when the open copy closes or another copy opens, and when the editor closes.
+
+- **Adding points.** Click the map to add a point. A click on a drawn fix, navaid or airport adds that fix; a click anywhere else is written as a fix-radial-distance (FRD) point from a nearby fix, or refused with the reason. A new point goes after the selected one, or at the end when none is selected. Drag a point to move it, right-click it for **Delete point** and **Insert after**, and press Delete to remove the selected one. **Ctrl+Z** and **Ctrl+Y** undo and redo each add, move and delete. Middle-drag pans and the wheel zooms.
+- **Reading the route.** Under the map, the nav-path text shows the route as it will be written and the line beneath it shows warnings or why a point cannot be written, such as a point that was displaced from where you clicked. The status bar says when navdata is still loading.
+- **Maps.** The **Maps** drop-down at the top right of the map lists every video map of the ARTCC's vNAS config, ordered by STARS id (maps without one last) and then name, all unticked. Ticking a map downloads just that map, draws it and keeps it for the next tick; with no room joined the download is cached, and with a room joined it is shared with the radar. If a map is not cached and you are offline, "The video map {Name} is not cached; it needs one online open." appears and the box unticks; "Could not load the video map {Name}: {message}" does the same for any other failure. When the list itself cannot be read the window says "Could not load the video maps of {ARTCC}: {message}".
+- **The route library.** The list on the left holds your saved routes for this ARTCC; **Show all ARTCCs** lists every one. Pick a route to edit it. Type a **Name** and a **Colour** (#RRGGBB), then **Save** writes the route; **New** starts an empty one and **Delete** removes the selected route.
 
 The editor checks the scenario as you edit. Errors show in red and warnings in amber beside the field they are about, and an aircraft row in the grid carries a marker for its findings.
 

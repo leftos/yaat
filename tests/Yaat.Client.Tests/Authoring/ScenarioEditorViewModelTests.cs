@@ -1,6 +1,9 @@
+using System.Text.Json;
 using Xunit;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Commands;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.Tests.Authoring;
 
@@ -34,6 +37,56 @@ public sealed class ScenarioEditorViewModelTests : IDisposable
         Assert.Null(editor.OpenError);
         Assert.Equal(before, _fx.CopyBytes("L1"));
     }
+
+    [Fact]
+    public async Task CreateRouteComposerContext_WithNoCopyOpen_IsNull()
+    {
+        (_, ScenarioEditorViewModel editor) = await _fx.OpenEditor();
+
+        Assert.Null(editor.CreateRouteComposerContext());
+    }
+
+    [Fact]
+    public async Task CreateRouteComposerContext_OverAnOpenCopy_CarriesItsArtccAndListsThatArtccsMaps()
+    {
+        _fx.AddCopy("L1", "Lima");
+        _fx.ConfigBody = ConfigJson(("A", "Alpha", 2), ("B", "Brook", 7));
+        (_, ScenarioEditorViewModel editor) = await _fx.OpenEditorOn("L1");
+
+        RouteComposerContext context = Assert.IsType<RouteComposerContext>(editor.CreateRouteComposerContext());
+        Assert.Equal(Zoa, context.ArtccId);
+        Assert.Equal(FixResolutionContext.None, context.Fixes);
+
+        IReadOnlyList<RouteComposerMap> maps = await context.LoadMaps(CancellationToken.None);
+
+        Assert.Equal(["Alpha", "Brook"], maps.Select(m => m.Name));
+        Assert.NotEmpty(_fx.ConfigRequests);
+        Assert.All(_fx.ConfigRequests, path => Assert.EndsWith("/artccs/ZOA", path, StringComparison.Ordinal));
+    }
+
+    // A ZOA config listing the given video maps, as data-api answers it.
+    private static string ConfigJson(params (string Id, string Name, int StarsId)[] maps) =>
+        JsonSerializer.Serialize(
+            new ArtccConfigRoot
+            {
+                Id = Zoa,
+                Facility = new FacilityConfig
+                {
+                    Id = Zoa,
+                    Type = "Artcc",
+                    Name = "Oakland ARTCC",
+                },
+                VideoMaps =
+                [
+                    .. maps.Select(m => new VideoMapConfig
+                    {
+                        Id = m.Id,
+                        Name = m.Name,
+                        StarsId = m.StarsId,
+                    }),
+                ],
+            }
+        );
 
     [Fact]
     public async Task OpenAnUnreadableCopy_SetsOpenError_OpensNothing_WritesNothing()

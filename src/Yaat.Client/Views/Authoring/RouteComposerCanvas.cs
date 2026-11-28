@@ -107,7 +107,7 @@ public sealed class RouteComposerCanvas : MapCanvasBase, IDisposable
         MarkDirty();
     }
 
-    /// <summary>Fits the view to the route's points, else to the enabled maps; does nothing when there are neither.</summary>
+    /// <summary>Fits the view to the route's points, else to the ticked maps that are loaded; does nothing when there are neither.</summary>
     public void FitToContent()
     {
         List<(double Lat, double Lon)> positions = [.. ContentPositions()];
@@ -303,7 +303,7 @@ public sealed class RouteComposerCanvas : MapCanvasBase, IDisposable
         }
 
         RouteComposerViewModel? vm = _viewModel;
-        ImmutableArray<VideoMapData> maps = (vm is null) ? [] : [.. vm.Maps.Where(m => m.IsEnabled).Select(m => m.Data)];
+        ImmutableArray<VideoMapData> maps = (vm is null) ? [] : [.. vm.Maps.Where(m => m.IsEnabled).Select(m => m.Data).OfType<VideoMapData>()];
         SKColor color = ((vm is not null) && SKColor.TryParse(vm.Color, out SKColor parsed)) ? parsed : DefaultRouteColor;
         return new RouteComposerRenderSnapshot(CurrentScene(), vm?.SelectedIndex, _hover, maps, color);
     }
@@ -357,7 +357,9 @@ public sealed class RouteComposerCanvas : MapCanvasBase, IDisposable
         }
 
         List<(double, double)> points = [.. vm.Points.Where(p => p.Position is not null).Select(p => (p.Position!.Value.Lat, p.Position.Value.Lon))];
-        return (points.Count > 0) ? points : vm.Maps.Where(m => m.IsEnabled).SelectMany(m => m.Data.Lines).SelectMany(l => l.Points);
+        return (points.Count > 0)
+            ? points
+            : vm.Maps.Where(m => m.IsEnabled).Select(m => m.Data).OfType<VideoMapData>().SelectMany(d => d.Lines).SelectMany(l => l.Points);
     }
 
     private void RefreshFixes()

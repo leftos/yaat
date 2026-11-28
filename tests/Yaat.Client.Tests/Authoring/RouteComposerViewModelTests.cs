@@ -281,7 +281,8 @@ public sealed class RouteComposerViewModelTests : IDisposable
             {
                 started.SetResult();
                 return pending.Task;
-            }
+            },
+            (_, _) => Task.FromResult<VideoMapData?>(null)
         );
         var vm = new RouteComposerViewModel(context, new RouteLibrary(_root), () => NavDb);
         using var cts = new CancellationTokenSource();
@@ -289,12 +290,177 @@ public sealed class RouteComposerViewModelTests : IDisposable
         Task load = vm.LoadMapsAsync(cts.Token);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         await cts.CancelAsync();
-        VideoMapData data = new() { MapId = "M", Lines = [] };
-        pending.SetResult([new RouteComposerMap("M", data)]);
+        pending.SetResult([new RouteComposerMap("M", "M")]);
         await load.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
 
         Assert.Empty(vm.Maps);
         Assert.Equal("", vm.MessageText);
+    }
+
+    [Fact]
+    public async Task LoadMapsAsync_ListsTheMaps_AndLoadsNone()
+    {
+        List<string> asked = [];
+        var vm = new RouteComposerViewModel(
+            MapContext(
+                [new("East", "EAST"), new("West", "WEST")],
+                (id, _) =>
+                {
+                    asked.Add(id);
+                    return Task.FromResult<VideoMapData?>(null);
+                }
+            ),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+
+        await vm.LoadMapsAsync(CancellationToken.None);
+
+        Assert.Equal(["East", "West"], vm.Maps.Select(m => m.Name));
+        Assert.All(vm.Maps, m => Assert.Null(m.Data));
+        Assert.All(vm.Maps, m => Assert.False(m.IsEnabled));
+        Assert.Empty(asked);
+    }
+
+    [Fact]
+    public async Task TickingALayer_LoadsItOnce_AndTickingAgainAfterUntickingLoadsNothing()
+    {
+        VideoMapData east = new() { MapId = "EAST", Lines = [] };
+        List<string> asked = [];
+        var vm = new RouteComposerViewModel(
+            MapContext(
+                [new("East", "EAST")],
+                (id, _) =>
+                {
+                    asked.Add(id);
+                    return Task.FromResult<VideoMapData?>(east);
+                }
+            ),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+        await vm.LoadMapsAsync(CancellationToken.None);
+        RouteComposerMapLayer layer = Assert.Single(vm.Maps);
+
+        layer.IsEnabled = true;
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Equal(["EAST"], asked);
+        Assert.Same(east, layer.Data);
+        Assert.True(layer.IsEnabled);
+
+        layer.IsEnabled = false;
+        layer.IsEnabled = true;
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Equal(["EAST"], asked);
+        Assert.Same(east, layer.Data);
+    }
+
+    [Fact]
+    public async Task ALayerWhoseMapIsNotCached_SaysSoAndUnticks()
+    {
+        var vm = new RouteComposerViewModel(
+            MapContext([new("East", "EAST")], (_, _) => Task.FromResult<VideoMapData?>(null)),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+        await vm.LoadMapsAsync(CancellationToken.None);
+        RouteComposerMapLayer layer = Assert.Single(vm.Maps);
+
+        layer.IsEnabled = true;
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Equal("The video map East is not cached; it needs one online open.", vm.MessageText);
+        Assert.False(layer.IsEnabled);
+        Assert.Null(layer.Data);
+        Assert.False(layer.IsLoading);
+    }
+
+    [Fact]
+    public async Task ALayerThatFailsToLoad_SaysWhyAndUnticks()
+    {
+        var vm = new RouteComposerViewModel(
+            MapContext([new("East", "EAST")], (_, _) => Task.FromException<VideoMapData?>(new IOException("the disk is gone"))),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+        await vm.LoadMapsAsync(CancellationToken.None);
+        RouteComposerMapLayer layer = Assert.Single(vm.Maps);
+
+        layer.IsEnabled = true;
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Equal("Could not load the video map East: the disk is gone", vm.MessageText);
+        Assert.False(layer.IsEnabled);
+        Assert.Null(layer.Data);
+        Assert.False(layer.IsLoading);
+    }
+
+    [Fact]
+    public async Task ALoadCompletedAfterUnticking_StoresTheMap_AndLeavesTheLayerOff()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<VideoMapData?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoMapData east = new() { MapId = "EAST", Lines = [] };
+        var vm = new RouteComposerViewModel(
+            MapContext(
+                [new("East", "EAST")],
+                (_, _) =>
+                {
+                    started.TrySetResult();
+                    return pending.Task;
+                }
+            ),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+        await vm.LoadMapsAsync(CancellationToken.None);
+        RouteComposerMapLayer layer = Assert.Single(vm.Maps);
+
+        layer.IsEnabled = true;
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        layer.IsEnabled = false;
+        pending.SetResult(east);
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Same(east, layer.Data);
+        Assert.False(layer.IsEnabled);
+        Assert.False(layer.IsLoading);
+    }
+
+    [Fact]
+    public async Task TickingALayerAgainWhileItLoads_StartsNoSecondLoad()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<VideoMapData?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoMapData east = new() { MapId = "EAST", Lines = [] };
+        List<string> asked = [];
+        var vm = new RouteComposerViewModel(
+            MapContext(
+                [new("East", "EAST")],
+                (id, _) =>
+                {
+                    asked.Add(id);
+                    started.TrySetResult();
+                    return pending.Task;
+                }
+            ),
+            new RouteLibrary(_root),
+            () => NavDb
+        );
+        await vm.LoadMapsAsync(CancellationToken.None);
+        RouteComposerMapLayer layer = Assert.Single(vm.Maps);
+
+        layer.IsEnabled = true;
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        layer.IsEnabled = false;
+        layer.IsEnabled = true;
+        pending.SetResult(east);
+        await vm.MapLoadTask.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+
+        Assert.Single(asked);
+        Assert.Same(east, layer.Data);
     }
 
     // ADDMM twice: the real KSFO terminal waypoint from the committed CIFP and a NavData fix 0.5 degrees north of it, the one
@@ -328,8 +494,13 @@ public sealed class RouteComposerViewModelTests : IDisposable
 
     private static RouteComposerContext Context(string artccId) => Context(artccId, FixResolutionContext.None);
 
+    private static RouteComposerContext MapContext(
+        IReadOnlyList<RouteComposerMap> maps,
+        Func<string, CancellationToken, Task<VideoMapData?>> loadMap
+    ) => new("ZOA", FixResolutionContext.None, _ => Task.FromResult(maps), loadMap);
+
     private static RouteComposerContext Context(string artccId, FixResolutionContext fixes) =>
-        new(artccId, fixes, _ => Task.FromResult<IReadOnlyList<RouteComposerMap>>([]));
+        new(artccId, fixes, _ => Task.FromResult<IReadOnlyList<RouteComposerMap>>([]), (_, _) => Task.FromResult<VideoMapData?>(null));
 
     private RouteComposerViewModel Open(string artccId) => new(Context(artccId), new RouteLibrary(_root), () => NavDb);
 }

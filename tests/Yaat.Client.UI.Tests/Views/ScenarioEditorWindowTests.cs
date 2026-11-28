@@ -577,6 +577,136 @@ public class ScenarioEditorWindowTests
         }
     }
 
+    [AvaloniaFact]
+    public async Task RouteComposerItem_IsDisabledWithNoCopyOpen_AndEnabledWithOne()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            MenuItem item = window.FindControl<MenuItem>("RouteComposerMenuItem")!;
+            Assert.Equal("Route composer…", item.Header);
+            Assert.False(item.IsEnabled);
+
+            await OpenOakAsync(window);
+
+            Assert.True(item.IsEnabled);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RouteComposerItem_OpensOneModelessComposerOwnedByTheEditor()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            MenuItem item = window.FindControl<MenuItem>("RouteComposerMenuItem")!;
+
+            Click(item);
+            RouteComposerWindow composer = Assert.Single(ComposersOf(window));
+            Assert.True(composer.IsVisible);
+            Assert.False(ShownAsDialog(composer));
+
+            Click(item);
+
+            Assert.Same(composer, Assert.Single(ComposersOf(window)));
+        }
+        finally
+        {
+            CloseComposers(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingTheEditor_ClosesTheRouteComposer()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        bool closed = false;
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            Click(window.FindControl<MenuItem>("RouteComposerMenuItem")!);
+            RouteComposerWindow composer = Assert.Single(ComposersOf(window));
+
+            CloseNow(window);
+            closed = true;
+            MainWindowHost.Pump();
+
+            Assert.DoesNotContain(composer, OpenWindows.All);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                CloseComposers(window);
+                CloseNow(window);
+            }
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task OpeningAnotherCopy_ClosesTheRouteComposer()
+    {
+        LocalScenarioStore store = OakStore();
+        store.CreateLocalScenario(Zoa, $$"""{"id":"{{CopyId}}","name":"SMF_APP - Sacramento Arrivals","artccId":"ZOA"}""", CopyId);
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            Click(window.FindControl<MenuItem>("RouteComposerMenuItem")!);
+            Assert.Single(ComposersOf(window));
+
+            ScenarioBrowserViewModel browser = window.Browser;
+            browser.SelectedLocalRow = browser.LocalRows.Single(r => r.Id == CopyId);
+            await browser.OpenCommand.ExecuteAsync(null);
+            await window.Editor.OpenTask.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            MainWindowHost.Pump();
+
+            Assert.Equal(CopyId, window.Editor.Session!.ScenarioId);
+            Assert.Empty(ComposersOf(window));
+        }
+        finally
+        {
+            CloseComposers(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task RouteComposerClosedByItself_OpensANewOneOnTheNextClick()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            MenuItem item = window.FindControl<MenuItem>("RouteComposerMenuItem")!;
+            Click(item);
+            RouteComposerWindow first = Assert.Single(ComposersOf(window));
+
+            first.Close();
+            MainWindowHost.Pump();
+            Click(item);
+
+            RouteComposerWindow second = Assert.Single(ComposersOf(window));
+            Assert.NotSame(first, second);
+        }
+        finally
+        {
+            CloseComposers(window);
+            CloseNow(window);
+        }
+    }
+
     // The spawn planner windows the editor owns that are open now.
     private static SpawnPlannerWindow[] PlannersOf(ScenarioEditorWindow window) =>
         [.. OpenWindows.All.OfType<SpawnPlannerWindow>().Where(w => ReferenceEquals(w.Owner, window))];
@@ -586,6 +716,18 @@ public class ScenarioEditorWindowTests
         foreach (SpawnPlannerWindow planner in PlannersOf(window))
         {
             planner.Close();
+        }
+    }
+
+    // The route composer windows the editor owns that are open now.
+    private static RouteComposerWindow[] ComposersOf(ScenarioEditorWindow window) =>
+        [.. OpenWindows.All.OfType<RouteComposerWindow>().Where(w => ReferenceEquals(w.Owner, window))];
+
+    private static void CloseComposers(ScenarioEditorWindow window)
+    {
+        foreach (RouteComposerWindow composer in ComposersOf(window))
+        {
+            composer.Close();
         }
     }
 
@@ -1893,6 +2035,7 @@ public class ScenarioEditorWindowTests
                     Store = store,
                     Download = NeverFinishes,
                     Configs = configs,
+                    DownloadVideoMaps = (_, _, _) => Task.FromResult<VideoMapData?>(null),
                 },
             _ => new FakeFilePickerService(),
             NoLayouts,

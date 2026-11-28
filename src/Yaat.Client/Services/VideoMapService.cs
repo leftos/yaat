@@ -60,7 +60,8 @@ public sealed class VideoMapService
 
     /// <summary>
     /// Loads a batch of video maps for an ARTCC. Downloads any
-    /// missing maps, parses them, and caches the results.
+    /// missing maps, parses them, and caches the results. The batch cannot be cancelled (the Scope's map-source
+    /// signature); <see cref="LoadMapAsync"/> is the cancelling load of one map.
     /// </summary>
     public async Task<List<VideoMapData>> LoadMapsAsync(string artccId, IReadOnlyList<VideoMapInfoDto> maps)
     {
@@ -82,7 +83,7 @@ public sealed class VideoMapService
             tasks.Add(
                 Task.Run(async () =>
                 {
-                    VideoMapData? data = await LoadSingleMapAsync(artccId, localMap.Id, artccCacheDir);
+                    VideoMapData? data = await LoadSingleMapAsync(artccId, localMap.Id, artccCacheDir, CancellationToken.None);
                     if (data is not null)
                     {
                         lock (_cache)
@@ -103,13 +104,45 @@ public sealed class VideoMapService
         return results;
     }
 
-    private async Task<VideoMapData?> LoadSingleMapAsync(string artccId, string mapId, string artccCacheDir)
+    /// <summary>
+    /// Loads one video map of an ARTCC: from the parsed cache while it is fresh, else from disk or a download; null when
+    /// it cannot be fetched.
+    /// </summary>
+    /// <param name="artccId">The ARTCC the map belongs to.</param>
+    /// <param name="map">The map to load.</param>
+    /// <param name="ct">Cancels the load.</param>
+    /// <returns>The parsed map, or null.</returns>
+    public async Task<VideoMapData?> LoadMapAsync(string artccId, VideoMapInfoDto map, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (GetFresh(map.Id) is { } fresh)
+        {
+            return fresh;
+        }
+
+        string artccCacheDir = Path.Combine(CacheDir, artccId);
+        Directory.CreateDirectory(artccCacheDir);
+        VideoMapData? data = await LoadSingleMapAsync(artccId, map.Id, artccCacheDir, ct).ConfigureAwait(false);
+        if (data is not null)
+        {
+            lock (_cache)
+            {
+                _cache[map.Id] = new CachedVideoMap(data, DateTime.UtcNow);
+            }
+        }
+
+        return data;
+    }
+
+    private async Task<VideoMapData?> LoadSingleMapAsync(string artccId, string mapId, string artccCacheDir, CancellationToken ct)
     {
         string cachePath = Path.Combine(artccCacheDir, $"{mapId}.geojson");
         string url = $"{DataApiBase}/{artccId}/{mapId}.geojson";
 
         string? json = (
-            await HttpFileCache.GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log)
+            await HttpFileCache
+                .GetOrRefreshAsync(_http, url, cachePath, HttpCacheFreshness.HeadLastModified, diskTtl: null, _log, ct)
+                .ConfigureAwait(false)
         ).Content;
         if (json is null)
         {

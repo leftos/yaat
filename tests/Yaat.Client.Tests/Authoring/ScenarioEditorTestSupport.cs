@@ -5,6 +5,7 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
 
@@ -52,6 +53,9 @@ internal sealed class ScenarioEditorFixture : IDisposable
     /// <summary>Gets or sets the body data-api answers for an ARTCC config; null answers as the network being down.</summary>
     public string? ConfigBody { get; set; }
 
+    /// <summary>Gets the paths this fixture's config source asked data-api for.</summary>
+    public List<string> ConfigRequests { get; } = [];
+
     /// <summary>A layout source with no map for any airport, so no test fetches one.</summary>
     public static Task<AirportGroundLayout?> NoLayouts(string airportId, CancellationToken ct) => Task.FromResult<AirportGroundLayout?>(null);
 
@@ -62,6 +66,10 @@ internal sealed class ScenarioEditorFixture : IDisposable
     /// <summary>A config source whose data-api is never reachable, over its own folder.</summary>
     public static ArtccConfigSource OfflineConfigs(string cacheRoot) =>
         new(new HttpClient(new StubArtccHandler(_ => null)), cacheRoot, () => DateTime.UtcNow);
+
+    /// <summary>A video-map download that answers every request with an empty map, so no test reaches data-api.</summary>
+    public static Func<string, VideoMapInfoDto, CancellationToken, Task<VideoMapData?>> EchoVideoMaps() =>
+        (_, map, _) => Task.FromResult<VideoMapData?>(new VideoMapData { MapId = map.Id, Lines = [] });
 
     /// <summary>
     /// A ZOA config with one position, OAK_14_CTR (Sector 14), no neighbours, and a child TRACON whose STARS area lists
@@ -148,7 +156,8 @@ internal sealed class ScenarioEditorFixture : IDisposable
             (_, _, _) => Task.CompletedTask,
             () => false,
             new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow),
-            NoRouteFinding()
+            NoRouteFinding(),
+            EchoVideoMaps()
         );
 
     /// <summary>A browser and an editor over it, the browser's first load and resync done.</summary>
@@ -226,8 +235,12 @@ internal sealed class ScenarioEditorFixture : IDisposable
     }
 
     // data-api answers ZOA with ConfigBody and every other ARTCC (a neighbour) as the network being down.
-    private string? ZoaOnly(HttpRequestMessage request) =>
-        (request.RequestUri?.AbsolutePath.EndsWith("/" + Zoa, StringComparison.Ordinal) == true) ? ConfigBody : null;
+    private string? ZoaOnly(HttpRequestMessage request)
+    {
+        string path = request.RequestUri?.AbsolutePath ?? "";
+        ConfigRequests.Add(path);
+        return path.EndsWith("/" + Zoa, StringComparison.Ordinal) ? ConfigBody : null;
+    }
 
     private sealed class FixedArtccs(Func<IReadOnlyList<string>> artccs) : IArtccAccessSource
     {

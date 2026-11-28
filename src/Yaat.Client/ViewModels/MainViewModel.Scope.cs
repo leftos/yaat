@@ -177,6 +177,9 @@ public partial class MainViewModel
     /// </summary>
     public void RunScopeCommand(ScopeViewModel scope, string text) => TryHandleScopeCommand(text, new CommandLineSink(this), scope);
 
+    /// <summary>Gets the client's video-map service, whose parsed maps the Radar, the Scope and the route composer share.</summary>
+    internal VideoMapService VideoMaps => _videoMapService;
+
     /// <summary>The parsed data of the video map with <paramref name="mapId"/> from the video-map cache, or null when it is not loaded.</summary>
     public VideoMapData? GetCachedVideoMap(string mapId) => _videoMapService.GetCached(mapId);
 
