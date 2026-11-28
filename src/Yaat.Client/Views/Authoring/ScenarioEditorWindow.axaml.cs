@@ -12,8 +12,9 @@ namespace Yaat.Client.Views.Authoring;
 
 /// <summary>
 /// Tools › Scenario Editor: a non-modal window over a <see cref="ScenarioBrowserViewModel"/> and the
-/// <see cref="ScenarioEditorViewModel"/> that follows it, with the ARTCC, the browser's commands and Undo, Redo and Save
-/// (Ctrl+S) in a toolbar, the browser beside the open copy's General tab (placeholder texts while nothing is open), and
+/// <see cref="ScenarioEditorViewModel"/> that follows it, with a menu bar (File: the scenario-file commands; Tools: the
+/// satellite windows over the open copy), the ARTCC, New, Duplicate, Test in Room, Refresh, Undo, Redo and Save (Ctrl+S)
+/// in a toolbar, the browser beside the open copy's General tab (placeholder texts while nothing is open), and
 /// the status line, save message and resync progress along the bottom. Opening it reads the ARTCCs and starts the
 /// resync once; closing it asks about unsaved edits (an application or OS shutdown does not) and cancels a running resync.
 /// Ctrl+S and closing first commit the text field still being typed in.
@@ -28,6 +29,7 @@ public partial class ScenarioEditorWindow : Window
     private static readonly ILogger Log = AppLog.CreateLogger<ScenarioEditorWindow>();
 
     private readonly WindowGeometryHelper _geometry;
+    private readonly UserPreferences _preferences;
 
     // Set once an asked close was allowed, so the close it starts again goes through.
     private bool _closeAllowed;
@@ -60,6 +62,7 @@ public partial class ScenarioEditorWindow : Window
         ArgumentNullException.ThrowIfNull(layouts);
         ArgumentNullException.ThrowIfNull(navDataReady);
         InitializeComponent();
+        _preferences = preferences;
         ScenarioBrowserServices built = services(new ScenarioBrowserPrompts(this, filePickerFactory(this)));
         Browser = new ScenarioBrowserViewModel(built);
         Editor = new ScenarioEditorViewModel(Browser, built, layouts, navDataReady);
@@ -67,7 +70,9 @@ public partial class ScenarioEditorWindow : Window
         EditorPane.DataContext = Editor;
         SaveMessageText.DataContext = Editor;
         ValidationStatus.DataContext = Editor;
+        ToolsMenu.DataContext = Editor;
         DataContext = Browser;
+        WireSatellites();
         PlaceholderPanel.Bind(IsVisibleProperty, CompiledBinding.Create<ScenarioEditorViewModel, bool>(vm => vm.ShowsPlaceholder, source: Editor));
         _geometry = new WindowGeometryHelper(this, preferences, GeometryKey, 1100, 700);
         _geometry.Restore();
@@ -234,6 +239,7 @@ public partial class ScenarioEditorWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         Browser.PropertyChanged -= OnBrowserPropertyChanged;
+        UnwireSatellites();
         Editor.Dispose();
         Browser.Dispose();
     }

@@ -619,6 +619,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         _edits++;
         NotifyState();
         Validation?.Recompute();
+        RefreshSatellites();
     }
 
     // The live validation's latest findings: beside the fields of both tabs, and its scenario-level finding in the status bar.
@@ -662,6 +663,7 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
 
     private void CloseSession()
     {
+        CloseSatellites();
         if (Session is { } session)
         {
             session.DocumentReplaced -= OnDocumentReplaced;

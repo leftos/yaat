@@ -41,6 +41,23 @@
     </Style>
   </Window.Styles>
   <DockPanel>
+    <Menu x:Name="MenuBar" DockPanel.Dock="Top" Background="#1F1F1F">
+      <MenuItem x:Name="FileMenu" Header="File">
+        <MenuItem x:Name="NewMenuBarItem" Header="New scenario" Command="{Binding NewCommand}" />
+        <MenuItem x:Name="DuplicateMenuBarItem" Header="Duplicate" Command="{Binding DuplicateCommand}" />
+        <MenuItem x:Name="DeleteMenuBarItem" Header="Delete…" Command="{Binding DeleteCommand}" />
+        <Separator />
+        <MenuItem x:Name="ImportMenuBarItem" Header="Import…" Command="{Binding ImportCommand}" />
+        <MenuItem x:Name="SaveCopyMenuBarItem" Header="Save a copy…" Command="{Binding SaveCopyCommand}" />
+        <Separator />
+        <MenuItem x:Name="ExportJsonMenuBarItem" Header="Export JSON…" Command="{Binding ExportJsonCommand}" />
+        <MenuItem x:Name="ExportCleanJsonMenuBarItem" Header="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
+        <MenuItem x:Name="ExportAllUnexportedMenuBarItem" Header="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
+      </MenuItem>
+      <MenuItem x:Name="ToolsMenu" Header="Tools" x:DataType="vm:ScenarioEditorViewModel">
+        <MenuItem x:Name="SpawnPlannerMenuItem" Header="Spawn planner…" IsEnabled="{Binding IsOpen}" />
+      </MenuItem>
+    </Menu>
     <Border DockPanel.Dock="Top" Classes="toolbar" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5" MinHeight="36">
       <StackPanel Orientation="Horizontal" Spacing="5">
         <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
@@ -67,13 +84,7 @@
         <Border Classes="vsep" />
         <Button x:Name="NewButton" Content="New" Command="{Binding NewCommand}" />
         <Button x:Name="DuplicateButton" Content="Duplicate" Command="{Binding DuplicateCommand}" />
-        <Button x:Name="DeleteButton" Content="Delete" Command="{Binding DeleteCommand}" />
         <Border Classes="vsep" />
-        <Button x:Name="ImportButton" Content="Import…" Command="{Binding ImportCommand}" />
-        <Button x:Name="SaveCopyButton" Content="Save copy…" Command="{Binding SaveCopyCommand}" />
-        <Button x:Name="ExportJsonButton" Content="Export JSON…" Command="{Binding ExportJsonCommand}" />
-        <Button x:Name="ExportCleanJsonButton" Content="Export clean JSON…" Command="{Binding ExportCleanJsonCommand}" />
-        <Button x:Name="ExportAllUnexportedButton" Content="Export all unexported…" Command="{Binding ExportAllUnexportedCommand}" />
         <Button x:Name="TestInRoomButton" Content="Test in Room" Command="{Binding TestInRoomCommand}" />
         <Border Classes="vsep" />
         <Button x:Name="RefreshButton" Command="{Binding RefreshCommand}">

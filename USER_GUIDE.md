@@ -37,6 +37,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Editor Commands](#editor-commands)
   - [Test in Room](#test-in-room)
   - [Editing a Scenario](#editing-a-scenario)
+  - [Spawn planner](#spawn-planner)
   - [Live Findings](#live-findings)
   - [Exporting JSON](#exporting-json)
   - [Airport Editor](#airport-editor)
@@ -2372,16 +2373,16 @@ A single click selects a row; a double-click, or Enter, opens it. Opening a Serv
 
 ### Editor Commands
 
-The toolbar and the list's right-click menu carry the same commands:
+A menu bar (**File** and **Tools**) sits above the toolbar. The **File** menu and the list's right-click menu carry the scenario-file commands:
 
-- **New**: a new local-only scenario.
+- **New scenario**: a new local-only scenario.
 - **Duplicate**: a local-only copy of the selected working copy.
-- **Delete**: deletes the selected working copy, after asking.
+- **Delete...**: deletes the selected working copy, after asking.
 - **Import...**: adds scenario JSON files as working copies. A file whose scenario id is already taken asks whether to give it a new id, keep the id or skip it.
-- **Save copy...**: writes the selected scenario to a file of your choice.
+- **Save a copy...**: writes the selected scenario to a file of your choice.
 - **Export JSON...**, **Export clean JSON...** and **Export all unexported...**: see [Exporting JSON](#exporting-json).
-- **Test in Room**: loads the selected working copy into your training room (below).
-- **Refresh**: downloads the server scenarios again.
+
+The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open.
 
 ### Test in Room
 
@@ -2408,6 +2409,22 @@ For a parking start, **Pick on map** beside the Parking field opens a map of the
 **Assign Gate**, beside **Pick on map**, opens the same map as "Assign gate — {airport}" with the airport's stands ranked for this aircraft. Each stand is coloured by its reason (green preferred, red too small, purple another airline's, grey taken) and listed on the right as "{stand}: {reason}": "preferred for {airline}", "fits", "too small (span cap {cap} ft)", "another airline's" or "taken until {time}". Three modes choose the stand **OK** writes. **Random** draws a free stand that fits, from the best tier. **In area** draws one inside the parking area picked in the drop-down. **From map** leaves the choice to your click. A stand that does not fit can still be clicked and assigned: the status line names the reason and says it is assigned anyway. When no free stand fits, nothing is selected and the status line reads "No free stand fits; parking unchanged". While navdata is still loading the picker notes "Navdata loading; ranking without airline tags". The pick is one "Edit parking" undo step, as with **Pick on map**.
 
 **Undo** and **Redo** step through every edit, and their tooltips name the step. **Save** (or Ctrl+S) writes the copy, first applying the field you are typing in. A marker beside Save shows unsaved edits. Opening another copy while this one has unsaved edits asks whether to save them; closing the window or switching ARTCC asks too, as described under Exporting JSON.
+
+### Spawn planner
+
+**Tools > Spawn planner...** opens "Spawn planner — {scenario}" over the open copy. It sets the spawn delay of the scenario's aircraft from time bands or a workload curve, so you do not type each delay. The window is separate from the editor and stays open while you keep editing; only one is open at a time, a second click on the menu item brings it forward, and it closes when the open copy closes or another copy opens, and when the editor closes. An edit you make in the editor drops the planner's preview and re-counts its matched aircraft.
+
+The inputs are on the left, the results on the right.
+
+- **Filter** picks the aircraft to plan: **Flight rules**, **Start kind**, **Departure**, **Destination**, **Approach**, and **Not departing**, **Not arriving** and **Leave out callsigns** to exclude. A blank box matches any; the line under them says how many aircraft matched. Aircraft outside the filter keep their delays.
+- **Mode** is **Bands** or **Workload**. In **Bands** each row is a stretch of the scenario: **From (min)**, **To (min)**, the **Interval** between spawns, and **+ s** and **− s** of jitter; **Add band** and a row's **Remove** change the list, and a row shows its error or a warning (for example when bands are out of order) beneath it. In **Workload** you set **Start (%)** and **End (%)**, the **Interval at 100 % (s)** and **Interval at 0 % (s)**, **Jitter (s)** and the **Graph bucket (s)**, and tick **Place every matched aircraft** to fit all of them rather than as many as the curve allows. The curve is a list of **Control points** (**Time (min)** and **Percent**, with **Add point** and **Remove**); you can also drag the points on the graph. **Peaks**, **Peak (%)**, **Trough (%)** and **Auto-fill** lay out an alternating curve for you.
+- **Minimum same-origin gap** is the least time between two spawns from one origin (a departure airport, an arrival fix, or a runway for On Final starts). The note under it says it is a gap between spawns, not a separation standard: 60 s suits departures and terminal fixes, 90-120 s en route or with mixed speeds, and departures on one runway need 3 minutes behind a super and 2 behind a heavy for wake, so space heavies 120 s or more apart if you do not want wake holds.
+- **Order**: tick **Random order** to shuffle which aircraft takes which slot. The **Seed** makes the shuffle and the jitter repeatable, so the same seed gives the same times; **Reroll** picks a new one.
+- **Length**: **Planning length (min)** is how long the plan may run, and **Working time after the last spawn (min)** is the time the students need after the final spawn (the hint says 15-20 min for arrivals or en route traffic). **Past the length** says what to do when spawns would run beyond the planning length: **Extend the planning length**, **Compress the intervals**, or **Leave the overrun**. When the preview shows an overrun, **Extend** sets the planning length to the last spawn plus the working time and previews again. Compressing can bring same-origin spawns closer than the minimum gap; the preview warns when it does.
+
+On the right, the graph shows the previewed spawns per bucket as bars, and in Workload mode the curve. The table lists each planned aircraft's **Callsign**, **Type**, **Origin**, its delay **Now** and its **New** delay. **Unassigned** names the aircraft that could not be given a time, and **Warnings** lists the preview's warnings and any error, including a plan file that could not be read or written.
+
+**Preview** computes the plan and shows it without changing the scenario. **Apply** writes the new delays into the scenario as one undo step, "Apply spawn plan", recomputed against the copy as it is now with the same seed; the Aircraft tab shows the new delays, and a single **Undo** takes them back. With **Extend the planning length** chosen and the schedule running past the planning length, Apply also lengthens the planning length. **Save plan...** writes every input to a plan file and **Load plan...** reads one back, starting in the folder you last used; a file from another version is refused, and an airport the scenario lacks matches no aircraft.
 
 ### Live Findings
 

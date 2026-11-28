@@ -237,7 +237,7 @@ public class ScenarioEditorWindowTests
     }
 
     [AvaloniaFact]
-    public async Task ToolbarAndContextMenu_OfferTheSameCommands()
+    public async Task ToolbarMenuBarAndContextMenu_OfferTheSameCommands()
     {
         ScenarioEditorWindow window = NewWindow(SeededStore(), Zoa);
         try
@@ -264,10 +264,18 @@ public class ScenarioEditorWindowTests
                 ("TestInRoom", vm.TestInRoomCommand),
             ];
 
+            string[] onTheToolbar = ["New", "Duplicate", "Refresh", "TestInRoom"];
             foreach ((string name, ICommand command) in commands)
             {
-                Assert.Same(command, window.FindControl<Button>(name + "Button")!.Command);
                 Assert.Same(command, view.FindControl<MenuItem>(name + "MenuItem")!.Command);
+                if (onTheToolbar.Contains(name))
+                {
+                    Assert.Same(command, window.FindControl<Button>(name + "Button")!.Command);
+                }
+                else
+                {
+                    Assert.Same(command, window.FindControl<MenuItem>(name + "MenuBarItem")!.Command);
+                }
             }
 
             // Merge server changes is a menu command only: it has no toolbar button.
@@ -277,6 +285,307 @@ public class ScenarioEditorWindowTests
         finally
         {
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task FileMenu_ListsTheScenarioFileCommands_InTheContextMenusOrderAndLabels()
+    {
+        ScenarioEditorWindow window = NewWindow(SeededStore(), Zoa);
+        try
+        {
+            await ShowAsync(window);
+            ScenarioBrowserViewModel vm = window.Browser;
+            (string Name, string Header, ICommand Command)[] expected =
+            [
+                ("NewMenuBarItem", "New scenario", vm.NewCommand),
+                ("DuplicateMenuBarItem", "Duplicate", vm.DuplicateCommand),
+                ("DeleteMenuBarItem", "Delete…", vm.DeleteCommand),
+                ("ImportMenuBarItem", "Import…", vm.ImportCommand),
+                ("SaveCopyMenuBarItem", "Save a copy…", vm.SaveCopyCommand),
+                ("ExportJsonMenuBarItem", "Export JSON…", vm.ExportJsonCommand),
+                ("ExportCleanJsonMenuBarItem", "Export clean JSON…", vm.ExportCleanJsonCommand),
+                ("ExportAllUnexportedMenuBarItem", "Export all unexported…", vm.ExportAllUnexportedCommand),
+            ];
+
+            MenuItem file = window.FindControl<MenuItem>("FileMenu")!;
+            MenuItem[] items = [.. file.Items.OfType<MenuItem>()];
+
+            Assert.Equal("File", file.Header);
+            Assert.Equal(expected.Select(e => e.Name), items.Select(i => i.Name));
+            Assert.Equal(expected.Select(e => e.Header), items.Select(i => i.Header as string));
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.Same(expected[i].Command, items[i].Command);
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Toolbar_LosesTheFileCommands_AndKeepsTheRest()
+    {
+        ScenarioEditorWindow window = NewWindow(SeededStore(), Zoa);
+        try
+        {
+            await ShowAsync(window);
+
+            foreach (string gone in new[] { "Delete", "Import", "SaveCopy", "ExportJson", "ExportCleanJson", "ExportAllUnexported" })
+            {
+                Assert.Null(window.FindControl<Button>(gone + "Button"));
+            }
+
+            foreach (string kept in new[] { "New", "Duplicate", "TestInRoom", "Refresh", "Undo", "Redo", "Save" })
+            {
+                Assert.NotNull(window.FindControl<Button>(kept + "Button"));
+            }
+
+            Assert.NotNull(window.FindControl<ComboBox>("ArtccSelector"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SpawnPlannerItem_IsDisabledWithNoCopyOpen_AndEnabledWithOne()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            MenuItem tools = window.FindControl<MenuItem>("ToolsMenu")!;
+            MenuItem item = window.FindControl<MenuItem>("SpawnPlannerMenuItem")!;
+            Assert.Equal("Tools", tools.Header);
+            Assert.Equal("Spawn planner…", item.Header);
+            Assert.False(item.IsEnabled);
+
+            await OpenOakAsync(window);
+
+            Assert.True(item.IsEnabled);
+        }
+        finally
+        {
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SpawnPlannerItem_OpensOneModelessPlannerOwnedByTheEditor()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            MenuItem item = window.FindControl<MenuItem>("SpawnPlannerMenuItem")!;
+
+            Click(item);
+            SpawnPlannerWindow planner = Assert.Single(PlannersOf(window));
+            Assert.True(planner.IsVisible);
+            Assert.False(ShownAsDialog(planner));
+
+            Click(item);
+
+            Assert.Same(planner, Assert.Single(PlannersOf(window)));
+        }
+        finally
+        {
+            ClosePlanners(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SpawnPlanner_ApplyChangesTheGridsSpawnDelaysInOneUndoStep_AndAnAircraftEditRefreshesItsCount()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            ScenarioEditSession session = window.Editor.Session!;
+            string documentBefore = session.Document.Write();
+            Click(window.FindControl<MenuItem>("SpawnPlannerMenuItem")!);
+            SpawnPlannerWindow plannerWindow = Assert.Single(PlannersOf(window));
+            SpawnPlannerViewModel planner = Assert.IsType<SpawnPlannerViewModel>(plannerWindow.DataContext);
+            planner.Bands.Clear();
+            planner.Bands.Add(new SpawnBandRowViewModel("0", "120", "0:45", "0", "0"));
+            int[] delaysBefore = [.. window.Editor.Aircraft!.Rows.Select(r => r.SpawnDelaySeconds)];
+
+            Button apply = plannerWindow.FindControl<Button>("ApplyButton")!;
+            apply.Command!.Execute(apply.CommandParameter);
+            MainWindowHost.Pump();
+
+            int[] delaysAfter = [.. window.Editor.Aircraft!.Rows.Select(r => r.SpawnDelaySeconds)];
+            var documentDelays = session.Document.Scenario.Aircraft.ToDictionary(a => a.Id, a => a.SpawnDelay);
+            Assert.NotEqual(delaysBefore, delaysAfter);
+            Assert.All(window.Editor.Aircraft.Rows, r => Assert.Equal(documentDelays[r.Id], r.SpawnDelaySeconds));
+            Assert.Equal(SpawnPlannerViewModel.ApplyDescription, window.Editor.UndoDescription);
+            Assert.True(window.Editor.IsDirty);
+            Assert.True(window.FindControl<Button>("SaveButton")!.IsEffectivelyEnabled);
+            Assert.True(window.Editor.UndoCommand.CanExecute(null));
+            window.Editor.UndoCommand.Execute(null);
+            MainWindowHost.Pump();
+            Assert.False(session.CanUndo);
+            Assert.Equal(documentBefore, session.Document.Write());
+
+            int matched = planner.MatchedCount;
+            window.Editor.Aircraft!.AddAircraftCommand.Execute(null);
+            MainWindowHost.Pump();
+
+            Assert.Equal(matched + 1, planner.MatchedCount);
+        }
+        finally
+        {
+            ClosePlanners(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SpawnPlannerClosedByItself_OpensANewOneOnTheNextClick_AndTheOldOneIsNoLongerRefreshed()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            MenuItem item = window.FindControl<MenuItem>("SpawnPlannerMenuItem")!;
+            Click(item);
+            SpawnPlannerWindow first = Assert.Single(PlannersOf(window));
+            SpawnPlannerViewModel oldPlanner = Assert.IsType<SpawnPlannerViewModel>(first.DataContext);
+
+            first.Close();
+            MainWindowHost.Pump();
+            Click(item);
+
+            SpawnPlannerWindow second = Assert.Single(PlannersOf(window));
+            Assert.NotSame(first, second);
+            int oldMatched = oldPlanner.MatchedCount;
+            window.Editor.Aircraft!.AddAircraftCommand.Execute(null);
+            MainWindowHost.Pump();
+
+            Assert.Equal(oldMatched, oldPlanner.MatchedCount);
+        }
+        finally
+        {
+            ClosePlanners(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task SpawnPlanner_ApplyAfterAnotherCopyOpened_WritesNothingToTheNewCopy()
+    {
+        LocalScenarioStore store = OakStore();
+        store.CreateLocalScenario(Zoa, $$"""{"id":"{{CopyId}}","name":"SMF_APP - Sacramento Arrivals","artccId":"ZOA"}""", CopyId);
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        SpawnPlannerViewModel? planner = null;
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            planner = window.Editor.CreateSpawnPlanner()!;
+            planner.Bands.Clear();
+            planner.Bands.Add(new SpawnBandRowViewModel("0", "120", "0:45", "0", "0"));
+
+            ScenarioBrowserViewModel browser = window.Browser;
+            browser.SelectedLocalRow = browser.LocalRows.Single(r => r.Id == CopyId);
+            await browser.OpenCommand.ExecuteAsync(null);
+            await window.Editor.OpenTask.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            MainWindowHost.Pump();
+            ScenarioEditSession newSession = window.Editor.Session!;
+            Assert.Equal(CopyId, newSession.ScenarioId);
+            string documentBefore = newSession.Document.Write();
+
+            planner.Apply();
+            MainWindowHost.Pump();
+
+            Assert.False(newSession.CanUndo);
+            Assert.Equal(documentBefore, newSession.Document.Write());
+        }
+        finally
+        {
+            planner?.Dispose();
+            CloseNow(window);
+        }
+    }
+
+    // Whether the window was shown with ShowDialog: Avalonia keeps it in a private field (Window._showingAsDialog) only.
+    private static bool ShownAsDialog(Window window) =>
+        (bool)typeof(Window).GetField("_showingAsDialog", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+
+    [AvaloniaFact]
+    public async Task OpeningAnotherCopy_ClosesTheSpawnPlanner()
+    {
+        LocalScenarioStore store = OakStore();
+        store.CreateLocalScenario(Zoa, $$"""{"id":"{{CopyId}}","name":"SMF_APP - Sacramento Arrivals","artccId":"ZOA"}""", CopyId);
+        ScenarioEditorWindow window = NewEditorWindow(store, new CountingPrompts());
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            Click(window.FindControl<MenuItem>("SpawnPlannerMenuItem")!);
+            Assert.Single(PlannersOf(window));
+
+            ScenarioBrowserViewModel browser = window.Browser;
+            browser.SelectedLocalRow = browser.LocalRows.Single(r => r.Id == CopyId);
+            await browser.OpenCommand.ExecuteAsync(null);
+            await window.Editor.OpenTask.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            MainWindowHost.Pump();
+
+            Assert.Equal(CopyId, window.Editor.Session!.ScenarioId);
+            Assert.Empty(PlannersOf(window));
+        }
+        finally
+        {
+            ClosePlanners(window);
+            CloseNow(window);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ClosingTheEditor_ClosesTheSpawnPlanner()
+    {
+        ScenarioEditorWindow window = NewEditorWindow(OakStore(), new CountingPrompts());
+        bool closed = false;
+        try
+        {
+            await ShowAsync(window);
+            await OpenOakAsync(window);
+            Click(window.FindControl<MenuItem>("SpawnPlannerMenuItem")!);
+            SpawnPlannerWindow planner = Assert.Single(PlannersOf(window));
+
+            CloseNow(window);
+            closed = true;
+            MainWindowHost.Pump();
+
+            Assert.DoesNotContain(planner, OpenWindows.All);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                ClosePlanners(window);
+                CloseNow(window);
+            }
+        }
+    }
+
+    // The spawn planner windows the editor owns that are open now.
+    private static SpawnPlannerWindow[] PlannersOf(ScenarioEditorWindow window) =>
+        [.. OpenWindows.All.OfType<SpawnPlannerWindow>().Where(w => ReferenceEquals(w.Owner, window))];
+
+    private static void ClosePlanners(ScenarioEditorWindow window)
+    {
+        foreach (SpawnPlannerWindow planner in PlannersOf(window))
+        {
+            planner.Close();
         }
     }
 
