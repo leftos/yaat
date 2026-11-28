@@ -304,7 +304,7 @@
             Text="{Binding CruiseSpeedError}"
             IsVisible="{Binding CruiseSpeedError, Converter={x:Static ObjectConverters.IsNotNull}}"
           />
-          <Grid ColumnDefinitions="*,Auto">
+          <Grid ColumnDefinitions="*,Auto,Auto">
             <TextBlock Classes="lbl" VerticalAlignment="Bottom" Text="Route" />
             <Button x:Name="FindRouteButton" Grid.Column="1" Margin="0,6,0,2" Padding="8,2">
               <StackPanel Orientation="Horizontal" Spacing="4">
@@ -325,6 +325,15 @@
                 </Flyout>
               </Button.Flyout>
             </Button>
+            <Button
+              x:Name="ApplyRouteButton"
+              Grid.Column="2"
+              Margin="4,6,0,2"
+              Padding="8,2"
+              Content="Apply Route…"
+              ToolTip.Tip="Stamp a library or found route and a profile onto this aircraft"
+              Click="OnApplyRouteClick"
+            />
           </Grid>
           <TextBox x:Name="RouteBox" TextWrapping="Wrap" Text="{Binding FlightPlanRoute}" Tag="{Binding CommitFlightPlanRouteCommand}" />
           <TextBlock Classes="lbl" Text="Remarks" />

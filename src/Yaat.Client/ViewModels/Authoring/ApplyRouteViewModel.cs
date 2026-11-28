@@ -37,7 +37,8 @@ public sealed record ApplyRouteServices(
 /// </summary>
 public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
 {
-    private const string ErrorPrefix = "Error:";
+    /// <summary>The start of a warning naming something the stamp did not write; the window refuses Apply while one shows.</summary>
+    public const string ErrorPrefix = "Error:";
 
     private static readonly ILogger Log = AppLog.CreateLogger<ApplyRouteViewModel>();
 

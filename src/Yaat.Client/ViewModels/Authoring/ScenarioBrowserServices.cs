@@ -2,6 +2,7 @@ using Avalonia.Threading;
 using Yaat.Client.Services;
 using Yaat.Sim.Authoring;
 using Yaat.Sim.Authoring.Routes;
+using Yaat.Sim.Authoring.Stamping;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Vnas;
 
@@ -23,6 +24,8 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <param name="Configs">The ARTCC configs the editor's position and airport pickers list their options from.</param>
 /// <param name="RouteFinding">What Find Route searches: the route history's HTTP client and endpoint, and the other route sources.</param>
 /// <param name="DownloadVideoMaps">Downloads and parses one video map of an ARTCC for the route composer.</param>
+/// <param name="StampProfiles">The stamp profiles Apply Route lists, edits and stamps with.</param>
+/// <param name="Routes">The route library the route composer saves to and Apply Route lists.</param>
 public sealed record ScenarioBrowserServices(
     UserPreferences Preferences,
     LocalScenarioStore Store,
@@ -37,7 +40,9 @@ public sealed record ScenarioBrowserServices(
     Func<bool> RoomHasScenario,
     ArtccConfigSource Configs,
     RouteFindingServices RouteFinding,
-    Func<string, VideoMapInfoDto, CancellationToken, Task<VideoMapData?>> DownloadVideoMaps
+    Func<string, VideoMapInfoDto, CancellationToken, Task<VideoMapData?>> DownloadVideoMaps,
+    StampProfileStore StampProfiles,
+    RouteLibrary Routes
 )
 {
     // One client and one config source for the app's lifetime: every editor window shares the parsed configs.
@@ -50,8 +55,8 @@ public sealed record ScenarioBrowserServices(
 
     /// <summary>
     /// The app's services: the app-data store, the given ARTCC access, data-api (scenarios and ARTCC configs), the video
-    /// maps the route composer downloads, the system clock and the dispatcher; Test in Room is off (it can never load)
-    /// until a room is given (<see cref="WithRoom"/>).
+    /// maps the route composer downloads, the per-user stamp profiles and route library, the system clock and the
+    /// dispatcher; Test in Room is off (it can never load) until a room is given (<see cref="WithRoom"/>).
     /// </summary>
     /// <param name="preferences">The user's preferences.</param>
     /// <param name="prompts">The window's dialogs and pickers.</param>
@@ -74,7 +79,9 @@ public sealed record ScenarioBrowserServices(
             () => false,
             AppConfigs,
             RouteFindingServices.ForApp(),
-            AppVideoMaps.LoadMapAsync
+            AppVideoMaps.LoadMapAsync,
+            new StampProfileStore(),
+            new RouteLibrary()
         );
     }
 

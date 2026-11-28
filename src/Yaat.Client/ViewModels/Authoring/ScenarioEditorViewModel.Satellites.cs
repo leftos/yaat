@@ -1,5 +1,7 @@
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Authoring.Routes;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Scenarios;
 
 namespace Yaat.Client.ViewModels.Authoring;
@@ -7,7 +9,8 @@ namespace Yaat.Client.ViewModels.Authoring;
 /// <summary>
 /// The editor's satellites: the spawn planner over the open copy, refreshed after each edit made in the editor, its
 /// applied plans written as one undo step the Aircraft tab shows, and closed with the copy; and what the route composer
-/// opens over, the open copy's ARTCC and its video maps.
+/// opens over, the open copy's ARTCC and its video maps; and Apply Route for the selected aircraft, with the Find Route it
+/// runs in its own window.
 /// </summary>
 public sealed partial class ScenarioEditorViewModel
 {
@@ -61,6 +64,60 @@ public sealed partial class ScenarioEditorViewModel
             ct => ArtccVideoMapLoader.ListAsync(_services.Configs, artccId, ct),
             (mapId, ct) => ArtccVideoMapLoader.LoadOneAsync(_services.DownloadVideoMaps, artccId, mapId, _services.Configs, ct)
         );
+    }
+
+    /// <summary>Gets the route library the route composer saves to and Apply Route lists: the services' one.</summary>
+    public RouteLibrary Routes => _services.Routes;
+
+    /// <summary>
+    /// Creates Apply Route for the Aircraft tab's selected aircraft over the services' stamp profiles and route library, the
+    /// navdata as loaded, the shared random source and the system clock; its Apply is one undo step the Aircraft tab shows.
+    /// </summary>
+    /// <returns>The view model, which the caller disposes; null with no copy open or no aircraft selected.</returns>
+    public ApplyRouteViewModel? CreateApplyRoute()
+    {
+        if ((Session is not { } session) || (Aircraft is not { Selected: not null } aircraft))
+        {
+            return null;
+        }
+
+        var services = new ApplyRouteServices(
+            _services.StampProfiles,
+            _services.Routes,
+            () => NavigationDatabase.InstanceOrNull,
+            Random.Shared,
+            TimeProvider.System
+        );
+        return new ApplyRouteViewModel(aircraft, services, session.ArtccId);
+    }
+
+    /// <summary>
+    /// Opens Find Route inside Apply Route for the selected aircraft over the services' route sources and starts its search;
+    /// its Apply hands the found route to Apply Route, which writes nothing until its own Apply.
+    /// </summary>
+    /// <param name="applyRoute">The Apply Route the found route goes to.</param>
+    /// <returns>The open Find Route, which the caller disposes; null with no copy open or no aircraft selected.</returns>
+    public RouteFinderViewModel? CreateApplyRouteFinder(ApplyRouteViewModel applyRoute)
+    {
+        ArgumentNullException.ThrowIfNull(applyRoute);
+        if ((Session is not { } session) || (Aircraft?.SelectedForStamp() is not { } target))
+        {
+            return null;
+        }
+
+        var finderTarget = new RouteFinderTarget(
+            target.Aircraft,
+            prefix => RouteFinderViewModel.FreeCallsign(session.Document.Scenario, prefix, _services.Random),
+            _services.Clock.GetUtcNow().UtcDateTime
+        );
+        var finder = new RouteFinderViewModel(
+            finderTarget,
+            _services.RouteFinding.Sources(),
+            _services.Post,
+            choice => applyRoute.UseFoundRoute(choice.Route)
+        );
+        finder.StartSearch();
+        return finder;
     }
 
     // A satellite's edit on the copy it was opened over; one on a copy no longer open writes nothing.

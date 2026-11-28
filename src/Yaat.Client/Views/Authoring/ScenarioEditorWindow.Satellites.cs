@@ -1,27 +1,29 @@
 using Avalonia.Interactivity;
 using Yaat.Client.ViewModels.Authoring;
-using Yaat.Sim.Authoring.Routes;
 
 namespace Yaat.Client.Views.Authoring;
 
 /// <summary>
 /// The Tools menu's satellite windows — the spawn planner and the route composer: each opens once, modeless and owned by
 /// the editor, a second click brings it forward, and it closes when the open copy closes or changes and when the editor
-/// closes.
+/// closes. Apply Route, from the Tools menu or the aircraft detail's button, opens modal over the editor for the selected
+/// aircraft.
 /// </summary>
 public partial class ScenarioEditorWindow
 {
-    // The per-user route library the composer lists and saves to.
-    private readonly RouteLibrary _routeLibrary = new();
-
     private SpawnPlannerWindow? _spawnPlannerWindow;
 
     private RouteComposerWindow? _routeComposerWindow;
+
+    // Set while Apply Route is open, so a second request does nothing.
+    private bool _applyRouteOpen;
 
     private void WireSatellites()
     {
         SpawnPlannerMenuItem.Click += OnSpawnPlannerClick;
         RouteComposerMenuItem.Click += OnRouteComposerClick;
+        ApplyRouteMenuItem.Click += OnApplyRouteClick;
+        AircraftView.ApplyRouteRequested += OnApplyRouteRequested;
         Editor.SatellitesClosing += OnSatellitesClosing;
     }
 
@@ -29,6 +31,8 @@ public partial class ScenarioEditorWindow
     {
         SpawnPlannerMenuItem.Click -= OnSpawnPlannerClick;
         RouteComposerMenuItem.Click -= OnRouteComposerClick;
+        ApplyRouteMenuItem.Click -= OnApplyRouteClick;
+        AircraftView.ApplyRouteRequested -= OnApplyRouteRequested;
         Editor.SatellitesClosing -= OnSatellitesClosing;
         CloseSatellites();
     }
@@ -69,10 +73,42 @@ public partial class ScenarioEditorWindow
             return;
         }
 
-        var window = RouteComposerWindow.Create(context, _routeLibrary, _preferences);
+        var window = RouteComposerWindow.Create(context, Editor.Routes, _preferences);
         window.Closed += OnRouteComposerClosed;
         _routeComposerWindow = window;
         window.Show(this);
+    }
+
+    private async void OnApplyRouteClick(object? sender, RoutedEventArgs e) => await OpenApplyRouteAsync();
+
+    private async void OnApplyRouteRequested(object? sender, EventArgs e) => await OpenApplyRouteAsync();
+
+    // Apply Route for the selected aircraft, modal over the editor, once a field still being typed in is committed, so the
+    // stamp starts from the aircraft as shown; nothing with no aircraft selected or one already open.
+    private async Task OpenApplyRouteAsync()
+    {
+        if (_applyRouteOpen)
+        {
+            return;
+        }
+
+        GeneralView.CommitFocusedField();
+        AircraftView.CommitFocusedField();
+        if ((Editor.Aircraft is not { } aircraft) || (Editor.CreateApplyRoute() is not { } applyRoute))
+        {
+            return;
+        }
+
+        _applyRouteOpen = true;
+        try
+        {
+            var window = ApplyRouteWindow.Create(applyRoute, aircraft, _preferences, () => Editor.CreateApplyRouteFinder(applyRoute));
+            await window.ShowAsync(this);
+        }
+        finally
+        {
+            _applyRouteOpen = false;
+        }
     }
 
     // The open copy's name for a satellite's title; its id when the name is empty.

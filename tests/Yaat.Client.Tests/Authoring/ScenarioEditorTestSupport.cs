@@ -5,6 +5,8 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Authoring.Routes;
+using Yaat.Sim.Authoring.Stamping;
 using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Data.Vnas;
@@ -157,7 +159,9 @@ internal sealed class ScenarioEditorFixture : IDisposable
             () => false,
             new ArtccConfigSource(new HttpClient(new StubArtccHandler(ZoaOnly)), ArtccCacheDir, () => DateTime.UtcNow),
             NoRouteFinding(),
-            EchoVideoMaps()
+            EchoVideoMaps(),
+            new StampProfileStore(Path.Combine(_root, "stamp-profiles")),
+            new RouteLibrary(Path.Combine(_root, "routes"))
         );
 
     /// <summary>A browser and an editor over it, the browser's first load and resync done.</summary>

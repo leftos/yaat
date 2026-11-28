@@ -39,6 +39,7 @@ YAAT (Yet Another ATC Trainer) is an instructor/[RPO](#glossary) desktop client 
   - [Editing a Scenario](#editing-a-scenario)
   - [Spawn planner](#spawn-planner)
   - [Route composer](#route-composer)
+  - [Apply Route](#apply-route)
   - [Live Findings](#live-findings)
   - [Exporting JSON](#exporting-json)
   - [Airport Editor](#airport-editor)
@@ -2384,7 +2385,7 @@ A menu bar (**File** and **Tools**) sits above the toolbar. The **File** menu an
 - **Save a copy...**: writes the selected scenario to a file of your choice.
 - **Export JSON...**, **Export clean JSON...** and **Export all unexported...**: see [Exporting JSON](#exporting-json).
 
-The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open. **Tools > Route composer...** opens the [Route composer](#route-composer) the same way.
+The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open. **Tools > Route composer...** opens the [Route composer](#route-composer) the same way. **Tools > Apply Route...** opens [Apply Route](#apply-route) for the selected aircraft; it is greyed out while none is selected.
 
 ### Comparing and merging
 
@@ -2458,6 +2459,23 @@ An aircraft that parks at a stand, or whose first TAXI preset ends at one, warns
 A TAXI preset command the editor cannot route shows **Not checked**: the airport has no map, the destination is `@GATE` or a stand prefix, or the aircraft could not be placed.
 
 Findings about the scenario as a whole show in the status bar. An editor opened before navdata has loaded shows "Navdata not loaded: the scenario was not checked." and checks the scenario itself once the load ends.
+
+### Apply Route
+
+Apply Route stamps a route and a profile onto the selected aircraft in one step. Open it from **Tools > Apply Route...** or the **Apply Route...** button beside the flight plan's Route line on the Aircraft tab; it needs an aircraft selected. The window "Apply Route — {callsign}" is modal over the editor, and a field you were typing in is applied first so the stamp starts from the aircraft as shown.
+
+- **Route.** The list holds your saved routes for the scenario's ARTCC; tick **All ARTCCs** to list every one. **Find Route...** opens the same search as on the Aircraft tab; its Apply hands the route to this window ("Found route: ...") and writes nothing yet.
+- **Profile.** Pick a profile to stamp. A profile sets the aircraft's starting conditions, flight plan, preset commands and auto-track, and carries pools to draw the type, callsign prefix, runway and parking from. A line under the list names a profile problem.
+- **Preview** draws the pools once and lists the **Changes**: each field, what it is **Now** and what it is **After Apply**, without touching the scenario. Warnings show above the list. **Apply** is off until a Preview, and picking another route, profile or aircraft clears the preview.
+- **Apply** writes the previewed changes as one undo step, "Apply Route", with the same draws, and closes the window. **Cancel** and the close box write nothing. A warning that starts with **Error:** names something the stamp could not write; **Apply** stays off while one shows, so fix the profile or the route and Preview again.
+
+The **Profiles** section at the bottom edits the profiles: **New**, **Save**, **Duplicate** and **Delete**, with a box for each setting. Three of the lists are text boxes:
+
+- **Pools** (types, callsign prefixes, runways, parking spots) are comma separated.
+- **STAR aliases** are one "FROM TO" per line: the STAR, then the one that replaces it.
+- **Preset commands** are one "{seconds} {command}" per line; a line with no leading seconds runs at spawn.
+
+A line that does not read shows "Line {n} of {list}: {reason}" under the profiles list, for example "write the seconds without a sign" or "the seconds are too large". **Save** and **Duplicate** are refused while a list has such a line, and while a number box (altitude, speed, heading, cruise altitude, cruise speed, handoff delay) holds text that is not a number (a blank number box saves as empty); the message reads "{label}: "{text}" is not a number". A blank name is refused too.
 
 ### Exporting JSON
 

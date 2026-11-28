@@ -57,6 +57,11 @@
       <MenuItem x:Name="ToolsMenu" Header="Tools" x:DataType="vm:ScenarioEditorViewModel">
         <MenuItem x:Name="SpawnPlannerMenuItem" Header="Spawn planner…" IsEnabled="{Binding IsOpen}" />
         <MenuItem x:Name="RouteComposerMenuItem" Header="Route composer…" IsEnabled="{Binding IsOpen}" />
+        <MenuItem
+          x:Name="ApplyRouteMenuItem"
+          Header="Apply Route…"
+          IsEnabled="{Binding Aircraft.Selected, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
+        />
       </MenuItem>
     </Menu>
     <Border DockPanel.Dock="Top" Classes="toolbar" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5" MinHeight="36">

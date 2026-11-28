@@ -69,9 +69,12 @@ public partial class ScenarioAircraftView : UserControl
         }
     }
 
+    /// <summary>Raised when the detail panel's Apply Route… button is clicked, for the window to open Apply Route on the shown aircraft.</summary>
+    public event EventHandler? ApplyRouteRequested;
+
     /// <summary>
     /// Gets or sets a value indicating whether only the selected aircraft's detail panel shows: the toolbar (Add, Duplicate,
-    /// Remove) and the grid are hidden, as the merge window's MERGED AIRCRAFT strip hosts the view. Off by default.
+    /// Remove), Apply Route… and the grid are hidden, as the merge window's MERGED AIRCRAFT strip hosts the view. Off by default.
     /// </summary>
     public bool IsDetailOnly
     {
@@ -88,6 +91,7 @@ public partial class ScenarioAircraftView : UserControl
             bool full = !change.GetNewValue<bool>();
             AircraftToolbar.IsVisible = full;
             AircraftGrid.IsVisible = full;
+            ApplyRouteButton.IsVisible = full;
             DetailPanel.BorderThickness = full ? _detailBorder : default;
             if (full)
             {
@@ -150,6 +154,9 @@ public partial class ScenarioAircraftView : UserControl
 
         vm.CloseRouteFinder();
     }
+
+    // Apply Route…: the window hosting the view opens Apply Route on the shown (the selected) aircraft.
+    private void OnApplyRouteClick(object? sender, RoutedEventArgs e) => ApplyRouteRequested?.Invoke(this, EventArgs.Empty);
 
     // Pick on map: opens the parking picker on the aircraft's airport and writes the picked stand as one parking edit;
     // a cancelled pick, or one with no map, changes nothing.

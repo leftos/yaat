@@ -1,0 +1,263 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  xmlns:routes="using:Yaat.Sim.Authoring.Routes"
+  xmlns:stamping="using:Yaat.Sim.Authoring.Stamping"
+  x:Class="Yaat.Client.Views.Authoring.ApplyRouteWindow"
+  x:DataType="vm:ApplyRouteViewModel"
+  x:CompileBindings="True"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Apply Route"
+  Background="#1F1F1F"
+  Width="900"
+  Height="760"
+  MinWidth="640"
+  MinHeight="480"
+  CanResize="True"
+>
+  <Window.Styles>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Margin" Value="0,10,0,4" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="#E0A33A" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.err">
+      <Setter Property="Foreground" Value="#FF8A8A" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="FlyoutPresenter.routeFinder">
+      <Setter Property="MaxWidth" Value="900" />
+      <Setter Property="MaxHeight" Value="640" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+  </Window.Styles>
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0">
+      <TextBlock
+        x:Name="ErrorBlockText"
+        Classes="err"
+        TextWrapping="Wrap"
+        IsVisible="False"
+        Text="A warning above starts with Error:; fix the profile or the route before applying."
+      />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+        <Button x:Name="ApplyButton" Classes="accent" Content="Apply" IsEnabled="False" />
+        <Button x:Name="CancelButton" Content="Cancel" />
+      </StackPanel>
+    </StackPanel>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="4">
+        <TextBlock x:Name="HeaderText" Classes="title" Text="Apply Route" />
+        <Grid ColumnDefinitions="*,12,*">
+          <StackPanel Grid.Column="0" Spacing="4">
+            <TextBlock Classes="section" Text="Route" />
+            <Grid ColumnDefinitions="*,Auto">
+              <CheckBox x:Name="AllArtccsBox" Content="All ARTCCs" IsChecked="{Binding ShowAllArtccs}" />
+              <Button x:Name="FindRouteButton" Grid.Column="1" Content="Find Route…" Padding="8,2">
+                <Button.Flyout>
+                  <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="routeFinder">
+                    <local:RouteFinderView x:Name="FinderView" />
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+            </Grid>
+            <ListBox x:Name="RouteList" Height="160" ItemsSource="{Binding Routes}" SelectedItem="{Binding SelectedRoute}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="routes:SavedRoute">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Classes="label" Text="{Binding ArtccId}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock
+              x:Name="FoundRouteText"
+              Classes="value"
+              Text="{Binding FoundRoute.RouteText, StringFormat='Found route: {0}', FallbackValue=''}"
+              IsVisible="{Binding FoundRoute, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+          </StackPanel>
+          <StackPanel Grid.Column="2" Spacing="4">
+            <TextBlock Classes="section" Text="Profile" />
+            <ListBox x:Name="ProfileList" Height="186" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="stamping:StampProfile">
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <ItemsControl x:Name="ProfileProblemList" ItemsSource="{Binding ProfileProblems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Classes="warning" Text="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Grid>
+        <Button x:Name="PreviewButton" Margin="0,8,0,0" Content="Preview" Command="{Binding PreviewCommand}" />
+        <TextBlock
+          x:Name="RouteProblemText"
+          Classes="err"
+          Text="{Binding RouteProblem}"
+          IsVisible="{Binding RouteProblem, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+        <TextBlock
+          x:Name="SkipText"
+          Classes="warning"
+          Text="{Binding SkipText}"
+          IsVisible="{Binding SkipText, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+        <TextBlock
+          x:Name="NothingText"
+          Classes="label"
+          Text="{Binding NothingText}"
+          IsVisible="{Binding NothingText, Converter={x:Static ObjectConverters.IsNotNull}}"
+        />
+        <ItemsControl x:Name="WarningList" ItemsSource="{Binding Warnings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Classes="warning" Text="{Binding}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="section" Text="Changes" />
+        <Grid ColumnDefinitions="170,*,*">
+          <TextBlock Classes="label" Text="Field" />
+          <TextBlock Grid.Column="1" Classes="label" Text="Now" />
+          <TextBlock Grid.Column="2" Classes="label" Text="After Apply" />
+        </Grid>
+        <ItemsControl x:Name="PreviewList" ItemsSource="{Binding PreviewRows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ApplyRoutePreviewRow">
+              <Grid ColumnDefinitions="170,*,*" Margin="0,2">
+                <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding Path}" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Classes="value" Foreground="#B0B0B0" Text="{Binding OldValue, FallbackValue='—', TargetNullValue='—'}" />
+                <TextBlock Grid.Column="2" Classes="value" Text="{Binding NewValue, FallbackValue='—', TargetNullValue='—'}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Expander x:Name="ProfilesExpander" Header="Profiles" Margin="0,12,0,0" HorizontalAlignment="Stretch" DataContext="{Binding Editor}">
+          <StackPanel x:Name="ProfileEditor" x:DataType="vm:StampProfileEditorViewModel" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button x:Name="NewProfileButton" Content="New" />
+              <Button x:Name="SaveProfileButton" Classes="accent" Content="Save" />
+              <Button x:Name="DuplicateProfileButton" Content="Duplicate" />
+              <Button x:Name="DeleteProfileButton" Content="Delete" IsEnabled="False" />
+            </StackPanel>
+            <TextBlock
+              x:Name="ProfileMessageText"
+              Classes="err"
+              Text="{Binding Message}"
+              IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+            <Grid ColumnDefinitions="*,12,*">
+              <StackPanel Grid.Column="0" Spacing="2">
+                <TextBlock Classes="label" Text="Name" />
+                <TextBox x:Name="ProfileNameBox" Text="{Binding Name}" />
+                <CheckBox x:Name="HeavyOnlyBox" Content="Heavy aircraft only" IsChecked="{Binding HeavyOnly}" />
+                <TextBlock Classes="label" Text="Airport" />
+                <TextBox x:Name="PrimaryAirportBox" Text="{Binding PrimaryAirport}" />
+                <TextBlock Classes="label" Text="Approach" />
+                <TextBox x:Name="ExpectedApproachBox" Text="{Binding ExpectedApproach}" />
+
+                <TextBlock Classes="section" Text="Starting conditions" />
+                <CheckBox x:Name="StartingApplyBox" Content="Apply starting conditions" IsChecked="{Binding StartingApply}" />
+                <TextBlock Classes="label" Text="Kind" />
+                <TextBox x:Name="StartingTypeBox" Text="{Binding StartingType}" />
+                <TextBlock Classes="label" Text="Altitude (ft)" />
+                <TextBox x:Name="StartingAltitudeBox" Text="{Binding StartingAltitude, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <TextBlock Classes="label" Text="Speed (kt)" />
+                <TextBox x:Name="StartingSpeedBox" Text="{Binding StartingSpeed, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <TextBlock Classes="label" Text="Heading (deg)" />
+                <TextBox x:Name="StartingHeadingBox" Text="{Binding StartingHeading, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <CheckBox x:Name="StartingNavigationPathBox" Content="Apply the navigation path" IsChecked="{Binding StartingApplyNavigationPath}" />
+                <TextBlock Classes="label" Text="Runway" />
+                <TextBox x:Name="StartingRunwayBox" Text="{Binding StartingRunway}" />
+                <TextBlock Classes="label" Text="Parking" />
+                <TextBox x:Name="StartingParkingBox" Text="{Binding StartingParking}" />
+
+                <TextBlock Classes="section" Text="Pools (comma separated)" />
+                <TextBlock Classes="label" Text="Types" />
+                <TextBox x:Name="AircraftTypesBox" />
+                <TextBlock Classes="label" Text="Callsign prefixes" />
+                <TextBox x:Name="CallsignPrefixesBox" />
+                <TextBlock Classes="label" Text="Runways" />
+                <TextBox x:Name="RunwaysBox" />
+                <TextBlock Classes="label" Text="Parking spots" />
+                <TextBox x:Name="ParkingSpotsBox" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="2">
+                <TextBlock Classes="section" Text="Flight plan" />
+                <CheckBox x:Name="FlightPlanApplyBox" Content="Apply the flight plan" IsChecked="{Binding FlightPlanApply}" />
+                <CheckBox x:Name="FlightPlanRouteBox" Content="Write the route" IsChecked="{Binding FlightPlanApplyRoute}" />
+                <TextBlock Classes="label" Text="Rules" />
+                <TextBox x:Name="FlightPlanRulesBox" Text="{Binding FlightPlanRules}" />
+                <TextBlock Classes="label" Text="Departure" />
+                <TextBox x:Name="FlightPlanDepartureBox" Text="{Binding FlightPlanDeparture}" />
+                <TextBlock Classes="label" Text="Destination" />
+                <TextBox x:Name="FlightPlanDestinationBox" Text="{Binding FlightPlanDestination}" />
+                <TextBlock Classes="label" Text="Cruise altitude (ft)" />
+                <TextBox x:Name="CruiseAltitudeBox" Text="{Binding FlightPlanCruiseAltitude, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <TextBlock Classes="label" Text="Cruise speed (kt)" />
+                <TextBox x:Name="CruiseSpeedBox" Text="{Binding FlightPlanCruiseSpeed, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <TextBlock Classes="label" Text="Remarks" />
+                <TextBox x:Name="FlightPlanRemarksBox" Text="{Binding FlightPlanRemarks}" />
+                <TextBlock Classes="label" Text="STAR aliases (one per line: FROM TO)" />
+                <TextBox x:Name="StarAliasesBox" AcceptsReturn="True" MinHeight="48" />
+
+                <TextBlock Classes="section" Text="Preset commands" />
+                <CheckBox x:Name="PresetsApplyBox" Content="Apply the presets" IsChecked="{Binding PresetsApply}" />
+                <CheckBox x:Name="PresetsReplaceBox" Content="Replace every existing preset" IsChecked="{Binding PresetsReplace}" />
+                <TextBlock Classes="label" Text="Commands (one per line: seconds, then the command)" />
+                <TextBox x:Name="PresetCommandsBox" AcceptsReturn="True" MinHeight="48" />
+
+                <TextBlock Classes="section" Text="Auto-track" />
+                <CheckBox x:Name="AutoTrackApplyBox" Content="Apply auto-track" IsChecked="{Binding AutoTrackApply}" />
+                <TextBlock Classes="label" Text="Position" />
+                <AutoCompleteBox
+                  x:Name="AutoTrackPositionBox"
+                  ItemsSource="{Binding PositionIds}"
+                  Text="{Binding AutoTrackPositionId}"
+                  FilterMode="StartsWith"
+                />
+                <TextBlock Classes="label" Text="Handoff delay (seconds)" />
+                <TextBox x:Name="HandoffDelayBox" Text="{Binding AutoTrackHandoffDelay, Converter={x:Static local:ApplyRouteWindow.Number}}" />
+                <TextBlock Classes="label" Text="Scratchpad" />
+                <TextBox x:Name="ScratchPadBox" Text="{Binding AutoTrackScratchPad}" />
+                <TextBlock Classes="label" Text="Interim altitude" />
+                <TextBox x:Name="InterimAltitudeBox" Text="{Binding AutoTrackInterimAltitude}" />
+                <TextBlock Classes="label" Text="Cleared altitude" />
+                <TextBox x:Name="ClearedAltitudeBox" Text="{Binding AutoTrackClearedAltitude}" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Expander>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

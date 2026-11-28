@@ -5,6 +5,8 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Authoring.Routes;
+using Yaat.Sim.Authoring.Stamping;
 
 namespace Yaat.Client.Tests.Authoring;
 
@@ -975,7 +977,9 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             () => _roomHasScenario,
             ScenarioEditorFixture.OfflineConfigs(Path.Combine(_root, "artcc")),
             ScenarioEditorFixture.NoRouteFinding(),
-            ScenarioEditorFixture.EchoVideoMaps()
+            ScenarioEditorFixture.EchoVideoMaps(),
+            new StampProfileStore(Path.Combine(_root, "stamp-profiles")),
+            new RouteLibrary(Path.Combine(_root, "routes"))
         );
         var vm = new ScenarioBrowserViewModel(services);
         _viewModels.Add(vm);
