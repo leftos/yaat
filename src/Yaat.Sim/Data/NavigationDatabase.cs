@@ -23,6 +23,7 @@ public sealed class NavigationDatabase
     private readonly Dictionary<string, string> _airportNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _navaidNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _navaidTypes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _dmeRadialNavaids = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> _navaidDeclinations = new(StringComparer.OrdinalIgnoreCase);
 
     // Spatial bucket of airports (1° × 1° grid; ~60nm bucket size). Used by
@@ -3392,6 +3393,10 @@ public sealed class NavigationDatabase
             {
                 _navaidTypes.TryAdd(ident, info.Type);
             }
+            if (info.HasDmeRadial)
+            {
+                _dmeRadialNavaids.Add(ident);
+            }
             if (info.StationDeclination is { } stationDeclination)
             {
                 _navaidDeclinations.TryAdd(ident, stationDeclination);
@@ -3422,6 +3427,16 @@ public sealed class NavigationDatabase
 
     /// <summary>Whether <paramref name="code"/> is a navaid that gives radials: a VOR, VORTAC or TACAN (not a DME or an NDB).</summary>
     public bool IsRadialNavaid(string code) => GetNavaidType(code) is "VOR" or "VORTAC" or "TACAN";
+
+    /// <summary>
+    /// Whether <paramref name="code"/> is a navaid that gives both a magnetic radial and a DME — a VOR/DME, a VORTAC or a
+    /// TACAN — the kind a fix-radial-distance may anchor on. A plain VOR, a standalone DME, an NDB/DME, an ILS/DME and a
+    /// LOC/DME do not count (7110.65 2-5-3 takes a radial-and-distance fix from a VOR/DME, VORTAC, TACAN or ILS/DME, and a
+    /// localizer gives no radials). Read from the CIFP class field, which <see cref="GetNavaidType"/> reports as "VOR" for
+    /// a VOR/DME. A standalone TACAN's record carries a blank first class character, which the parser drops, so one is never
+    /// loaded and never counts.
+    /// </summary>
+    public bool IsDmeRadialNavaid(string code) => _dmeRadialNavaids.Contains(code);
 
     /// <summary>
     /// Returns the navaid's station declination (east-positive degrees, the same sign as

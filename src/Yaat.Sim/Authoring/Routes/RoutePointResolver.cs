@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Authoring.Routes;
 
@@ -24,25 +25,25 @@ public sealed record RoutePointResult(LatLon? Position, string? Text, string? Fa
 /// <summary>
 /// Turns route points into positions and the nav-path text the scenario loader and <see cref="RouteExpander"/> read. A fix
 /// is written as its ident and an FRD as ident, 3-digit magnetic radial and 3-digit NM distance (<c>SFO090010</c>). A raw
-/// coordinate is written as an FRD from a VOR, VORTAC or TACAN within 30 NM, else from the nearest fix within 50 NM, else
-/// refused. Nothing here throws for an unknown fix or missing navdata; callers pass <see cref="NavigationDatabase.InstanceOrNull"/>.
+/// coordinate is written as an FRD from the nearest NAVAID that gives both a radial and a DME within 30 NM, else as a
+/// lat/lon token (<c>3904N/10916W</c>). Nothing here throws for an unknown fix or missing navdata; callers pass
+/// <see cref="NavigationDatabase.InstanceOrNull"/>.
 /// </summary>
 public static class RoutePointResolver
 {
     /// <summary>The failure every method returns when no navigation database is loaded.</summary>
     public const string NavdataNotLoaded = "navdata not loaded";
 
-    /// <summary>How far a radial NAVAID may be from a coordinate it anchors, in NM.</summary>
+    /// <summary>How far a NAVAID that gives a radial and a DME may be from a coordinate it anchors, in NM.</summary>
     public const double NavaidAnchorRangeNm = 30.0;
-
-    /// <summary>How far any fix may be from a coordinate it anchors when no NAVAID is in range, in NM.</summary>
-    public const double FixAnchorRangeNm = 50.0;
 
     /// <summary>How far the written text may land from the placed point before a warning, in NM.</summary>
     public const double DisplacementWarningNm = 1.0;
 
     /// <summary>How far apart two positions of one ident may be and still count as the same instance, in NM.</summary>
     public const double SameInstanceNm = 0.1;
+
+    private const double WholeMinuteTolerance = 1e-9;
 
     private const string DuplicateAdvice = "write the point as an FRD from a unique NAVAID or add a neighbouring fix.";
 
@@ -65,19 +66,42 @@ public static class RoutePointResolver
         {
             RoutePointKind.Fix => ResolveFix(point.Fix, ctx, navDb),
             RoutePointKind.Frd => ResolveFrd(point, ctx, navDb),
-            RoutePointKind.LatLon when (point.Lat is { } lat) && (point.Lon is { } lon) => Anchor(new LatLon(lat, lon), navDb),
+            RoutePointKind.LatLon when (point.Lat is { } lat) && (point.Lon is { } lon) => ResolveLatLon(new LatLon(lat, lon), navDb),
             RoutePointKind.LatLon => RoutePointResult.Fail($"The {point.Kind} point is missing its fields."),
             _ => RoutePointResult.Fail(string.Create(CultureInfo.InvariantCulture, $"Unknown route point kind {(int)point.Kind}.")),
         };
     }
 
     /// <summary>
-    /// Writes a raw coordinate as an FRD (or a bare fix when it sits on one) from the anchor the composer rule picks, with the
-    /// position that text resolves to, so a preview can show where the point moved.
+    /// Resolves a saved coordinate: one that sits on whole minutes of latitude and longitude is the position a written token
+    /// parses to, so it keeps that token instead of re-anchoring; any other coordinate anchors the way a click does.
+    /// </summary>
+    /// <param name="position">The saved coordinate.</param>
+    /// <param name="navDb">The navigation database, loaded.</param>
+    /// <returns>The token's text and position, or the anchor's.</returns>
+    private static RoutePointResult ResolveLatLon(LatLon position, NavigationDatabase navDb) =>
+        IsWholeMinute(position) ? LatLonToken(position) : Anchor(position, navDb);
+
+    /// <summary>Whether a coordinate sits on whole minutes of latitude and longitude, the position a lat/lon token parses to.</summary>
+    /// <param name="position">The coordinate.</param>
+    /// <returns>True when both parts are whole minutes.</returns>
+    private static bool IsWholeMinute(LatLon position) => IsWholeMinuteDegrees(position.Lat) && IsWholeMinuteDegrees(position.Lon);
+
+    private static bool IsWholeMinuteDegrees(double degrees)
+    {
+        double minutes = Math.Abs(degrees) * 60.0;
+        return Math.Abs(minutes - Math.Round(minutes)) <= WholeMinuteTolerance;
+    }
+
+    /// <summary>
+    /// Writes a raw coordinate as an FRD (or a bare fix when it sits on one) from the nearest navaid that gives both a
+    /// magnetic radial and a DME within 30 NM (<see cref="NavigationDatabase.IsDmeRadialNavaid"/>: a VOR/DME, VORTAC or
+    /// TACAN), else as a lat/lon token the scenario loader reads (<c>3904N/10916W</c>), with the position that text resolves
+    /// to so a preview can show where the point moved.
     /// </summary>
     /// <param name="click">Where the author placed the point.</param>
     /// <param name="navDb">The navigation database; null when it is not loaded.</param>
-    /// <returns>The text and its position, a failure asking for a fix when nothing is in range, and a warning past 1 NM.</returns>
+    /// <returns>The text and its position, a failure only when navdata is not loaded, and a warning past 1 NM.</returns>
     public static RoutePointResult Anchor(LatLon click, NavigationDatabase? navDb)
     {
         if (navDb is null)
@@ -85,19 +109,20 @@ public static class RoutePointResolver
             return RoutePointResult.Fail(NavdataNotLoaded);
         }
 
-        NearbyFix? anchor =
-            navDb.FixesWithin(click, NavaidAnchorRangeNm).FirstOrDefault(f => IsAnchorable(f.Name) && navDb.IsRadialNavaid(f.Name))
-            ?? navDb.FixesWithin(click, FixAnchorRangeNm).FirstOrDefault(f => IsAnchorable(f.Name));
+        NearbyFix? anchor = navDb
+            .FixesWithin(click, NavaidAnchorRangeNm)
+            .FirstOrDefault(f => IsAnchorable(f.Name) && navDb.IsDmeRadialNavaid(f.Name));
         if (anchor is null)
         {
-            return RoutePointResult.Fail($"No fix within {FixAnchorRangeNm:0} NM of this point; add a fix near it.");
+            return LatLonToken(click);
         }
 
         (string, double, double)[] anchors = [(anchor.Name, anchor.Position.Lat, anchor.Position.Lon)];
         string? text = FrdResolver.ToFrd(click.Lat, click.Lon, anchors, navDb, anchor.DistanceNm + 1.0);
         if ((text is null) || (FrdResolver.Resolve(text, navDb) is not { } resolved))
         {
-            return RoutePointResult.Fail($"This point cannot be written from {anchor.Name}; add a fix near it.");
+            Log.LogWarning("Anchor: {Navaid} in range but {Text} does not resolve; writing a lat/lon token", anchor.Name, text);
+            return LatLonToken(click);
         }
 
         if (Log.IsEnabled(LogLevel.Debug))
@@ -106,6 +131,68 @@ public static class RoutePointResolver
         }
 
         return new RoutePointResult(resolved, text, null, DisplacementWarning(click, resolved, text));
+    }
+
+    /// <summary>
+    /// Reads the lat/lon nav-path token the scenario loader takes (<c>3904N/10916W</c>, <c>3330S/15112E</c>) as a position,
+    /// the way a caller tells a token point from a fix ident.
+    /// </summary>
+    /// <param name="text">The nav-path text to read.</param>
+    /// <param name="position">Where the token points, when it is one; default otherwise.</param>
+    /// <returns>True when <paramref name="text"/> is a lat/lon token.</returns>
+    public static bool TryParseLatLonToken(string text, out LatLon position)
+    {
+        if (!string.IsNullOrWhiteSpace(text) && (ScenarioLoader.ParseNavPathCoordinate(text) is { } parsed))
+        {
+            position = new LatLon(parsed.Lat, parsed.Lon);
+            return true;
+        }
+
+        position = default;
+        return false;
+    }
+
+    /// <summary>The lat/lon token for a coordinate no navaid can anchor, with the position the token resolves to.</summary>
+    /// <param name="point">Where the author placed the point.</param>
+    /// <returns>The token text, its position, and a warning past 1 NM.</returns>
+    private static RoutePointResult LatLonToken(LatLon point)
+    {
+        int latRaw = MinuteRaw(point.Lat);
+        int lonRaw = MinuteRaw(point.Lon);
+        char latHemisphere = (point.Lat < 0) ? 'S' : 'N';
+        char lonHemisphere = (point.Lon < 0) ? 'W' : 'E';
+        string text = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{(latRaw / 100):D2}{latRaw % 100:D2}{latHemisphere}/{(lonRaw / 100):D3}{lonRaw % 100:D2}{lonHemisphere}"
+        );
+        if (!TryParseLatLonToken(text, out LatLon position))
+        {
+            throw new InvalidOperationException($"RoutePointResolver wrote a lat/lon token the scenario loader cannot read: {text}");
+        }
+
+        if (Log.IsEnabled(LogLevel.Debug))
+        {
+            Log.LogDebug("Anchored {Lat},{Lon} as {Text}", point.Lat, point.Lon, text);
+        }
+
+        return new RoutePointResult(position, text, null, DisplacementWarning(point, position, text));
+    }
+
+    /// <summary>A coordinate's absolute value as DDMM, its minutes rounded to the nearest so the token reads back within half a minute.</summary>
+    /// <param name="degrees">The coordinate in signed degrees.</param>
+    /// <returns>The degrees and minutes as one integer (DDMM).</returns>
+    private static int MinuteRaw(double degrees)
+    {
+        double absolute = Math.Abs(degrees);
+        int wholeDegrees = (int)absolute;
+        int minutes = (int)Math.Round((absolute - wholeDegrees) * 60.0, MidpointRounding.AwayFromZero);
+        if (minutes >= 60)
+        {
+            wholeDegrees += 1;
+            minutes -= 60;
+        }
+
+        return (wholeDegrees * 100) + minutes;
     }
 
     /// <summary>

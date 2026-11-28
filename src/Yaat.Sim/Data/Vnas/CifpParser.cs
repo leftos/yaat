@@ -1271,12 +1271,14 @@ public static class CifpParser
         }
 
         string name = line.Length >= 123 ? line[93..123].Trim() : "";
-        // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32. Used to spell the facility type in pilot speech.
+        // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32. Used to spell the facility type in pilot speech
+        // and to tell a NAVAID that gives both a radial and a DME (which may anchor an FRD) from a plain VOR or a standalone DME.
         ReadOnlySpan<char> navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
         string type = ClassifyNavaid(isNdb, navClass);
+        bool hasDmeRadial = HasDmeRadial(isNdb, navClass);
         // Station declination (VHF field 5.66) / NDB magnetic variation (field 5.39) at columns 75-79.
         double? stationDeclination = line.Length >= 79 ? ParseArinc424MagneticVariation(line.AsSpan(74, 5)) : null;
-        return new CifpNavaid(lat.Value, lon.Value, name, type, stationDeclination);
+        return new CifpNavaid(lat.Value, lon.Value, name, type, hasDmeRadial, stationDeclination);
     }
 
     /// <summary>
@@ -1311,6 +1313,24 @@ public static class CifpParser
         }
 
         return "VOR";
+    }
+
+    /// <summary>
+    /// Whether the ARINC 424 class field (5.35) marks a navaid that gives both a magnetic radial and a DME, the kind an FRD
+    /// may anchor on: a VOR/DME (char 0 'V', char 1 'D'), a VORTAC ('V' with 'T'/'M') or a TACAN (blank char 0 with
+    /// 'T'/'M'). A plain VOR gives a radial without a distance; a standalone DME and an ILS/DME or LOC/DME give a distance
+    /// without a radial. An NDB record carries other class codes and never counts.
+    /// </summary>
+    internal static bool HasDmeRadial(bool isNdb, ReadOnlySpan<char> navClass)
+    {
+        if (isNdb)
+        {
+            return false;
+        }
+
+        char vor = navClass.Length > 0 ? navClass[0] : ' ';
+        char ranging = navClass.Length > 1 ? navClass[1] : ' ';
+        return ((vor == 'V') && (ranging is 'D' or 'T' or 'M')) || ((vor == ' ') && (ranging is 'T' or 'M'));
     }
 
     /// <summary>

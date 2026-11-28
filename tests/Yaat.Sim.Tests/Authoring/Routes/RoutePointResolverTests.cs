@@ -1,15 +1,16 @@
-using System.Text.RegularExpressions;
 using Xunit;
 using Yaat.Sim.Authoring.Routes;
 using Yaat.Sim.Commands;
 using Yaat.Sim.Data;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests.Authoring.Routes;
 
 /// <summary>
 /// <see cref="RoutePointResolver"/> turns each kind of route point into a position and the nav-path text the scenario loader
-/// reads, on the committed navdata. Points that need a particular geometry are searched for in that navdata, so each case
-/// states the geometry it needs and fails when the data no longer has it.
+/// reads, on the committed navdata: a coordinate anchors an FRD on the nearest NAVAID that gives both a radial and a DME,
+/// and otherwise becomes a lat/lon token. Points that need a particular geometry are searched for in that navdata, so each
+/// case states the geometry it needs and fails when the data no longer has it.
 /// </summary>
 public class RoutePointResolverTests
 {
@@ -24,6 +25,26 @@ public class RoutePointResolverTests
     }
 
     private static bool IsPlainFix(string name) => !FrdResolver.IsFrdIdentifier(name);
+
+    private static LatLon VcvSouthernClick()
+    {
+        LatLon vcv = FixPosition("VCV");
+        return new LatLon(vcv.Lat - (2.0 / 60.0), vcv.Lon);
+    }
+
+    private static bool HasNoDmeNavaidWithin30Nm(LatLon point) =>
+        NavDb.FixesWithin(point, RoutePointResolver.NavaidAnchorRangeNm).All(f => !NavDb.IsDmeRadialNavaid(f.Name));
+
+    private static void AssertNoDmeNavaidWithin30Nm(LatLon point) =>
+        Assert.All(NavDb.FixesWithin(point, RoutePointResolver.NavaidAnchorRangeNm), f => Assert.False(NavDb.IsDmeRadialNavaid(f.Name), f.Name));
+
+    private static void AssertTokenReadsBack(LatLon click, RoutePointResult result)
+    {
+        (double Lat, double Lon) parsed = Assert.IsType<(double, double)>(ScenarioLoader.ParseNavPathCoordinate(result.Text!));
+        Assert.Equal(new LatLon(parsed.Lat, parsed.Lon), result.Position);
+        Assert.True(Math.Abs(parsed.Lat - click.Lat) * 60.0 <= 0.5, "latitude moved more than half a minute");
+        Assert.True(Math.Abs(parsed.Lon - click.Lon) * 60.0 <= 0.5, "longitude moved more than half a minute");
+    }
 
     [Fact]
     public void RealFix_ResolvesToItsNavdataPosition()
@@ -93,20 +114,17 @@ public class RoutePointResolverTests
     }
 
     [Fact]
-    public void LatLonWithNoNavaidWithin30Nm_AnchorsOnTheNearestFixWithin50Nm()
+    public void LatLonWithNoDmeNavaidWithin30Nm_WritesALatLonToken()
     {
         LatLon? click = null;
-        string? nearest = null;
         for (double lat = 36.0; (lat <= 44.0) && (click is null); lat += 0.25)
         {
             for (double lon = -124.0; (lon <= -112.0) && (click is null); lon += 0.25)
             {
                 var candidate = new LatLon(lat, lon);
-                NearbyFix? fix = NavDb.FixesWithin(candidate, 50.0).FirstOrDefault(f => IsPlainFix(f.Name));
-                if ((NavDb.NavaidsNear(candidate, "")[0].DistanceNm > 30.0) && (fix is not null) && (fix.DistanceNm > 1.0))
+                if (HasNoDmeNavaidWithin30Nm(candidate))
                 {
                     click = candidate;
-                    nearest = fix.Name;
                 }
             }
         }
@@ -115,20 +133,126 @@ public class RoutePointResolverTests
         RoutePointResult result = RoutePointResolver.Anchor(click.Value, NavDb);
 
         Assert.Null(result.Failure);
-        Assert.Matches("^" + Regex.Escape(nearest!) + "[0-9]{6}$", result.Text);
+        Assert.Matches(@"^\d{4}[NS]/\d{5}[EW]$", result.Text);
+        AssertTokenReadsBack(click.Value, result);
     }
 
     [Fact]
-    public void LatLonWithNothingWithin50Nm_AsksToAddAFix()
+    public void LatLonFarFromEveryNavaid_WritesALatLonToken_NeverAsksForAFix()
     {
         LatLon[] candidates = [new(30.0, -140.0), new(10.0, -150.0), new(-40.0, -120.0), new(-60.0, 0.0)];
-        LatLon click = candidates.First(c => !NavDb.FixesWithin(c, 50.0).Any(f => IsPlainFix(f.Name)));
+        LatLon click = candidates.First(HasNoDmeNavaidWithin30Nm);
 
         RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
 
-        Assert.NotNull(result.Failure);
-        Assert.Contains("add a fix", result.Failure, StringComparison.OrdinalIgnoreCase);
-        Assert.Null(result.Text);
+        Assert.Null(result.Failure);
+        Assert.Matches(@"^\d{4}[NS]/\d{5}[EW]$", result.Text);
+        AssertTokenReadsBack(click, result);
+    }
+
+    [Fact]
+    public void LatLonTenNmFromOak_AnchorsOnTheDmeNavaid()
+    {
+        LatLon click = FrdResolver.Resolve("OAK090010", NavDb) ?? throw new InvalidOperationException("OAK090010 unresolved");
+        Assert.True(NavDb.IsDmeRadialNavaid("OAK"));
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        Assert.Equal("OAK090010", result.Text);
+    }
+
+    [Fact]
+    public void LatLonNearAPlainVor_WritesTheTokenForThatPoint()
+    {
+        LatLon click = VcvSouthernClick();
+        Assert.False(NavDb.IsDmeRadialNavaid("VCV"));
+        AssertNoDmeNavaidWithin30Nm(click);
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        Assert.Equal("3434N/11723W", result.Text);
+        Assert.Equal(new LatLon(34 + (34 / 60.0), -(117 + (23 / 60.0))), result.Position);
+    }
+
+    [Fact]
+    public void LatLonNearAPlainVor_AnchorsOnTheDmeNavaidFurtherAway()
+    {
+        // 25 NM off EDW VORTAC towards VCV, a plain VOR about 4 NM from the point: the plain VOR cannot anchor, EDW can.
+        LatLon click = FrdResolver.Resolve("EDW126025", NavDb) ?? throw new InvalidOperationException("EDW126025 unresolved");
+        LatLon vcv = FixPosition("VCV");
+        Assert.True(GeoMath.DistanceNm(click, vcv) < GeoMath.DistanceNm(click, FixPosition("EDW")));
+        Assert.True(GeoMath.DistanceNm(click, FixPosition("EDW")) <= RoutePointResolver.NavaidAnchorRangeNm);
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        Assert.Matches("^EDW[0-9]{6}$", result.Text);
+    }
+
+    [Fact]
+    public void WrittenToken_ReadsBackThroughTheScenarioLoaderWithinHalfAMinute()
+    {
+        LatLon click = VcvSouthernClick();
+        AssertNoDmeNavaidWithin30Nm(click);
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        AssertTokenReadsBack(click, result);
+    }
+
+    [Theory]
+    [InlineData(29.99999, -140.99999, "3000N/14100W")] // both parts carry past 60 minutes into the next degree
+    [InlineData(-40.5, 151.25, "4030S/15115E")] // the southern and eastern hemispheres
+    [InlineData(-0.001, -0.001, "0000S/00000W")] // a negative coordinate that rounds to zero keeps its hemisphere letter
+    public void LatLonToken_RoundsToTheNearestMinute(double lat, double lon, string expected)
+    {
+        var click = new LatLon(lat, lon);
+        AssertNoDmeNavaidWithin30Nm(click);
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(expected, result.Text);
+    }
+
+    [Fact]
+    public void LatLonToken_OnExactlyHalfAMinute_RoundsAwayFromZero()
+    {
+        // 0.5 / 60 degrees is 0.5 minute exactly in binary, the tie a to-even round would take to 0.
+        var click = new LatLon(0.5 / 60.0, 0.0);
+        AssertNoDmeNavaidWithin30Nm(click);
+
+        RoutePointResult result = RoutePointResolver.Anchor(click, NavDb);
+
+        Assert.Null(result.Failure);
+        Assert.Equal("0001N/00000E", result.Text);
+    }
+
+    [Fact]
+    public void SavedToken_StaysAToken_WhenItsRoundedPositionFallsInsideTheAnchorRange()
+    {
+        // 30.25 NM north of ALW on its meridian: the click is outside the anchor range, but rounding to the minute moves
+        // the token to about 29.8 NM, where re-anchoring would give an FRD instead.
+        LatLon alw = FixPosition("ALW");
+        var click = new LatLon(alw.Lat + (30.25 / 60.0), alw.Lon);
+        AssertNoDmeNavaidWithin30Nm(click);
+
+        RoutePointResult written = RoutePointResolver.Anchor(click, NavDb);
+        Assert.Null(written.Failure);
+        Assert.Matches(@"^\d{4}[NS]/\d{5}[EW]$", written.Text);
+        Assert.True(RoutePointResolver.TryParseLatLonToken(written.Text!, out LatLon tokenPosition));
+        Assert.True(GeoMath.DistanceNm(tokenPosition, alw) <= RoutePointResolver.NavaidAnchorRangeNm);
+        Assert.Matches("^ALW[0-9]{6}$", RoutePointResolver.Anchor(tokenPosition, NavDb).Text);
+
+        RoutePointResult resolved = RoutePointResolver.Resolve(RoutePoint.AtLatLon(tokenPosition), FixResolutionContext.None, NavDb);
+        RoutePointResult path = RoutePointResolver.NavPathText([RoutePoint.AtLatLon(tokenPosition)], FixResolutionContext.None, NavDb);
+
+        Assert.Equal(written.Text, resolved.Text);
+        Assert.Equal(tokenPosition, resolved.Position);
+        Assert.Equal(written.Text, path.Text);
     }
 
     [Fact]

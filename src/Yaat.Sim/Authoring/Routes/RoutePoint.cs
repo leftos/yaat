@@ -9,7 +9,10 @@ public enum RoutePointKind
     /// <summary>A fix-radial-distance: an anchor fix, a magnetic radial and a distance in NM.</summary>
     Frd,
 
-    /// <summary>A raw latitude and longitude, written as an FRD from a nearby anchor when it becomes nav-path text.</summary>
+    /// <summary>
+    /// A raw latitude and longitude, written as an FRD from a DME NAVAID in range, else as a lat/lon token, when it becomes
+    /// nav-path text.
+    /// </summary>
     LatLon,
 }
 

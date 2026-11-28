@@ -10,9 +10,10 @@ namespace Yaat.Client.Tests.Authoring;
 
 /// <summary>
 /// The route composer's view model on the committed navdata around SFO: a click snapped to a fix adds that fix, any other
-/// click is anchored to an FRD or refused with the anchor's reason; a click inserts after the selected point; a move
-/// re-resolves the point; every add, move and delete is one undo step; with no navdata the status says so and a click adds
-/// nothing; Save refuses a blank name and lists the route under its ARTCC only until Show all ARTCCs is checked.
+/// click is anchored to an FRD or, with no DME NAVAID in range, written as a lat/lon token; a click inserts after the
+/// selected point; a move re-resolves the point; every add, move and delete is one undo step; with no navdata the status
+/// says so and a click adds nothing; Save refuses a blank name and lists the route under its ARTCC only until Show all
+/// ARTCCs is checked.
 /// </summary>
 public sealed class RouteComposerViewModelTests : IDisposable
 {
@@ -70,21 +71,35 @@ public sealed class RouteComposerViewModelTests : IDisposable
     }
 
     [Fact]
-    public void AClickFarFromAnyFix_AddsNothing_AndShowsTheAnchorFailure()
+    public void AClickFarFromEveryDmeNavaid_AddsALatLonPoint()
     {
         RouteComposerViewModel vm = Open("ZOA");
         LatLon[] candidates = [new(30.0, -140.0), new(10.0, -150.0), new(-40.0, -120.0), new(-60.0, 0.0)];
-        LatLon ocean = candidates.First(c =>
-            !NavDb.FixesWithin(c, RoutePointResolver.FixAnchorRangeNm).Any(f => !FrdResolver.IsFrdIdentifier(f.Name))
-        );
-        string? failure = RoutePointResolver.Anchor(ocean, NavDb).Failure;
-        Assert.NotNull(failure);
+        LatLon ocean = candidates.First(c => NavDb.FixesWithin(c, RoutePointResolver.NavaidAnchorRangeNm).All(f => !NavDb.IsDmeRadialNavaid(f.Name)));
 
-        Assert.False(vm.AddAt(ocean, null));
+        Assert.True(vm.AddAt(ocean, null));
 
-        Assert.Empty(vm.Points);
-        Assert.Equal(failure, vm.MessageText);
-        Assert.False(vm.UndoCommand.CanExecute(null));
+        RouteComposerPoint point = Assert.Single(vm.Points);
+        Assert.Equal(RoutePointKind.LatLon, point.Point.Kind);
+        Assert.Matches(@"^\d{4}[NS]/\d{5}[EW]$", point.Text);
+        Assert.Equal(point.Text, vm.NavPathText);
+        Assert.Equal("", vm.MessageText);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void AClickAtAPlainVor_AddsALatLonPointAtTheToken()
+    {
+        RouteComposerViewModel vm = Open("ZOA");
+        LatLon vcv = FixPosition("VCV");
+        var click = new LatLon(vcv.Lat - (2.0 / 60.0), vcv.Lon);
+
+        Assert.True(vm.AddAt(click, null));
+
+        RouteComposerPoint point = Assert.Single(vm.Points);
+        Assert.Equal("3434N/11723W", point.Text);
+        Assert.Equal(RoutePoint.AtLatLon(new LatLon(34 + (34 / 60.0), -(117 + (23 / 60.0)))), point.Point);
+        Assert.Equal("3434N/11723W", vm.NavPathText);
     }
 
     [Fact]

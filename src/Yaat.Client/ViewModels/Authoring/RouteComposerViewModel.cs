@@ -65,9 +65,9 @@ public sealed partial class RouteComposerMapLayer : ObservableObject
 /// <summary>
 /// The route composer: a named route of points placed on the map, saved in the per-user <see cref="RouteLibrary"/> tagged
 /// with the composer's ARTCC. A click snapped to a fix adds that fix (<see cref="RoutePointResolver.PickFix"/>), any other
-/// click is anchored to an FRD (<see cref="RoutePointResolver.Anchor"/>) or refused with the reason; a click inserts after
-/// the selected point, or at the end when none is. Each add, move and delete is one undo step. With no navigation database
-/// the status says so and nothing is added.
+/// click is anchored to an FRD (<see cref="RoutePointResolver.Anchor"/>) or, with no DME NAVAID in range, written as a
+/// lat/lon token; a click inserts after the selected point, or at the end when none is. Each add, move and delete is one
+/// undo step. With no navigation database the status says so and nothing is added.
 /// </summary>
 public sealed partial class RouteComposerViewModel : ObservableObject, IDisposable
 {
@@ -526,12 +526,17 @@ public sealed partial class RouteComposerViewModel : ObservableObject, IDisposab
         return null;
     }
 
-    // Anchor writes an FRD, or a bare fix when the click sits on one.
+    // Anchor writes an FRD, else a lat/lon token for a coordinate no navaid can anchor.
     private static RoutePoint PointOf(string text)
     {
         if (FrdResolver.ParseFrd(text) is { Radial: int radial, Distance: int distance } frd)
         {
             return RoutePoint.AtFrd(frd.Fix, (radial == 0) ? 360 : radial, distance);
+        }
+
+        if (RoutePointResolver.TryParseLatLonToken(text, out LatLon position))
+        {
+            return RoutePoint.AtLatLon(position);
         }
 
         return RoutePoint.AtFix(text);
