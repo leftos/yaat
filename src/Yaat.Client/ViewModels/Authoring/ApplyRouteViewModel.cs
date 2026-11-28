@@ -81,10 +81,16 @@ public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
         _aircraft = aircraft ?? throw new ArgumentNullException(nameof(aircraft));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _artccId = artccId ?? throw new ArgumentNullException(nameof(artccId));
+        Editor = new StampProfileEditorViewModel(_services.Profiles, PositionIdSnapshot());
+        Editor.Saved += OnEditorSaved;
+        Editor.Deleted += OnEditorDeleted;
         _aircraft.PropertyChanged += OnAircraftPropertyChanged;
         LoadProfiles();
         LoadRoutes();
     }
+
+    /// <summary>Gets the profile section's editor over the same profile store, holding the selected profile.</summary>
+    public StampProfileEditorViewModel Editor { get; }
 
     /// <summary>Gets the readable stamp profiles, by name.</summary>
     public ObservableCollection<StampProfile> Profiles { get; } = [];
@@ -118,7 +124,7 @@ public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
             ProfileProblems.Add($"Couldn't read {problem.FileName}: {problem.Reason}");
         }
 
-        SelectedProfile = Profiles.FirstOrDefault(p => string.Equals(p.Id, selectedId, StringComparison.Ordinal));
+        SelectedProfile = Profiles.FirstOrDefault(p => string.Equals(p.Id, selectedId, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Lists the library routes again, keeping the selected one when it is still listed.</summary>
@@ -170,7 +176,12 @@ public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
     }
 
     /// <inheritdoc/>
-    public void Dispose() => _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
+    public void Dispose()
+    {
+        Editor.Saved -= OnEditorSaved;
+        Editor.Deleted -= OnEditorDeleted;
+        _aircraft.PropertyChanged -= OnAircraftPropertyChanged;
+    }
 
     // Writes the stamp of the previewed aircraft, re-run on it as the document holds it now with the preview's seeds and time.
     // A skip, a stamp that changes nothing or a route that no longer converts found at this point is shown in place of the preview, never dropped.
@@ -318,7 +329,22 @@ public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
         ApplyCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedProfileChanged(StampProfile? value) => ClearPreview();
+    partial void OnSelectedProfileChanged(StampProfile? oldValue, StampProfile? newValue)
+    {
+        if (!string.Equals(oldValue?.Id, newValue?.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            if (newValue is null)
+            {
+                Editor.New();
+            }
+            else
+            {
+                Editor.Load(newValue);
+            }
+        }
+
+        ClearPreview();
+    }
 
     partial void OnSelectedRouteChanged(SavedRoute? value)
     {
@@ -342,11 +368,36 @@ public sealed partial class ApplyRouteViewModel : ObservableObject, IDisposable
 
     partial void OnShowAllArtccsChanged(bool value) => LoadRoutes();
 
+    // The profile section wrote a profile: a Save (the profile the editor holds) selects that profile and previews it; a
+    // Duplicate only lists the copy. The list is read again first either way.
+    private void OnEditorSaved(StampProfile saved)
+    {
+        bool savedTheEditedProfile = string.Equals(saved.Id, Editor.Id, StringComparison.OrdinalIgnoreCase);
+        LoadProfiles();
+        if (!savedTheEditedProfile)
+        {
+            return;
+        }
+
+        SelectedProfile = Profiles.FirstOrDefault(p => string.Equals(p.Id, saved.Id, StringComparison.OrdinalIgnoreCase));
+        Preview();
+    }
+
+    // The profile section deleted a profile: the list is read again, which drops the selection when it was that profile.
+    private void OnEditorDeleted(string _) => LoadProfiles();
+
+    // The ATC position ids the profile editor's auto-track picker offers, as the General tab's catalog holds them.
+    private IReadOnlyList<string> PositionIdSnapshot() => [.. _aircraft.PositionCatalog.Select(o => o.Value)];
+
     private void OnAircraftPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (string.Equals(e.PropertyName, nameof(ScenarioAircraftViewModel.Selected), StringComparison.Ordinal))
         {
             ClearPreview();
+        }
+        else if (string.Equals(e.PropertyName, nameof(ScenarioAircraftViewModel.PositionCatalog), StringComparison.Ordinal))
+        {
+            Editor.PositionIds = PositionIdSnapshot();
         }
     }
 

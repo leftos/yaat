@@ -487,6 +487,122 @@ public sealed class ApplyRouteViewModelTests : IDisposable
         Assert.Equal("Apply Route", session.UndoDescription);
     }
 
+    [Fact]
+    public void SavingTheSelectedProfileAfterAnEdit_ReRunsThePreview()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        StampProfile profile = Save(CruiseAndPreset("Cruise"));
+        SaveRoute("West", RoutePoint.AtFix("SFO"), RoutePoint.AtFix("MOD"));
+        aircraft.Selected = aircraft.Rows[0];
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        vm.SelectedProfile = vm.Profiles.Single();
+        vm.SelectedRoute = vm.Routes.Single();
+        vm.Preview();
+        Assert.Equal(JsonSerializer.Serialize("STAMPED"), RemarksRow(vm).NewValue);
+
+        vm.Editor.FlightPlanRemarks = "CHANGED";
+        vm.Editor.SaveCommand.Execute(null);
+
+        Assert.Equal("CHANGED", Profiles.Load(profile.Id)!.FlightPlan.Remarks);
+        Assert.Equal(JsonSerializer.Serialize("CHANGED"), RemarksRow(vm).NewValue);
+        Assert.True(vm.ApplyCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Duplicate_RaisesSaved_AndListsTheCopy()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        StampProfile original = Save(CruiseAndPreset("Alpha"));
+        aircraft.Selected = aircraft.Rows[0];
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        vm.SelectedProfile = vm.Profiles.Single();
+        var announced = new List<StampProfile>();
+        vm.Editor.Saved += announced.Add;
+
+        vm.Editor.DuplicateCommand.Execute(null);
+
+        StampProfile copy = Assert.Single(announced);
+        Assert.NotEqual(original.Id, copy.Id);
+        Assert.Equal("Alpha (copy)", copy.Name);
+        Assert.Equal(["Alpha", "Alpha (copy)"], vm.Profiles.Select(p => p.Name));
+        Assert.Equal(original.Id, vm.SelectedProfile?.Id);
+        Assert.Null(vm.Editor.Message);
+    }
+
+    [Fact]
+    public void DeletingTheSelectedProfile_DropsTheSelection_AndTheEditorHoldsAFreshProfile()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        StampProfile profile = Save(CruiseAndPreset("Alpha"));
+        aircraft.Selected = aircraft.Rows[0];
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        vm.SelectedProfile = vm.Profiles.Single();
+
+        vm.Editor.DeleteCommand.Execute(null);
+
+        Assert.Empty(vm.Profiles);
+        Assert.Null(vm.SelectedProfile);
+        Assert.Null(Profiles.Load(profile.Id));
+        Assert.Equal("New profile", vm.Editor.Name);
+        Assert.NotEqual(profile.Id, vm.Editor.Id);
+    }
+
+    [Fact]
+    public void NewThenSave_WhileAnotherProfileIsSelected_SelectsAndPreviewsTheSavedOne()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        Save(CruiseAndPreset("Alpha"));
+        SaveRoute("West", RoutePoint.AtFix("SFO"), RoutePoint.AtFix("MOD"));
+        aircraft.Selected = aircraft.Rows[0];
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        vm.SelectedProfile = vm.Profiles.Single();
+        vm.SelectedRoute = vm.Routes.Single();
+        vm.Preview();
+
+        vm.Editor.New();
+        vm.Editor.Name = "Bravo";
+        vm.Editor.FlightPlanApply = true;
+        vm.Editor.FlightPlanRemarks = "NEW";
+        vm.Editor.SaveCommand.Execute(null);
+
+        Assert.Equal(["Alpha", "Bravo"], vm.Profiles.Select(p => p.Name));
+        Assert.Equal("Bravo", vm.SelectedProfile?.Name);
+        Assert.Equal("Bravo", vm.Editor.Name);
+        Assert.Equal(JsonSerializer.Serialize("NEW"), RemarksRow(vm).NewValue);
+    }
+
+    [Fact]
+    public void Duplicate_WhileEditingANewProfile_KeepsTheEditorsUnsavedEdit()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        Save(CruiseAndPreset("Alpha"));
+        aircraft.Selected = aircraft.Rows[0];
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        vm.SelectedProfile = vm.Profiles.Single();
+
+        vm.Editor.New();
+        vm.Editor.Name = "Bravo";
+        vm.Editor.FlightPlanRemarks = "UNSAVED";
+        vm.Editor.DuplicateCommand.Execute(null);
+
+        Assert.Equal(["Alpha", "Bravo (copy)"], vm.Profiles.Select(p => p.Name));
+        Assert.Equal("Alpha", vm.SelectedProfile?.Name);
+        Assert.Equal("Bravo", vm.Editor.Name);
+        Assert.Equal("UNSAVED", vm.Editor.FlightPlanRemarks);
+    }
+
+    [Fact]
+    public void PositionCatalogArrivingAfterConstruction_ReachesTheEditorsPicker()
+    {
+        (_, ScenarioAircraftViewModel aircraft) = OpenCorpus();
+        using ApplyRouteViewModel vm = NewVm(aircraft);
+        Assert.Empty(vm.Editor.PositionIds);
+
+        aircraft.PositionCatalog = [new ScenarioPickOption("POS1", "Position 1")];
+
+        Assert.Equal(["POS1"], vm.Editor.PositionIds);
+    }
+
     // Cruise 35000, remarks, the route written to the plan, and one preset naming the callsign.
     private static StampProfile CruiseAndPreset(string name) =>
         new()
@@ -504,6 +620,8 @@ public sealed class ApplyRouteViewModelTests : IDisposable
         };
 
     private static ApplyRoutePreviewRow RouteRow(ApplyRouteViewModel vm) => vm.PreviewRows.Single(r => r.Path == "/flightplan/route");
+
+    private static ApplyRoutePreviewRow RemarksRow(ApplyRouteViewModel vm) => vm.PreviewRows.Single(r => r.Path == "/flightplan/remarks");
 
     private static string Json(ScenarioAircraft aircraft) => JsonSerializer.Serialize(aircraft);
 
