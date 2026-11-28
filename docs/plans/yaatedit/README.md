@@ -58,7 +58,7 @@ Each term gets a glossary entry in [`docs/CONTEXT.md`](../../CONTEXT.md) in the 
 
 ## 4. Capability map
 
-One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same intent), **differently** (rebuilt with a changed design, said why), **dropped**. The last column names the milestone part (section 6).
+The port was planned from upstream 37b8392 and last reviewed at 2a352e5 (`upstream-review-2a352e5.md`, beside this plan); the planned rows below come from that review. One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same intent), **differently** (rebuilt with a changed design, said why), **dropped**. The last column names the milestone part (section 6).
 
 | YAATEdit capability | Verdict | Builds on in YAAT | Part |
 |---|---|---|---|
@@ -66,7 +66,7 @@ One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same int
 | Background resync on open | native | `VnasTrainingClient`, `LocalScenarioStore` | M1.3 |
 | Server and local-only lists, modified dot | native | `LocalScenarioStore` index | M1.3 |
 | Auto-delete a local copy whose id reappears on the server | differently: nothing is deleted on refresh; a working copy whose server version changed is marked "server changed" and the author keeps or replaces it | `LocalScenarioStore` base-version tracking | M1.3 |
-| New, duplicate (fresh ids), delete local scenario | native | `ScenarioDocument`, a ULID-style id generator in `Yaat.Sim` | M1.3 |
+| New, duplicate (a new scenario id; aircraft and strip ids are kept), delete local scenario | native | `ScenarioDocument`, a ULID-style id generator in `Yaat.Sim` | M1.3 |
 | Import JSON with id-conflict choice (new id, keep id, skip) | native | `ScenarioDocument` | M1.3 |
 | Export raw local JSON | native (Save As) | `ScenarioDocument` | M1.3 |
 | "Clean" export for ATC Trainer (unknown fields stripped) | differently: one Export JSON in the vNAS shape, for upload on the vNAS site; stripping depends on open question Q1 | `WorkingCopyExporter`, `ScenarioDocument` | M2.1 |
@@ -78,6 +78,13 @@ One row per YAATEdit capability. Verdicts: **native** (rebuilt with the same int
 | Initialization triggers with H:M:S entry | native, one shared time parser instead of YAATEdit's three | `InitializationTrigger`, new `ScenarioTime` | M1.4 |
 | Arrival generator editor | native, extended to YAAT's own generator kinds | `ScenarioGeneratorConfig`, `VfrArrivalGeneratorConfig`, `OverflightGeneratorConfig`; field layout from `ArrivalGeneratorsEditorWindow` | M1.4 |
 | Flight strip configuration | native | `Scenario` strip configurations, `ArtccConfigRoot` bays | M1.4 |
+| Flight strip editor (strips, fields, layout) | native, planned: YAAT-2974, in parts YAAT-2976 to YAAT-2979 | `Scenario` strip configurations, `FlightStripState` | YAAT-2974 |
+| YAAT Check | native, planned: the same checks as live findings in the editor | `ScenarioEditChecks` | YAAT-2971 |
+| Preset-command autocomplete | native, planned | `CommandParser`, `CommandDescriber`, `ArgumentSuggester` | YAAT-2975 |
+| Scenario sidecar authoring | native, planned: the author writes the scenario sidecar that test in room applies by origin id | `LocalScenarioStore`, `MainViewModel.LoadScenarioFromJsonAsync` | YAAT-2973 |
+| Import of older YAATEdit files (numbers saved as null) | native, planned | `ScenarioDocument` | YAAT-2969 |
+| Backups of working copies | native, planned | `LocalScenarioStore` | YAAT-2970 |
+| Browser facility filter | native, planned | `ScenarioBrowserViewModel` | YAAT-2972 |
 | Save with auto-track warning | differently: warnings come from live validation, not a save-time dialog | `ScenarioValidator`, `ScenarioEditChecks` | M1.6 |
 | Apply step, auto-apply on switch, zero-fill setting | differently: edits apply to the document as typed; Save writes the working copy | view models | M1.4, M1.5 |
 | Aircraft grid (sortable, column layout remembered) | native | `UserPreferences` | M1.5 |
@@ -157,7 +164,7 @@ Editor logic lives under `src/Yaat.Sim/Authoring/`, so the boundary between auth
 - **Canvases.** `ParkingPickerCanvas`, `RouteComposerCanvas` and `AirportEditorCanvas` subclass `MapCanvasBase`. Each copies selection, hover, ghost and snap state into its render snapshot, never reading a styled property in `RenderFromSnapshot` (radar-rendering.md "The no-StyledProperty rule"), and keeps draw and hit-test geometry in one place.
 
   `ParkingPickerCanvas` draws from `AirportGroundLayout` directly, since `GroundCanvas` needs the server-built `GroundLayoutDto`. The airport editor pans with the middle button, so `MapCanvasBase` has a protected `PanButton` (the picker keeps the default right button; the airport editor sets the middle one); right-click opens context menus.
-- **Test in room.** The editor sends the working copy's JSON through `MainViewModel.LoadScenarioFromJsonAsync`, enabled only when `MainViewModel.CanLoadScenario` holds (connected, in a room, allowed to load, no load in flight). A copy derived from a server scenario passes that scenario's id, so its scenario sidecar applies; a local-only scenario passes none.
+- **Test in room.** The editor sends the working copy's JSON through `MainViewModel.LoadScenarioFromJsonAsync`, enabled only when `MainViewModel.CanLoadScenario` holds (connected, in a room, allowed to load, no load in flight). A copy derived from a server scenario passes that scenario's id, so its scenario sidecar applies (authoring that sidecar is YAAT-2973); a local-only scenario passes none.
 - **Excel.** The RPO sheet's `.xlsx` writer sits in `Yaat.Client` behind open question Q9, so no spreadsheet package reaches `Yaat.Sim`.
 - **Heavy work off the UI thread.** GeoJSON parses, the N-number index build and ARTCC downloads run off the UI thread and report progress; results are marshalled back with `Dispatcher.UIThread.Post`.
 
@@ -203,7 +210,7 @@ Two Task Index rows land in `docs/architecture.md`, the first with M1.1 and the 
 | Part | Outcome | Main files |
 |---|---|---|
 | M2.1 Export JSON | Export JSON writes a working copy, or every copy with unexported changes, as vNAS JSON for upload on the vNAS site; it warns about YAAT-only parts and keeps them, refuses a copy with validation errors, and the browser marks copies with unexported changes with the Unexported badge, read from the working copy's sidecar export record, not the store index. | `src/Yaat.Sim/Authoring/WorkingCopyExporter.cs`, `src/Yaat.Sim/Authoring/LocalScenarioStore.cs`, `src/Yaat.Client/ViewModels/Authoring/ScenarioExportViewModel.cs`, `src/Yaat.Client/ViewModels/Authoring/ScenarioBrowserViewModel.cs` |
-| M2.2 Server changes on re-download | When a re-download finds that the server changed a scenario a working copy came from, the editor shows what changed field by field, and the author keeps the copy, replaces it, or starts a fresh copy beside it. | `src/Yaat.Sim/Authoring/ScenarioDiff.cs`, `src/Yaat.Sim/Authoring/ScenarioMerge.cs`, `src/Yaat.Client/ViewModels/Authoring/ScenarioMergeViewModel.cs`, `src/Yaat.Client/ViewModels/Authoring/ScenarioBrowserViewModel.Merge.cs` |
+| M2.2 Server changes on re-download | When a re-download finds that the server changed a scenario a working copy came from, the editor shows what changed field by field, and the author keeps the copy, replaces it, or starts a fresh copy beside it. | `src/Yaat.Sim/Authoring/ScenarioDiff.cs`, `src/Yaat.Sim/Authoring/ScenarioMerge.cs`, `src/Yaat.Client/ViewModels/Authoring/ScenarioMergeViewModel.cs`, `src/Yaat.Client/Views/Authoring/ScenarioMergeWindow.axaml`, `src/Yaat.Client/ViewModels/Authoring/ScenarioBrowserViewModel.Merge.cs` |
 | M2.3 Unexported-changes warning and guide | Closing the editor or switching ARTCC with unexported changes asks first; USER_GUIDE gains its Exporting section, linking the vNAS documentation for the upload. | `src/Yaat.Client/Views/Authoring/ScenarioEditorWindow.axaml.cs`, `USER_GUIDE.md` |
 
 ### M3. Routes, spawn timing and metrics

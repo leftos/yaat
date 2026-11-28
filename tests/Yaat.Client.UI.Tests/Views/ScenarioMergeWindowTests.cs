@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,7 +15,10 @@ using Xunit;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Client.Views.Authoring;
+using Yaat.Sim;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -22,8 +27,10 @@ namespace Yaat.Client.UI.Tests.Views;
 /// (primary airport): the gutter's → resolves a clash and Apply waits for every clash; Apply returns the result and writes;
 /// the close box returns null and writes nothing; a two-way merge disables Show base and shows its note; ✎ opens the field's
 /// editor and Keep this commits it; Apply waits while an editor is open; Previous/Next walk the clashes without wrapping; the
-/// checks' findings show in one "Merged with problems" box before the write; and Fresh copy beside closes with nothing applied,
-/// or keeps the window open with its failure on the footer.
+/// checks' findings show in one "Merged with problems" box before the write; Fresh copy beside closes with nothing applied,
+/// or keeps the window open with its failure on the footer; the Aircraft tab shows the selected aircraft's differing rows,
+/// Next reaches it from the last General clash, and ✎ on an aircraft opens the MERGED AIRCRAFT strip (the aircraft view in
+/// detail-only mode) whose Keep this marks the line edited.
 /// </summary>
 public sealed class ScenarioMergeWindowTests
 {
@@ -455,6 +462,528 @@ public sealed class ScenarioMergeWindowTests
             owner.Close();
         }
     }
+
+    [AvaloniaFact]
+    public void SelectingNks2904_ShowsItsDetail_WithTheBaseStripOnThePresetClash()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, NksId);
+
+            Assert.Same(line, window.ViewModel.SelectedAircraftLine);
+            ScenarioMergeRowViewModel preset = Assert.Single(window.ViewModel.Rows, r => r.Path == NksPath("/presetCommands/1/command"));
+            ScenarioMergeRowViewModel parking = Assert.Single(window.ViewModel.Rows, r => r.Path == NksPath("/startingConditions/parking"));
+            Assert.True(preset.IsClash);
+            Assert.True(BaseStrip(window, preset).IsEffectivelyVisible);
+            Assert.False(BaseStrip(window, parking).IsVisible);
+            ItemsControl detail = window.FindControl<ItemsControl>("AircraftRowList")!;
+            Assert.Contains(
+                detail.GetVisualDescendants().OfType<Border>(),
+                b => b.Classes.Contains("lineBox") && ReferenceEquals(b.DataContext, preset)
+            );
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Next_FromTheLastGeneralClash_JumpsToTheAircraftTab_AndMarksTheAircraftsClash()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(AircraftClashRequest());
+        try
+        {
+            Button next = window.FindControl<Button>("NextButton")!;
+            TabControl tabs = window.FindControl<TabControl>("Tabs")!;
+            Click(window, next);
+            Click(window, next);
+            Assert.Equal(0, tabs.SelectedIndex);
+
+            Click(window, next);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(1, tabs.SelectedIndex);
+            ScenarioMergeAircraftLineViewModel line = Assert.Single(window.ViewModel.AircraftLines);
+            Assert.Same(line, window.FindControl<ListBox>("AircraftList")!.SelectedItem);
+            ScenarioMergeRowViewModel clash = Assert.Single(window.ViewModel.Rows, r => r.IsClash && (r.Section == "Aircraft"));
+            Border box = Assert.Single(
+                window.GetVisualDescendants().OfType<Border>(),
+                b => b.Classes.Contains("lineBox") && ReferenceEquals(b.DataContext, clash)
+            );
+            Assert.Contains("current", box.Classes);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditOnAnAircraft_OpensTheMergedDetail_AndKeepThisUpdatesTheLine()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, NksId);
+            Button edit = AircraftEdit(window, line);
+            Assert.Equal("changed", StatusTexts(window, line));
+
+            Click(window, edit);
+
+            ScenarioMergedAircraftViewModel editor = Assert.IsType<ScenarioMergedAircraftViewModel>(window.ViewModel.MergedAircraft);
+            Assert.True(window.FindControl<Control>("MergedAircraftStrip")!.IsEffectivelyVisible);
+            ScenarioAircraftView view = window.FindControl<ScenarioAircraftView>("MergedAircraftView")!;
+            Assert.Same(editor.Aircraft, view.DataContext);
+            TextBox callsign = view.FindControl<TextBox>("CallsignBox")!;
+            Assert.Equal("NKS2904", callsign.Text);
+            TextBox spawnDelay = view.FindControl<TextBox>("SpawnDelayBox")!;
+            spawnDelay.Focus();
+            spawnDelay.Text = "5:00";
+            callsign.Focus();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(300, editor.Session.Document.Scenario.Aircraft[editor.Index].SpawnDelay);
+
+            Click(window, window.FindControl<Button>("MergedAircraftKeepButton")!);
+
+            Assert.Null(window.ViewModel.MergedAircraft);
+            Assert.False(window.FindControl<Control>("MergedAircraftStrip")!.IsVisible);
+            Assert.True(line.IsReplaced);
+            Assert.Contains("pressed", AircraftEdit(window, line).Classes);
+            Assert.Equal("edited in the merge", StatusTexts(window, line));
+            Assert.Equal(300, window.ViewModel.AircraftEdits[NksId]["spawnDelay"]!.GetValue<int>());
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void DetailOnlyMode_HidesTheToolbarAndTheGrid()
+    {
+        Assert.False(new ScenarioAircraftView().IsDetailOnly);
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, NksId);
+            window.AircraftServices!.Browser.Preferences.SetScenarioEditorAircraftGrid(new SavedGridLayout { ColumnOrder = ["Type", "Callsign"] });
+            Click(window, AircraftEdit(window, line));
+
+            ScenarioAircraftView view = window.FindControl<ScenarioAircraftView>("MergedAircraftView")!;
+            DataGrid grid = view.FindControl<DataGrid>("AircraftGrid")!;
+            Assert.True(view.IsDetailOnly);
+            Assert.Equal("Callsign", FirstColumn(grid));
+            Assert.True(view.FindControl<Control>("DetailPanel")!.IsEffectivelyVisible);
+            Assert.False(view.FindControl<Control>("AircraftGrid")!.IsEffectivelyVisible);
+            Assert.False(view.FindControl<Control>("AircraftToolbar")!.IsEffectivelyVisible);
+            string[] buttons = ["AddAircraftButton", "DuplicateAircraftButton", "RemoveAircraftButton"];
+            foreach (string name in buttons)
+            {
+                Assert.False(view.FindControl<Button>(name)!.IsEffectivelyVisible);
+            }
+
+            view.IsDetailOnly = false;
+            window.UpdateLayout();
+
+            Assert.True(view.FindControl<Control>("AircraftGrid")!.IsEffectivelyVisible);
+            Assert.True(view.FindControl<Control>("AircraftToolbar")!.IsEffectivelyVisible);
+            Assert.All(buttons, name => Assert.True(view.FindControl<Button>(name)!.IsEffectivelyVisible));
+            Assert.Equal("Type", FirstColumn(grid));
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void EditEveryClash_ThenKeepThisInTheAircraftStrip_EnablesApply()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(AircraftClashRequest());
+        try
+        {
+            Button apply = window.FindControl<Button>("ApplyButton")!;
+            window.ViewModel.EditEveryClashCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            List<ScenarioMergeRowViewModel> clashes = [.. window.ViewModel.Rows.Where(r => r.IsClash)];
+            Assert.Equal(3, clashes.Count);
+            Assert.All(clashes, r => Assert.True(r.IsEditing));
+
+            foreach (ScenarioMergeRowViewModel general in clashes.Where(r => r.Section != "Aircraft"))
+            {
+                Click(window, EditorButton(window, general, "keepThis"));
+            }
+
+            Assert.False(apply.IsEnabled);
+            ShowAircraft(window, AircraftId);
+            ScenarioMergeRowViewModel aircraft = Assert.Single(clashes, r => r.Section == "Aircraft");
+
+            Click(window, EditorButton(window, aircraft, "keepThis"));
+
+            Assert.True(aircraft.IsEditPressed);
+            Assert.True(apply.IsEnabled);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void WhileTheMergedAircraftEditorIsOpen_AnotherLineAndNext_LeaveItsAircraftSelected()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergeAircraftLineViewModel nks = ShowAircraft(window, NksId);
+            ListBox list = window.FindControl<ListBox>("AircraftList")!;
+            ScenarioMergeAircraftLineViewModel other = window.ViewModel.AircraftLines[0];
+            Assert.NotSame(nks, other);
+            Click(window, AircraftEdit(window, nks));
+            Assert.NotNull(window.ViewModel.MergedAircraft);
+
+            ClickAt(window, list.ContainerFromItem(other)!);
+            window.ViewModel.SelectedAircraftLine = other;
+            Assert.False(window.FindControl<Button>("NextButton")!.IsEffectivelyEnabled);
+            window.ViewModel.NextClashCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Same(nks, window.ViewModel.SelectedAircraftLine);
+            Assert.Same(nks, list.SelectedItem);
+            Assert.Equal("", window.FindControl<TextBlock>("PositionText")!.Text);
+
+            Click(window, window.FindControl<Button>("MergedAircraftCancelButton")!);
+            Assert.True(window.FindControl<Button>("NextButton")!.IsEffectivelyEnabled);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void AnAircraftAddedInTheirs_EditedAndKept_ReadsEditedInTheMerge()
+    {
+        ScenarioMergeRequest request = NksRequest() with
+        {
+            Texts = new ScenarioMergeTexts(Oak().ToJsonString(), Oak().ToJsonString(), WithTheirsOnly(Oak()).ToJsonString()),
+        };
+        (Window owner, ScenarioMergeWindow window, _) = Open(request);
+        try
+        {
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, TheirsOnlyId);
+            Click(window, AircraftEdit(window, line));
+            ScenarioMergedAircraftViewModel editor = window.ViewModel.MergedAircraft!;
+            editor.Session.Edit("Spawn delay", s => s.Aircraft[editor.Index].SpawnDelay = 240);
+
+            Click(window, window.FindControl<Button>("MergedAircraftKeepButton")!);
+
+            Assert.Empty(window.ViewModel.AircraftEdits);
+            Assert.True(line.IsReplaced);
+            Assert.Equal("edited in the merge", StatusTexts(window, line));
+            Assert.Contains("pressed", AircraftEdit(window, line).Classes);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Next_OntoTheAircraftOrderClash_MarksItsLineCurrent()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(AircraftOrderRequest());
+        try
+        {
+            ScenarioMergeRowViewModel order = Assert.Single(window.ViewModel.Rows, r => r.IsClash);
+            Assert.True(order.IsOrderRow);
+
+            Click(window, window.FindControl<Button>("NextButton")!);
+            window.UpdateLayout();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(1, window.FindControl<TabControl>("Tabs")!.SelectedIndex);
+            Border box = Assert.Single(
+                window.FindControl<ItemsControl>("AircraftOrderList")!.GetVisualDescendants().OfType<Border>(),
+                b => b.Classes.Contains("lineBox") && ReferenceEquals(b.DataContext, window.ViewModel.CurrentLine)
+            );
+            Assert.Contains("current", box.Classes);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MergedAircraftEditor_AfterLoadPickers_OffersTheMergesAirportsAndPositions()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergedAircraftServices services = AircraftServices();
+            await window
+                .ViewModel.LoadPickersAsync(services.Browser, CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            ScenarioMergePickers pickers = window.ViewModel.Pickers;
+            Assert.NotEmpty(pickers.Airports!);
+            Assert.NotEmpty(pickers.Positions!);
+
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, NksId);
+            Click(window, AircraftEdit(window, line));
+
+            ScenarioAircraftViewModel aircraft = window.ViewModel.MergedAircraft!.Aircraft;
+            Assert.Equal(pickers.Airports, aircraft.AirportOptions);
+            Assert.Equal(pickers.Positions, aircraft.PositionCatalog);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MergedAircraftEditor_OpenBeforeLoadPickers_GetsThemWhenTheyApply()
+    {
+        (Window owner, ScenarioMergeWindow window, _) = Open(NksRequest());
+        try
+        {
+            ScenarioMergeAircraftLineViewModel line = ShowAircraft(window, NksId);
+            Click(window, AircraftEdit(window, line));
+            ScenarioAircraftViewModel aircraft = window.ViewModel.MergedAircraft!.Aircraft;
+            Assert.Empty(aircraft.AirportOptions);
+
+            await window
+                .ViewModel.LoadPickersAsync(window.AircraftServices!.Browser, CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+
+            ScenarioMergePickers pickers = window.ViewModel.Pickers;
+            Assert.NotEmpty(pickers.Airports!);
+            Assert.NotEmpty(pickers.Positions!);
+            Assert.Equal(pickers.Airports, aircraft.AirportOptions);
+            Assert.Equal(pickers.Positions, aircraft.PositionCatalog);
+        }
+        finally
+        {
+            owner.Close();
+        }
+    }
+
+    private const string AircraftId = "01HAIRCRAFT000000000000001";
+
+    // The header of the grid's first column as the grid shows them.
+    private static string? FirstColumn(DataGrid grid) => grid.Columns.OrderBy(c => c.DisplayIndex).First().Header as string;
+
+    private const string OakId = "01H08FSWF5NCDXTQMQ3BWB0BND";
+
+    private const string NksId = "01H08FSWF5NCDXTQMQ3BWB0BNP";
+
+    private const string TheirsOnlyId = "01HYYYYYYYYYYYYYYYYYYYYYYY";
+
+    // Three aircraft each side holds; mine and theirs each reorder the base's differently, so the aircraft order clashes.
+    private ScenarioMergeRequest AircraftOrderRequest()
+    {
+        static string Side(int[] order)
+        {
+            JsonObject root = JsonNode.Parse(Scenario("Mine", "OnLanding", "OAK"))!.AsObject();
+            root["aircraft"] = new JsonArray([
+                .. order.Select(i => (JsonNode)new JsonObject { ["id"] = $"01HAIRCRAFT00000000000000{i}0", ["aircraftId"] = $"N{i}00AB" }),
+            ]);
+            return root.ToJsonString();
+        }
+
+        return Request(threeWay: true) with
+        {
+            Texts = new ScenarioMergeTexts(Side([0, 1, 2]), Side([1, 0, 2]), Side([0, 2, 1])),
+        };
+    }
+
+    // N3796G copied under a new id and callsign N4471K, appended to the scenario.
+    private static JsonObject WithTheirsOnly(JsonObject scenario)
+    {
+        JsonArray aircraft = scenario["aircraft"]!.AsArray();
+        JsonObject added = aircraft.Single(a => a!["aircraftId"]!.GetValue<string>() == "N3796G")!.DeepClone().AsObject();
+        added["id"] = TheirsOnlyId;
+        added["aircraftId"] = "N4471K";
+        aircraft.Add(added);
+        return scenario;
+    }
+
+    // A file of the checkout, found above the test output.
+    private static string RepoFile(params string[] parts)
+    {
+        for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            string path = Path.Combine([dir.FullName, .. parts]);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        throw new FileNotFoundException($"{string.Join("/", parts)} is not above {AppContext.BaseDirectory}");
+    }
+
+    private static void ClickAt(Window window, Control control)
+    {
+        window.UpdateLayout();
+        Point? center = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window);
+        Assert.NotNull(center);
+        window.MouseDown(center.Value, MouseButton.Left);
+        window.MouseUp(center.Value, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private sealed class StubAccess(string[] artccs) : IArtccAccessSource
+    {
+        public Task<IReadOnlyList<string>> GetEditableArtccsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<string>>(artccs);
+    }
+
+    // The data-api: ZOA's config from the committed snapshot; every other request fails as if the network were down.
+    private sealed class ZoaOnlyHandler(string zoa) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            (request.RequestUri?.AbsolutePath.EndsWith("/ZOA", StringComparison.Ordinal) == true)
+                ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(zoa, Encoding.UTF8, "application/json") })
+                : Task.FromException<HttpResponseMessage>(new HttpRequestException("the network is down"));
+    }
+
+    // The browser's dialogs, none of which the merge window asks.
+    private sealed class UnaskedPrompts : IScenarioBrowserPrompts
+    {
+        public Task<bool> ConfirmDeleteAsync(ScenarioBrowserRowViewModel row) => Unasked<bool>();
+
+        public Task<IReadOnlyList<string>> PickImportFilesAsync() => Unasked<IReadOnlyList<string>>();
+
+        public Task<string?> PickSavePathAsync(string suggestedFileName) => Unasked<string?>();
+
+        public Task<string?> PickExportPathAsync(string suggestedFileName) => Unasked<string?>();
+
+        public Task<string?> PickExportFolderAsync() => Unasked<string?>();
+
+        public Task<ImportConflictAnswer> AskImportConflictAsync(ImportConflictQuestion question) => Unasked<ImportConflictAnswer>();
+
+        public Task<UnsavedChangesChoice> AskUnsavedChangesAsync(string scenarioName, UnsavedChangesContext context) =>
+            Unasked<UnsavedChangesChoice>();
+
+        public Task<bool> ConfirmReplaceOpenCopyAsync(string scenarioName) => Unasked<bool>();
+
+        public Task<bool> ConfirmReplaceRunningScenarioAsync(string scenarioName) => Unasked<bool>();
+
+        public Task<UnexportedChangesChoice> AskUnexportedChangesAsync(IReadOnlyList<string> names, UnexportedChangesContext context) =>
+            Unasked<UnexportedChangesChoice>();
+
+        public Task<UnsavedAndUnexportedChoice> AskUnsavedAndUnexportedAsync(
+            string openName,
+            IReadOnlyList<string> names,
+            UnexportedChangesContext context
+        ) => Unasked<UnsavedAndUnexportedChoice>();
+
+        public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) => Unasked<ScenarioMergeResult?>();
+
+        private static Task<T> Unasked<T>() => Task.FromException<T>(new NotSupportedException("the merge window asks no browser question"));
+    }
+
+    private static string NksPath(string member) => "/aircraft/8" + member;
+
+    // The General clashes of the base request, plus one aircraft whose spawn delay differs on each side.
+    private ScenarioMergeRequest AircraftClashRequest() =>
+        Request(threeWay: true) with
+        {
+            Texts = new ScenarioMergeTexts(
+                WithAircraft(Scenario("Base", "Never", "OAK"), 0),
+                WithAircraft(Scenario("Mine", "OnLanding", "OAK"), 60),
+                WithAircraft(Scenario("Theirs", "Parked", "SFO"), 120)
+            ),
+        };
+
+    // The OAK example with NKS2904's parking changed in mine only (11 to 12) and its second preset changed on both sides.
+    private ScenarioMergeRequest NksRequest()
+    {
+        JsonObject baseSide = WithNksPresets(Oak(), "FH 010");
+        JsonObject mine = WithNksPresets(Oak(), "FH 020");
+        Nks(mine)["startingConditions"]!["parking"] = "12";
+        JsonObject theirs = WithNksPresets(Oak(), "FH 030");
+        return Request(threeWay: true) with
+        {
+            ScenarioId = OakId,
+            Texts = new ScenarioMergeTexts(baseSide.ToJsonString(), mine.ToJsonString(), theirs.ToJsonString()),
+        };
+    }
+
+    private static JsonObject WithNksPresets(JsonObject scenario, string second)
+    {
+        Nks(scenario)["presetCommands"] = new JsonArray(
+            new JsonObject { ["id"] = "01HPRESETNKS00000000000001", ["command"] = "CM 50" },
+            new JsonObject { ["id"] = "01HPRESETNKS00000000000002", ["command"] = second }
+        );
+        return scenario;
+    }
+
+    private static JsonObject Nks(JsonObject scenario) =>
+        scenario["aircraft"]!.AsArray().Single(a => a!["aircraftId"]!.GetValue<string>() == "NKS2904")!.AsObject();
+
+    // The committed OAK scenario example: 30 aircraft, NKS2904 the ninth.
+    private static JsonObject Oak() =>
+        JsonNode.Parse(File.ReadAllText(RepoFile("docs", "atctrainer-scenario-examples", OakId + ".json")))!.AsObject();
+
+    // The merged-aircraft editor's services: the app's, with ZOA's config from the committed snapshot and no ground layout
+    // for any airport.
+    private static ScenarioMergedAircraftServices AircraftServices()
+    {
+        var preferences = new UserPreferences();
+        string snapshot = File.ReadAllText(RepoFile("tests", "Yaat.Sim.Tests", "TestData", "artcc-zoa-snapshot.json"));
+        var configs = new ArtccConfigSource(
+            new HttpClient(new ZoaOnlyHandler(snapshot)),
+            YaatPaths.Combine("scenario-merge-tests", Guid.NewGuid().ToString("N"), "artcc"),
+            () => DateTime.UtcNow
+        );
+        ScenarioBrowserServices browser = ScenarioBrowserServices.ForApp(preferences, new UnaskedPrompts(), new StubAccess(["ZOA"])) with
+        {
+            Configs = configs,
+        };
+        return new(browser, (_, _) => Task.FromResult<AirportGroundLayout?>(null), Task.CompletedTask);
+    }
+
+    // Shows the Aircraft tab and selects the aircraft's line, with the window's merged-aircraft services given.
+    private static ScenarioMergeAircraftLineViewModel ShowAircraft(ScenarioMergeWindow window, string itemKey)
+    {
+        window.AircraftServices = AircraftServices();
+        window.FindControl<TabControl>("Tabs")!.SelectedIndex = 1;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        ScenarioMergeAircraftLineViewModel line = Assert.Single(window.ViewModel.AircraftLines, l => l.ItemKey == itemKey);
+        window.FindControl<ListBox>("AircraftList")!.SelectedItem = line;
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        return line;
+    }
+
+    private static Button AircraftEdit(Window window, ScenarioMergeAircraftLineViewModel line) =>
+        Assert.Single(
+            window.GetVisualDescendants().OfType<Button>(),
+            b => b.Classes.Contains("aircraftEdit") && ReferenceEquals(b.DataContext, line)
+        );
+
+    // The aircraft line's visible status text.
+    private static string StatusTexts(Window window, ScenarioMergeAircraftLineViewModel line) =>
+        string.Join(
+            " ",
+            window
+                .GetVisualDescendants()
+                .OfType<TextBlock>()
+                .Where(t => t.Classes.Contains("aircraftStatus") && ReferenceEquals(t.DataContext, line) && t.IsEffectivelyVisible)
+                .Select(t => t.Text)
+        );
+
+    private static Button EditorButton(Window window, ScenarioMergeRowViewModel row, string kind) =>
+        Assert.Single(
+            window.GetVisualDescendants().OfType<Button>(),
+            b => b.Classes.Contains(kind) && (b.DataContext is ScenarioMergedValueViewModel) && ReferenceEquals(b.DataContext, row.Editor)
+        );
 
     private static string Scenario(string name, string autoDelete, string airport) =>
         new JsonObject

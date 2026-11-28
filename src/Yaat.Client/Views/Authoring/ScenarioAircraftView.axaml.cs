@@ -19,10 +19,17 @@ namespace Yaat.Client.Views.Authoring;
 /// fields commit on focus loss or Enter through the commit command each names in its Tag, and whose type and airport
 /// boxes also commit a pick from their drop-down. The grid sorts its own view, never the document. Its column order,
 /// widths and sort (as the grid's view holds it) are saved to the aircraft-grid preference when they change, and the
-/// saved ones are applied once a copy's rows arrive and the grid is shown, so a tab not yet shown never drops them.
+/// saved ones are applied once a copy's rows arrive and the grid is shown, so a tab not yet shown never drops them. In
+/// detail-only mode (<see cref="IsDetailOnly"/>) only the detail panel shows.
 /// </summary>
 public partial class ScenarioAircraftView : UserControl
 {
+    /// <summary>Defines the <see cref="IsDetailOnly"/> property.</summary>
+    public static readonly StyledProperty<bool> IsDetailOnlyProperty = AvaloniaProperty.Register<ScenarioAircraftView, bool>(nameof(IsDetailOnly));
+
+    // The detail panel's border as the XAML draws it, restored when detail-only mode is turned off.
+    private readonly Thickness _detailBorder;
+
     private bool _restoring;
     private bool _layoutPending;
     private string? _lastSaved;
@@ -44,6 +51,7 @@ public partial class ScenarioAircraftView : UserControl
     public ScenarioAircraftView()
     {
         InitializeComponent();
+        _detailBorder = DetailPanel.BorderThickness;
         AircraftGrid.ColumnReordered += (_, _) => SaveLayout();
         AircraftGrid.PointerCaptureLost += (_, _) => SaveLayout();
         AircraftGrid.PropertyChanged += OnGridPropertyChanged;
@@ -57,6 +65,34 @@ public partial class ScenarioAircraftView : UserControl
             if (findRoute.Content is RouteFinderView panel)
             {
                 panel.CloseRequested += (_, _) => findRoute.Hide();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether only the selected aircraft's detail panel shows: the toolbar (Add, Duplicate,
+    /// Remove) and the grid are hidden, as the merge window's MERGED AIRCRAFT strip hosts the view. Off by default.
+    /// </summary>
+    public bool IsDetailOnly
+    {
+        get => GetValue(IsDetailOnlyProperty);
+        set => SetValue(IsDetailOnlyProperty, value);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsDetailOnlyProperty)
+        {
+            bool full = !change.GetNewValue<bool>();
+            AircraftToolbar.IsVisible = full;
+            AircraftGrid.IsVisible = full;
+            DetailPanel.BorderThickness = full ? _detailBorder : default;
+            if (full)
+            {
+                // The saved layout waited while the grid was hidden; it applies now that the grid shows.
+                RestorePending();
             }
         }
     }
@@ -365,7 +401,7 @@ public partial class ScenarioAircraftView : UserControl
     // Applies the saved layout once rows arrived and the grid is in the window with its headers.
     private void RestorePending()
     {
-        if (!_layoutPending || !AircraftGrid.IsLoaded || (DataContext is not ScenarioAircraftViewModel vm))
+        if (!_layoutPending || IsDetailOnly || !AircraftGrid.IsLoaded || (DataContext is not ScenarioAircraftViewModel vm))
         {
             return;
         }
@@ -456,7 +492,7 @@ public partial class ScenarioAircraftView : UserControl
     // Saves the grid's column order, widths and sort when they differ from what was last saved or applied.
     private void SaveLayout()
     {
-        if (_restoring || _layoutPending || (DataContext is not ScenarioAircraftViewModel vm))
+        if (_restoring || _layoutPending || IsDetailOnly || (DataContext is not ScenarioAircraftViewModel vm))
         {
             return;
         }

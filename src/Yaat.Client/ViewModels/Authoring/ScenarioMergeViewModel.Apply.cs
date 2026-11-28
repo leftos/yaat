@@ -93,6 +93,7 @@ public sealed partial class ScenarioMergeViewModel
         {
             var seed = new ScenarioMergedAircraftSeed(itemKey, Request.ArtccId, Request.ScenarioId, text, index);
             MergedAircraft = new ScenarioMergedAircraftViewModel(seed, services, editor => KeepMergedAircraft(itemKey, editor), CancelMergedAircraft);
+            ApplyPickers(MergedAircraft.Aircraft);
         }
         catch (JsonException ex)
         {
@@ -149,7 +150,7 @@ public sealed partial class ScenarioMergeViewModel
 
     partial void OnMergedAircraftChanged(ScenarioMergedAircraftViewModel? value) => LockChoices(value is not null);
 
-    // Every choice command waits while the MERGED AIRCRAFT editor is open.
+    // Every choice command, and Previous/Next, waits while the MERGED AIRCRAFT editor is open.
     private void LockChoices(bool locked)
     {
         foreach (ScenarioMergeRowViewModel row in Rows)
@@ -169,6 +170,8 @@ public sealed partial class ScenarioMergeViewModel
 
         EditRowCommand.NotifyCanExecuteChanged();
         EditEveryClashCommand.NotifyCanExecuteChanged();
+        NextClashCommand.NotifyCanExecuteChanged();
+        PreviousClashCommand.NotifyCanExecuteChanged();
         KeepMineForEveryClashCommand.NotifyCanExecuteChanged();
         KeepTheirsForEveryClashCommand.NotifyCanExecuteChanged();
         TakeMineForEverythingCommand.NotifyCanExecuteChanged();

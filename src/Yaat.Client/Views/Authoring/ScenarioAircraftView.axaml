@@ -47,7 +47,7 @@
     </Style>
   </UserControl.Styles>
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5">
+    <Border x:Name="AircraftToolbar" DockPanel.Dock="Top" Background="#242424" BorderBrush="#3D3D3D" BorderThickness="0,0,0,1" Padding="8,5">
       <StackPanel Orientation="Horizontal" Spacing="5">
         <Button x:Name="AddAircraftButton" Content="Add" Padding="9,3" Command="{Binding AddAircraftCommand}" />
         <Button x:Name="DuplicateAircraftButton" Content="Duplicate" Padding="9,3" Command="{Binding DuplicateAircraftCommand}" />

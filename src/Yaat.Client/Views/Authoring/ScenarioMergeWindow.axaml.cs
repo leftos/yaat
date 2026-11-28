@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows.Input;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -18,9 +19,10 @@ namespace Yaat.Client.Views.Authoring;
 /// The scenario merge window, modal over the Scenario Editor, over a <see cref="ScenarioMergeViewModel"/>: the toolbar
 /// (summary, Previous/Next, Show base, Only differences, the Whole scenario menu), the two-way note, the General and Aircraft
 /// tabs with their open-clash counts, the MINE/THEIRS caption row, the General tab's merge lines with their gutters, BASE and
-/// MERGED VALUE strips, and the footer. Apply runs the view model's Apply with the given checks, any findings shown in one
-/// "Merged with problems" box; the window closes with the result once the merge is written, and with null on Cancel, the close
-/// box, or after Fresh copy beside makes its copy.
+/// MERGED VALUE strips, the Aircraft tab's aircraft lines with the selected aircraft's differing rows and the MERGED AIRCRAFT
+/// strip (the Scenario Editor's aircraft detail in detail-only mode), and the footer. Apply runs the view model's Apply with
+/// the given checks, any findings shown in one "Merged with problems" box; the window closes with the result once the merge
+/// is written, and with null on Cancel, the close box, or after Fresh copy beside makes its copy.
 /// </summary>
 public partial class ScenarioMergeWindow : Window
 {
@@ -76,8 +78,24 @@ public partial class ScenarioMergeWindow : Window
         _ = CloseOnCompletionAsync();
     }
 
+    /// <summary>Defines the <see cref="AircraftServices"/> property.</summary>
+    public static readonly StyledProperty<ScenarioMergedAircraftServices?> AircraftServicesProperty = AvaloniaProperty.Register<
+        ScenarioMergeWindow,
+        ScenarioMergedAircraftServices?
+    >(nameof(AircraftServices));
+
     /// <summary>Gets the window's view model.</summary>
     public ScenarioMergeViewModel ViewModel { get; }
+
+    /// <summary>
+    /// Gets or sets what the MERGED AIRCRAFT editor works through, given by the caller as it loads the pickers; an aircraft
+    /// line's ✎ is offered only once it is set.
+    /// </summary>
+    public ScenarioMergedAircraftServices? AircraftServices
+    {
+        get => GetValue(AircraftServicesProperty);
+        set => SetValue(AircraftServicesProperty, value);
+    }
 
     /// <summary>Shows the window over <paramref name="owner"/> and finishes with what Apply wrote.</summary>
     /// <param name="owner">The Scenario Editor the window is modal over.</param>
@@ -211,7 +229,12 @@ public partial class ScenarioMergeWindow : Window
 
         // The current clash's line is found once its tab shows and has been laid out: Previous/Next sets the clash before
         // the tab, and a tab out of the tree holds no lines.
-        if (e.PropertyName is nameof(ScenarioMergeViewModel.SelectedTab) or nameof(ScenarioMergeViewModel.CurrentClash))
+        if (
+            e.PropertyName
+            is nameof(ScenarioMergeViewModel.SelectedTab)
+                or nameof(ScenarioMergeViewModel.CurrentClash)
+                or nameof(ScenarioMergeViewModel.SelectedAircraftLine)
+        )
         {
             Dispatcher.UIThread.Post(MarkCurrentAfterLayout, DispatcherPriority.Loaded);
         }
@@ -225,23 +248,45 @@ public partial class ScenarioMergeWindow : Window
         }
 
         UpdateLayout();
+        if (ViewModel.SelectedAircraftLine is { } line)
+        {
+            AircraftList.ScrollIntoView(line);
+        }
+
         MarkCurrent(ViewModel.CurrentClash);
     }
 
-    // Marks the line of the clash Previous/Next selected and scrolls it into view.
+    // ✎ on an aircraft line opens the MERGED AIRCRAFT editor under the line's detail; a failure to open shows on the footer.
+    private void OnEditAircraftClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender is Control { DataContext: ScenarioMergeAircraftLineViewModel line }) && (AircraftServices is { } services))
+        {
+            ViewModel.SelectedAircraftLine = line;
+            ViewModel.EditAircraft(line.ItemKey, services);
+        }
+    }
+
+    // Marks the line of the clash Previous/Next selected, on the General tab or in the selected aircraft's detail, and
+    // scrolls it into view.
     private void MarkCurrent(ScenarioMergeRowViewModel? row)
     {
         _currentLine?.Classes.Remove("current");
-        _currentLine =
-            (row is null)
-                ? null
-                : SectionList
-                    .GetVisualDescendants()
-                    .OfType<Border>()
-                    .FirstOrDefault(b => b.Classes.Contains("lineBox") && ReferenceEquals(b.DataContext, row));
+        _currentLine = (row is null) ? null : LineBoxOf(row) ?? LineBoxOf(ViewModel.CurrentLine);
         _currentLine?.Classes.Add("current");
         _currentLine?.BringIntoView();
     }
+
+    // The line box drawn for a row, or for the line holding it (an order row is drawn as its line): on the General tab, on
+    // the Aircraft tab's order line, or in the selected aircraft's detail.
+    private Border? LineBoxOf(object? context) =>
+        (context is null)
+            ? null
+            : SectionList
+                .GetVisualDescendants()
+                .Concat(AircraftOrderList.GetVisualDescendants())
+                .Concat(AircraftRowList.GetVisualDescendants())
+                .OfType<Border>()
+                .FirstOrDefault(b => b.Classes.Contains("lineBox") && ReferenceEquals(b.DataContext, context));
 
     private static void OnFieldLostFocus(object? sender, FocusChangedEventArgs e) => Commit(e.Source);
 
@@ -253,10 +298,11 @@ public partial class ScenarioMergeWindow : Window
         }
     }
 
-    // Runs the commit command a MERGED VALUE box names in its Tag, as the editor's boxes do.
+    // Runs the commit command a MERGED VALUE box names in its Tag, as the editor's boxes do; the MERGED AIRCRAFT editor's
+    // boxes commit through its own aircraft view.
     private static void Commit(object? source)
     {
-        if ((source is TextBox { Tag: ICommand command }) && command.CanExecute(null))
+        if ((source is TextBox { Tag: ICommand command, DataContext: ScenarioMergedValueViewModel }) && command.CanExecute(null))
         {
             command.Execute(null);
         }

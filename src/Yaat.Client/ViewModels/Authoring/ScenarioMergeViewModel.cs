@@ -105,9 +105,6 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     [ObservableProperty]
     private ScenarioMergeTab _selectedTab;
 
-    /// <summary>The aircraft line selected on the Aircraft tab; Previous/Next selects the line of an aircraft's clash.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SelectedAircraftId))]
     private ScenarioMergeAircraftLineViewModel? _selectedAircraftLine;
 
     /// <summary>Whether lines identical on both sides are hidden.</summary>
@@ -140,6 +137,22 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
 
     /// <summary>Gets the rows in the engine's order.</summary>
     public IReadOnlyList<ScenarioMergeRowViewModel> Rows { get; }
+
+    /// <summary>
+    /// Gets or sets the aircraft line selected on the Aircraft tab; Previous/Next selects the line of an aircraft's clash. It
+    /// stays on the edited aircraft while the MERGED AIRCRAFT editor is open: a set then does nothing.
+    /// </summary>
+    public ScenarioMergeAircraftLineViewModel? SelectedAircraftLine
+    {
+        get => _selectedAircraftLine;
+        set
+        {
+            if ((MergedAircraft is null) && SetProperty(ref _selectedAircraftLine, value))
+            {
+                OnPropertyChanged(nameof(SelectedAircraftId));
+            }
+        }
+    }
 
     /// <summary>Gets the selected aircraft line's item key; null with no aircraft selected.</summary>
     public string? SelectedAircraftId => SelectedAircraftLine?.ItemKey;
@@ -201,9 +214,10 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
     private void PreviousClash() => MoveTo(_position - 1);
 
-    private bool CanGoNext() => _position < (_clashOrder.Count - 1);
+    // Previous/Next wait while the MERGED AIRCRAFT editor is open, so the selection stays on the edited aircraft.
+    private bool CanGoNext() => (MergedAircraft is null) && (_position < (_clashOrder.Count - 1));
 
-    private bool CanGoPrevious() => _position > 0;
+    private bool CanGoPrevious() => (MergedAircraft is null) && (_position > 0);
 
     private static int RankOf(string section) => SectionRanks[section];
 
@@ -211,7 +225,7 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
 
     private void MoveTo(int position)
     {
-        if ((position < 0) || (position >= _clashOrder.Count))
+        if ((position < 0) || (position >= _clashOrder.Count) || (MergedAircraft is not null))
         {
             return;
         }
@@ -297,9 +311,14 @@ public sealed partial class ScenarioMergeViewModel : ObservableObject
         AircraftSection.Refresh(OnlyDifferences);
         foreach (ScenarioMergeAircraftLineViewModel line in AircraftLines)
         {
-            line.Refresh(OnlyDifferences, _aircraftEdits.ContainsKey(line.ItemKey));
+            line.Refresh(OnlyDifferences, IsLineReplaced(line.ItemKey));
         }
     }
+
+    // An aircraft stands replaced by the MERGED AIRCRAFT editor: by a replacement when both sides hold it, by an edit on its
+    // item row when one side does.
+    private bool IsLineReplaced(string key) =>
+        _aircraftEdits.ContainsKey(key) || ((ItemRow(key) is { } item) && (_choices.GetValueOrDefault(item.Path)?.Kind == MergeChoiceKind.Edit));
 
     private string Summary(int open)
     {

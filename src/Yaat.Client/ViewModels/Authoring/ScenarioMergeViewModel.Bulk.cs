@@ -12,6 +12,9 @@ public sealed partial class ScenarioMergeViewModel
 {
     private ScenarioMergePickers _pickers = ScenarioMergePickers.FreeText;
 
+    /// <summary>Gets the position catalog and airports the MERGED VALUE and MERGED AIRCRAFT editors offer; free text before a load.</summary>
+    public ScenarioMergePickers Pickers => _pickers;
+
     /// <summary>
     /// Loads the position catalog and the airports once, off the UI thread, and applies them through the services' post;
     /// an editor opened before they apply, or after a load that failed, offers free text for those fields.
@@ -59,11 +62,23 @@ public sealed partial class ScenarioMergeViewModel
             if (!ct.IsCancellationRequested)
             {
                 _pickers = pickers;
+                if (MergedAircraft is { } open)
+                {
+                    ApplyPickers(open.Aircraft);
+                }
             }
 
             applied.SetResult();
         });
         await applied.Task.ConfigureAwait(false);
+    }
+
+    // The MERGED AIRCRAFT editor's airport box and auto-track picker offer what the Scenario Editor's aircraft view offers: the
+    // config's airports and the position catalog (none while they are free text). Its primary airport is the merge's own.
+    private void ApplyPickers(ScenarioAircraftViewModel aircraft)
+    {
+        aircraft.AirportOptions = _pickers.Airports ?? [];
+        aircraft.PositionCatalog = _pickers.Positions ?? [];
     }
 
     // Every choice waits while the MERGED AIRCRAFT editor is open.
