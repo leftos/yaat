@@ -457,12 +457,16 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     public async Task Progress_IsShownWhileDownloading()
     {
         var run = new TaskCompletionSource<DownloadReport>();
+        var reporter = new TaskCompletionSource<IProgress<DownloadProgress>>(TaskCreationOptions.RunContinuationsAsynchronously);
         _downloads.Next = _ => run.Task;
-        _downloads.Report = progress => progress.Report(new DownloadProgress(1, 3, "A1"));
+        _downloads.Report = progress => reporter.TrySetResult(progress);
         ScenarioBrowserViewModel vm = NewViewModel(Zoa);
         await _ui.Run(vm.InitializeAsync());
-
-        await _ui.WaitForPending(1);
+        IProgress<DownloadProgress> progress = await reporter.Task.WaitAsync(HangGuard, TestContext.Current.CancellationToken);
+        // Reported off the queue: nothing shows until the post runs.
+        progress.Report(new DownloadProgress(1, 3, "A1"));
+        Assert.Equal(1, _ui.Count);
+        Assert.Equal("Downloading…", vm.StatusText);
         _ui.Drain();
 
         Assert.Equal("Downloading 1/3…", vm.StatusText);

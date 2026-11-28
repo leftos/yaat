@@ -616,6 +616,9 @@ Run it: `pwsh tools/gate.ps1 -Log .tmp/test.log -TimeoutSeconds 30 -Slot heavy -
 
 ## Footguns and pitfalls
 
+- **`QueuedPost` (tests/Yaat.Client.Tests/Authoring/ScenarioEditorTestSupport.cs), the hand-run UI queue of the authoring view-model tests: never `WaitForPending` for a post a background task can make while a preceding `QueuedPost.Run` is still draining.** `Run` consumes every post until its task completes, so a background report landing during the drain is already gone when the test waits for it, and the wait hangs.
+
+  Have the test make the post itself (capture the `IProgress` the stub is handed, report after `Run` returns, assert the pending count and the pre-drain state, then `Drain`), or gate it on a `TaskCompletionSource` the test releases after `Run`.
 - **A pinned value must not carry the process's day.** `MagneticDeclination.EvaluationDateUtc` and `SimScenarioState.ProcessDayUtc` are the UTC day the test process started, and a session start goes into the snapshot (`SimScenarioState.SessionStartUtc`).
 
   A test that compares against a value pinned across runs (a hash, a golden) passes a fixed `DateTime` with `DateTimeKind.Utc` as the session start, or it breaks every day at 00:00Z. Tests comparing two loads made in one process may use `EvaluationDateUtc`.
