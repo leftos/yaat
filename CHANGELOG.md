@@ -13,6 +13,7 @@
 
 ### Fixed
 
+- Standalone TACANs and DMEs, such as Moffett (NUQ) and Watsonville (WVI), are known fixes for routes, holds and readbacks, spoken "Moffett TACAN" and "Watsonville DME".
 - DA takes only the fields CRC lists and refuses a token it cannot read, such as KOAK*KAPC, instead of filing it as the aircraft type.
 - Scenario presets run DA, FP, VP, REMARKS, SQALL, SNALL and SSALL, also after WAIT, instead of refusing them as server-applied.
 - SQALL, SNALL and SSALL can be chained with other commands, typed or in a preset, such as `WAIT 5 SQALL`.

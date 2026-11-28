@@ -355,7 +355,10 @@ internal sealed class ClientMenuHost(MainViewModel main, AircraftModel? aircraft
 
     public IReadOnlyList<string> GetReportingPointsNear(LatLon position) =>
         SoloAdvisoryModel.ReportingPoints(
-            NavigationDatabase.Instance.FixesWithin(position, TrafficAdvisoryMatcher.LandmarkRadiusNm).Select(fix => (fix.Name, fix.DistanceNm))
+            NavigationDatabase
+                .Instance.FixesWithin(position, TrafficAdvisoryMatcher.LandmarkRadiusNm)
+                .Where(fix => SoloAdvisoryModel.IsReportingPoint(fix.Name, NavigationDatabase.Instance))
+                .Select(fix => (fix.Name, fix.DistanceNm))
         );
 
     public IReadOnlyList<NearbyReportingPoint> GetReportingPointsNearby(LatLon position) =>

@@ -2,6 +2,7 @@ using System.Globalization;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
 
 namespace Yaat.Client.ContextMenus;
@@ -268,6 +269,12 @@ public static class SoloAdvisoryModel
     /// </summary>
     public static IReadOnlyList<string> ReportingPoints(IEnumerable<(string Name, double DistanceNm)> near) =>
         [.. near.TakeWhile(fix => fix.DistanceNm <= TrafficAdvisoryMatcher.LandmarkRadiusNm).Take(MaxReportingPoints).Select(fix => fix.Name)];
+
+    /// <summary>
+    /// Whether a fix may be offered as a VFR reporting point: a standalone TACAN, DME or ILS/DME is no visual landmark, so it is
+    /// left out (a VOR, an airport or a waypoint stays).
+    /// </summary>
+    public static bool IsReportingPoint(string name, NavigationDatabase navDb) => navDb.GetNavaidType(name) is not ("TACAN" or "DME" or "ILS/DME");
 
     private static (TrafficAdvisoryTargetMatch? Match, string Error, List<AdvisorySegment> Marks) Resolve(
         ParsedCommand command,

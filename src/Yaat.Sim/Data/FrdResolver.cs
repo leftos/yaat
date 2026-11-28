@@ -123,6 +123,12 @@ public static class FrdResolver
     }
 
     /// <summary>
+    /// Whether an FRD may be measured from <paramref name="name"/>: not an FRD itself, and not a standalone DME, which gives
+    /// distance but no radial (AIM 1-1-7b).
+    /// </summary>
+    private static bool IsFrdAnchor(string name, NavigationDatabase navDb) => !IsFrdIdentifier(name) && (navDb.GetNavaidType(name) != "DME");
+
+    /// <summary>
     /// Names a point as the nearest non-FRD fix within <paramref name="maxNm"/>: the fix itself within 0.1 nm, else
     /// <c>{FIX}{radial:D3}{distance:D3}</c> with the radial read against the anchor's variation of record, so
     /// <see cref="Resolve"/> over the same <paramref name="navDb"/> maps the string back to the point.
@@ -159,7 +165,7 @@ public static class FrdResolver
                 exactName = fix.Name;
             }
 
-            if (dist < anchorDist && !IsFrdIdentifier(fix.Name))
+            if ((dist < anchorDist) && IsFrdAnchor(fix.Name, navDb))
             {
                 anchorDist = dist;
                 anchorName = fix.Name;

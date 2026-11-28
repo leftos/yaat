@@ -3386,7 +3386,8 @@ public sealed class NavigationDatabase
     }
 
     /// <summary>
-    /// Supplements the fix database with VOR/DME/NDB navaids from CIFP.
+    /// Supplements the fix database with VOR, VORTAC, TACAN, DME and NDB navaids from CIFP. The DME of an ILS (type
+    /// "ILS/DME") is left out: nothing names it as a fix, its ident is the localizer's and its name the airport's.
     /// </summary>
     private void LoadCifpNavaids(string cifpFilePath)
     {
@@ -3400,7 +3401,7 @@ public sealed class NavigationDatabase
         var faaOnlyAirportIds = new List<string>();
         foreach ((string? ident, CifpNavaid info) in navaids)
         {
-            if (!PlaceNavaid(ident, info, faaOnlyAirportIds))
+            if ((info.Type == "ILS/DME") || !PlaceNavaid(ident, info, faaOnlyAirportIds))
             {
                 continue;
             }

@@ -344,6 +344,23 @@ public class FrdResolverToFrdTests(ITestOutputHelper output)
         Assert.Equal(new MagneticHeading(360), ac.Targets.AssignedMagneticHeading);
     }
 
+    /// <summary>
+    /// A standalone DME gives distance but no radial (AIM 1-1-7), so it never anchors an FRD; a standalone TACAN does. A point
+    /// 5 nm north of the Watsonville DME is named from the Moffett TACAN, ~35 nm away, though WVI is nearer.
+    /// </summary>
+    [Fact]
+    public void ToFrd_StandaloneDmeNearer_AnchorsOnTheTacan()
+    {
+        NavigationDatabase navDb = RealNavDb();
+        (double Lat, double Lon) wvi = navDb.GetFixPosition("WVI")!.Value;
+        (double Lat, double Lon) nuq = navDb.GetFixPosition("NUQ")!.Value;
+
+        string? frd = FrdResolver.ToFrd(wvi.Lat + (5.0 / 60), wvi.Lon, [("WVI", wvi.Lat, wvi.Lon), ("NUQ", nuq.Lat, nuq.Lon)], navDb);
+
+        Assert.NotNull(frd);
+        Assert.Matches(@"^NUQ\d{6}$", frd);
+    }
+
     /// <summary>The stub fixes as a nav database: no station declinations, so radials read against the modelled declination.</summary>
     private static NavigationDatabase StubNavDb() => TestNavDbFactory.WithFixes([.. TestFixes]);
 

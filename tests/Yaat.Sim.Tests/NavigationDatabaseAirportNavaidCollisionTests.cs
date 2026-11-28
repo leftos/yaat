@@ -220,6 +220,103 @@ public class NavigationDatabaseAirportNavaidCollisionTests
         Assert.Equal(id, canonical);
     }
 
+    /// <summary>The airports sharing a bare FAA id with a standalone TACAN or DME (US regions), with the navaid's distance from the airport.</summary>
+    private static IEnumerable<(string Ident, double ApartNm)> TacanOrDmeAirportCollisions()
+    {
+        foreach ((string ident, CifpNavaid navaid) in CifpNavaids.Value)
+        {
+            if ((navaid.Type is "TACAN" or "DME") && navaid.IsDomesticRegion && (NavDb.GetAirportPosition(ident) is { } airport))
+            {
+                yield return (ident, GeoMath.DistanceNm(airport.Lat, airport.Lon, navaid.Lat, navaid.Lon));
+            }
+        }
+    }
+
+    /// <summary>
+    /// A standalone TACAN or DME takes a bare FAA airport id it shares, as a VOR does. These are the ones over 5 nm from their
+    /// airport, where a bare id moves the most: each bare id is the navaid, and the airport keeps its ICAO id.
+    /// </summary>
+    [Fact]
+    public void TacanOrDmeSharingAnAirportId_OverFiveNmAway_IsTheNavaid_AndTheIcaoIdIsTheAirport()
+    {
+        string[] expected =
+        [
+            "BGD",
+            "CNU",
+            "CSG",
+            "DNV",
+            "EEN",
+            "ERI",
+            "FLP",
+            "FOD",
+            "GSH",
+            "HUL",
+            "LNR",
+            "LVL",
+            "MKG",
+            "MSL",
+            "MSS",
+            "OTM",
+            "PNN",
+            "PNT",
+            "UIN",
+            "VLA",
+        ];
+        string[] far = [.. TacanOrDmeAirportCollisions().Where(c => c.ApartNm > 5).Select(c => c.Ident).Order(StringComparer.Ordinal)];
+
+        Assert.Equal(expected, far);
+        foreach (string ident in far)
+        {
+            CifpNavaid navaid = CifpNavaids.Value[ident];
+            (double Lat, double Lon) airport = NavDb.GetAirportPosition(ident)!.Value;
+            AssertWithin(NavDb.GetFixPosition(ident)!.Value, (navaid.Lat, navaid.Lon), 0.01, $"GetFixPosition({ident}) vs the navaid");
+            Assert.True(NavDb.TryResolveAirport(ident, out string icao));
+            Assert.Equal(airport, NavDb.GetAirportPosition(icao));
+            Assert.Equal(airport, NavDb.GetFixPosition(icao));
+        }
+    }
+
+    /// <summary>
+    /// Every airport sharing its FAA id with a standalone TACAN or DME stays nameable: by its ICAO id, or, published with only its
+    /// FAA id, by the K-prefixed id the database gives it.
+    /// </summary>
+    [Fact]
+    public void TacanOrDmeSharingAnAirportId_TheAirportResolvesByItsIcaoOrKPrefixedId()
+    {
+        string[] unnamed =
+        [
+            .. TacanOrDmeAirportCollisions()
+                .Select(c => c.Ident)
+                .Where(ident =>
+                {
+                    (double Lat, double Lon) airport = NavDb.GetAirportPosition(ident)!.Value;
+                    string id = (NavDb.TryResolveAirport(ident, out string canonical) && (canonical != ident)) ? canonical : "K" + ident;
+                    return (NavDb.GetAirportPosition(id) != airport) || (NavDb.GetFixPosition(id) != airport);
+                }),
+        ];
+
+        Assert.Empty(unnamed);
+    }
+
+    /// <summary>
+    /// Dobbins (DOB) is published with only its FAA id, which the DOBBINS TACAN also carries: the bare id is the TACAN and the
+    /// airport is named KDOB, as for a VOR (HEY, AZN).
+    /// </summary>
+    [Fact]
+    public void FaaOnlyAirportSharingATacanId_Dob_IsTheTacan_AndKdobIsTheAirport()
+    {
+        CifpNavaid tacan = CifpNavaids.Value["DOB"];
+        (double Lat, double Lon)? airport = NavDb.GetAirportPosition("DOB");
+
+        Assert.Equal("TACAN", tacan.Type);
+        Assert.NotNull(airport);
+        Assert.True(NavDb.TryResolveAirport("DOB", out string canonical));
+        Assert.Equal("DOB", canonical);
+        AssertWithin(NavDb.GetFixPosition("DOB")!.Value, (tacan.Lat, tacan.Lon), 0.01, "GetFixPosition(DOB) vs DOBBINS TACAN");
+        Assert.Equal(airport, NavDb.GetAirportPosition("KDOB"));
+        Assert.Equal(airport, NavDb.GetFixPosition("KDOB"));
+    }
+
     private static void AssertWithin((double Lat, double Lon) actual, (double Lat, double Lon) expected, double maxNm, string what)
     {
         double offNm = GeoMath.DistanceNm(actual.Lat, actual.Lon, expected.Lat, expected.Lon);

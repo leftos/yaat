@@ -45,6 +45,20 @@ public class NavaidTypePhraseologyTests
         Assert.Equal(expected, PhraseologyVerbalizer.SpellFix(code));
     }
 
+    /// <summary>
+    /// A standalone TACAN (class " T", military " M") and a standalone DME (" D") are spoken with their own type after the
+    /// record's name, never the "VOR" fallback (7110.65 4-2-1b2). Not skipped: these load from the committed CIFP.
+    /// </summary>
+    [Theory]
+    [InlineData("NUQ", "TACAN", "Moffett TACAN")]
+    [InlineData("DYS", "TACAN", "Dyess TACAN")]
+    [InlineData("WVI", "DME", "Watsonville DME")]
+    public void SpellFix_StandaloneTacanOrDme_SaysItsType(string code, string type, string expected)
+    {
+        Assert.Equal(type, NavigationDatabase.Instance.GetNavaidType(code));
+        Assert.Equal(expected, PhraseologyVerbalizer.SpellFix(code));
+    }
+
     [Theory]
     [InlineData("OSI", "Woodside VOR")] // VOR/DME stays "VOR"
     [InlineData("OAK", "Oakland VOR")]

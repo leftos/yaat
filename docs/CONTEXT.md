@@ -1414,8 +1414,14 @@ _Avoid_: lock, resource pin (that holds a room's airport layouts and ARTCC confi
 
 ## Facility data
 
+**ILS/DME**:
+The DME paired with an ILS localizer; `CifpParser` parses it (type `ILS/DME`) but `LoadCifpNavaids` never makes it a fix or any lookup.
+
 **Sidecar**:
 A JSON file under `src/Yaat.Sim/Data/ARTCCs/{ARTCC}/` that adds facility rules beside what the vNAS data supplies; the airport sidecar (`Airports/{airport}.json`) carries per-airport ground-routing overrides ([`ARTCC_CUSTOMIZATION.md`](../ARTCC_CUSTOMIZATION.md)).
+
+**Standalone DME**:
+A DME station with no VOR (CIFP type `DME`): it loads as a named fix and gives distance but no radials, so it is never a radial navaid or an FRD anchor.
 
 **Tower-cab videomap**:
 The vNAS GeoJSON map CRC Tower Cab draws over the satellite image, named by the facility's `towerCabConfiguration.videoMapId`; `TowerCabVideoMap.Read` keeps its two-point line segments (painted hold-short bars), and `LayoutInputs.VideoMap` carries them to the layout build (null = none).

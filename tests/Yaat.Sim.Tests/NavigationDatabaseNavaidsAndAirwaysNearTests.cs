@@ -1,5 +1,6 @@
 using Xunit;
 using Yaat.Sim.Data;
+using Yaat.Sim.Data.Vnas;
 
 namespace Yaat.Sim.Tests;
 
@@ -11,6 +12,8 @@ namespace Yaat.Sim.Tests;
 public class NavigationDatabaseNavaidsAndAirwaysNearTests
 {
     public NavigationDatabaseNavaidsAndAirwaysNearTests() => TestVnasData.EnsureInitialized();
+
+    private static readonly Lazy<IReadOnlyDictionary<string, CifpNavaid>> Navaids = new(() => CifpParser.ParseNavaids(TestVnasData.GetCifpPath()!));
 
     private static NavigationDatabase Db => NavigationDatabase.Instance;
 
@@ -58,11 +61,59 @@ public class NavigationDatabaseNavaidsAndAirwaysNearTests
     [InlineData("VOR", true)]
     [InlineData("VORTAC", true)]
     [InlineData("NDB", false)]
+    [InlineData("TACAN", true)]
+    [InlineData("DME", false)]
     public void IsRadialNavaid_ReadsTheNavaidType(string type, bool radial)
     {
         string name = Db.GetFixTuples().Select(fix => fix.Name).First(name => Db.GetNavaidType(name) == type);
 
         Assert.Equal(radial, Db.IsRadialNavaid(name));
+    }
+
+    /// <summary>A standalone TACAN (Moffett) and a standalone DME (Watsonville) resolve by their bare ident to the navaid.</summary>
+    [Theory]
+    [InlineData("NUQ")]
+    [InlineData("WVI")]
+    public void GetFixPosition_StandaloneTacanOrDme_IsTheNavaid(string ident)
+    {
+        CifpNavaid navaid = Navaids.Value[ident];
+
+        (double Lat, double Lon)? pos = Db.GetFixPosition(ident);
+
+        Assert.NotNull(pos);
+        Assert.True(GeoMath.DistanceNm(pos.Value.Lat, pos.Value.Lon, navaid.Lat, navaid.Lon) < 0.01, $"{ident} is at {pos}");
+    }
+
+    [Fact]
+    public void StandaloneTacan_GivesRadials_AndIsListedNearIt()
+    {
+        Assert.Equal("TACAN", Db.GetNavaidType("NUQ"));
+        Assert.True(Db.IsRadialNavaid("NUQ"));
+        Assert.Contains(Db.NavaidsNear(Position("NUQ"), ""), navaid => navaid.Name == "NUQ");
+    }
+
+    [Fact]
+    public void StandaloneDme_GivesNoRadials_AndIsNotListedNearIt()
+    {
+        Assert.Equal("DME", Db.GetNavaidType("WVI"));
+        Assert.False(Db.IsRadialNavaid("WVI"));
+        Assert.DoesNotContain(Db.NavaidsNear(Position("WVI"), ""), navaid => navaid.Name == "WVI");
+    }
+
+    /// <summary>
+    /// The DME of an ILS (IINB, Oakland 28R) is parsed but is never a fix: no route, autocomplete, phonetic match, scope paint or
+    /// FRD names it, so it is out of every projection of the fix set (AllFixNames feeds autocomplete, the phonetic fallback and the
+    /// scope's chart fixes; GetFixTuples the FRD anchors and the speech vocabulary).
+    /// </summary>
+    [Fact]
+    public void IlsDme_IsNotAFix()
+    {
+        Assert.Equal("ILS/DME", Navaids.Value["IINB"].Type);
+
+        Assert.Null(Db.GetFixPosition("IINB"));
+        Assert.Null(Db.GetNavaidType("IINB"));
+        Assert.DoesNotContain("IINB", Db.AllFixNames);
+        Assert.DoesNotContain(Db.GetFixTuples(), fix => fix.Name == "IINB");
     }
 
     [Fact]

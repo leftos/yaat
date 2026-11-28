@@ -3,7 +3,9 @@ using Yaat.Client.ContextMenus;
 using Yaat.Client.Services;
 using Yaat.Sim;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Phases;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.Tests;
 
@@ -217,6 +219,18 @@ public class SoloAdvisoryLiveCheckTests
             ["A", "B", "C", "D", "E", "F"],
             SoloAdvisoryModel.ReportingPoints([("A", 0.1), ("B", 0.2), ("C", 0.3), ("D", 0.4), ("E", 0.5), ("F", 0.6), ("G", 0.7), ("H", 2.5)])
         );
+
+    /// <summary>A standalone TACAN (Moffett) or DME (Watsonville) is no visual landmark, so it is never a VFR reporting point; a VOR is.</summary>
+    [Theory]
+    [InlineData("NUQ", false)]
+    [InlineData("WVI", false)]
+    [InlineData("OSI", true)]
+    public void IsReportingPoint_LeavesOutStandaloneTacansAndDmes(string fix, bool reportingPoint)
+    {
+        TestVnasData.EnsureInitialized();
+
+        Assert.Equal(reportingPoint, SoloAdvisoryModel.IsReportingPoint(fix, NavigationDatabase.Instance));
+    }
 
     [Fact]
     public void Spoken_ReadsACompleteCallOnly()

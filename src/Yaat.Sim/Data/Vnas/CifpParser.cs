@@ -1210,11 +1210,12 @@ public static class CifpParser
     }
 
     /// <summary>
-    /// Parses VOR/DME/NDB navaid records (section D of any area: "SUSAD", "SPACD", "SCAND", …) and terminal NDBs
-    /// (section PN) from CIFP data. Returns a dictionary of navaid identifier → (lat, lon, name) for supplementing
-    /// NavData fixes. The published navaid name (e.g. "WOODSIDE" for OSI) sits at columns 93-123 of the primary
-    /// record per ARINC 424 field 5.71. An ident takes its first record, and a USA record wins an ident another area
-    /// also uses (the file lists the USA area last), so the USA navaids are the ones a USA-only read chose.
+    /// Parses VHF navaid records (VOR, VOR/DME, VORTAC, TACAN, DME and ILS/DME) and NDB records, both section D of any area
+    /// ("SUSAD", "SPACD", "SCAND", …), and terminal NDBs (section PN) from CIFP data. Returns a dictionary of navaid
+    /// identifier → <see cref="CifpNavaid"/> for supplementing NavData fixes. The published navaid name (e.g. "WOODSIDE"
+    /// for OSI) sits at columns 93-123 of the primary record per ARINC 424 field 5.71. An ident takes its first record, and
+    /// a USA record wins an ident another area also uses (the file lists the USA area last), so the USA navaids are the
+    /// ones a USA-only read chose.
     /// </summary>
     public static IReadOnlyDictionary<string, CifpNavaid> ParseNavaids(string cifpFilePath)
     {
@@ -1265,22 +1266,20 @@ public static class CifpParser
         return ident.Length > 0;
     }
 
-    private static CifpNavaid? ParseNavaidRecord(string line, bool isNdb)
+    /// <summary>
+    /// One navaid primary record. Its position is the VOR's (columns 33-51) when the record has a VOR, else the DME's
+    /// (columns 56-74), which a standalone TACAN, DME or ILS/DME carries in place of a VOR position; null when the record holds
+    /// neither.
+    /// </summary>
+    internal static CifpNavaid? ParseNavaidRecord(string line, bool isNdb)
     {
-        // Scan for N/S latitude marker — navaids have coordinates in the VOR/DME position area
-        int latStart = -1;
-        int scanEnd = Math.Min(50, line.Length);
-        for (int i = 28; i < scanEnd; i++)
+        int latStart = NavaidPositionStart(line);
+        if (latStart < 0)
         {
-            if (line[i] is 'N' or 'S')
+            if (Log.IsEnabled(LogLevel.Debug))
             {
-                latStart = i;
-                break;
+                Log.LogDebug("CIFP navaid record without a VOR or DME position skipped: {Line}", line);
             }
-        }
-
-        if (latStart < 0 || line.Length < latStart + 19)
-        {
             return null;
         }
 
@@ -1294,10 +1293,37 @@ public static class CifpParser
         string name = line.Length >= 123 ? line[93..123].Trim() : "";
         // Navaid class (ARINC 424 field 5.35) lives at fixed columns 27–32. Used to spell the facility type in pilot speech.
         ReadOnlySpan<char> navClass = line.Length >= 32 ? line.AsSpan(27, 5) : default;
-        string type = ClassifyNavaid(isNdb, navClass);
+        if (ClassifyNavaid(isNdb, navClass) is not { } type)
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("CIFP navaid record with no VOR and an unknown ranging class skipped: {Line}", line);
+            }
+            return null;
+        }
+
         // Station declination (VHF field 5.66) / NDB magnetic variation (field 5.39) at columns 75-79.
         double? stationDeclination = line.Length >= 79 ? ParseArinc424MagneticVariation(line.AsSpan(74, 5)) : null;
         return new CifpNavaid(lat.Value, lon.Value, name, type, stationDeclination, IsDomesticRegion(line));
+    }
+
+    // VOR latitude (ARINC 424 field 5.36) at index 32, DME latitude (field 5.36 of the DME) at index 55; each a 9-char
+    // latitude then a 10-char longitude.
+    private const int VorPositionStart = 32;
+    private const int DmePositionStart = 55;
+
+    /// <summary>The index of the record's position: the VOR's when it has one, else the DME's; -1 when it holds neither.</summary>
+    private static int NavaidPositionStart(string line)
+    {
+        foreach (int start in (ReadOnlySpan<int>)[VorPositionStart, DmePositionStart])
+        {
+            if ((line.Length >= start + 19) && (line[start] is 'N' or 'S'))
+            {
+                return start;
+            }
+        }
+
+        return -1;
     }
 
     /// <summary>
@@ -1315,12 +1341,14 @@ public static class CifpParser
     }
 
     /// <summary>
-    /// Classifies a CIFP navaid into a spoken facility type ("VOR", "VORTAC", "TACAN", "DME", "NDB").
+    /// Classifies a CIFP navaid into a spoken facility type ("VOR", "VORTAC", "TACAN", "DME", "ILS/DME", "NDB").
     /// Section DB (sub_code 'B') and section PN are NDBs. For VHF navaids the ARINC 424 class field encodes the
-    /// VOR presence in char 0 ('V') and the colocated ranging facility in char 1 — 'T'/'M' (TACAN)
-    /// yields VORTAC, 'D'/'P' (DME) a plain VOR/DME spoken simply as "VOR".
+    /// VOR presence in char 0 ('V') and the colocated ranging facility in char 1. With a VOR, 'T'/'M' (TACAN)
+    /// yields VORTAC and 'D' (DME) a plain VOR/DME spoken simply as "VOR". Without one, 'T'/'M' is a standalone
+    /// (or military) TACAN, 'D' a standalone DME and 'I' the DME of an ILS. A record with no VOR and none of those
+    /// ranging facilities is null: there is no facility type to name it by, and it is never spoken as a "VOR".
     /// </summary>
-    private static string ClassifyNavaid(bool isNdb, ReadOnlySpan<char> navClass)
+    internal static string? ClassifyNavaid(bool isNdb, ReadOnlySpan<char> navClass)
     {
         if (isNdb)
         {
@@ -1335,17 +1363,13 @@ public static class CifpParser
             return ranging is 'T' or 'M' ? "VORTAC" : "VOR";
         }
 
-        if (ranging is 'T' or 'M')
+        return ranging switch
         {
-            return "TACAN";
-        }
-
-        if (ranging is 'D' or 'P')
-        {
-            return "DME";
-        }
-
-        return "VOR";
+            'T' or 'M' => "TACAN",
+            'D' => "DME",
+            'I' => "ILS/DME",
+            _ => null,
+        };
     }
 
     /// <summary>
