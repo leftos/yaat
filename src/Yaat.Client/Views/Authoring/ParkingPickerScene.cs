@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Yaat.Sim;
+using Yaat.Sim.Authoring.Gates;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Authoring;
@@ -45,15 +46,23 @@ public sealed record ParkingPickerBounds(double MinLat, double MaxLat, double Mi
 /// <param name="Lines">The centerline segments.</param>
 /// <param name="Bounds">The box around the stands, or null when there are none.</param>
 /// <param name="CurrentStand">The listed stand's name the current parking value names (any case), or null.</param>
+/// <param name="Status">
+/// Each ranked stand's reason (<see cref="GateRanking.Rank"/>) by trimmed name, any case; empty for a scene with no ranking.
+/// </param>
 public sealed record ParkingPickerScene(
     ImmutableArray<ParkingPickerStand> Stands,
     ImmutableArray<ParkingPickerLine> Lines,
     ParkingPickerBounds? Bounds,
-    string? CurrentStand
+    string? CurrentStand,
+    ImmutableDictionary<string, GateReason> Status
 )
 {
+    /// <summary>Gets the status map with no stand in it.</summary>
+    public static ImmutableDictionary<string, GateReason> NoStatus { get; } =
+        ImmutableDictionary.Create<string, GateReason>(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Gets the scene with nothing in it.</summary>
-    public static ParkingPickerScene Empty { get; } = new([], [], null, null);
+    public static ParkingPickerScene Empty { get; } = new([], [], null, null, NoStatus);
 
     /// <summary>Builds the scene from a layout.</summary>
     /// <param name="layout">The airport's ground layout.</param>
@@ -75,8 +84,28 @@ public sealed record ParkingPickerScene(
         string? current = string.IsNullOrEmpty(wanted)
             ? null
             : stands.FirstOrDefault(s => string.Equals(s.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Name;
-        return new ParkingPickerScene(stands, lines, BoundsOf(stands), current);
+        return new ParkingPickerScene(stands, lines, BoundsOf(stands), current, NoStatus);
     }
+
+    /// <summary>The scene with each ranked stand's reason as its status.</summary>
+    /// <param name="ranked">A ranking of the layout's stands (<see cref="GateRanking.Rank"/>).</param>
+    /// <returns>The scene with the status map.</returns>
+    public ParkingPickerScene WithRanking(IReadOnlyList<GateCandidate> ranked)
+    {
+        ArgumentNullException.ThrowIfNull(ranked);
+        return this with { Status = NoStatus.AddRange(ranked.Select(c => KeyValuePair.Create(c.Stand, c.Reason))) };
+    }
+
+    /// <summary>A stand's ranked reason.</summary>
+    /// <param name="name">The stand's name.</param>
+    /// <returns>Its reason, or null when the ranking did not cover it (a spot, a helipad, or no ranking).</returns>
+    public GateReason? StatusOf(string? name) => ((name is not null) && Status.TryGetValue(name.Trim(), out GateReason reason)) ? reason : null;
+
+    /// <summary>The stand a name names, trimmed, in any case.</summary>
+    /// <param name="name">The name.</param>
+    /// <returns>The first such stand, or null.</returns>
+    public ParkingPickerStand? FindAnyCase(string? name) =>
+        (name is null) ? null : Stands.FirstOrDefault(s => string.Equals(s.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Whether a node is one the picker offers: a parking, spot or helipad node with a name.</summary>
     /// <param name="node">The node.</param>

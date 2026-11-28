@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -7,6 +8,7 @@ using Avalonia.Threading;
 using SkiaSharp;
 using Xunit;
 using Yaat.Client.Views.Authoring;
+using Yaat.Sim.Authoring.Gates;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -19,6 +21,41 @@ public class ParkingPickerCanvasSnapshotTests
 {
     private static readonly SKColor ParkingColour = new(0x6C, 0xB4, 0xEE);
     private static readonly SKColor AmberColour = new(0xFF, 0xC1, 0x07);
+    private static readonly SKColor TooSmallColour = new(0xE5, 0x39, 0x35);
+
+    // The status map is copied into the snapshot: a frame taken before the map changes still draws the old status.
+    [AvaloniaFact]
+    public void Snapshot_CarriesTheStatusMap_AndALaterChangeLeavesItsFrame()
+    {
+        string current = OakParkingLayout.FirstParkingName;
+        (Window window, ParkingPickerCanvas canvas, ParkingPickerScene scene) = Show(current);
+        try
+        {
+            (ParkingPickerStand stand, Point at) = OakParkingLayout.IsolatedStand(scene, canvas.Viewport, notNamed: current);
+            ImmutableDictionary<string, GateReason> status = ImmutableDictionary
+                .Create<string, GateReason>(StringComparer.OrdinalIgnoreCase)
+                .Add(stand.Name, GateReason.TooSmall);
+            canvas.StandStatus = status;
+            ParkingPickerRenderSnapshot before = canvas.SnapshotForTesting()!;
+            Assert.Same(status, before.Status);
+
+            canvas.StandStatus = ImmutableDictionary.Create<string, GateReason>(StringComparer.OrdinalIgnoreCase);
+            ParkingPickerRenderSnapshot after = canvas.SnapshotForTesting()!;
+
+            Assert.Empty(after.Status);
+            Assert.Equal(GateReason.TooSmall, before.Status[stand.Name]);
+            using SKBitmap oldFrame = canvas.RenderForTesting(before);
+            using SKBitmap newFrame = canvas.RenderForTesting(after);
+            int oldRed = CountNearAround(oldFrame, TooSmallColour, at);
+            int newRed = CountNearAround(newFrame, TooSmallColour, at);
+            Assert.True(oldRed >= 8, $"{oldRed} too-small pixels at the stand in the earlier frame");
+            Assert.True(newRed == 0, $"{newRed} too-small pixels at the stand in the later frame");
+        }
+        finally
+        {
+            Close(window, canvas);
+        }
+    }
 
     [AvaloniaFact]
     public void Snapshot_CarriesSelectionAndHover()
@@ -129,6 +166,26 @@ public class ParkingPickerCanvasSnapshotTests
         }
 
         return amber;
+    }
+
+    // How many pixels within six of a point are near the colour.
+    private static int CountNearAround(SKBitmap frame, SKColor colour, Point at)
+    {
+        int count = 0;
+        for (int y = (int)at.Y - 6; y <= (int)at.Y + 6; y++)
+        {
+            for (int x = (int)at.X - 6; x <= (int)at.X + 6; x++)
+            {
+                SKColor actual = frame.GetPixel(x, y);
+                bool near =
+                    (Math.Abs(actual.Red - colour.Red) <= 12)
+                    && (Math.Abs(actual.Green - colour.Green) <= 12)
+                    && (Math.Abs(actual.Blue - colour.Blue) <= 12);
+                count += near ? 1 : 0;
+            }
+        }
+
+        return count;
     }
 
     private static int CountNear(SKBitmap frame, SKColor colour)

@@ -261,6 +261,108 @@ public sealed class ScenarioEditChecksTests
         Assert.Equal(ScenarioEditChecks.NavdataNotLoadedText, issue.Message);
     }
 
+    [Fact]
+    public void SharedStand_TaxiTargetAndParkedAircraft_WarnBoth()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", "A1", null), Parked("N202CD", "SFO", "B2", "TAXI A @A1"));
+
+        List<ScenarioEditIssue> warnings = SharedStandWarnings(scenario);
+
+        Assert.Equal(2, warnings.Count);
+        Assert.All(warnings, w => Assert.Equal(ScenarioEditIssueSeverity.Warning, w.Severity));
+        ScenarioEditIssue parked = Assert.Single(warnings, w => w.Callsign == "N101AB");
+        Assert.Equal("N101AB and N202CD both name stand A1 at SFO", parked.Message);
+        Assert.Equal(ScenarioEditFields.Parking, parked.Field);
+        ScenarioEditIssue taxiing = Assert.Single(warnings, w => w.Callsign == "N202CD");
+        Assert.Equal("N202CD and N101AB both name stand A1 at SFO", taxiing.Message);
+        Assert.Equal(ScenarioEditFields.PresetCommand, taxiing.Field);
+        Assert.Equal(scenario.Aircraft[1].PresetCommands[0].Id, taxiing.PresetId);
+    }
+
+    [Fact]
+    public void SharedStand_TwoTaxiTargets_WarnBoth()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", "B1", "TAXI A @A1"), Parked("N202CD", "SFO", "B2", "TAXI A @a1"));
+
+        List<ScenarioEditIssue> warnings = SharedStandWarnings(scenario);
+
+        Assert.Equal(
+            ["N101AB and N202CD both name stand A1 at SFO", "N202CD and N101AB both name stand A1 at SFO"],
+            warnings.Select(w => w.Message).Order(StringComparer.Ordinal)
+        );
+        Assert.All(warnings, w => Assert.Equal(ScenarioEditFields.PresetCommand, w.Field));
+    }
+
+    [Fact]
+    public void SharedStand_TwoParkedStartsAtOneStand_DoNotWarn()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", "A1", null), Parked("N202CD", "SFO", "A1", null));
+
+        Assert.Empty(SharedStandWarnings(scenario));
+    }
+
+    [Fact]
+    public void SharedStand_DifferentAirports_DoNotWarn()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", "A1", null), Parked("N202CD", "OAK", "B2", "TAXI A @A1"));
+
+        Assert.Empty(SharedStandWarnings(scenario));
+    }
+
+    [Fact]
+    public void SharedStand_OwnTaxiToItsOwnStand_PlusAnotherTaxi_WarnsOncePerField()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", "A1", "TAXI A @A1"), Parked("N202CD", "SFO", "B2", "TAXI A @A1"));
+
+        List<ScenarioEditIssue> warnings = SharedStandWarnings(scenario);
+
+        Assert.Equal(
+            ["N101AB parking", "N101AB presetCommand", "N202CD presetCommand"],
+            warnings.Select(w => $"{w.Callsign} {w.Field}").Order(StringComparer.Ordinal)
+        );
+        Assert.All(warnings.Where(w => w.Callsign == "N101AB"), w => Assert.Equal("N101AB and N202CD both name stand A1 at SFO", w.Message));
+        Assert.Equal("N202CD and N101AB both name stand A1 at SFO", Assert.Single(warnings, w => w.Callsign == "N202CD").Message);
+    }
+
+    [Fact]
+    public void SharedStand_NamesTheStandAsTheFirstClaimWroteIt()
+    {
+        Scenario scenario = StandScenario(Parked("N101AB", "SFO", " a1 ", null), Parked("N202CD", "SFO", "B2", "TAXI A @A1"));
+
+        List<ScenarioEditIssue> warnings = SharedStandWarnings(scenario);
+
+        Assert.Equal(
+            ["N101AB and N202CD both name stand a1 at SFO", "N202CD and N101AB both name stand a1 at SFO"],
+            warnings.Select(w => w.Message).Order(StringComparer.Ordinal)
+        );
+    }
+
+    private static Scenario StandScenario(params ScenarioAircraft[] aircraft) =>
+        new()
+        {
+            Id = "shared-stand",
+            Name = "Shared stand",
+            Aircraft = [.. aircraft],
+        };
+
+    private static ScenarioAircraft Parked(string callsign, string airport, string stand, string? taxi) =>
+        new()
+        {
+            Id = callsign,
+            AircraftId = callsign,
+            AircraftType = "C172",
+            AirportId = airport,
+            StartingConditions = new StartingConditions { Type = StartingConditionKinds.Parking, Parking = stand },
+            PresetCommands = (taxi is null) ? [] : [new PresetCommand { Id = callsign + "-taxi", Command = taxi }],
+        };
+
+    private static List<ScenarioEditIssue> SharedStandWarnings(Scenario scenario) =>
+        [
+            .. ScenarioEditChecks
+                .Run(scenario, new ScenarioEditInputs(() => true, null, null))
+                .Where(i => i.Message.Contains("both name stand", StringComparison.Ordinal)),
+        ];
+
     private static string Example(string id) => Path.Combine(ExamplesDir, id + ".json");
 
     private static Scenario Read(string path) => ScenarioDocument.Read(File.ReadAllText(path)).Scenario;

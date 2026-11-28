@@ -2405,11 +2405,15 @@ On the flight plan's **Route** line, **Find Route…** opens a flyout "Find Rout
 
 For a parking start, **Pick on map** beside the Parking field opens a map of the airport ("Pick parking — {airport}"): click a parking spot to select it, then double-click it or press **OK**.
 
+**Assign Gate**, beside **Pick on map**, opens the same map as "Assign gate — {airport}" with the airport's stands ranked for this aircraft. Each stand is coloured by its reason (green preferred, red too small, purple another airline's, grey taken) and listed on the right as "{stand}: {reason}": "preferred for {airline}", "fits", "too small (span cap {cap} ft)", "another airline's" or "taken until {time}". Three modes choose the stand **OK** writes. **Random** draws a free stand that fits, from the best tier. **In area** draws one inside the parking area picked in the drop-down. **From map** leaves the choice to your click. A stand that does not fit can still be clicked and assigned: the status line names the reason and says it is assigned anyway. When no free stand fits, nothing is selected and the status line reads "No free stand fits; parking unchanged". While navdata is still loading the picker notes "Navdata loading; ranking without airline tags". The pick is one "Edit parking" undo step, as with **Pick on map**.
+
 **Undo** and **Redo** step through every edit, and their tooltips name the step. **Save** (or Ctrl+S) writes the copy, first applying the field you are typing in. A marker beside Save shows unsaved edits, and closing the window asks whether to save them.
 
 ### Live Findings
 
 The editor checks the scenario as you edit. Errors show in red and warnings in amber beside the field they are about, and an aircraft row in the grid carries a marker for its findings.
+
+An aircraft that parks at a stand, or whose first TAXI preset ends at one, warns "{callsign} and {other} both name stand {stand} at {airport}" when another aircraft at that airport names the same stand in a TAXI preset (two parked starts alone do not warn; **Assign Gate** already avoids a taken stand).
 
 A TAXI preset command the editor cannot route shows **Not checked**: the airport has no map, the destination is `@GATE` or a stand prefix, or the aircraft could not be placed.
 

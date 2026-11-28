@@ -119,16 +119,29 @@ public partial class ScenarioAircraftView : UserControl
     // a cancelled pick, or one with no map, changes nothing.
     private async void OnPickParkingClick(object? sender, RoutedEventArgs e)
     {
-        if (
-            (DataContext is not ScenarioAircraftViewModel vm)
-            || (vm.ParkingAirportId is not { } airport)
-            || (TopLevel.GetTopLevel(this) is not Window owner)
-        )
+        if (DataContext is ScenarioAircraftViewModel vm)
+        {
+            await PickParkingAsync(vm, null);
+        }
+    }
+
+    // Assign Gate: the same picker ranking the stands for the aircraft, its draw written as Pick on map writes a pick.
+    private async void OnAssignGateClick(object? sender, RoutedEventArgs e)
+    {
+        if ((DataContext is ScenarioAircraftViewModel vm) && (vm.CreateGateAssignContext(new Random()) is { } ranking))
+        {
+            await PickParkingAsync(vm, ranking);
+        }
+    }
+
+    private async Task PickParkingAsync(ScenarioAircraftViewModel vm, GateAssignContext? ranking)
+    {
+        if ((vm.ParkingAirportId is not { } airport) || (TopLevel.GetTopLevel(this) is not Window owner))
         {
             return;
         }
 
-        string? stand = await new ParkingPickerWindow(airport, vm.Parking, vm.Preferences).ShowAsync(owner);
+        string? stand = await new ParkingPickerWindow(airport, vm.Parking, vm.Preferences, ranking).ShowAsync(owner);
         if (stand is not null)
         {
             vm.ApplyPickedParking(stand);

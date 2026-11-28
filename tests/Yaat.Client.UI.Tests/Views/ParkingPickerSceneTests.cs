@@ -3,7 +3,12 @@ using Avalonia;
 using Xunit;
 using Yaat.Client.Views.Authoring;
 using Yaat.Client.Views.Map;
+using Yaat.Sim.Authoring;
+using Yaat.Sim.Authoring.Gates;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
+using Yaat.Sim.Scenarios;
+using Yaat.Sim.Testing;
 
 namespace Yaat.Client.UI.Tests.Views;
 
@@ -13,6 +18,15 @@ namespace Yaat.Client.UI.Tests.Views;
 /// </summary>
 public class ParkingPickerSceneTests
 {
+    private static readonly Lazy<AirportGroundLayout> SfoLayout = new(() =>
+        GeoJsonParser.Parse(
+            "sfo",
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestData", "sfo.geojson")),
+            "SFO",
+            new LayoutInputs([], VideoMap: null, SpotEdges: [], CornerFillets: CornerFilletOverrides.None)
+        )
+    );
+
     [Fact]
     public void StandScene_OnRealOakLayout_ListsParkingSpotAndHelipadNodesByName()
     {
@@ -72,6 +86,65 @@ public class ParkingPickerSceneTests
 
         ParkingPickerStand helipad = Assert.Single(scene.Stands, s => s.Type == GroundNodeType.Helipad);
         Assert.Equal(name, helipad.Name);
+    }
+
+    [Fact]
+    public void RankedScene_AHeavyAtAMaxAdgIiiAreaStand_IsTooSmall()
+    {
+        ParkingPickerScene scene = RankedScene(SfoSidecars(SfoArea("A*", AirplaneDesignGroup.III)), SfoAircraft("UAL1", "B744"));
+
+        List<ParkingPickerStand> aStands = [.. scene.Stands.Where(s => (s.Type == GroundNodeType.Parking) && s.Name.StartsWith('A'))];
+        Assert.NotEmpty(aStands);
+        Assert.All(aStands, s => Assert.Equal(GateReason.TooSmall, scene.StatusOf(s.Name)));
+    }
+
+    [Fact]
+    public void RankedScene_AnOccupiedStand_IsOccupied()
+    {
+        ScenarioAircraft self = SfoAircraft("DAL123", "A320");
+        string stand = GateRanking
+            .Rank(SfoLayout.Value, AirportSidecarCatalog.Empty, new Scenario { Aircraft = [self] }, self, GateScope.Any)
+            .First(c => c.IsFit)
+            .Stand;
+        ScenarioAircraft other = SfoAircraft("N1AB", "C172");
+        other.StartingConditions.Parking = stand;
+
+        ParkingPickerScene scene = RankedScene(AirportSidecarCatalog.Empty, self, other);
+
+        Assert.Equal(GateReason.Occupied, scene.StatusOf(stand));
+    }
+
+    [Fact]
+    public void RankedScene_AStandOfAnAreaTaggedForAnotherAirline_IsOtherAirline()
+    {
+        ParkingPickerScene scene = RankedScene(SfoSidecars(SfoArea("A*", AirplaneDesignGroup.IV, "UAL")), SfoAircraft("DAL123", "A320"));
+
+        List<ParkingPickerStand> aStands = [.. scene.Stands.Where(s => (s.Type == GroundNodeType.Parking) && s.Name.StartsWith('A'))];
+        Assert.NotEmpty(aStands);
+        Assert.All(aStands, s => Assert.Equal(GateReason.OtherAirline, scene.StatusOf(s.Name)));
+    }
+
+    private static ParkingPickerScene RankedScene(AirportSidecarCatalog sidecars, ScenarioAircraft self, params ScenarioAircraft[] others) =>
+        ParkingPickerScene
+            .Build(SfoLayout.Value, null)
+            .WithRanking(GateRanking.Rank(SfoLayout.Value, sidecars, new Scenario { Aircraft = [self, .. others] }, self, GateScope.Any));
+
+    private static AirportSidecarCatalog SfoSidecars(params ParkingAreaAlias[] areas) => new([new AirportSidecar("SFO") { ParkingAreas = areas }]);
+
+    private static ParkingAreaAlias SfoArea(string pattern, AirplaneDesignGroup maxAdg, params string[] airlines) =>
+        new("TERMINAL", [pattern], null) { MaxAdg = maxAdg, Airlines = airlines };
+
+    private static ScenarioAircraft SfoAircraft(string callsign, string type)
+    {
+        TestVnasData.EnsureInitialized();
+        return new ScenarioAircraft
+        {
+            Id = callsign,
+            AircraftId = callsign,
+            AircraftType = type,
+            AirportId = "SFO",
+            StartingConditions = new StartingConditions { Type = StartingConditionKinds.Parking },
+        };
     }
 }
 

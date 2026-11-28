@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using Yaat.Sim.Authoring.Gates;
 using Yaat.Sim.Commands;
+using Yaat.Sim.Data;
 using Yaat.Sim.Data.Airport;
 using Yaat.Sim.Scenarios;
 using Yaat.Sim.Simulation;
@@ -98,7 +100,8 @@ public static class ScenarioEditFields
 /// <summary>
 /// The Scenario Editor's live checks: <see cref="ScenarioValidator"/>'s findings mapped to the aircraft, field and preset they
 /// belong to, then the editor's own checks: duplicate callsigns, auto-track without a position, positions no config lists, the
-/// fields a starting-condition kind needs, and whether an aircraft that starts on the ground can taxi its first TAXI preset.
+/// fields a starting-condition kind needs, whether an aircraft that starts on the ground can taxi its first TAXI preset, and
+/// two aircraft naming one stand when at least one names it as its first TAXI preset's destination.
 /// </summary>
 public static class ScenarioEditChecks
 {
@@ -144,6 +147,7 @@ public static class ScenarioEditChecks
 
         AddScenarioPositions(scenario, inputs.PositionIds, issues);
         AddTaxiPresets(scenario, inputs.Layouts, issues);
+        AddSharedStands(scenario, issues);
         if (Log.IsEnabled(LogLevel.Debug))
         {
             Log.LogDebug("Live checks of {ScenarioId}: {Count} findings", scenario.Id, issues.Count);
@@ -436,6 +440,104 @@ public static class ScenarioEditChecks
                 $"The TAXI does not route from the aircraft's start: {resolution.Failure?.HumanMessage ?? "no route"}"
             );
     }
+
+    // Each aircraft whose parked start or first TAXI preset's destination names a stand another aircraft at the same airport
+    // names too, one warning per field and other aircraft; two parked starts alone do not warn, since gate ranking's occupancy
+    // covers them. The stand is named as the first claim on it wrote it. No timing is read.
+    private static void AddSharedStands(Scenario scenario, List<ScenarioEditIssue> issues)
+    {
+        List<StandClaim> claims = [.. scenario.Aircraft.SelectMany(a => StandClaims(a, scenario.PrimaryAirportId))];
+        var written = new Dictionary<(string Airport, string Stand), string>();
+        foreach (StandClaim claim in claims)
+        {
+            written.TryAdd((claim.Airport, claim.Stand), claim.Written);
+        }
+
+        var warned = new HashSet<(ScenarioAircraft Aircraft, string Field, ScenarioAircraft Other)>();
+        foreach (StandClaim claim in claims)
+        {
+            foreach (StandClaim other in claims)
+            {
+                if (!SharesStand(claim, other) || !warned.Add((claim.Aircraft, claim.Field, other.Aircraft)))
+                {
+                    continue;
+                }
+
+                string stand = written[(claim.Airport, claim.Stand)];
+                string message =
+                    $"{claim.Aircraft.AircraftId.Trim()} and {other.Aircraft.AircraftId.Trim()} both name stand {stand} at {claim.Airport}";
+                issues.Add(Issue(ScenarioEditIssueSeverity.Warning, claim.Aircraft, claim.Field, claim.PresetId, message));
+            }
+        }
+    }
+
+    private static bool SharesStand(StandClaim claim, StandClaim other) =>
+        (!ReferenceEquals(claim.Aircraft, other.Aircraft))
+        && (claim.IsTaxi || other.IsTaxi)
+        && string.Equals(claim.Stand, other.Stand, StringComparison.Ordinal)
+        && string.Equals(claim.Airport, other.Airport, StringComparison.Ordinal);
+
+    // The stands an aircraft names: its parked start's and its first TAXI preset's.
+    private static IEnumerable<StandClaim> StandClaims(ScenarioAircraft aircraft, string? primaryAirportId) =>
+        new[] { ParkedClaim(aircraft, primaryAirportId), TaxiClaim(aircraft, primaryAirportId) }.OfType<StandClaim>();
+
+    // A parked start's stand at the airport the loader places it at.
+    private static StandClaim? ParkedClaim(ScenarioAircraft aircraft, string? primaryAirportId)
+    {
+        string kind = aircraft.StartingConditions.Type ?? "";
+        string? parking = aircraft.StartingConditions.Parking;
+        if (
+            !string.Equals(kind, StartingConditionKinds.Parking, StringComparison.Ordinal)
+            || (parking is null)
+            || (StandKey(parking) is not { } stand)
+            || (AirportKey(StartAirportId(aircraft, kind, primaryAirportId)) is not { } airport)
+        )
+        {
+            return null;
+        }
+
+        return new StandClaim(aircraft, airport, stand, parking.Trim(), ScenarioEditFields.Parking, null, false);
+    }
+
+    // The first TAXI preset's concrete stand destination at the airport the aircraft taxis at.
+    private static StandClaim? TaxiClaim(ScenarioAircraft aircraft, string? primaryAirportId)
+    {
+        if (
+            (FirstTaxi(aircraft) is not (_, PresetCommand preset, TaxiCommand taxi))
+            || IsUnresolvedDestination(taxi)
+            || (taxi.DestinationParking is not { } destination)
+            || (StandKey(destination) is not { } stand)
+            || (AirportKey(TaxiAirportId(aircraft, primaryAirportId)) is not { } airport)
+        )
+        {
+            return null;
+        }
+
+        return new StandClaim(aircraft, airport, stand, destination.Trim(), ScenarioEditFields.PresetCommand, preset.Id, true);
+    }
+
+    // The airport an aircraft taxis at: a ground start's airport, else its airport, its destination or the primary one.
+    private static string? TaxiAirportId(ScenarioAircraft aircraft, string? primaryAirportId) =>
+        StartsOnTheGround(aircraft)
+            ? StartAirportId(aircraft, aircraft.StartingConditions.Type ?? "", primaryAirportId)
+            : aircraft.AirportId ?? aircraft.FlightPlan?.Destination ?? primaryAirportId;
+
+    private static string? StandKey(string? stand) => ((stand is null) || (GateRanking.Compact(stand) is not { Length: > 0 } key)) ? null : key;
+
+    private static string? AirportKey(string? airportId) =>
+        string.IsNullOrWhiteSpace(airportId) ? null : NavigationDatabase.NormalizeAirport(airportId);
+
+    // One stand an aircraft names, compacted and upper-cased, as written (trimmed), at its normalized airport, keyed to the field
+    // that names it.
+    private sealed record StandClaim(
+        ScenarioAircraft Aircraft,
+        string Airport,
+        string Stand,
+        string Written,
+        string Field,
+        string? PresetId,
+        bool IsTaxi
+    );
 
     private static bool StartsOnTheGround(ScenarioAircraft aircraft) =>
         aircraft.StartingConditions.Type is StartingConditionKinds.Parking or StartingConditionKinds.OnRunway;

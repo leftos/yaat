@@ -1,22 +1,34 @@
+using System.Collections.Immutable;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using SkiaSharp;
 using Yaat.Client.Views.Map;
+using Yaat.Sim.Authoring.Gates;
 using Yaat.Sim.Data.Airport;
 
 namespace Yaat.Client.Views.Authoring;
 
-/// <summary>What the render thread draws one parking picker frame from: the scene, the selected stand and the hovered one.</summary>
+/// <summary>
+/// What the render thread draws one parking picker frame from: the scene, the selected stand, the hovered one and each
+/// stand's ranked status.
+/// </summary>
 /// <param name="Scene">The picker's scene.</param>
 /// <param name="Selected">The selected stand's name, or null.</param>
 /// <param name="Hover">The name of the stand under the pointer, or null.</param>
-public sealed record ParkingPickerRenderSnapshot(ParkingPickerScene Scene, string? Selected, string? Hover);
+/// <param name="Status">Each ranked stand's reason by trimmed name, as the canvas held it when the frame was made.</param>
+public sealed record ParkingPickerRenderSnapshot(
+    ParkingPickerScene Scene,
+    string? Selected,
+    string? Hover,
+    ImmutableDictionary<string, GateReason> Status
+);
 
 /// <summary>
 /// The parking picker's map: an airport's stands over its taxiway and runway centerlines, with the aircraft's current
-/// stand ringed. A left press on a stand selects it (a double-click also activates it), the stand under the pointer is
-/// highlighted with its name, the right button pans and the wheel zooms. Every frame draws only from its snapshot.
+/// stand ringed and each ranked stand coloured by its reason. A left press on a stand selects it (a double-click also
+/// activates it), the stand under the pointer is highlighted with its name, the right button pans and the wheel zooms.
+/// Every frame draws only from its snapshot.
 /// </summary>
 public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
 {
@@ -34,6 +46,10 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
     private readonly SKPaint _parkingPaint = Fill(new SKColor(0x6C, 0xB4, 0xEE));
     private readonly SKPaint _spotPaint = Fill(new SKColor(220, 160, 40));
     private readonly SKPaint _helipadPaint = Fill(new SKColor(0x7C, 0xCF, 0x7C));
+    private readonly SKPaint _preferredPaint = Fill(new SKColor(0x66, 0xBB, 0x6A));
+    private readonly SKPaint _tooSmallPaint = Fill(new SKColor(0xE5, 0x39, 0x35));
+    private readonly SKPaint _otherAirlinePaint = Fill(new SKColor(0xAB, 0x47, 0xBC));
+    private readonly SKPaint _occupiedPaint = Fill(new SKColor(0x75, 0x75, 0x75));
     private readonly SKPaint _hoverPaint = Stroke(SKColors.White, 1.5f);
     private readonly SKPaint _currentPaint = Stroke(new SKColor(0x4D, 0xD0, 0xE1), 2f);
     private readonly SKPaint _selectedPaint = Stroke(new SKColor(0xFF, 0xC1, 0x07), 2.5f);
@@ -43,6 +59,7 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
     private ParkingPickerScene _scene = ParkingPickerScene.Empty;
     private string? _selected;
     private string? _hover;
+    private ImmutableDictionary<string, GateReason> _status = ParkingPickerScene.NoStatus;
     private bool _fitPending;
     private bool _disposed;
 
@@ -53,7 +70,8 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
     public event EventHandler<string>? StandActivated;
 
     /// <summary>
-    /// Gets or sets the scene drawn; set on the UI thread. Setting it selects the scene's current stand and clears the hover.
+    /// Gets or sets the scene drawn; set on the UI thread. Setting it selects the scene's current stand, clears the hover and
+    /// takes the scene's status map as <see cref="StandStatus"/>.
     /// </summary>
     public ParkingPickerScene Scene
     {
@@ -62,13 +80,36 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
         {
             _scene = value ?? ParkingPickerScene.Empty;
             _selected = _scene.CurrentStand;
+            _status = _scene.Status;
             _hover = null;
+            MarkDirty();
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets each ranked stand's reason by trimmed name, which colours it; set on the UI thread. A frame copies the map
+    /// when it is made, so a later change never reaches a frame already taken.
+    /// </summary>
+    public ImmutableDictionary<string, GateReason> StandStatus
+    {
+        get => _status;
+        internal set
+        {
+            _status = value ?? ParkingPickerScene.NoStatus;
             MarkDirty();
         }
     }
 
     /// <summary>Gets the selected stand's name, or null when none is selected.</summary>
     public string? Selected => _selected;
+
+    /// <summary>Selects the stand a name names (trimmed, any case), or clears the selection; set on the UI thread.</summary>
+    /// <param name="name">The stand's name, or null for none.</param>
+    public void Select(string? name)
+    {
+        _selected = _scene.FindAnyCase(name)?.Name;
+        MarkDirty();
+    }
 
     /// <summary>Gets the name of the stand under the pointer, or null.</summary>
     public string? Hover => _hover;
@@ -114,6 +155,10 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
                 _parkingPaint,
                 _spotPaint,
                 _helipadPaint,
+                _preferredPaint,
+                _tooSmallPaint,
+                _otherAirlinePaint,
+                _occupiedPaint,
                 _hoverPaint,
                 _currentPaint,
                 _selectedPaint,
@@ -205,7 +250,7 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
     }
 
     /// <inheritdoc />
-    protected override object? CreateRenderSnapshot() => _disposed ? null : new ParkingPickerRenderSnapshot(_scene, _selected, _hover);
+    protected override object? CreateRenderSnapshot() => _disposed ? null : new ParkingPickerRenderSnapshot(_scene, _selected, _hover, _status);
 
     /// <inheritdoc />
     protected override void RenderFromSnapshot(SKCanvas canvas, MapViewport viewport, object? snapshot) => Draw(canvas, viewport, snapshot);
@@ -259,7 +304,7 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
 
             canvas.Clear(new SKColor(0x1A, 0x1A, 0x1A));
             DrawLines(canvas, viewport, frame.Scene);
-            DrawStands(canvas, viewport, frame.Scene);
+            DrawStands(canvas, viewport, frame.Scene, frame.Status);
             Ring(canvas, viewport, frame.Scene.Find(frame.Scene.CurrentStand), _currentPaint, CurrentRadius);
             Ring(canvas, viewport, frame.Scene.Find(frame.Hover), _hoverPaint, HoverRadius);
             Ring(canvas, viewport, frame.Scene.Find(frame.Selected), _selectedPaint, SelectedRadius);
@@ -280,19 +325,32 @@ public sealed class ParkingPickerCanvas : MapCanvasBase, IDisposable
         }
     }
 
-    private void DrawStands(SKCanvas canvas, MapViewport viewport, ParkingPickerScene scene)
+    private void DrawStands(SKCanvas canvas, MapViewport viewport, ParkingPickerScene scene, ImmutableDictionary<string, GateReason> status)
     {
         foreach (ParkingPickerStand stand in scene.Stands)
         {
-            SKPaint paint = stand.Type switch
-            {
-                GroundNodeType.Spot => _spotPaint,
-                GroundNodeType.Helipad => _helipadPaint,
-                _ => _parkingPaint,
-            };
+            SKPaint paint = status.TryGetValue(stand.Name.Trim(), out GateReason reason) ? StatusPaint(reason) : TypePaint(stand.Type);
             canvas.DrawCircle(Project(viewport, stand.Lat, stand.Lon), StandRadius, paint);
         }
     }
+
+    private SKPaint TypePaint(GroundNodeType type) =>
+        type switch
+        {
+            GroundNodeType.Spot => _spotPaint,
+            GroundNodeType.Helipad => _helipadPaint,
+            _ => _parkingPaint,
+        };
+
+    private SKPaint StatusPaint(GateReason reason) =>
+        reason switch
+        {
+            GateReason.Preferred => _preferredPaint,
+            GateReason.TooSmall => _tooSmallPaint,
+            GateReason.OtherAirline => _otherAirlinePaint,
+            GateReason.Occupied => _occupiedPaint,
+            _ => _parkingPaint,
+        };
 
     private static void Ring(SKCanvas canvas, MapViewport viewport, ParkingPickerStand? stand, SKPaint paint, float radius)
     {

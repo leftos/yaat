@@ -35,6 +35,19 @@ public static class GateRanking
     private static readonly ILogger Log = SimLog.CreateLogger("GateRanking");
 
     /// <summary>
+    /// The ICAO operator a callsign names: its first three letters, trimmed, when it is airline-style
+    /// (<see cref="ArrivalParkingPicker.IsAirlineStyleCallsign"/>); the one airline rule ranking and its reason text share.
+    /// </summary>
+    /// <param name="callsign">The callsign.</param>
+    /// <returns>The operator, or null for a callsign that is not airline-style.</returns>
+    public static string? AirlineOf(string callsign)
+    {
+        ArgumentNullException.ThrowIfNull(callsign);
+        string trimmed = callsign.Trim();
+        return ArrivalParkingPicker.IsAirlineStyleCallsign(trimmed) ? trimmed[..3] : null;
+    }
+
+    /// <summary>
     /// Whether a span fits a stand: a known span at or past ADG VI's ceiling fits only an area whose <c>maxAdg</c> is VI;
     /// any other span fits a stand whose cap is at least the span.
     /// </summary>
@@ -254,7 +267,7 @@ public static class GateRanking
             _layout = layout;
             _ceiling = AirplaneDesignGroups.AirportCeiling(layout);
             (_spanFt, _spanKnown) = RequiredSpan(aircraft.AircraftType);
-            _airline = ArrivalParkingPicker.IsAirlineStyleCallsign(aircraft.AircraftId) ? aircraft.AircraftId[..3] : null;
+            _airline = AirlineOf(aircraft.AircraftId);
             _window = WindowOf(aircraft);
             _occupants = occupants;
             if (_spanKnown && (_spanFt >= AirplaneDesignGroups.MaxWingspanFt(AirplaneDesignGroup.VI)))

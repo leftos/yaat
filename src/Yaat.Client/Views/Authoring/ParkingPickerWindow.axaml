@@ -14,6 +14,13 @@
     <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,8">
       <TextBlock x:Name="AirportText" FontSize="14" FontWeight="SemiBold" Foreground="White" />
       <TextBlock x:Name="StatusText" Foreground="#B0B0B0" TextWrapping="Wrap" />
+      <TextBlock x:Name="NoteText" Foreground="#E0B050" TextWrapping="Wrap" IsVisible="False" />
+    </StackPanel>
+    <StackPanel x:Name="GateModes" DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,8" IsVisible="False">
+      <RadioButton x:Name="RandomMode" GroupName="GateMode" Content="Random" IsChecked="True" VerticalAlignment="Center" />
+      <RadioButton x:Name="AreaMode" GroupName="GateMode" Content="In area" VerticalAlignment="Center" />
+      <ComboBox x:Name="AreaBox" MinWidth="160" IsEnabled="False" VerticalAlignment="Center" />
+      <RadioButton x:Name="MapMode" GroupName="GateMode" Content="From map" VerticalAlignment="Center" />
     </StackPanel>
     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
       <TextBlock x:Name="SelectionText" VerticalAlignment="Center" Foreground="#D4D4D4" />
@@ -22,6 +29,7 @@
         <Button x:Name="CancelButton" Content="Cancel" MinWidth="74" />
       </StackPanel>
     </Grid>
+    <ListBox x:Name="RankList" DockPanel.Dock="Right" Width="260" Margin="8,0,0,0" IsVisible="False" />
     <Border BorderBrush="#3D3D3D" BorderThickness="1">
       <local:ParkingPickerCanvas x:Name="MapCanvas" />
     </Border>
