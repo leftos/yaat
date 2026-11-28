@@ -923,6 +923,8 @@ public sealed class ApplyRouteWindowTests : IDisposable
         ) => Task.FromResult(UnsavedAndUnexportedChoice.DiscardAndLeave);
 
         public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) => Task.FromResult<ScenarioMergeResult?>(null);
+
+        public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) => Task.FromResult<ScenarioComparePick?>(null);
     }
 
     // data-api answers ZOA with the snapshot and every other ARTCC (a neighbour) as the network being down.
