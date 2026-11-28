@@ -276,6 +276,30 @@ public class SpawnPlannerViewModelTests
         );
     }
 
+    [Fact]
+    public void KindIndex_RoundTripsEveryChoice_AndFollowsKind()
+    {
+        SpawnPlannerViewModel vm = SpawnPlannerScenario.Planner(SpawnPlannerScenario.Session(SpawnPlannerScenario.Departures(1)));
+        SpawnKind?[] kinds = [null, SpawnKind.Departure, SpawnKind.Arrival, SpawnKind.Overflight];
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        Assert.Equal(Enum.GetValues<SpawnKind>().Length + 1, SpawnPlannerViewModel.KindChoices.Count);
+        for (int index = 0; index < kinds.Length; index++)
+        {
+            vm.KindIndex = index;
+            Assert.Equal(kinds[index], vm.Kind);
+            Assert.Equal(index, vm.KindIndex);
+        }
+
+        raised.Clear();
+        vm.Kind = SpawnKind.Arrival;
+        Assert.Contains(nameof(SpawnPlannerViewModel.KindIndex), raised);
+        Assert.Equal(2, vm.KindIndex);
+        vm.KindIndex = SpawnPlannerViewModel.KindChoices.Count;
+        Assert.Null(vm.Kind);
+    }
+
     private static int[] Delays(ScenarioEditSession session) => [.. session.Document.Scenario.Aircraft.Select(a => a.SpawnDelay)];
 }
 

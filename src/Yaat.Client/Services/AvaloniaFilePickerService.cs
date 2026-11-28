@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Microsoft.Extensions.Logging;
+using Yaat.Client.Logging;
 
 namespace Yaat.Client.Services;
 
@@ -9,6 +11,8 @@ namespace Yaat.Client.Services;
 // own instance rather than share one from MainWindow.
 public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerService
 {
+    private static readonly ILogger Log = AppLog.CreateLogger<AvaloniaFilePickerService>();
+
     private readonly TopLevel _topLevel = topLevel;
 
     public async Task<string?> OpenFileAsync(OpenFileOptions options)
@@ -19,6 +23,7 @@ public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerSe
                 Title = options.Title,
                 AllowMultiple = false,
                 FileTypeFilter = ToAvalonia(options.Filters),
+                SuggestedStartLocation = await StartLocationAsync(options.StartFolder),
             }
         );
 
@@ -33,6 +38,7 @@ public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerSe
                 Title = options.Title,
                 AllowMultiple = true,
                 FileTypeFilter = ToAvalonia(options.Filters),
+                SuggestedStartLocation = await StartLocationAsync(options.StartFolder),
             }
         );
 
@@ -58,6 +64,7 @@ public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerSe
                 SuggestedFileName = options.SuggestedFileName,
                 FileTypeChoices = ToAvalonia(options.Filters),
                 DefaultExtension = options.DefaultExtension,
+                SuggestedStartLocation = await StartLocationAsync(options.StartFolder),
             }
         );
 
@@ -71,6 +78,33 @@ public sealed class AvaloniaFilePickerService(TopLevel topLevel) : IFilePickerSe
         );
 
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
+    }
+
+    // The folder a picker opens in: null when none is asked for, or the folder asked for no longer exists.
+    private async Task<IStorageFolder?> StartLocationAsync(string? folder)
+    {
+        if (folder is null)
+        {
+            return null;
+        }
+
+        if (!Directory.Exists(folder))
+        {
+            if (Log.IsEnabled(LogLevel.Debug))
+            {
+                Log.LogDebug("File picker: start folder {Folder} no longer exists; opening without one", folder);
+            }
+
+            return null;
+        }
+
+        IStorageFolder? start = await _topLevel.StorageProvider.TryGetFolderFromPathAsync(folder);
+        if ((start is null) && (Log.IsEnabled(LogLevel.Debug)))
+        {
+            Log.LogDebug("File picker: the platform gave no folder for {Folder}; opening without a start folder", folder);
+        }
+
+        return start;
     }
 
     private static List<FilePickerFileType> ToAvalonia(IReadOnlyList<FilePickerFilter> filters)

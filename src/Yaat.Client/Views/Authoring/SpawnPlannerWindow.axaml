@@ -1,0 +1,305 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="using:Yaat.Client.ViewModels.Authoring"
+  xmlns:local="using:Yaat.Client.Views.Authoring"
+  xmlns:spawns="using:Yaat.Sim.Authoring.Spawns"
+  x:Class="Yaat.Client.Views.Authoring.SpawnPlannerWindow"
+  x:DataType="vm:SpawnPlannerViewModel"
+  x:CompileBindings="True"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Spawn planner"
+  Background="#1F1F1F"
+  Width="1100"
+  Height="760"
+  MinWidth="800"
+  MinHeight="500"
+  CanResize="True"
+>
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Margin" Value="0,10,0,4" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.help">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#B0B0B0" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="#E0A33A" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="#242424" />
+      <Setter Property="BorderBrush" Value="#3D3D3D" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="8" />
+    </Style>
+    <Style Selector="Button.row">
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Window.Styles>
+  <DockPanel Margin="12">
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button x:Name="LoadButton" Content="Load plan…" />
+        <Button x:Name="SaveButton" Content="Save plan…" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+        <Button x:Name="PreviewButton" Content="Preview" MinWidth="74" Command="{Binding PreviewCommand}" />
+        <Button x:Name="ApplyButton" Content="Apply" MinWidth="74" Classes="accent" Command="{Binding ApplyCommand}" />
+      </StackPanel>
+    </Grid>
+    <ScrollViewer DockPanel.Dock="Left" Width="360" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="4" Margin="0,0,14,0">
+        <TextBlock Classes="section" Text="Filter" Margin="0,0,0,4" />
+        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+          <TextBlock Classes="label" Text="Flight rules" />
+          <TextBox Grid.Column="1" x:Name="FlightRulesBox" Text="{Binding FlightRules}" PlaceholderText="any" />
+          <TextBlock Grid.Row="1" Classes="label" Text="Start kind" />
+          <ComboBox
+            Grid.Row="1"
+            Grid.Column="1"
+            x:Name="KindBox"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{x:Static vm:SpawnPlannerViewModel.KindChoices}"
+            SelectedIndex="{Binding KindIndex}"
+          />
+          <TextBlock Grid.Row="2" Classes="label" Text="Departure" />
+          <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Departure}" PlaceholderText="any" />
+          <TextBlock Grid.Row="3" Classes="label" Text="Destination" />
+          <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Destination}" PlaceholderText="any" />
+          <TextBlock Grid.Row="4" Classes="label" Text="Approach" />
+          <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Approach}" PlaceholderText="any" />
+          <TextBlock Grid.Row="5" Classes="label" Text="Not departing" />
+          <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding ExcludeDeparture}" />
+          <TextBlock Grid.Row="6" Classes="label" Text="Not arriving" />
+          <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding ExcludeDestination}" />
+          <TextBlock Grid.Row="7" Classes="label" Text="Leave out callsigns" />
+          <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding ExcludeCallsigns}" />
+        </Grid>
+        <TextBlock x:Name="MatchedText" Classes="help" Text="{Binding MatchedCount, StringFormat='{}{0} aircraft matched'}" />
+
+        <TextBlock Classes="section" Text="Mode" />
+        <ComboBox
+          x:Name="ModeBox"
+          HorizontalAlignment="Stretch"
+          ItemsSource="{x:Static local:SpawnPlannerWindow.Modes}"
+          SelectedItem="{Binding Mode}"
+        />
+        <StackPanel x:Name="BandsPanel" Spacing="4" IsVisible="{Binding Mode, Converter={x:Static local:SpawnPlannerWindow.IsBands}}">
+          <Grid ColumnDefinitions="*,*,*,*,*,64" ColumnSpacing="4" Margin="0,6,0,0">
+            <TextBlock Classes="label" Text="From (min)" />
+            <TextBlock Grid.Column="1" Classes="label" Text="To (min)" />
+            <TextBlock Grid.Column="2" Classes="label" Text="Interval" />
+            <TextBlock Grid.Column="3" Classes="label" Text="+ s" />
+            <TextBlock Grid.Column="4" Classes="label" Text="− s" />
+          </Grid>
+          <ItemsControl x:Name="BandList" ItemsSource="{Binding Bands}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SpawnBandRowViewModel">
+                <StackPanel Spacing="2" Margin="0,0,0,4">
+                  <Grid ColumnDefinitions="*,*,*,*,*,64" ColumnSpacing="4">
+                    <TextBox Text="{Binding FromText}" />
+                    <TextBox Grid.Column="1" Text="{Binding ToText}" />
+                    <TextBox Grid.Column="2" Text="{Binding IntervalText}" />
+                    <TextBox Grid.Column="3" Text="{Binding PlusText}" />
+                    <TextBox Grid.Column="4" Text="{Binding MinusText}" />
+                    <Button
+                      Grid.Column="5"
+                      Classes="row"
+                      Content="Remove"
+                      Command="{Binding $parent[Window].((vm:SpawnPlannerViewModel)DataContext).RemoveBandCommand}"
+                      CommandParameter="{Binding}"
+                    />
+                  </Grid>
+                  <TextBlock Classes="warning" Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  <TextBlock
+                    Classes="warning"
+                    Text="{Binding Warning}"
+                    IsVisible="{Binding Warning, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button x:Name="AddBandButton" Content="Add band" Command="{Binding AddBandCommand}" />
+        </StackPanel>
+        <StackPanel x:Name="WorkloadPanel" Spacing="4" IsVisible="{Binding Mode, Converter={x:Static local:SpawnPlannerWindow.IsWorkload}}">
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4" Margin="0,6,0,0">
+            <TextBlock Classes="label" Text="Start (%)" />
+            <TextBox Grid.Column="1" Text="{Binding StartPercent}" />
+            <TextBlock Grid.Row="1" Classes="label" Text="End (%)" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding EndPercent}" />
+            <TextBlock Grid.Row="2" Classes="label" Text="Interval at 100 % (s)" />
+            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinIntervalSec}" />
+            <TextBlock Grid.Row="3" Classes="label" Text="Interval at 0 % (s)" />
+            <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding MaxIntervalSec}" />
+            <TextBlock Grid.Row="4" Classes="label" Text="Jitter (s)" />
+            <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding JitterSec}" />
+            <TextBlock Grid.Row="5" Classes="label" Text="Graph bucket (s)" />
+            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding BucketSizeSec}" />
+          </Grid>
+          <CheckBox Content="Place every matched aircraft" IsChecked="{Binding DistributeAllMatched}" />
+          <TextBlock Classes="label" Text="Control points" Margin="0,6,0,0" />
+          <Grid ColumnDefinitions="*,*,64" ColumnSpacing="4">
+            <TextBlock Classes="label" Text="Time (min)" />
+            <TextBlock Grid.Column="1" Classes="label" Text="Percent" />
+          </Grid>
+          <ItemsControl x:Name="PointList" ItemsSource="{Binding ControlPoints}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorkloadPointRowViewModel">
+                <Grid ColumnDefinitions="*,*,64" ColumnSpacing="4" Margin="0,0,0,4">
+                  <TextBox Text="{Binding TimeMinutes}" />
+                  <TextBox Grid.Column="1" Text="{Binding Percent}" />
+                  <Button
+                    Grid.Column="2"
+                    Classes="row"
+                    Content="Remove"
+                    Command="{Binding $parent[Window].((vm:SpawnPlannerViewModel)DataContext).RemovePointCommand}"
+                    CommandParameter="{Binding}"
+                  />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button x:Name="AddPointButton" Content="Add point" Command="{Binding AddPointCommand}" />
+          <Grid ColumnDefinitions="*,*,*,Auto" ColumnSpacing="4" RowDefinitions="Auto,Auto" Margin="0,6,0,0">
+            <TextBlock Classes="label" Text="Peaks" />
+            <TextBlock Grid.Column="1" Classes="label" Text="Peak (%)" />
+            <TextBlock Grid.Column="2" Classes="label" Text="Trough (%)" />
+            <TextBox Grid.Row="1" Text="{Binding AutoPeaks}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AutoPeakPercent}" />
+            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding AutoTroughPercent}" />
+            <Button Grid.Row="1" Grid.Column="3" x:Name="AutoFillButton" Content="Auto-fill" Command="{Binding AutoFillCommand}" />
+          </Grid>
+        </StackPanel>
+
+        <TextBlock Classes="section" Text="Minimum same-origin gap" />
+        <Grid ColumnDefinitions="140,*">
+          <TextBlock Classes="label" Text="Gap (s)" />
+          <TextBox Grid.Column="1" x:Name="MinGapBox" Text="{Binding MinGapSec}" />
+        </Grid>
+        <TextBlock x:Name="GapGuidanceText" Classes="help" Text="{x:Static vm:SpawnPlannerViewModel.GapGuidance}" />
+
+        <TextBlock Classes="section" Text="Order" />
+        <CheckBox x:Name="RandomOrderBox" Content="Random order" IsChecked="{Binding RandomOrder}" />
+        <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="4">
+          <TextBlock Classes="label" Text="Seed" />
+          <TextBox Grid.Column="1" x:Name="SeedBox" Text="{Binding Seed}" />
+          <Button Grid.Column="2" x:Name="RerollButton" Content="Reroll" Command="{Binding RerollCommand}" />
+        </Grid>
+
+        <TextBlock Classes="section" Text="Length" />
+        <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+          <TextBlock Classes="label" Text="Planning length (min)" />
+          <TextBox Grid.Column="1" x:Name="PlanningLengthBox" Text="{Binding PlanningLengthMinutes}" />
+          <TextBlock Grid.Row="1" Classes="label" Text="Working time after the last spawn (min)" TextWrapping="Wrap" />
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="WorkingTimeBox" Text="{Binding WorkingTimeMinutes}" />
+          <TextBlock Grid.Row="2" Classes="label" Text="Past the length" />
+          <ComboBox
+            Grid.Row="2"
+            Grid.Column="1"
+            x:Name="RemedyBox"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{x:Static local:SpawnPlannerWindow.Remedies}"
+            SelectedItem="{Binding SelectedRemedy}"
+          >
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="spawns:SpawnOverrunRemedy">
+                <TextBlock Text="{Binding Converter={x:Static local:SpawnPlannerWindow.RemedyLabel}}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+        <TextBlock x:Name="WorkingTimeHelpText" Classes="help" Text="{x:Static vm:SpawnPlannerViewModel.WorkingTimeHelp}" />
+        <Button x:Name="ExtendButton" Content="Extend" Command="{Binding ExtendCommand}" HorizontalAlignment="Left" />
+      </StackPanel>
+    </ScrollViewer>
+    <Grid RowDefinitions="220,Auto,*,Auto,Auto">
+      <Border Classes="panel" Padding="0">
+        <local:WorkloadGraph x:Name="Graph" />
+      </Border>
+      <Grid Grid.Row="1" ColumnDefinitions="*,80,110,64,64" Margin="8,8,8,2">
+        <TextBlock Classes="label" Text="Callsign" />
+        <TextBlock Grid.Column="1" Classes="label" Text="Type" />
+        <TextBlock Grid.Column="2" Classes="label" Text="Origin" />
+        <TextBlock Grid.Column="3" Classes="label" Text="Now" />
+        <TextBlock Grid.Column="4" Classes="label" Text="New" />
+      </Grid>
+      <Border Grid.Row="2" Classes="panel" Padding="0">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <ItemsControl x:Name="PreviewTable" ItemsSource="{Binding PreviewRows}" Margin="8,4">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SpawnPreviewRow">
+                <Grid ColumnDefinitions="*,80,110,64,64" Margin="0,1">
+                  <TextBlock Text="{Binding Callsign}" Foreground="#D4D4D4" />
+                  <TextBlock Grid.Column="1" Text="{Binding AircraftType}" Foreground="#D4D4D4" />
+                  <TextBlock Grid.Column="2" Text="{Binding OriginKey}" Foreground="#D4D4D4" />
+                  <TextBlock
+                    Grid.Column="3"
+                    Text="{Binding CurrentDelaySec, Converter={x:Static local:SpawnPlannerWindow.Time}}"
+                    Foreground="#B0B0B0"
+                  />
+                  <TextBlock Grid.Column="4" Text="{Binding NewDelaySec, Converter={x:Static local:SpawnPlannerWindow.Time}}" Foreground="White" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+      <StackPanel Grid.Row="3" Spacing="2" Margin="0,8,0,0">
+        <TextBlock Classes="label" Text="Unassigned" />
+        <ScrollViewer x:Name="UnassignedScroll" MaxHeight="96" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <ItemsControl x:Name="UnassignedList" ItemsSource="{Binding UnassignedCallsigns}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" Foreground="#D4D4D4" Margin="0,0,10,0" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </StackPanel>
+      <StackPanel Grid.Row="4" Spacing="2" Margin="0,8,0,0">
+        <TextBlock Classes="label" Text="Warnings" />
+        <ScrollViewer x:Name="WarningsScroll" MaxHeight="96" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="2">
+            <TextBlock
+              x:Name="PreviewErrorText"
+              Classes="warning"
+              Text="{Binding PreviewError}"
+              IsVisible="{Binding PreviewError, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+            <TextBlock
+              x:Name="PlanErrorText"
+              Classes="warning"
+              Text="{Binding PlanError}"
+              IsVisible="{Binding PlanError, Converter={x:Static ObjectConverters.IsNotNull}}"
+            />
+            <ItemsControl x:Name="WarningsList" ItemsSource="{Binding Warnings}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Classes="warning" Text="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </StackPanel>
+    </Grid>
+  </DockPanel>
+</Window>

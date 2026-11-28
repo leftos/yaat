@@ -18,8 +18,16 @@ public interface IFilePickerService
 
 public sealed record FilePickerFilter(string Name, IReadOnlyList<string> Patterns);
 
-public sealed record OpenFileOptions(string Title, IReadOnlyList<FilePickerFilter> Filters);
+public sealed record OpenFileOptions(string Title, IReadOnlyList<FilePickerFilter> Filters)
+{
+    /// <summary>Gets the folder the picker opens in; null, or a folder that no longer exists, leaves it to the platform.</summary>
+    public string? StartFolder { get; init; }
+}
 
-public sealed record SaveFileOptions(string Title, string SuggestedFileName, IReadOnlyList<FilePickerFilter> Filters, string DefaultExtension);
+public sealed record SaveFileOptions(string Title, string SuggestedFileName, IReadOnlyList<FilePickerFilter> Filters, string DefaultExtension)
+{
+    /// <summary>Gets the folder the picker opens in; null, or a folder that no longer exists, leaves it to the platform.</summary>
+    public string? StartFolder { get; init; }
+}
 
 public sealed record OpenFolderOptions(string Title);

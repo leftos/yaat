@@ -681,6 +681,9 @@ public sealed partial class UserPreferences
     /// <summary>The ARTCC last picked in the Scenario Editor's selector; never the room ARTCC (<see cref="ArtccId"/>).</summary>
     public string? ScenarioEditorLastArtcc => _data.ScenarioEditorLastArtcc;
 
+    /// <summary>The folder the spawn planner last loaded or saved a plan in; null until it has.</summary>
+    public string? SpawnPlannerLastFolder => _data.SpawnPlannerLastFolder;
+
     /// <summary>The Scenario Editor aircraft grid's column order, widths and sort; null until the grid saved one.</summary>
     public SavedGridLayout? ScenarioEditorAircraftGrid => _data.ScenarioEditorAircraftGrid;
 
@@ -1319,6 +1322,14 @@ public sealed partial class UserPreferences
     public void SetScenarioEditorLastArtcc(string? artccId)
     {
         _data.ScenarioEditorLastArtcc = artccId;
+        Save();
+    }
+
+    /// <summary>Remembers the folder the spawn planner last loaded or saved a plan in.</summary>
+    /// <param name="folder">The folder, or null to forget it.</param>
+    public void SetSpawnPlannerLastFolder(string? folder)
+    {
+        _data.SpawnPlannerLastFolder = folder;
         Save();
     }
 
@@ -2743,6 +2754,7 @@ public sealed partial class UserPreferences
             DataGridAlternatingRowColor = GetFieldOr(obj, "dataGridAlternatingRowColor", true),
             LastScenarioFolder = GetFieldOr<string?>(obj, "lastScenarioFolder", null),
             ScenarioEditorLastArtcc = GetFieldOr<string?>(obj, "scenarioEditorLastArtcc", null),
+            SpawnPlannerLastFolder = GetFieldOr<string?>(obj, "spawnPlannerLastFolder", null),
             ScenarioEditorAircraftGrid = GetFieldOr<SavedGridLayout?>(obj, "scenarioEditorAircraftGrid", null),
             LastLiveSession = GetFieldOr<LiveSessionChoice?>(obj, "lastLiveSession", null),
             LastWeatherFolder = GetFieldOr<string?>(obj, "lastWeatherFolder", null),
@@ -3185,6 +3197,7 @@ public sealed partial class UserPreferences
         public string? LastActiveRoomId { get; set; }
         public string? LastScenarioFolder { get; set; }
         public string? ScenarioEditorLastArtcc { get; set; }
+        public string? SpawnPlannerLastFolder { get; set; }
         public SavedGridLayout? ScenarioEditorAircraftGrid { get; set; }
         public LiveSessionChoice? LastLiveSession { get; set; }
         public string? LastWeatherFolder { get; set; }
