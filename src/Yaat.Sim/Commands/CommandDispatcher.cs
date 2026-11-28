@@ -253,18 +253,17 @@ public static class CommandDispatcher
             return LiveTraffic.LiveTrafficAssumer.Assume(aircraft, ctx, out _);
         }
 
-        // Anywhere in the compound, not just the leading command: replay reaches this entry without the
-        // server's non-compoundable pre-check, so a recorded chain could carry one in a later block.
-        // Ahead of the shadow gate: a flight-plan or global verb is never dispatched to an aircraft, so it must not
-        // be the thing that takes control of a live-traffic shadow either.
-        ParsedCommand? scriptedVerb = compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(CompoundPolicy.IsScriptedArmCommand);
-        if (scriptedVerb is not null)
+        // Anywhere in the compound, not just the leading command: replay reaches this entry without the router's chain
+        // check, so a recorded chain could carry one in a later block. Ahead of the shadow gate: a flight-plan edit, or a
+        // room-wide squawk this context cannot route, is never dispatched to an aircraft, so it must not be the thing that
+        // takes control of a live-traffic shadow either.
+        if (RefuseUnroutedScriptedVerb(compound, ctx) is { } scriptedRefusal)
         {
-            return RejectScriptedArmCommand(scriptedVerb);
+            return scriptedRefusal;
         }
 
-        // The router refuses a chain carrying a rejection-set verb before it dispatches anything
-        // (CompoundPolicy.IsNonCompoundable). Repeated here, with the router's own wording, so a direct dispatch —
+        // The router refuses a chain carrying a verb CompoundPolicy.FindRefusedInChain names before it dispatches anything.
+        // Repeated here, with the router's own wording, so a direct dispatch —
         // a deferred payload, a reconstruction, a test — cannot instead have the shadow gate take the aircraft and
         // then drop the rest of the chain on the missing arm.
         ParsedCommand? chainedVerb = FindChainedNonCompoundable(compound);
@@ -327,7 +326,7 @@ public static class CommandDispatcher
     /// compound applies to a controllable aircraft, and <paramref name="autoAssumed"/> comes back as the token that
     /// says the hand-off happened here — the prefix on the result, and what
     /// <see cref="LiveTraffic.LiveTrafficAssumer.Rollback"/> hands the aircraft back with when the compound is then
-    /// refused. Returns a refusal — leaving the aircraft live traffic — in the three cases where taking a real
+    /// refused. Returns a refusal — leaving the aircraft live traffic — in the four cases where taking a real
     /// aircraft would be wrong, and null for every other compound (including on an aircraft that is not a shadow):
     /// <list type="bullet">
     /// <item>a read-only query (<see cref="IsReadOnlyQuery"/>): a question must not take control as a side effect;</item>
@@ -336,6 +335,8 @@ public static class CommandDispatcher
     /// <item>a shadow on the ground: the client offers no assume for one either
     /// (<c>AircraftCommandApplicability.CanAssume</c>), because a surface track carries too little to seed a taxi state.
     /// A typed <c>ASSUME</c> is still honoured — it is answered before this gate.</item>
+    /// <item>nothing but WAIT / WAITD gates and room-wide squawks (<see cref="IsGatesAndGlobals"/>): the compound instructs no
+    /// aircraft, so it has nothing to take one for.</item>
     /// </list>
     /// </summary>
     private static CommandResult? TryAssumeShadow(
@@ -351,7 +352,7 @@ public static class CommandDispatcher
             return null;
         }
 
-        if (IsReadOnlyQuery(compound) || ctx.IsScenarioScripted || aircraft.IsOnGround)
+        if (IsReadOnlyQuery(compound) || ctx.IsScenarioScripted || aircraft.IsOnGround || IsGatesAndGlobals(compound))
         {
             return RejectShadow(aircraft);
         }
@@ -402,25 +403,68 @@ public static class CommandDispatcher
         compound.Blocks.SelectMany(b => b.Commands).All(c => RecordedCommandClassifier.IsSayQuery(c) || c is SayExitFixEstimateCommand);
 
     /// <summary>
-    /// The first rejection-set verb (<see cref="CompoundPolicy.IsNonCompoundable"/>) in a compound that carries more
+    /// Only WAIT / WAITD gates and at least one room-wide squawk (<see cref="CompoundPolicy.IsChainableGlobal"/>): the compound
+    /// instructs no aircraft.
+    /// </summary>
+    private static bool IsGatesAndGlobals(CompoundCommand compound)
+    {
+        var commands = compound.Blocks.SelectMany(b => b.Commands).ToList();
+        return commands.Exists(CompoundPolicy.IsChainableGlobal)
+            && commands.TrueForAll(c => (c is WaitCommand or WaitDistanceCommand) || CompoundPolicy.IsChainableGlobal(c));
+    }
+
+    /// <summary>
+    /// The first verb a chain refuses (<see cref="CompoundPolicy.FindRefusedInChain"/>) in a compound that carries more
     /// than one command, or null. A lone one is not a chain, and <c>DEL</c> / <c>APT</c> are outside the set because
     /// they do have chain semantics (<c>CROSS 28R; DEL</c>).
     /// </summary>
     private static ParsedCommand? FindChainedNonCompoundable(CompoundCommand compound)
     {
         var commands = compound.Blocks.SelectMany(b => b.Commands).ToList();
-        return commands.Count > 1 ? commands.Find(CompoundPolicy.IsNonCompoundable) : null;
+        return commands.Count > 1 ? CompoundPolicy.FindRefusedInChain(commands) : null;
     }
+
+    /// <summary>
+    /// The refusal for the first flight-plan or global verb (<see cref="CompoundPolicy.IsScriptedArmCommand"/>) the compound
+    /// cannot run, or null. A room-wide squawk rides a chain (<see cref="CompoundPolicy.IsChainableGlobal"/>) only where the
+    /// context carries the engine's scripted route (<see cref="DispatchContext.ScriptedArm"/>), and is refused with the chain
+    /// wording where it does not; a lone one, and every flight-plan edit, is never the dispatcher's
+    /// (<see cref="RejectScriptedArmCommand"/>).
+    /// </summary>
+    private static CommandResult? RefuseUnroutedScriptedVerb(CompoundCommand compound, DispatchContext ctx)
+    {
+        var commands = compound.Blocks.SelectMany(b => b.Commands).ToList();
+        bool isChain = commands.Count > 1;
+        bool chainRunsGlobals = isChain && (ctx.ScriptedArm is not null);
+        if (
+            commands.Find(cmd => CompoundPolicy.IsScriptedArmCommand(cmd) && !(chainRunsGlobals && CompoundPolicy.IsChainableGlobal(cmd)))
+            is not { } verb
+        )
+        {
+            return null;
+        }
+
+        return (isChain && CompoundPolicy.IsChainableGlobal(verb)) ? RejectChainedCommand(verb) : RejectScriptedArmCommand(verb);
+    }
+
+    /// <summary>
+    /// A room-wide squawk a chain carries, run through the engine's scripted route when its block applies; refused with the chain
+    /// wording where the context has none.
+    /// </summary>
+    private static CommandResult ApplyChainedGlobal(ParsedCommand cmd, AircraftState aircraft, DispatchContext ctx) =>
+        ctx.ScriptedArm is { } scriptedArm ? scriptedArm(cmd, aircraft) : RejectChainedCommand(cmd);
 
     /// <summary>The router's wording for a rejection-set verb inside a chain, so the two verdicts cannot drift.</summary>
     private static CommandResult RejectChainedCommand(ParsedCommand cmd) =>
         new(false, $"{CommandDescriber.DescribeCommand(cmd)} cannot be part of a chained command");
 
     /// <summary>
-    /// A flight-plan edit (DA / FP / VP / REMARKS) or a global squawk (SQALL / SNALL / SSALL) runs through its arm body from a
-    /// typed line (the action router) or a preset (the engine's scripted route) — it never reaches the aircraft's phases or
-    /// queue. Refused at the public entries so no replay or reconstruction path can push one through the phase gate, where a
-    /// hold would cancel on it as a manoeuvring command.
+    /// A flight-plan edit (DA / FP / VP / REMARKS) or a lone global squawk (SQALL / SNALL / SSALL) runs through its arm body from
+    /// a typed line (the action router) or a preset (the engine's scripted route) — it never reaches the aircraft's phases or
+    /// queue. A global squawk a chain carries is the one that does: its block applies it through
+    /// <see cref="DispatchContext.ScriptedArm"/>.
+    /// Refused at the public entries so no replay or reconstruction path can push one through the phase gate, where a hold would
+    /// cancel on it as a manoeuvring command.
     /// </summary>
     private static CommandResult RejectScriptedArmCommand(ParsedCommand cmd) =>
         new(false, $"{CommandDescriber.DescribeCommand(cmd)} runs from a typed line or a preset, not as an aircraft command");
@@ -2077,6 +2121,11 @@ public static class CommandDispatcher
             case UnsupportedCommand cmd:
                 return new CommandResult(false, $"Command not yet supported: {cmd.RawText}");
 
+            case SquawkAllCommand
+            or SquawkNormalAllCommand
+            or SquawkStandbyAllCommand:
+                return ApplyChainedGlobal(command, aircraft, ctx);
+
             case var strip when TrackEngine.IsStripCommand(strip):
                 // A strip verb has no effect on the aircraft, so it is queued rather than applied here: the
                 // engine's own TickStripDispatches step drains the queue into StripCommandHandler at the end of the
@@ -2185,6 +2234,7 @@ public static class CommandDispatcher
             Rng = new Random(0),
             AutoCrossRunwayMode = AutoCrossRunwayMode.Off,
             TerminalEmitter = null,
+            ScriptedArm = ctx.ScriptedArm is null ? null : static (_, _) => new CommandResult(true, ""),
         };
 
         // Model the real dispatch path's pre-application queue clear on the clone so a block whose

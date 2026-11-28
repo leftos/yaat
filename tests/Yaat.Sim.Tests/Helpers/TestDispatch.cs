@@ -74,5 +74,6 @@ internal static class TestDispatch
             StudentPosition = studentPosition,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
 }

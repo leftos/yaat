@@ -143,6 +143,7 @@ public sealed partial class SimulationEngine
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
             PilotContacts = Scenario?.PilotContacts ?? PilotContactRoster.Empty,
+            ScriptedArm = ScriptedArmFor(null),
         };
     }
 

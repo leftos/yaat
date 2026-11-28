@@ -2517,7 +2517,7 @@ The ground follow `FOLLOWG` is not in this club: it finishes naturally at a runw
 
 Simulation and room controls — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, `TIMER`, `NOTE`, flight-plan creation, the `…ALL` bulk commands, and similar — act on the session, not the aircraft, so "do this, then pause" has no sensible meaning mid-chain.
 
-Chaining one is rejected up front with *"PAUSE cannot be part of a chained command"* and nothing from that line is applied. Two useful exceptions that **do** chain: `DEL` (`CROSS 19R; DEL` — cross, then remove the aircraft) and `DEST`/`APT` (`AT 5000 APT OAK` — change destination at altitude).
+Chaining one is rejected up front with *"PAUSE cannot be part of a chained command"* and nothing from that line is applied. The squawk resets `SQALL`, `SNALL` and `SSALL` do chain, typed or in a scenario preset, and run when their turn in the chain comes (`SQALL; WAIT 30 SNALL`); beside a track, coordination, strip or TDLS command on the same line they are refused with the same message. Two more useful exceptions that **do** chain: `DEL` (`CROSS 19R; DEL` — cross, then remove the aircraft) and `DEST`/`APT` (`AT 5000 APT OAK` — change destination at altitude).
 
 #### Use `,` for simultaneous instructions
 

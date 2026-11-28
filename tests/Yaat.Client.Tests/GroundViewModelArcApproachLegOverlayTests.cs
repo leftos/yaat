@@ -283,6 +283,7 @@ public class GroundViewModelArcApproachLegOverlayTests(ITestOutputHelper output)
             StudentPosition = null,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
         CommandResult result = CommandDispatcher.Dispatch(new TaxiCommand([.. path], [], Expedite: false, DestinationRunway: null), aircraft, ctx);
         Assert.True(result.Success, result.Message);

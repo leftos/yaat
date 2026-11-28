@@ -16,7 +16,8 @@ public static class CompoundPolicy
     /// True for a command whose arm in the action router's table is not the aviation arm (sim-control, flight-plan,
     /// spawn, room-wide/global ops) and has no aviation-path chain semantics — e.g. "HO 3G; PAUSE"
     /// must not pause the sim, and a queued PAUSE block would no-op at fire time. A compound
-    /// containing one of these is rejected outright with an error naming the verb. Deliberately
+    /// containing one of these is refused with an error naming the verb (<see cref="FindRefusedInChain"/>), except a room-wide
+    /// squawk (<see cref="IsChainableGlobal"/>), which rides a chain through the engine's scripted route. Deliberately
     /// NOT in this set: <see cref="DeleteCommand"/> ("CROSS 28R; DEL", issue #311, via
     /// CommandBlock.HasDeleteCommand) and <see cref="ChangeDestinationCommand"/> ("AT 5000 APT OAK")
     /// — both dispatch correctly through the command queue.
@@ -74,10 +75,36 @@ public static class CompoundPolicy
     /// <summary>
     /// True for a command a scenario preset or a deferred payload runs through its action-router arm body (the engine's
     /// scripted route): a flight-plan edit (<see cref="IsFlightPlanCommand"/>) or a room-wide squawk (SQALL / SNALL / SSALL).
-    /// None has an aircraft arm, so <see cref="CommandDispatcher.DispatchCompound"/> refuses each.
+    /// None has an aircraft arm: <see cref="CommandDispatcher.DispatchCompound"/> refuses each, save a room-wide squawk a chain
+    /// carries, which its block applies through <see cref="DispatchContext.ScriptedArm"/>.
     /// </summary>
-    public static bool IsScriptedArmCommand(ParsedCommand cmd) =>
-        IsFlightPlanCommand(cmd) || (cmd is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand);
+    public static bool IsScriptedArmCommand(ParsedCommand cmd) => IsFlightPlanCommand(cmd) || IsChainableGlobal(cmd);
+
+    /// <summary>
+    /// True for a global verb a chain may carry, typed or scripted: the room-wide squawks (SQALL / SNALL / SSALL). Each runs when
+    /// its block runs, at once for the first block and at its gate for a later one, through the engine's scripted route
+    /// (<see cref="DispatchContext.ScriptedArm"/>).
+    /// </summary>
+    public static bool IsChainableGlobal(ParsedCommand cmd) => cmd is SquawkAllCommand or SquawkNormalAllCommand or SquawkStandbyAllCommand;
+
+    /// <summary>
+    /// True for a command a chain refuses, naming it ("<c>{verb} cannot be part of a chained command</c>"): every
+    /// <see cref="IsNonCompoundable"/> verb but the <see cref="IsChainableGlobal"/> ones, which <see cref="FindRefusedInChain"/>
+    /// refuses only beside a scoped special.
+    /// </summary>
+    public static bool IsRefusedInChain(ParsedCommand cmd) => IsNonCompoundable(cmd) && !IsChainableGlobal(cmd);
+
+    /// <summary>
+    /// The first command a chain refuses, or null: an <see cref="IsRefusedInChain"/> verb, or a room-wide squawk
+    /// (<see cref="IsChainableGlobal"/>) on a line that also carries a scoped special (<see cref="IsScopedSpecial"/>), which the
+    /// router would split into units that never reach the engine's scripted route. The one verdict the router's chain check, the
+    /// dispatcher's and the client's pre-send check read.
+    /// </summary>
+    public static ParsedCommand? FindRefusedInChain(IReadOnlyCollection<ParsedCommand> commands)
+    {
+        bool besideScopedSpecial = commands.Any(IsScopedSpecial);
+        return commands.FirstOrDefault(cmd => IsRefusedInChain(cmd) || (besideScopedSpecial && IsChainableGlobal(cmd)));
+    }
 
     /// <summary>
     /// True for a command the pilot must hear to act on: every instruction whose registry definition produces a pilot
@@ -157,7 +184,7 @@ public static class CompoundPolicy
                 or WakeAdvisoryCommand;
 
     /// <summary>
-    /// Returns the first rejection-set command in a genuinely multi-command compound, or null.
+    /// Returns the first command a chain refuses (<see cref="FindRefusedInChain"/>) in a genuinely multi-command compound, or null.
     /// A line the single-command parser accepts whole is not a chain — a free-text command
     /// (NOTE/RMK/...) legitimately swallows ';' into its text, and the server's single-command
     /// router handles it as that one command even when the tail would also parse (e.g.
@@ -174,7 +201,7 @@ public static class CompoundPolicy
             return null;
         }
 
-        return compound.Blocks.SelectMany(b => b.Commands).FirstOrDefault(IsNonCompoundable);
+        return FindRefusedInChain([.. compound.Blocks.SelectMany(b => b.Commands)]);
     }
 
     /// <summary>
@@ -340,7 +367,7 @@ public static class CompoundPolicy
     }
 
     /// <summary>
-    /// The splitter's bail set: the rejection set plus <c>DEL</c> and <c>APT</c>, which DO have aviation-path chain
+    /// The splitter's bail set: every <see cref="IsNonCompoundable"/> verb plus <c>DEL</c> and <c>APT</c>, which DO have aviation-path chain
     /// semantics (<c>CROSS 28R; DEL</c>, <c>AT 5000 APT OAK</c>) and must reach the dispatcher whole — never be
     /// special-split, never be rejected.
     /// </summary>

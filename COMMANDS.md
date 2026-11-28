@@ -187,7 +187,7 @@ After `DEPART` it waits until the fix is reached and the departure heading flown
 
 The chain still queues (the `FH 090` flies once the hold ends), and *conditional* tails (`HOLDP …; LV 40 FH 090`) fire normally during the hold. The ground follow `FOLLOWG` is different: it ends on its own at a runway hold-short it has no crossing for (or, once the lead departs or is deleted, when it comes to rest clear of any runway), so `FOLLOWG UAL123; CROSS 28R` chains normally with no warning.
 
-**Commands that cannot be chained.** Sim-control and room-wide commands — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, spawn/flight-plan creation, `TIMER`, `NOTE`/`RMK`, `CONSO`/`DECONSO`, the `…ALL` bulk commands, and similar — are rejected in a chain with *"{verb} cannot be part of a chained command"*. `DEL` and `DEST`/`APT` **do** chain (`CROSS 19R; DEL`, `AT 5000 APT OAK`).
+**Commands that cannot be chained.** Sim-control and room-wide commands — `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN`, spawn/flight-plan creation, `TIMER`, `NOTE`/`RMK`, `CONSO`/`DECONSO`, the `…ALL` bulk commands, and similar — are rejected in a chain with *"{verb} cannot be part of a chained command"*. `DEL` and `DEST`/`APT` **do** chain (`CROSS 19R; DEL`, `AT 5000 APT OAK`), and so do `SQALL`, `SNALL` and `SSALL`, each running when its block runs (`SQALL; WAIT 30 SNALL`); a squawk beside a track, coordination, strip or TDLS command on the same line is refused with the same wording.
 
 **A `,` sibling of a tower command is judged by the aircraft's phase.** In `CTO, SPD 230`, a sibling that the phase refuses does not fail the transmission: the takeoff clearance applies and the response adds `unable SPD 230: <reason>` (for example `Cleared for takeoff runway 28R, unable SPD 230: aircraft is lined up and waiting on the runway; only CTO/CTOC, CM/DM, or DEL apply`), and the rest of a `;` transmission still queues. A sibling the phase allows applies. Give a speed with a takeoff clearance as its own block (`CTO; SPD 230`).
 
@@ -2554,7 +2554,7 @@ These commands don't require an aircraft selection:
 | `ASDXALERTS` | Clear alert inhibits across all aircraft in the room |
 | `GHOST <callsign> ...` | Create a ghost track; the callsign rides in the argument |
 
-A scenario preset runs `DA`, `FP`, `VP`, `REMARKS`, `SQALL`, `SNALL` and `SSALL` as a typed line does, at once or behind `WAIT` / `WAITD`. A preset `DA`, `FP` or `VP` reprints the aircraft's departure strip a moment later, on the next strip step. `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN` and a bare `AS` cannot run from a preset: each refuses with `{command} cannot run from a preset`, and a preset block holding one refuses whole.
+A scenario preset runs `DA`, `FP`, `VP`, `REMARKS`, `SQALL`, `SNALL` and `SSALL` as a typed line does, at once, behind `WAIT` / `WAITD` or in a chain. A preset `DA`, `FP` or `VP` reprints the aircraft's departure strip a moment later, on the next strip step. `PAUSE`, `UNPAUSE`, `SIMRATE`, `SPAWN` and a bare `AS` cannot run from a preset: each refuses with `{command} cannot run from a preset`, and a preset block holding one refuses whole.
 
 ### Live Traffic (ASSUME)
 
@@ -2564,11 +2564,11 @@ as on any target.
 
 **You rarely have to type it.** Any control command issued to an airborne shadow — a heading, an altitude, a squawk, a
 chain of them — assumes the aircraft first and then applies, and the response says so:
-`UAL123 assumed — Fly heading 070`. Three things still answer with
+`UAL123 assumed — Fly heading 070`. Four things still answer with
 `ASSUME <callsign> first — live traffic is not controllable`, and typing `ASSUME` is what gets you past each: the read-only
 `SAY*` / `SAYEXIT` queries (a question about an aircraft must not take control of it); a shadow **on the ground** (a surface
 track carries too little to seed a taxi state, so the hand-off stays your explicit decision); and a command issued by a
-scenario preset or an AI controller rather than by you. (A flight-plan edit is refused too — it is never dispatched to the
+scenario preset or an AI controller rather than by you; and a line of nothing but `WAIT` / `WAITD` and `SQALL` / `SNALL` / `SSALL`, which instructs no aircraft. (A flight-plan edit is refused too — it is never dispatched to the
 aircraft — and `ASSUME`/`UNASSUME` cannot be chained: `ASSUME; H 180` is refused whole.)
 
 `UNASSUME` is the way back: the aircraft leaves the simulation and is released to the feed, so the shadow re-appears at the

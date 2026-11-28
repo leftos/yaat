@@ -483,6 +483,7 @@ public class PresetFlightPlanTests
             StudentPosition = engine.Scenario.StudentPosition,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
 
     private static List<string> StripIdsFor(SimulationEngine engine, string callsign) =>

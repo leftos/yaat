@@ -94,6 +94,7 @@ public class GroundViewModelTaxiRouteDirectionTests
             StudentPosition = null,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
         ParseResult<ParsedCommand> parsed = CommandParser.Parse("TAXI S HS B");
         Assert.True(parsed.IsSuccess, parsed.Reason);

@@ -95,6 +95,13 @@ public sealed partial class SimulationEngine
         return result;
     }
 
+    /// <summary>
+    /// The scripted route as a dispatch context carries it (<see cref="DispatchContext.ScriptedArm"/>), acting as
+    /// <paramref name="identity"/>: a room-wide squawk a chain carries runs through <see cref="ApplyScriptedArm"/> when its block applies.
+    /// </summary>
+    private Func<ParsedCommand, AircraftState, CommandResult> ScriptedArmFor(TrackOwner? identity) =>
+        (command, aircraft) => ApplyScriptedArm(command, aircraft, identity);
+
     private static CommandResult RefusedInPreset(ParsedCommand command) =>
         new(false, $"{CommandDescriber.DescribeCommand(command)} cannot run from a preset");
 

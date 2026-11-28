@@ -576,6 +576,7 @@ public class GroundViewModelMidEdgeStartOverlayTests
             StudentPosition = null,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
 
     private static LatLon Along(LatLon from, LatLon to, double fraction) =>

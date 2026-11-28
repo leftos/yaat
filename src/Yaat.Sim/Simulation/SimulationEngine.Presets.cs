@@ -438,6 +438,7 @@ public sealed partial class SimulationEngine
             StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
+            ScriptedArm = ScriptedArmFor(null),
         };
         CommandDispatcher.DispatchCompound(parsed.Value!, aircraft, ctx);
         // The pilot's "ready for departure" call is answered even though the automated tower issued the
@@ -583,6 +584,7 @@ public sealed partial class SimulationEngine
             FacilityHint = scenario.StudentPosition?.FacilityId,
             StudentPosition = scenario.StudentPosition,
             ActingAs = actingAs,
+            ScriptedArm = ScriptedArmFor(actingAs),
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };
@@ -713,6 +715,7 @@ public sealed partial class SimulationEngine
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
             ActingAs = identity,
+            ScriptedArm = ScriptedArmFor(identity),
             LayoutForAirport = ResolveAirportLayout,
             SpeechContextFor = ac => PilotSpeechContextFor(ac, ac.HasControllerAcknowledgedInitialContact),
         };

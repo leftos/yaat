@@ -147,6 +147,15 @@ public sealed record DispatchContext
     public required Func<AircraftState, PilotSpeechContext> SpeechContextFor { get; init; }
 
     /// <summary>
+    /// The engine's scripted route (<see cref="Simulation.SimulationEngine"/>'s <c>ApplyScriptedArm</c>) for a room-wide squawk a
+    /// chain carries (<see cref="CompoundPolicy.IsChainableGlobal"/>), acting as the identity the context was built for; it records
+    /// nothing. Null outside an engine-built context (a test harness), where such a chain is refused as
+    /// "<c>{verb} cannot be part of a chained command</c>". The dry run replaces it with one that answers success without
+    /// running the body.
+    /// </summary>
+    public required Func<ParsedCommand, AircraftState, CommandResult>? ScriptedArm { get; init; }
+
+    /// <summary>
     /// The id of the transmission being dispatched: <see cref="CommandDispatcher.DispatchCompound"/> takes one for every
     /// transmission from the aircraft's <see cref="CommandQueue.NextTransmissionId"/> (a refused one hands it back), and a
     /// queued block puts its own back when it fires. 0 only outside a dispatch. Not required, unlike the rest of the record:

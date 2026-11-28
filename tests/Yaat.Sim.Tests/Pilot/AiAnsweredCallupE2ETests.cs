@@ -191,6 +191,7 @@ public class AiAnsweredCallupE2ETests
             StudentPosition = engine.Scenario.StudentPosition,
             LayoutForAirport = null,
             SpeechContextFor = _ => PilotSpeechContext.Canonical,
+            ScriptedArm = null,
         };
         var capture = PreDispatchCapture.BeforeDispatch(ac);
         CommandResult result = CommandDispatcher.DispatchCompound(compound, ac, aiCtx);

@@ -86,7 +86,7 @@
         { "verb": "IDENT", "aliases": ["id", "sqi", "sqid"], "description": "Ident" },
         { "verb": "RANDSQ", "aliases": [], "description": "Random squawk" }
       ],
-      "notes": ["Global: `SQALL` `SNALL` `SSALL`"]
+      "notes": ["Global: `SQALL` `SNALL` `SSALL` (these may ride a chain)"]
     },
     {
       "id": "approach",

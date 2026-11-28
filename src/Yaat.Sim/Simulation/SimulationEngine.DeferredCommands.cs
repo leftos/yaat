@@ -232,6 +232,7 @@ public sealed partial class SimulationEngine
             IsScenarioScripted = d.IsScenarioScripted,
             ActingAs = d.ActingAs,
             ReportPledges = d.ReportPledges,
+            ScriptedArm = ScriptedArmFor(d.ActingAs),
             FacilityHint = Scenario?.StudentPosition?.FacilityId,
             StudentPosition = Scenario?.StudentPosition,
             LayoutForAirport = ResolveAirportLayout,

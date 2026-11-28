@@ -130,7 +130,7 @@ latched triggers make the re-scan next sub-tick lossless. Per-path regression ma
 `CompoundPolicy.TrySplitSpecialCompound` into units that dispatch independently, so `DCT OAK; AT OAK
 HO ZZ9; SQ` applies the `SQ` at issue time. The path that hands a triggered track verb its chain-mates
 is a scenario preset (`DispatchPresetCommands` → `DispatchSinglePreset`, which tries `TryDispatchImmediateTrackPreset` and `TryDispatchImmediateCoordinationPreset` first and otherwise calls `DispatchCompound` directly), which is the path the
-track-failure test drives. A preset led by `AS {tcp}` (`PresetActingAs.Split`) dispatches on its own, acting as that position, and is never joined into a `CFIX` composition. A preset that is one block of flight-plan or global verbs (`DA`, `FP`, `VP`, `REMARKS`, `SQALL`, `SNALL`, `SSALL`) never reaches `DispatchCompound`: `TryApplyScriptedPreset` runs it through the scripted route first, and a `WAIT` payload of such a block does the same when it fires (see [command-pipeline.md](command-pipeline.md)).
+track-failure test drives. A preset led by `AS {tcp}` (`PresetActingAs.Split`) dispatches on its own, acting as that position, and is never joined into a `CFIX` composition. A preset that is one block of flight-plan or global verbs (`DA`, `FP`, `VP`, `REMARKS`, `SQALL`, `SNALL`, `SSALL`) never reaches `DispatchCompound`: `TryApplyScriptedPreset` runs it through the scripted route first, and a `WAIT` payload of such a block does the same when it fires (see [command-pipeline.md](command-pipeline.md)). A preset chain that mixes a squawk with aircraft commands does reach it, and the squawk's block runs through `DispatchContext.ScriptedArm`.
 
 Parallel (`,`) semantics: `BuildApplyAction` short-circuits at the first failing sibling — earlier
 siblings stay applied, the block as a whole counts failed, and the chain remainder is discarded.
@@ -147,6 +147,8 @@ server (`RoomEngine.SendCommandAsync`) and client (`MainViewModel`, same shared 
 *"{verb} cannot be part of a chained command"*. `DEL` and `DEST`/`APT` are deliberately excluded:
 they chain correctly through the queue (`CROSS 28R; DEL` #311, `AT 5000 APT OAK`). A line the
 single-command parser accepts whole (free-text `NOTE …`) is not a chain.
+
+The room-wide squawks `SQALL`/`SNALL`/`SSALL` (`CompoundPolicy.IsChainableGlobal`) are the exception to the rejection set: a chain may carry them, typed, in a preset or behind `WAIT`/`WAITD`, and each runs through the engine's scripted route (`DispatchContext.ScriptedArm`) when its block runs, at once for the first block and at its gate for a later one. `CompoundPolicy.FindRefusedInChain` is the one verdict the router, the dispatcher and the client's pre-send check read: it names every `IsRefusedInChain` verb (the rejection set but those squawks, so `PAUSE`, `UNPAUSE`, `SIMRATE`, spawn and `SetActivePosition` stay refused), and a global squawk beside a scoped special (a track, coordination, strip or TDLS verb) with the same wording, because the router would split that line into units that never reach the scripted route. A context built without `ScriptedArm` (a test harness) refuses the squawk in a chain the same way.
 
 The same two sites refuse a *parallel* block that pairs a takeoff clearance with an immediate turn
 (`CTO, R270`, also `CTOPP`/`GO`; `CompoundPolicy.FindTakeoffPairedWithImmediateTurn`) with *"… cannot be
