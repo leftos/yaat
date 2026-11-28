@@ -328,7 +328,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
 
     // The catalog of the ARTCC and its neighbours, one row per position id, and the airports and strip bays its own config
     // lists; no options and the load's problem when the ARTCC's own config cannot be read.
-    private static async Task<PickerData> ReadPickersAsync(ArtccConfigSource configs, string artccId, CancellationToken ct)
+    internal static async Task<PickerData> ReadPickersAsync(ArtccConfigSource configs, string artccId, CancellationToken ct)
     {
         ArtccConfigLoad load = await configs.LoadAsync(artccId, ct).ConfigureAwait(false);
         if (load.Config is null)
@@ -399,7 +399,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         }
 
         IReadOnlyList<ArtccPositionRow> positions = data.Positions ?? [];
-        _catalogOptions = [.. positions.Select(p => new ScenarioPickOption(p.PositionId, $"{p.Callsign} — {p.Name} ({p.FacilityId})"))];
+        _catalogOptions = [.. positions.Select(PositionOption)];
         _catalogRows = positions.ToDictionary(p => p.PositionId, StringComparer.Ordinal);
         _bayOptions = data.Bays ?? [];
         IsStudentPositionFreeText = data.Positions is null;
@@ -411,6 +411,12 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
         RebuildOptions();
         RefreshSummaries();
     }
+
+    /// <summary>A position as the pickers list it: its id, shown as "{callsign} — {name} ({facility})".</summary>
+    /// <param name="position">The catalog's position.</param>
+    /// <returns>The option.</returns>
+    internal static ScenarioPickOption PositionOption(ArtccPositionRow position) =>
+        new(position.PositionId, $"{position.Callsign} — {position.Name} ({position.FacilityId})");
 
     // Runs the action through the post seam and finishes when it has run.
     private Task PostAsync(Action action)
@@ -441,7 +447,7 @@ public sealed partial class ScenarioGeneralViewModel : ObservableObject, IDispos
 
     // What one config load gives the pickers: null lists when the config could not be read, the load's problem, and whether
     // every neighbouring center's config was read.
-    private sealed record PickerData(
+    internal sealed record PickerData(
         IReadOnlyList<ArtccPositionRow>? Positions,
         IReadOnlyList<string>? Airports,
         IReadOnlyList<ScenarioPickOption>? Bays,

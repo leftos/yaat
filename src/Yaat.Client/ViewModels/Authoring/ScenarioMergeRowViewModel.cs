@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yaat.Sim.Authoring;
@@ -24,8 +25,13 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
 
     /// <summary>The side the row takes: its choice, else an auto row's own side; null for a clash with no choice.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMinePressed), nameof(IsTheirsPressed))]
+    [NotifyPropertyChangedFor(nameof(IsMinePressed), nameof(IsTheirsPressed), nameof(IsEditPressed))]
     private MergeChoiceKind? _pressedSide;
+
+    /// <summary>The MERGED VALUE editor open under the row; null while none is.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEditing))]
+    private ScenarioMergedValueViewModel? _editor;
 
     /// <summary>Whether the row is a clash with no choice yet.</summary>
     [ObservableProperty]
@@ -123,12 +129,33 @@ public sealed partial class ScenarioMergeRowViewModel : ObservableObject
     /// <summary>Gets a value indicating whether the row takes theirs.</summary>
     public bool IsTheirsPressed => PressedSide == MergeChoiceKind.KeepTheirs;
 
+    /// <summary>Gets a value indicating whether the row takes an edited value: its ✎ shows pressed.</summary>
+    public bool IsEditPressed => PressedSide == MergeChoiceKind.Edit;
+
+    /// <summary>Gets a value indicating whether a MERGED VALUE editor is open under the row.</summary>
+    public bool IsEditing => Editor is not null;
+
+    /// <summary>Gets the row's field editor; the JSON box for a field the table does not map.</summary>
+    public ScenarioMergeFieldEditor FieldEditor => ScenarioMergeFieldEditors.For(Section, FieldKey);
+
+    /// <summary>Gets the row's label path.</summary>
+    public string FieldKey => Row.FieldKey;
+
     internal void Refresh(MergeChoice? choice, bool showBase)
     {
         PressedSide = choice?.Kind ?? AutoSide();
         IsOpen = IsClash && (choice is null);
         ShowsBase = !IsTwoWay && (IsClash || showBase);
     }
+
+    // The value an editor opens with: the row's edit, else theirs when the row takes theirs, else mine.
+    internal JsonNode? PrefillValue(MergeChoice? choice) =>
+        PressedSide switch
+        {
+            MergeChoiceKind.Edit => choice?.Value,
+            MergeChoiceKind.KeepTheirs => Row.Theirs,
+            _ => Row.Mine,
+        };
 
     [RelayCommand]
     private void KeepMine() => _choose(this, MergeChoice.KeepMine);
