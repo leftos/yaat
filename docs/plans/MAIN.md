@@ -6,11 +6,10 @@
 
 ### M1 Scenario editor (9/9 done)
 
-### M2 Export (5/9 done)
+### M2 Export (6/9 done)
 - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios (sub-issue of YAAT-1989) · release vNext
 
-### M3 Routes, timing and metrics (8/17 done)
-- [/] YAAT-2502 YAATEdit M3.5: Route composer (sub-issue of YAAT-1989) · release vNext
+### M3 Routes, timing and metrics (10/17 done)
 - [/] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh (sub-issue of YAAT-1989) · release vNext
 - [/] YAAT-2507 YAATEdit M3.10: Spawn planner window (sub-issue of YAAT-1989) · release vNext
 - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics (sub-issue of YAAT-1989) · release vNext
@@ -28,13 +27,10 @@
 ### No milestone
 - [ ] YAAT-1989 Bring YAATEdit (scenario and airport ground editor) into the YAAT codebase · release vNext
   - [ ] YAAT-2496 YAATEdit M2.2: Three-way merge view: server changes, import clashes and any two scenarios · release vNext
-    - [/] YAAT-2912 YAATEdit M2.2c: Scenario merge window · release vNext
     - [/] YAAT-2913 YAATEdit M2.2d: open the merge from a server-changed copy, an import clash and any two scenarios · release vNext
     - [ ] YAAT-2952 Merge window: one public field-label and section table from Yaat.Sim
-  - [/] YAAT-2502 YAATEdit M3.5: Route composer · release vNext
   - [/] YAAT-2504 YAATEdit M3.7: Apply Route and batch refresh · release vNext
   - [/] YAAT-2507 YAATEdit M3.10: Spawn planner window · release vNext
-    - [ ] YAAT-2968 Spawn planner: correct the gap guidance, working-time and compress-warning texts from the aviation review
   - [ ] YAAT-2508 YAATEdit M3.11: Scenario metrics · release vNext
   - [ ] YAAT-2509 YAATEdit M3.12: N-number finder · release vNext
   - [ ] YAAT-2510 YAATEdit M3.13: Search and replace across an ARTCC · release vNext
@@ -64,6 +60,20 @@
   - [ ] YAAT-2964 Pass the navdata database into RouteStamp.Apply instead of reading the singleton
   - [ ] YAAT-2965 Route composer: ask before New or another route drops unsaved edits
   - [ ] YAAT-2966 Route composer: let the author select and delete a saved point that no longer resolves
+  - [ ] YAAT-2969 Scenario Editor import: read YAATEdit scenarios whose timeOffset or generator numbers are null · release vNext
+  - [ ] YAAT-2970 Scenario Editor: keep timestamped backups before a working copy is overwritten or deleted · release vNext
+  - [ ] YAAT-2971 Scenario Editor: live checks match YAATEdit's YAAT Check · release vNext
+  - [ ] YAAT-2972 Scenario Editor: facility filter on the server and local scenario lists · release vNext
+  - [ ] YAAT-2973 Scenario Editor: author the scenario sidecar (active runways, student lowest position) · release vNext
+  - [ ] YAAT-2974 YAATEdit: flight strip editor in the Scenario Editor (upstream strip editor port) · release vNext
+    - [ ] YAAT-2976 YAATEdit strip editor C1: Yaat.Sim strip step model, preset read and write, and checks · release vNext
+    - [ ] YAAT-2977 YAATEdit strip editor C2: strip editor window with the full strip and the spawn bay · release vNext
+    - [ ] YAAT-2978 YAATEdit strip editor C3: half-strips (HSC, HSA, HSM, HSO, HSS, HSD) · release vNext
+    - [ ] YAAT-2979 YAATEdit strip editor C4: prepopulate from the flight plan or DA preset, and strip commands found in other presets · release vNext
+  - [ ] YAAT-2975 Scenario Editor: command autocomplete in the preset and trigger boxes · release vNext
+  - [ ] YAAT-2980 Route composer: anchor FRD points only on DME NAVAIDs, else write a lat/lon point · release vNext
+  - [ ] YAAT-2982 Compare with… › File… opens the "Import scenarios" multi-file picker
+  - [ ] YAAT-2983 Merge window: run the Apply checks off the UI thread
 - [ ] YAAT-2788 Scenario Editor: Save over an imported copy asks "before closing it?" · release vNext
 - [ ] YAAT-2961 Scenario Editor: a resync overwrites the Export all result after the close question
 
@@ -1840,4 +1850,4 @@
 - [test-suite-speed.md](test-suite-speed.md) — YAAT-1651, YAAT-2038, YAAT-2039, YAAT-2040
 - [yaat-1201-videomap-snap/aviation-standoff.md](yaat-1201-videomap-snap/aviation-standoff.md) — YAAT-1208
 - [yaat-scope/README.md](yaat-scope/README.md) — YAAT-2277, YAAT Scope (feat/yaat-scope)
-- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2502, YAAT-2504, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
+- [yaatedit/README.md](yaatedit/README.md) — YAAT-1989, YAAT-2496, YAAT-2504, YAAT-2507, YAAT-2508, YAAT-2509, YAAT-2510, YAAT-2511, YAAT-2512, YAAT-2517, YAAT-2518, YAAT-2520, YAATEdit in YAAT
