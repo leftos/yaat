@@ -75,6 +75,11 @@ public interface IScenarioBrowserPrompts
     /// <param name="request">The texts to compare, the window's captions, and the write Apply runs.</param>
     /// <returns>What Apply wrote, or null when the author cancelled and nothing was written.</returns>
     Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request);
+
+    /// <summary>Opens the Compare picker: a working copy (mine) and the scenario it is compared with (theirs).</summary>
+    /// <param name="picker">The scenarios each side offers, with the asked-over row preselected.</param>
+    /// <returns>The picked pair, or null when the author cancelled.</returns>
+    Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker);
 }
 
 /// <summary>The answer to <see cref="IScenarioBrowserPrompts.AskUnsavedChangesAsync"/>.</summary>

@@ -93,6 +93,7 @@
         <Separator />
         <MenuItem x:Name="RefreshMenuItem" Header="Refresh" Command="{Binding RefreshCommand}" />
         <MenuItem x:Name="ResolveServerChangesMenuItem" Header="Merge server changes…" Command="{Binding ResolveServerChangesCommand}" />
+        <MenuItem x:Name="CompareMenuItem" Header="Compare with…" Command="{Binding CompareCommand}" />
       </ContextMenu>
     </TabControl.ContextMenu>
     <TabItem x:Name="LocalTab">

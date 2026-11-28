@@ -63,7 +63,7 @@ public partial class ScenarioEditorWindow : Window
         ArgumentNullException.ThrowIfNull(navDataReady);
         InitializeComponent();
         _preferences = preferences;
-        ScenarioBrowserServices built = services(new ScenarioBrowserPrompts(this, filePickerFactory(this)));
+        ScenarioBrowserServices built = services(new ScenarioBrowserPrompts(this, filePickerFactory(this), preferences));
         Browser = new ScenarioBrowserViewModel(built);
         Editor = new ScenarioEditorViewModel(Browser, built, layouts, navDataReady);
         EditorCommands.DataContext = Editor;

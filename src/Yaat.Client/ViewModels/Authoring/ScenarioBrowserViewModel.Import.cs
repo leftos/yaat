@@ -260,7 +260,7 @@ public sealed partial class ScenarioBrowserViewModel
 
             if (result.ArtccMismatch)
             {
-                await OnUiAsync(() => AddNotice($"{file.Label}: its artccId names another ARTCC; imported into {artcc}")).ConfigureAwait(false);
+                await OnUiAsync(() => AddNotice(OtherArtccNotice(file.Label, "imported into", artcc))).ConfigureAwait(false);
             }
 
             return;
@@ -272,7 +272,8 @@ public sealed partial class ScenarioBrowserViewModel
     }
 
     // The merged text as it is when its id is the stored one, else with the stored id written in (as Keep id does), so a
-    // copy never holds its id in another letter case. The text was checked to be a scenario object with that id.
+    // copy never holds its id in another letter case, and a merge that took another scenario's id (Compare with…) is
+    // written back under the stored one. The text is a scenario object.
     private static string WithStoredId(string merged, string id)
     {
         if (string.Equals(PeekIdAndName(merged).Id, id, StringComparison.Ordinal))
@@ -298,9 +299,13 @@ public sealed partial class ScenarioBrowserViewModel
         }
         else if ((result.Outcome == ImportOutcome.Imported) && result.ArtccMismatch)
         {
-            AddNotice($"{file.Label}: its artccId names another ARTCC; imported into {artcc}");
+            AddNotice(OtherArtccNotice(file.Label, "imported into", artcc));
         }
     }
+
+    // The notice for a file whose artccId names another ARTCC than the shown one; the verb says what was done with it in
+    // the shown ARTCC ("imported into", "compared in").
+    private static string OtherArtccNotice(string name, string verb, string artcc) => $"{name}: its artccId names another ARTCC; {verb} {artcc}";
 
     // One picked file: its path, text, and the id and name it holds when it is a scenario object.
     private sealed record ImportFile(string Path, string Text, string? Id, string? Name)

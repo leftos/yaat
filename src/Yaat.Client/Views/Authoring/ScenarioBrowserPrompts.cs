@@ -8,15 +8,21 @@ using Yaat.Client.ViewModels.Authoring;
 namespace Yaat.Client.Views.Authoring;
 
 /// <summary>
-/// The Scenario Editor window's answers to the browser's questions: a Yes/No box before a delete, the file pickers for
-/// Import, Save copy and the exports, the import id-conflict dialog, a Yes/No/Cancel box before unsaved edits are left or
-/// exported, a Replace/Cancel box before an import replaces the copy open with unsaved edits, and a Yes/No box before Test
-/// in Room replaces the running scenario, and, before the window closes or the ARTCC switches, an unexported-changes box
-/// or, when the open copy also has unsaved edits, one combined box, each over the window.
+/// The Scenario Editor window's answers to the browser's questions, each shown over the window:
+/// <list type="bullet">
+/// <item>a Yes/No box before a delete, and before Test in Room replaces the running scenario;</item>
+/// <item>the file pickers for Import, Save copy and the exports;</item>
+/// <item>the import id-conflict dialog and the Compare picker;</item>
+/// <item>a Yes/No/Cancel box before unsaved edits are left, exported or merged;</item>
+/// <item>a Replace/Cancel box before an import replaces the copy open with unsaved edits;</item>
+/// <item>before the window closes or the ARTCC switches, an unexported-changes box, or one combined box when the open copy
+/// also has unsaved edits.</item>
+/// </list>
 /// </summary>
 /// <param name="owner">The window the boxes and dialogs show over.</param>
 /// <param name="picker">The window's file picker.</param>
-internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService picker) : IScenarioBrowserPrompts
+/// <param name="preferences">Keeps the Compare picker's position and size.</param>
+internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService picker, UserPreferences preferences) : IScenarioBrowserPrompts
 {
     private const string ReplaceButton = "Replace";
     private const string CancelButton = "Cancel";
@@ -142,6 +148,10 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
     /// <inheritdoc/>
     public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) =>
         throw new NotSupportedException("The merge window is not built yet.");
+
+    /// <inheritdoc/>
+    public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) =>
+        new ScenarioComparePickerWindow(picker, preferences).ShowAsync(owner);
 
     private static string UnexportedBody(IReadOnlyList<string> names) => UnexportedMessage + "\n\n" + string.Join("\n", names);
 

@@ -355,6 +355,9 @@ public class ScenarioEditorTestInRoomTests
             MergeRequests.Add(request);
             return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
         }
+
+        public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) =>
+            Task.FromException<ScenarioComparePick?>(new NotSupportedException("no Compare in these tests"));
     }
 
     private sealed class StubAccess(params string[] artccs) : IArtccAccessSource

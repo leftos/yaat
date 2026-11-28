@@ -1,0 +1,34 @@
+<Window
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Yaat.Client.Views.Authoring.ScenarioComparePickerWindow"
+  Icon="avares://Yaat.Client/Resources/icon.png"
+  Title="Compare scenarios"
+  Background="#1F1F1F"
+  Width="640"
+  Height="420"
+  WindowStartupLocation="CenterOwner"
+>
+  <DockPanel Margin="12">
+    <TextBlock
+      DockPanel.Dock="Top"
+      Text="Mine is the working copy Apply writes. Theirs is the scenario it is compared with."
+      TextWrapping="Wrap"
+      Foreground="#B0B0B0"
+      Margin="0,0,0,8"
+    />
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+      <TextBlock x:Name="SameText" Text="Pick two different scenarios." VerticalAlignment="Center" Foreground="#E0B050" IsVisible="False" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button x:Name="CompareButton" Content="Compare" MinWidth="74" IsDefault="True" IsEnabled="False" Classes="accent" />
+        <Button x:Name="CancelButton" Content="Cancel" MinWidth="74" IsCancel="True" />
+      </StackPanel>
+    </Grid>
+    <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,*">
+      <TextBlock Text="Mine" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,4" />
+      <TextBlock Grid.Column="2" Text="Theirs" FontWeight="SemiBold" Foreground="White" Margin="0,0,0,4" />
+      <ListBox x:Name="MineList" Grid.Row="1" />
+      <ListBox x:Name="TheirsList" Grid.Row="1" Grid.Column="2" />
+    </Grid>
+  </DockPanel>
+</Window>

@@ -1108,6 +1108,9 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
             MergeRequests.Add(request);
             return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
         }
+
+        public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) =>
+            Task.FromException<ScenarioComparePick?>(new NotSupportedException("no Compare in these tests"));
     }
 
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider

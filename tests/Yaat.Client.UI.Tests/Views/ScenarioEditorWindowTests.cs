@@ -237,6 +237,48 @@ public class ScenarioEditorWindowTests
     }
 
     [AvaloniaFact]
+    public async Task CompareWith_PreselectsAWorkingCopyRowOnMine_AndAServerOnlyRowOnTheirs()
+    {
+        var prompts = new CountingPrompts();
+        ScenarioEditorWindow window = NewEditorWindow(SeededStore(), prompts);
+        try
+        {
+            await ShowAsync(window);
+            ScenarioBrowserViewModel vm = window.Browser;
+            ScenarioBrowserView view = window.FindControl<ScenarioBrowserView>("BrowserView")!;
+            TabControl tabs = view.FindControl<TabControl>("BrowserTabs")!;
+            tabs.ContextMenu!.Open(tabs);
+            MainWindowHost.Pump();
+            MenuItem compare = view.FindControl<MenuItem>("CompareMenuItem")!;
+            Assert.Same(vm.CompareCommand, compare.Command);
+            Assert.Equal("Compare with…", compare.Header);
+            tabs.ContextMenu.Close();
+
+            vm.SelectedTab = ScenarioBrowserTab.Local;
+            vm.SelectedLocalRow = vm.LocalRows.Single(r => r.Id == CopyId);
+            await vm.CompareCommand.ExecuteAsync(null);
+            vm.SelectedTab = ScenarioBrowserTab.Server;
+            vm.SelectedServerRow = vm.ServerRows.Single(r => r.Id == MirrorId);
+            await vm.CompareCommand.ExecuteAsync(null);
+            MainWindowHost.Pump();
+
+            Assert.Equal(2, prompts.ComparePickers.Count);
+            ScenarioComparePickerViewModel fromCopy = prompts.ComparePickers[0];
+            Assert.Equal(ScenarioCompareSideKind.WorkingCopy, fromCopy.SelectedMine?.Kind);
+            Assert.Equal(CopyId, fromCopy.SelectedMine?.Id);
+            Assert.Null(fromCopy.SelectedTheirs);
+            ScenarioComparePickerViewModel fromServer = prompts.ComparePickers[1];
+            Assert.Equal(ScenarioCompareSideKind.Server, fromServer.SelectedTheirs?.Kind);
+            Assert.Equal(MirrorId, fromServer.SelectedTheirs?.Id);
+            Assert.Equal(ScenarioCompareSideKind.WorkingCopy, fromServer.SelectedMine?.Kind);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ToolbarMenuBarAndContextMenu_OfferTheSameCommands()
     {
         ScenarioEditorWindow window = NewWindow(SeededStore(), Zoa);
@@ -2293,6 +2335,14 @@ public class ScenarioEditorWindowTests
         {
             MergeRequests.Add(request);
             return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
+        }
+
+        public List<ScenarioComparePickerViewModel> ComparePickers { get; } = [];
+
+        public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker)
+        {
+            ComparePickers.Add(picker);
+            return Task.FromResult<ScenarioComparePick?>(null);
         }
     }
 

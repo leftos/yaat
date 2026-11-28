@@ -884,6 +884,8 @@ public sealed class ScenarioMergeWindowTests
 
         public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) => Unasked<ScenarioMergeResult?>();
 
+        public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) => Unasked<ScenarioComparePick?>();
+
         private static Task<T> Unasked<T>() => Task.FromException<T>(new NotSupportedException("the merge window asks no browser question"));
     }
 

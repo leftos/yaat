@@ -443,6 +443,18 @@ internal sealed class FakeEditorPrompts : IScenarioBrowserPrompts
 
         return Task.FromResult(MergeAnswers.Count > 0 ? MergeAnswers.Dequeue() : null);
     }
+
+    /// <summary>Gets each Compare picker opened, as the browser built it.</summary>
+    public List<ScenarioComparePickerViewModel> ComparePickers { get; } = [];
+
+    /// <summary>Gets or sets the Compare picker's answer; null (or unset) as the author cancelling it.</summary>
+    public Func<ScenarioComparePickerViewModel, ScenarioComparePick?>? Compare { get; set; }
+
+    public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker)
+    {
+        ComparePickers.Add(picker);
+        return Task.FromResult(Compare?.Invoke(picker));
+    }
 }
 
 /// <summary>The UI thread as a queue: each test runs the posted actions when, and in the order, it chooses.</summary>

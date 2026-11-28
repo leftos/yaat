@@ -175,9 +175,9 @@ public sealed partial class ScenarioBrowserViewModel : ObservableObject, IDispos
     public Func<string, string, Task<bool>> ReplaceGuard { get; set; } = (_, _) => Task.FromResult(true);
 
     /// <summary>
-    /// Gets or sets what is asked, on the UI thread, before Merge server changes reads a working copy (its ARTCC and id):
-    /// true to go on, false to stop. The editor sets it to ask about that copy's unsaved edits when it is open; with no
-    /// editor it always answers true.
+    /// Gets or sets what is asked, on the UI thread, before Merge server changes, an import's Compare… or Compare with…
+    /// reads a working copy (its ARTCC and id): true to go on, false to stop. The editor sets it to ask about that copy's
+    /// unsaved edits when it is open; with no editor it always answers true.
     /// </summary>
     public Func<string, string, Task<bool>> MergeGuard { get; set; } = (_, _) => Task.FromResult(true);
 
