@@ -1416,6 +1416,9 @@ The text both sides of a merge started from; none in a two-way merge.
 **Clash**:
 A difference both sides made, which the author must choose.
 
+**Compare**:
+Opening the merge window over two scenarios: the import clash's Compare… (the file against the scenario holding its id) or Compare with… (any two scenarios of the ARTCC, mine a working copy). Two-way unless mine is compared with its own server scenario; Apply writes mine, and over an id only the server holds it makes that scenario's working copy.
+
 **NAIPPlus**:
 The USGS National Map aerial imagery service the Airport Editor draws under a map, fetched as Web Mercator tiles and credited to the USGS.
 

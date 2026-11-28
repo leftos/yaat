@@ -1,9 +1,13 @@
 using Avalonia.Controls;
+using Microsoft.Extensions.Logging;
 using MsBox.Avalonia.Dto;
 using MsBox.Avalonia.Enums;
 using MsBox.Avalonia.Models;
+using Yaat.Client.Logging;
 using Yaat.Client.Services;
 using Yaat.Client.ViewModels.Authoring;
+using Yaat.Sim.Authoring;
+using Yaat.Sim.Data;
 
 namespace Yaat.Client.Views.Authoring;
 
@@ -12,7 +16,7 @@ namespace Yaat.Client.Views.Authoring;
 /// <list type="bullet">
 /// <item>a Yes/No box before a delete, and before Test in Room replaces the running scenario;</item>
 /// <item>the file pickers for Import, Save copy and the exports;</item>
-/// <item>the import id-conflict dialog and the Compare picker;</item>
+/// <item>the import id-conflict dialog, the Compare picker and the merge window;</item>
 /// <item>a Yes/No/Cancel box before unsaved edits are left, exported or merged;</item>
 /// <item>a Replace/Cancel box before an import replaces the copy open with unsaved edits;</item>
 /// <item>before the window closes or the ARTCC switches, an unexported-changes box, or one combined box when the open copy
@@ -30,7 +34,15 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
     private const string SaveAndExportAllButton = "Save and export all";
     private const string UnexportedMessage = "These scenarios have changes you have not exported:";
 
+    private static readonly ILogger Log = AppLog.CreateLogger<ScenarioBrowserPrompts>();
+
     private static readonly IReadOnlyList<FilePickerFilter> JsonFilter = [new FilePickerFilter("Scenario JSON", ["*.json"])];
+
+    /// <summary>
+    /// Gets or sets what the merge window's MERGED AIRCRAFT editor and pickers work through: the browser's services, the
+    /// ground layouts and the navdata load. The Scenario Editor window sets it once the browser's services are built.
+    /// </summary>
+    internal ScenarioMergedAircraftServices? MergeServices { get; set; }
 
     /// <inheritdoc/>
     public async Task<bool> ConfirmDeleteAsync(ScenarioBrowserRowViewModel row)
@@ -146,12 +158,58 @@ internal sealed class ScenarioBrowserPrompts(Window owner, IFilePickerService pi
     }
 
     /// <inheritdoc/>
-    public Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request) =>
-        throw new NotSupportedException("The merge window is not built yet.");
+    public async Task<ScenarioMergeResult?> ShowMergeAsync(ScenarioMergeRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ScenarioMergedAircraftServices services =
+            MergeServices ?? throw new InvalidOperationException("The merge window cannot open: the Scenario Editor gave it no services.");
+        // The checks read the window's pickers at Apply, long after it is built, so the variable is declared before it is set.
+        ScenarioMergeWindow window = null!;
+        window = new ScenarioMergeWindow(request, preferences, merged => CheckAtApply(request, merged, window.ViewModel.Pickers))
+        {
+            AircraftServices = services,
+        };
+        using var loading = new CancellationTokenSource();
+        Task pickers = window.ViewModel.LoadPickersAsync(services.Browser, loading.Token);
+        try
+        {
+            return await window.ShowAsync(owner).ConfigureAwait(true);
+        }
+        finally
+        {
+            await loading.CancelAsync().ConfigureAwait(true);
+            await AwaitPickersAsync(pickers).ConfigureAwait(true);
+        }
+    }
 
     /// <inheritdoc/>
     public Task<ScenarioComparePick?> PickCompareAsync(ScenarioComparePickerViewModel picker) =>
         new ScenarioComparePickerWindow(picker, preferences).ShowAsync(owner);
+
+    // The checks at Apply: the Scenario Editor's checks over the merged text, with the position ids by the editor's rule once
+    // the pickers have loaded (none before, which skips the position checks). No ground layouts: the TAXI-route checks run
+    // in the editor's live checks once the copy reloads, not at Apply, so their not-checked findings are dropped here.
+    private static IReadOnlyList<ScenarioEditIssue> CheckAtApply(ScenarioMergeRequest request, string merged, ScenarioMergePickers pickers)
+    {
+        var inputs = new ScenarioEditInputs(() => NavigationDatabase.InstanceOrNull is not null, pickers.CheckedPositionIds, null);
+        return [.. ScenarioMergeViewModel.CheckMerged(request, merged, inputs).Where(i => i.Severity != ScenarioEditIssueSeverity.NotChecked)];
+    }
+
+    // The pickers' load once the window has closed and its token is cancelled; a failure is logged, never left unobserved.
+    private static async Task AwaitPickersAsync(Task pickers)
+    {
+        try
+        {
+            await pickers.ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            if (Log.IsEnabled(LogLevel.Warning))
+            {
+                Log.LogWarning(ex, "Merge window: loading the pickers failed after the window closed");
+            }
+        }
+    }
 
     private static string UnexportedBody(IReadOnlyList<string> names) => UnexportedMessage + "\n\n" + string.Join("\n", names);
 

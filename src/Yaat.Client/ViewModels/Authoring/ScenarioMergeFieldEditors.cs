@@ -76,13 +76,21 @@ public sealed record ScenarioMergeParsed(JsonNode? Value, string? Error, bool Bl
 /// <summary>The ARTCC config's pickers the merge window loads once: null lists when the config could not be read.</summary>
 /// <param name="Positions">The ARTCC's and its neighbours' positions; null for free text.</param>
 /// <param name="Airports">The airports the config lists; null for free text.</param>
-public sealed record ScenarioMergePickers(IReadOnlyList<ScenarioPickOption>? Positions, IReadOnlyList<string>? Airports)
+/// <param name="NeighboursRead">Whether every neighbouring center's config was read, so the positions are complete.</param>
+public sealed record ScenarioMergePickers(IReadOnlyList<ScenarioPickOption>? Positions, IReadOnlyList<string>? Airports, bool NeighboursRead)
 {
     /// <summary>Gets the pickers before a load, or after one that failed: every position and airport is free text.</summary>
-    public static ScenarioMergePickers FreeText { get; } = new(null, null);
+    public static ScenarioMergePickers FreeText { get; } = new(null, null, false);
+
+    /// <summary>
+    /// Gets the position ids the position checks read, by the Scenario Editor's rule: the listed positions' ids; null (the
+    /// check is skipped) while the positions are free text or a neighbouring center's config is unread.
+    /// </summary>
+    public IReadOnlySet<string>? CheckedPositionIds =>
+        ((Positions is null) || !NeighboursRead) ? null : new HashSet<string>(Positions.Select(p => p.Value), StringComparer.Ordinal);
 
     internal static ScenarioMergePickers Of(ScenarioGeneralViewModel.PickerData data) =>
-        new(data.Positions?.Select(ScenarioGeneralViewModel.PositionOption).ToList(), data.Airports);
+        new(data.Positions?.Select(ScenarioGeneralViewModel.PositionOption).ToList(), data.Airports, data.NeighboursRead);
 }
 
 /// <summary>What a preset command resolves its fixes against: the aircraft's flight plan, as ScenarioValidator reads it.</summary>

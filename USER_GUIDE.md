@@ -2386,6 +2386,20 @@ A menu bar (**File** and **Tools**) sits above the toolbar. The **File** menu an
 
 The toolbar keeps the ARTCC, **New**, **Duplicate**, **Test in Room** (below), **Refresh** (downloads the server scenarios again), **Undo**, **Redo** and **Save**. **Tools > Spawn planner...** opens the [Spawn planner](#spawn-planner) over the open copy; it is greyed out while no copy is open. **Tools > Route composer...** opens the [Route composer](#route-composer) the same way.
 
+### Comparing and merging
+
+The merge window shows two versions of a scenario side by side, **mine** (usually the working copy **Apply** writes) and **theirs**, and, when the two started from a saved version, that **base** too. It opens from three places:
+
+- **Merge server changes…** (right-click menu, on a working copy with the blue cloud icon): mine is the working copy and theirs the server version, three-way over "the server version this copy started from" ("Merge server changes: {name}"). A copy with no saved base is two-way, with the note "This copy has no saved base version, so every difference is yours to choose." **Apply** writes the merge onto the server version, so the blue cloud clears.
+
+  In the **Whole scenario** menu, **Take theirs for everything** chooses the server version for everything (**Apply** writes it), **Keep mine for every clash** keeps your edits, and **Fresh copy beside** makes a local-only copy of the server version instead.
+- **Compare…** in the import id question: the imported file beside the scenario that has its id, as described under **Import...** above.
+- **Compare with…** (right-click menu): any two scenarios of the ARTCC, as described above.
+
+An open copy with unsaved edits is asked about first. **Apply** is on once every clash is chosen. It runs the editor's checks over the merged scenario (TAXI routes are checked once the copy reopens in the editor); any findings show in one "Merged with problems" box, and **OK** applies the merge anyway.
+
+An open editor reloads the copy Apply wrote. **Cancel** or the close box writes nothing. On the **Aircraft** tab, ✎ on an aircraft opens it in the aircraft editor (MERGED AIRCRAFT), with the ARTCC's airports and positions in its pickers once they have loaded.
+
 ### Test in Room
 
 **Test in Room** loads the selected working copy into the room you are in, so you can try it at once. It is available when you could load a scenario from the main window: connected, in a room, as a mentor or instructor, and with no load already running. A corrupt copy cannot be tested.

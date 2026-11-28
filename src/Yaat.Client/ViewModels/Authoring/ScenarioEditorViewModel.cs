@@ -232,10 +232,11 @@ public sealed partial class ScenarioEditorViewModel : ObservableObject, IDisposa
         SettleUnsavedAsync(artccId, id, UnsavedChangesContext.Export, "asking before an export of " + id);
 
     /// <summary>
-    /// The browser's <see cref="ScenarioBrowserViewModel.MergeGuard"/>: whether Merge server changes may read a working
-    /// copy now. When it is the open copy with unsaved edits, the unsaved-changes question is asked as before a close:
-    /// Save saves first, so mine has the edits; Discard re-reads the saved file; Cancel (or a failed prompt) stops. When it
-    /// is open, the session is recorded, so a merge written to it reloads it.
+    /// The browser's <see cref="ScenarioBrowserViewModel.MergeGuard"/>: whether a merge (Merge server changes…, the import
+    /// clash's Compare…, or Compare with…) may read a working copy now. When it is the open copy with unsaved edits, the
+    /// unsaved-changes question is asked as before a close: Save saves first, so mine has the edits; Discard re-reads the
+    /// saved file; Cancel (or a failed prompt) stops. When it is open, the session is recorded, so a merge written to it
+    /// reloads it.
     /// </summary>
     /// <param name="artccId">The ARTCC whose folder holds the copy.</param>
     /// <param name="id">The working copy's id.</param>
