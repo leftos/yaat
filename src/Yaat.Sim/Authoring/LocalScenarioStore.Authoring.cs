@@ -1,4 +1,3 @@
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -13,13 +12,6 @@ namespace Yaat.Sim.Authoring;
 /// </summary>
 public sealed partial class LocalScenarioStore
 {
-    // Used only where the store must rewrite a scenario's id: number text is kept as parsed, non-ASCII is not escaped.
-    private static readonly JsonSerializerOptions RewriteOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
-
     /// <summary>The full path of a working copy's file, whether or not it exists.</summary>
     /// <param name="artccId">The ARTCC.</param>
     /// <param name="id">The working copy's id.</param>
@@ -211,7 +203,8 @@ public sealed partial class LocalScenarioStore
     /// <paramref name="newId"/> and rewrites the JSON <c>id</c> (local-only); <see cref="ImportIdChoice.Skip"/> writes
     /// nothing; <see cref="ImportIdChoice.KeepId"/> keeps the file's id and text: over an existing working copy it
     /// replaces the text and keeps the sidecar, over a server mirror alone it becomes that mirror's working copy based
-    /// on the current mirror version, and otherwise it is a local-only copy.
+    /// on the current mirror version, and otherwise it is a local-only copy. A file whose empty numbers are JSON null (an
+    /// older YAATEdit version wrote them) is stored with those repaired (see <see cref="ScenarioNullNormalizer"/>).
     /// </summary>
     /// <param name="artccId">The ARTCC to import into.</param>
     /// <param name="json">The file's text.</param>
@@ -242,19 +235,39 @@ public sealed partial class LocalScenarioStore
             LogImportArtccMismatch(artccId, fileId, scenario!);
         }
 
+        if (choice == ImportIdChoice.Skip)
+        {
+            return new ImportResult(ImportOutcome.Skipped, null, false, mismatch, null, 0);
+        }
+
+        ImportText text = TextToStore(scenario!, json);
         return choice switch
         {
-            ImportIdChoice.Skip => new ImportResult(ImportOutcome.Skipped, null, false, mismatch, null),
-            ImportIdChoice.NewId => ImportWithNewId(dir, scenario!, newId(), mismatch),
+            ImportIdChoice.NewId => ImportWithNewId(dir, scenario!, newId(), mismatch, text.NullsFixed),
             ImportIdChoice.KeepId => StoreFiles.IsValidId(fileId)
-                ? ImportKeepingId(dir, fileId, scenario!, json, mismatch)
+                ? ImportKeepingId(dir, fileId, scenario!, text, mismatch)
                 : ImportResult.Rejected($"its id {fileId} cannot name a file (letters, digits, '_' and '-' only)"),
             _ => throw new ArgumentOutOfRangeException(nameof(choice), choice, "Not an import id choice."),
         };
     }
 
+    // The text an import stores: the file's text, or the file with the empty numbers it holds as null repaired, and how
+    // many values that fixed. Text JsonObject refuses (a repeated key) is stored as it is, as it always was.
+    private static ImportText TextToStore(JsonObject scenario, string json)
+    {
+        string text = ScenarioNullNormalizer.Repair(json, out int nullsFixed);
+        if (nullsFixed > 0)
+        {
+            // The import writes an id the letter case of the stored one changed into the object CheckScenario parsed, so
+            // that object takes the same repair.
+            ScenarioNullNormalizer.Fix(scenario);
+        }
+
+        return new ImportText(text, nullsFixed);
+    }
+
     // The id comes from the caller's factory before the root lock is taken, so no foreign code runs under it.
-    private ImportResult ImportWithNewId(string dir, JsonObject scenario, string id, bool mismatch)
+    private ImportResult ImportWithNewId(string dir, JsonObject scenario, string id, bool mismatch, int nullsFixed)
     {
         RequireValidId(id);
         lock (_gate)
@@ -263,39 +276,39 @@ public sealed partial class LocalScenarioStore
             WriteLocalOnly(dir, id, RewriteId(scenario, id));
         }
 
-        return new ImportResult(ImportOutcome.Imported, id, false, mismatch, null);
+        return new ImportResult(ImportOutcome.Imported, id, false, mismatch, null, nullsFixed);
     }
 
     // An id that matches a stored working copy or mirror in all but letter case takes the stored casing, in the file
     // name, the JSON id and the sidecar origin, so the copy pairs with its mirror under the store's ordinal id compares.
-    private ImportResult ImportKeepingId(string dir, string fileId, JsonObject scenario, string json, bool mismatch)
+    private ImportResult ImportKeepingId(string dir, string fileId, JsonObject scenario, ImportText text, bool mismatch)
     {
         lock (_gate)
         {
             if (StoredId(dir, LocalFolder, fileId) is { } copyId)
             {
-                StoreFiles.WriteAtomically(LocalPath(dir, copyId), TextWithId(scenario, json, fileId, copyId));
+                StoreFiles.WriteAtomically(LocalPath(dir, copyId), TextWithId(scenario, text.Text, fileId, copyId));
                 if (!File.Exists(SidecarPath(dir, copyId)))
                 {
                     WriteSidecar(dir, copyId, LocalOnlySidecar);
                 }
 
-                return new ImportResult(ImportOutcome.Imported, copyId, true, mismatch, null);
+                return new ImportResult(ImportOutcome.Imported, copyId, true, mismatch, null, text.NullsFixed);
             }
 
             if (StoredId(dir, ServerFolder, fileId) is { } mirrorId)
             {
-                return ImportOverMirror(dir, mirrorId, TextWithId(scenario, json, fileId, mirrorId), mismatch);
+                return ImportOverMirror(dir, mirrorId, TextWithId(scenario, text.Text, fileId, mirrorId), mismatch, text.NullsFixed);
             }
 
-            WriteLocalOnly(dir, fileId, json);
-            return new ImportResult(ImportOutcome.Imported, fileId, false, mismatch, null);
+            WriteLocalOnly(dir, fileId, text.Text);
+            return new ImportResult(ImportOutcome.Imported, fileId, false, mismatch, null, text.NullsFixed);
         }
     }
 
     // Makes the import the mirror's working copy, based on the mirror as it is now, so the import reads modified when
     // its content differs from the mirror's; a mirror Load would list corrupt is refused and nothing is written.
-    private static ImportResult ImportOverMirror(string dir, string mirrorId, string text, bool mismatch)
+    private static ImportResult ImportOverMirror(string dir, string mirrorId, string text, bool mismatch, int nullsFixed)
     {
         if (!TryReadMirror(MirrorPath(dir, mirrorId), mirrorId, out string? mirrorText, out JsonObject? mirror, out string? reason))
         {
@@ -305,7 +318,7 @@ public sealed partial class LocalScenarioStore
         WriteSidecar(dir, mirrorId, new WorkingCopySidecar(mirrorId, ComputeVersion(mirrorText), ComputeContentHash(mirror), null, null));
         StoreFiles.WriteAtomically(BasePath(dir, mirrorId), mirrorText);
         StoreFiles.WriteAtomically(LocalPath(dir, mirrorId), text);
-        return new ImportResult(ImportOutcome.Imported, mirrorId, false, mismatch, null);
+        return new ImportResult(ImportOutcome.Imported, mirrorId, false, mismatch, null, nullsFixed);
     }
 
     // The file's text as read when its id is already the stored one, else the scenario with the stored id written in.
@@ -348,10 +361,12 @@ public sealed partial class LocalScenarioStore
         return HasText(scenario, "name") ? RewriteId(scenario, id) : throw new ArgumentException("The scenario has no name.", nameof(json));
     }
 
+    // The store writes the text it rewrites the way the repair does: indented, number text kept as parsed and non-ASCII
+    // unescaped.
     private static string RewriteId(JsonObject scenario, string id)
     {
         scenario["id"] = id;
-        return scenario.ToJsonString(RewriteOptions);
+        return scenario.ToJsonString(ScenarioNullNormalizer.TextOptions);
     }
 
     // A working copy whose id matches in all but letter case counts too: on Windows it is the same file.
@@ -390,6 +405,9 @@ public sealed partial class LocalScenarioStore
             Log.LogInformation("Scenario {Id}: imported file's artccId {Field} differs from {ArtccId}", fileId, TextOf(scenario, "artccId"), artccId);
         }
     }
+
+    // The text an import stores and how many empty numbers it fixed to make that text readable.
+    private sealed record ImportText(string Text, int NullsFixed);
 }
 
 /// <summary>What an import does with the file's scenario id.</summary>
@@ -443,7 +461,11 @@ public enum ImportOutcome
 /// <param name="Overwrote">Whether it replaced an existing working copy's text.</param>
 /// <param name="ArtccMismatch">Whether the file's <c>artccId</c> names another ARTCC than the one it was imported into.</param>
 /// <param name="Reason">Why the file was rejected; null otherwise.</param>
-public sealed record ImportResult(ImportOutcome Outcome, string? Id, bool Overwrote, bool ArtccMismatch, string? Reason)
+/// <param name="NullsFixed">
+/// How many empty numbers the file held as null (an older YAATEdit version wrote them) that the import set to 0 or
+/// dropped; 0 otherwise.
+/// </param>
+public sealed record ImportResult(ImportOutcome Outcome, string? Id, bool Overwrote, bool ArtccMismatch, string? Reason, int NullsFixed)
 {
-    internal static ImportResult Rejected(string reason) => new(ImportOutcome.Rejected, null, false, false, reason);
+    internal static ImportResult Rejected(string reason) => new(ImportOutcome.Rejected, null, false, false, reason, 0);
 }

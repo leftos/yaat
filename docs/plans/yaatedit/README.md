@@ -82,7 +82,7 @@ The port was planned from upstream 37b8392 and last reviewed at 2a352e5 (`upstre
 | YAAT Check | native, planned: the same checks as live findings in the editor | `ScenarioEditChecks` | YAAT-2971 |
 | Preset-command autocomplete | native, planned | `CommandParser`, `CommandDescriber`, `ArgumentSuggester` | YAAT-2975 |
 | Scenario sidecar authoring | native, planned: the author writes the scenario sidecar that test in room applies by origin id | `LocalScenarioStore`, `MainViewModel.LoadScenarioFromJsonAsync` | YAAT-2973 |
-| Import of older YAATEdit files (numbers saved as null) | native, planned | `ScenarioDocument` | YAAT-2969 |
+| Import of older YAATEdit files (numbers saved as null) | native | `ScenarioNullNormalizer`, `LocalScenarioStore`, `ScenarioDocument` | YAAT-2969 |
 | Backups of working copies | native, planned | `LocalScenarioStore` | YAAT-2970 |
 | Browser facility filter | native, planned | `ScenarioBrowserViewModel` | YAAT-2972 |
 | Save with auto-track warning | differently: warnings come from live validation, not a save-time dialog | `ScenarioValidator`, `ScenarioEditChecks` | M1.6 |

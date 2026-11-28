@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Sim.Authoring;
+using Yaat.Sim.Scenarios;
 
 namespace Yaat.Sim.Tests.Authoring;
 
@@ -266,6 +267,111 @@ public class LocalScenarioStoreAuthoringTests
             }
         );
 
+    [Fact]
+    public void Import_KeepId_OverAnExistingCopy_WithOlderEditorNulls_StoresTheRepairedText_CountsTwo() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+
+                ImportResult result = store.ImportScenario(Zoa, WithOlderEditorNulls(IdA), ImportIdChoice.KeepId, Ids(30));
+
+                Assert.Equal(ImportOutcome.Imported, result.Outcome);
+                Assert.True(result.Overwrote);
+                Assert.Equal(2, result.NullsFixed);
+                AssertRepaired(store.ReadWorkingCopyText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void Import_NewId_WithOlderEditorNulls_StoresTheRepairedText_CountsTwo() =>
+        InRoot(
+            (root, store) =>
+            {
+                ImportResult result = store.ImportScenario(Zoa, WithOlderEditorNulls(IdB), ImportIdChoice.NewId, Ids(31));
+
+                Assert.Equal(ImportOutcome.Imported, result.Outcome);
+                Assert.NotEqual(IdB, result.Id);
+                Assert.Equal(2, result.NullsFixed);
+                AssertRepaired(store.ReadWorkingCopyText(Zoa, result.Id!));
+            }
+        );
+
+    [Fact]
+    public void Import_KeepId_OverAMirror_WithOlderEditorNulls_StoresTheRepairedText_CountsTwo() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+
+                ImportResult result = store.ImportScenario(Zoa, WithOlderEditorNulls(IdA), ImportIdChoice.KeepId, Ids(32));
+
+                Assert.Equal(ImportOutcome.Imported, result.Outcome);
+                Assert.False(result.Overwrote);
+                Assert.Equal(2, result.NullsFixed);
+                AssertRepaired(store.ReadWorkingCopyText(Zoa, IdA));
+            }
+        );
+
+    [Fact]
+    public void Import_Skip_WithOlderEditorNulls_WritesNothing_CountsZero() =>
+        InRoot(
+            (root, store) =>
+            {
+                ImportResult result = store.ImportScenario(Zoa, WithOlderEditorNulls(IdA), ImportIdChoice.Skip, Ids(33));
+
+                Assert.Equal(ImportOutcome.Skipped, result.Outcome);
+                Assert.Equal(0, result.NullsFixed);
+                Assert.False(Directory.Exists(Path.Combine(root, Zoa)));
+            }
+        );
+
+    // A preset with a repeated "command" key: JSON text JsonObject refuses to fill, which the import stores as it is.
+    private const string NestedDuplicateKey = """
+        {
+          "id": "DUP1",
+          "name": "Dup",
+          "artccId": "ZOA",
+          "aircraft": [
+            { "id": "ac1", "presetCommands": [{ "id": "p1", "command": "FH 010", "command": "FH 020" }] }
+          ]
+        }
+        """;
+
+    // A null timeOffset beside a duplicate key in the other preset: the text is stored unrepaired, so the null stays.
+    private const string DuplicateKeyWithANull = """
+        {
+          "id": "DUP3",
+          "name": "Dup",
+          "artccId": "ZOA",
+          "aircraft": [
+            {
+              "id": "ac1",
+              "presetCommands": [
+                { "id": "p1", "command": "FH 010", "timeOffset": null },
+                { "id": "p2", "command": "FH 020", "command": "FH 030" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Theory]
+    [InlineData(NestedDuplicateKey)]
+    [InlineData(DuplicateKeyWithANull)]
+    public void Import_KeepId_WithARepeatedKey_StoresTheTextAsBefore(string json) =>
+        InRoot(
+            (root, store) =>
+            {
+                ImportResult result = store.ImportScenario(Zoa, json, ImportIdChoice.KeepId, Ids(40));
+
+                Assert.Equal(ImportOutcome.Imported, result.Outcome);
+                Assert.Equal(0, result.NullsFixed);
+                Assert.Equal(json, store.ReadWorkingCopyText(Zoa, result.Id!));
+            }
+        );
+
     [Theory]
     [InlineData("{ not json", ImportIdChoice.NewId)]
     [InlineData("{ not json", ImportIdChoice.KeepId)]
@@ -375,6 +481,26 @@ public class LocalScenarioStoreAuthoringTests
                 Assert.Equal(TrainingFixtures.Read(IdA), store.ReadMirrorText(Zoa, IdA));
             }
         );
+
+    // IdB under the given id with the two nulls an older YAATEdit file carries: a preset's timeOffset and a generator's
+    // maxTime.
+    private static string WithOlderEditorNulls(string id)
+    {
+        JsonObject scenario = JsonNode.Parse(TrainingFixtures.WithId(IdB, id))!.AsObject();
+        scenario["aircraft"]![0]!["presetCommands"] = JsonNode.Parse("""[{"id": "preset-1", "command": "FH 010", "timeOffset": null}]""");
+        scenario["aircraftGenerators"]![0]!["maxTime"] = null;
+        return scenario.ToJsonString();
+    }
+
+    // The stored text reads both ways and holds the repaired values: timeOffset 0 and no maxTime member.
+    private static void AssertRepaired(string text)
+    {
+        ScenarioDocument.Read(text);
+        ScenarioLoader.Load(text, new TestAirportGroundData(), new Random(0), MagneticDeclination.EvaluationDateUtc);
+        JsonNode stored = JsonNode.Parse(text)!;
+        Assert.Equal(0, stored["aircraft"]![0]!["presetCommands"]![0]!["timeOffset"]!.GetValue<int>());
+        Assert.False(stored["aircraftGenerators"]![0]!.AsObject().ContainsKey("maxTime"));
+    }
 
     private static string LocalDir(string root) => Path.Combine(root, Zoa, "local");
 

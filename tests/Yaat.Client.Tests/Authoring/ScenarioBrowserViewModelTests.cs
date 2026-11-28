@@ -661,6 +661,49 @@ public sealed class ScenarioBrowserViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Import_OlderEditorNulls_NoticeSaysHowManyItFixed()
+    {
+        _prompts.ImportFiles =
+        [
+            WriteFile(
+                "two.json",
+                """
+                {
+                  "id": "N2",
+                  "name": "Two nulls",
+                  "artccId": "ZOA",
+                  "aircraft": [
+                    { "id": "ac1", "presetCommands": [{ "id": "p1", "command": "FH 010", "timeOffset": null }] }
+                  ],
+                  "initializationTriggers": [{ "command": "SQALL", "timeOffset": null }]
+                }
+                """
+            ),
+            WriteFile(
+                "one.json",
+                """
+                {
+                  "id": "N1",
+                  "name": "One null",
+                  "artccId": "ZOA",
+                  "aircraft": [
+                    { "id": "ac1", "presetCommands": [{ "id": "p1", "command": "FH 010", "timeOffset": null }] }
+                  ]
+                }
+                """
+            ),
+            WriteFile("clean.json", Scenario("C0", "Clean", Zoa)),
+        ];
+        ScenarioBrowserViewModel vm = await OpenedViewModel(Zoa);
+
+        await _ui.Run(vm.ImportCommand.ExecuteAsync(null));
+
+        Assert.Contains("Two nulls: imported; fixed 2 empty numbers YAAT could not read.", vm.Notices);
+        Assert.Contains("One null: imported; fixed 1 empty number YAAT could not read.", vm.Notices);
+        Assert.DoesNotContain(vm.Notices, n => n.StartsWith("Clean:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SaveCopy_WritesTheStoredTextByteForByte()
     {
         _store.ApplyServerBody(Zoa, "A1", Scenario("A1", "Alpha/Bravo", Zoa));

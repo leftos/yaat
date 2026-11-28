@@ -973,6 +973,25 @@ public class LocalScenarioStoreTests
         );
 
     [Fact]
+    public void ApplyMerge_MergedTextWithOlderEditorNulls_IsStoredRepaired() =>
+        InRoot(
+            (root, store) =>
+            {
+                store.ApplyServerBody(Zoa, IdA, TrainingFixtures.Read(IdA));
+                store.CreateWorkingCopy(Zoa, IdA);
+                string changed = TrainingFixtures.Changed(IdA);
+                store.ApplyServerBody(Zoa, IdA, changed);
+                JsonObject merged = JsonNode.Parse(TrainingFixtures.WithNameSuffix(IdA, " (merged)"))!.AsObject();
+                merged["aircraft"]![0]!["presetCommands"] = JsonNode.Parse("""[{"id": "preset-1", "command": "FH 010", "timeOffset": null}]""");
+
+                store.ApplyMerge(Zoa, IdA, merged.ToJsonString(), changed, LocalScenarioStore.ComputeVersion(changed));
+
+                JsonNode stored = JsonNode.Parse(store.ReadWorkingCopyText(Zoa, IdA))!;
+                Assert.Equal(0, stored["aircraft"]![0]!["presetCommands"]![0]!["timeOffset"]!.GetValue<int>());
+            }
+        );
+
+    [Fact]
     public void ApplyMerge_KeepsTheExportRecord() =>
         InRoot(
             (root, store) =>

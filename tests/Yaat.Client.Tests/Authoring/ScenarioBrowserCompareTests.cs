@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.ViewModels.Authoring;
 
@@ -158,6 +159,25 @@ public sealed class ScenarioBrowserCompareTests : IDisposable
         Assert.Equal(fileText, request.Texts.Theirs);
         Assert.Equal("file", request.Captions.Theirs);
         Assert.Equal("Compare: Lima with other.json", request.Captions.Title);
+    }
+
+    [Fact]
+    public async Task AnApplyOfAFileWithANullTimeOffset_RepairsItInTheStoredCopy()
+    {
+        _fx.AddCopy("L1", "Lima");
+        string aircraft = "\"aircraft\": [{\"id\": \"ac1\", \"presetCommands\": [{\"id\": \"p1\", \"command\": \"FH 010\", \"timeOffset\": null}]}]";
+        _fx.Prompts.ImportFiles = [_fx.WriteImportFile("other.json", ScenarioEditorFixture.ScenarioJson("F1", "From a file", aircraft))];
+        _fx.Prompts.Compare = p => new ScenarioComparePick(
+            p.MineOptions.Single(s => s.Id == "L1"),
+            p.TheirsOptions.Single(s => s.Kind == ScenarioCompareSideKind.File)
+        );
+        _fx.Prompts.Merge = WriteThenAnswer(ScenarioEditorFixture.ScenarioJson("L1", "Lima merged", aircraft));
+        ScenarioBrowserViewModel browser = await Browser();
+
+        await Compare(browser);
+
+        JsonNode stored = JsonNode.Parse(_fx.Store.ReadWorkingCopyText(Zoa, "L1"))!;
+        Assert.Equal(0, stored["aircraft"]![0]!["presetCommands"]![0]!["timeOffset"]!.GetValue<int>());
     }
 
     [Fact]

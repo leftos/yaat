@@ -40,7 +40,9 @@ public sealed class ScenarioDocument
     public Scenario Scenario { get; }
 
     /// <summary>
-    /// Reads a vNAS scenario JSON, remembering which members each object's source held.
+    /// Reads a vNAS scenario JSON, remembering which members each object's source held. The empty numbers an older
+    /// YAATEdit file holds as null are repaired first (see <see cref="ScenarioNullNormalizer.Repair"/>), so such a file
+    /// reads; a text that cannot be repaired is read exactly as it always was.
     /// </summary>
     /// <param name="json">The scenario JSON.</param>
     /// <returns>The document over the read scenario.</returns>
@@ -49,7 +51,8 @@ public sealed class ScenarioDocument
     {
         ArgumentNullException.ThrowIfNull(json);
         Scenario scenario =
-            JsonSerializer.Deserialize<Scenario>(json, ReadOptions) ?? throw new JsonException("Scenario JSON is null; expected an object.");
+            JsonSerializer.Deserialize<Scenario>(ScenarioNullNormalizer.Repair(json, out _), ReadOptions)
+            ?? throw new JsonException("Scenario JSON is null; expected an object.");
         return new ScenarioDocument(scenario);
     }
 

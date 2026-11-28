@@ -233,7 +233,7 @@ public sealed partial class ScenarioBrowserViewModel
     // rows are re-read with mine selected and an editor with it open reloads it. A failed write throws to the merge window.
     private async Task WriteCompareMergeAsync(string artcc, string id, string merged)
     {
-        string text = WithStoredId(merged, id);
+        string text = ScenarioNullNormalizer.Repair(WithStoredId(merged, id), out _);
         LocalScenarioStore store = _services.Store;
         await Task.Run(() => store.SaveWorkingCopy(artcc, id, text)).ConfigureAwait(false);
         await ReloadAsync(artcc, new RowSelection(ScenarioBrowserTab.Local, id)).ConfigureAwait(false);

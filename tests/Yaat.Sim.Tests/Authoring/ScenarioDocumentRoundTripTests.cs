@@ -132,6 +132,52 @@ public class ScenarioDocumentRoundTripTests
         Assert.True(JsonNode.DeepEquals(JsonSerializer.SerializeToNode(scenario), JsonNode.Parse(written)));
     }
 
+    /// <summary>
+    /// An older YAATEdit file left a preset's <c>timeOffset</c> and an optional generator number null; the models hold no
+    /// null for either, so the read repairs them: <c>timeOffset</c> becomes 0 and the null generator member is dropped.
+    /// </summary>
+    [Fact]
+    public void OlderEditorNulls_ReadThenWrite_SetsTimeOffsetZeroAndDropsTheNullGeneratorMember()
+    {
+        JsonObject source = JsonNode.Parse(TrainingFixtures.Read(TrainingFixtures.IdB))!.AsObject();
+        source["aircraft"]![0]!["presetCommands"] = JsonNode.Parse("""[{"id": "preset-1", "command": "FH 010", "timeOffset": null}]""");
+        source["aircraftGenerators"]![0]!["maxTime"] = null;
+        Assert.True(source["aircraftGenerators"]![0]!.AsObject().ContainsKey("maxTime"));
+
+        var document = ScenarioDocument.Read(source.ToJsonString());
+        JsonNode written = JsonNode.Parse(document.Write())!;
+
+        Assert.Equal(0, written["aircraft"]![0]!["presetCommands"]![0]!["timeOffset"]!.GetValue<int>());
+        Assert.False(written["aircraftGenerators"]![0]!.AsObject().ContainsKey("maxTime"));
+    }
+
+    [Fact]
+    public void Read_RepeatedKeyInAPreset_ReadsTheLastValue_AsBefore()
+    {
+        string json = """
+            {
+              "id": "dup",
+              "name": "Dup",
+              "aircraft": [
+                { "id": "ac1", "presetCommands": [{ "id": "p1", "command": "FH 010", "command": "FH 020", "timeOffset": 5 }] }
+              ]
+            }
+            """;
+
+        var document = ScenarioDocument.Read(json);
+
+        Assert.Equal("FH 020", document.Scenario.Aircraft[0].PresetCommands[0].Command);
+        Assert.Equal(5, document.Scenario.Aircraft[0].PresetCommands[0].TimeOffset);
+    }
+
+    [Fact]
+    public void Read_RepeatedRootKey_ReadsTheLastValue_AsBefore()
+    {
+        var document = ScenarioDocument.Read("""{"id": "dup", "name": "First", "name": "Second"}""");
+
+        Assert.Equal("Second", document.Scenario.Name);
+    }
+
     [Fact]
     public void Read_MalformedJson_ThrowsJsonException() => Assert.ThrowsAny<JsonException>(() => ScenarioDocument.Read("{\"id\":"));
 

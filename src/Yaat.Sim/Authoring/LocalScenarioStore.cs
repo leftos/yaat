@@ -301,6 +301,10 @@ public sealed partial class LocalScenarioStore
         ArgumentNullException.ThrowIfNull(mergedJson);
         ArgumentNullException.ThrowIfNull(newBaseText);
         ArgumentNullException.ThrowIfNull(newBaseVersion);
+
+        // The merge copies values out of the working copy, which an older YAATEdit import stored with empty numbers as null;
+        // the editor and Load read what is stored here, so the merged text is repaired first.
+        mergedJson = ScenarioNullNormalizer.Repair(mergedJson, out _);
         if (CheckScenario(mergedJson, out _) is { } mergedReason)
         {
             throw new InvalidOperationException($"The merged scenario is not readable ({mergedReason}); nothing was written.");

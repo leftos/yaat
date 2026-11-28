@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Xunit;
 using Yaat.Client.ViewModels.Authoring;
 using Yaat.Sim.Authoring;
@@ -54,6 +55,36 @@ public sealed class ScenarioBrowserImportCompareTests : IDisposable
         Assert.Equal([ScenarioIdConflict.WorkingCopy, ScenarioIdConflict.WorkingCopy], _fx.Prompts.ConflictsAsked.Select(q => q.Conflict));
         Assert.Equal(merged, afterApply);
         Assert.Equal(theirs, _fx.Store.ReadWorkingCopyText(Zoa, "L1"));
+    }
+
+    [Fact]
+    public async Task CompareThenKeepId_TheirNullTimeOffset_IsRepairedInTheStoredCopy_AndNoticed()
+    {
+        _fx.AddCopy("L1", "Lima");
+        string theirs = ScenarioEditorFixture.ScenarioJson(
+            "L1",
+            "Lima",
+            "\"aircraft\": [{\"id\": \"ac1\", \"presetCommands\": [{\"id\": \"p1\", \"command\": \"FH 010\", \"timeOffset\": null}]}]"
+        );
+        _fx.Prompts.ImportFiles = [_fx.WriteImportFile("lima.json", theirs)];
+        _fx.Prompts.ImportAnswers.Enqueue(Compare);
+        _fx.Prompts.ImportAnswers.Enqueue(Skip);
+        JsonNode? applied = null;
+        _fx.Prompts.Merge = async request =>
+        {
+            await request.Write(theirs);
+            applied = JsonNode.Parse(_fx.Store.ReadWorkingCopyText(Zoa, "L1"))!;
+            return new ScenarioMergeResult(theirs, []);
+        };
+        ScenarioBrowserViewModel browser = await Browser();
+
+        await Import(browser);
+
+        Assert.NotNull(applied);
+        Assert.Equal(0, applied["aircraft"]![0]!["presetCommands"]![0]!["timeOffset"]!.GetValue<int>());
+        string notice = Assert.Single(browser.Notices, n => n.Contains("empty number", StringComparison.Ordinal));
+        Assert.Equal("Lima: merged; fixed 1 empty number YAAT could not read.", notice);
+        Assert.DoesNotContain(browser.Notices, n => n.StartsWith("Lima: imported", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -10,7 +10,8 @@ namespace Yaat.Client.ViewModels.Authoring;
 // clash asks Compare… / New id / Keep id / Skip, and an answer applied to the remaining files answers the later clashes
 // of the same kind (working copy, server scenario or both); a clash of another kind asks again. Compare… opens the merge
 // window two-way over the scenario holding the id (mine) and the file (theirs), then asks the clash again; it is never
-// applied to the remaining files. A file that cannot be read, is rejected, or names another ARTCC is a notice.
+// applied to the remaining files. A file that cannot be read, is rejected, names another ARTCC, or held empty numbers an
+// older YAATEdit version wrote is a notice.
 public sealed partial class ScenarioBrowserViewModel
 {
     /// <summary>The merge window's note when an import is compared with the scenario holding its id.</summary>
@@ -258,17 +259,23 @@ public sealed partial class ScenarioBrowserViewModel
                 throw new InvalidOperationException($"Not written: {result.Reason}");
             }
 
-            if (result.ArtccMismatch)
-            {
-                await OnUiAsync(() => AddNotice(OtherArtccNotice(file.Label, "imported into", artcc))).ConfigureAwait(false);
-            }
-
+            await OnUiAsync(() => NoteImport(artcc, file, result)).ConfigureAwait(false);
             return;
         }
 
-        string text = WithStoredId(merged, id);
+        string text = ScenarioNullNormalizer.Repair(WithStoredId(merged, id), out int nullsFixed);
         await Task.Run(() => store.SaveWorkingCopy(artcc, id, text)).ConfigureAwait(false);
+        await OnUiAsync(() => NoteRepairedMerge(file, nullsFixed)).ConfigureAwait(false);
         await OnUiAsync(() => WorkingCopyReplaced?.Invoke(this, new ScenarioWorkingCopyReplacedEventArgs(artcc, id))).ConfigureAwait(false);
+    }
+
+    // The notice an applied merge posts when it repaired empty numbers an older YAATEdit file left null; nothing otherwise.
+    private void NoteRepairedMerge(ImportFile file, int nullsFixed)
+    {
+        if (nullsFixed > 0)
+        {
+            AddNotice(WithFixedCount($"{file.Label}: merged", nullsFixed));
+        }
     }
 
     // The merged text as it is when its id is the stored one, else with the stored id written in (as Keep id does), so a
@@ -296,12 +303,30 @@ public sealed partial class ScenarioBrowserViewModel
         if (result.Outcome == ImportOutcome.Rejected)
         {
             AddNotice($"{file.Label}: not imported: {result.Reason}");
+            return;
         }
-        else if ((result.Outcome == ImportOutcome.Imported) && result.ArtccMismatch)
+
+        if (result.Outcome != ImportOutcome.Imported)
         {
-            AddNotice(OtherArtccNotice(file.Label, "imported into", artcc));
+            return;
+        }
+
+        if (result.ArtccMismatch)
+        {
+            AddNotice(WithFixedCount(OtherArtccNotice(file.Label, "imported into", artcc), result.NullsFixed));
+        }
+        else if (result.NullsFixed > 0)
+        {
+            AddNotice(WithFixedCount($"{file.Label}: imported", result.NullsFixed));
         }
     }
+
+    // The notice with how many empty numbers the import fixed, as a clause after a semicolon; the notice alone when the
+    // import fixed none.
+    private static string WithFixedCount(string notice, int nullsFixed) => (nullsFixed > 0) ? $"{notice}; {FixedCountClause(nullsFixed)}" : notice;
+
+    private static string FixedCountClause(int nullsFixed) =>
+        $"fixed {nullsFixed} empty {((nullsFixed == 1) ? "number" : "numbers")} YAAT could not read.";
 
     // The notice for a file whose artccId names another ARTCC than the shown one; the verb says what was done with it in
     // the shown ARTCC ("imported into", "compared in").
